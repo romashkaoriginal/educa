@@ -221,3 +221,186 @@
   color: #6b7280;
   line-height: 1.6;
 }
+/* ========== STUDENT SELECTION SCREEN ========== */
+.student-selection {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #1E40AF 0%, #3B82F6 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.selection-container {
+  max-width: 480px;
+  width: 100%;
+  text-align: center;
+}
+
+.selection-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 900;
+  font-size: 56px;
+  letter-spacing: -2px;
+  margin-bottom: 40px;
+  text-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.selection-logo .logo-ed {
+  color: #ffffff;
+}
+
+.selection-logo .logo-me {
+  color: #F59E0B;
+}
+
+.selection-title {
+  font-size: 32px;
+  font-weight: 800;
+  color: #ffffff;
+  margin-bottom: 8px;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.selection-subtitle {
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.9);
+  margin-bottom: 40px;
+  font-weight: 500;
+}
+
+.students-loading,
+.students-select-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.student-select-card {
+  background: #ffffff;
+  border: none;
+  border-radius: 20px;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  text-align: left;
+  width: 100%;
+}
+
+.student-select-card:hover {
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2);
+}
+
+.student-select-card:active {
+  transform: translateY(-2px) scale(1.01);
+}
+
+.student-select-avatar {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #3B82F6 0%, #60A5FA 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  font-weight: 800;
+  color: #ffffff;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.student-select-info {
+  flex: 1;
+}
+
+.student-select-info h3 {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0 0 4px 0;
+}
+
+.student-select-info p {
+  font-size: 14px;
+  color: #6b7280;
+  margin: 0;
+}
+
+.student-select-arrow {
+  font-size: 24px;
+  color: #9ca3af;
+  flex-shrink: 0;
+}
+
+/* Skeleton для выбора студента */
+.student-select-card.skeleton {
+  pointer-events: none;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.student-select-card.skeleton .skeleton-avatar {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: linear-gradient(90deg, #e5e7eb 0%, #f3f4f6 50%, #e5e7eb 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+.student-select-card.skeleton .skeleton-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.student-select-card.skeleton .skeleton-line {
+  height: 16px;
+  background: linear-gradient(90deg, #e5e7eb 0%, #f3f4f6 50%, #e5e7eb 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
+}
+
+.student-select-card.skeleton .skeleton-line.short {
+  width: 60%;
+}
+
+/* Header user avatar кликабельный */
+.user-avatar {
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.user-avatar:hover {
+  transform: scale(1.1);
+}
+
+/* Responsive */
+@media (max-width: 400px) {
+  .selection-logo {
+    font-size: 48px;
+  }
+  
+  .selection-title {
+    font-size: 28px;
+  }
+  
+  .student-select-card {
+    padding: 16px;
+  }
+  
+  .student-select-avatar {
+    width: 50px;
+    height: 50px;
+    font-size: 20px;
+  }
+}

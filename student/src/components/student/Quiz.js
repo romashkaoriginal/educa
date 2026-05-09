@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
 
-function Quiz() {
+function Quiz({ studentId }) {
   const [code, setCode] = useState('');
 
   const handleJoin = () => {
     if (code.trim()) {
       alert(`Вход по коду: ${code}`);
-      // Здесь будет логика подключения к викторине
     }
   };
 

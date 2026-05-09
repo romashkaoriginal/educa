@@ -1,72 +1,128 @@
 import React, { useState, useEffect } from 'react';
-import './App.css';
-import StudentApp from './pages/StudentApp';
-import AdminPanel from './pages/AdminPanel';
+import './StudentApp.css';
+import Practice from '../components/student/Practice';
+import Homework from '../components/student/Homework';
+import Quiz from '../components/student/Quiz';
 
-function App() {
-  const [selectedRole, setSelectedRole] = useState(null);
+const API_URL = 'https://educa-production-a98e.up.railway.app/api';
 
-  // Prefetch данных админки заранее (в фоне)
+function StudentApp() {
+  const [activeTab, setActiveTab] = useState('practice');
+  const [students, setStudents] = useState([]);
+  const [selectedStudent, setSelectedStudent] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const tabs = [
+    { id: 'practice', name: 'Практика', icon: '💪', component: Practice },
+    { id: 'homework', name: 'Домашка', icon: '📝', component: Homework },
+    { id: 'quiz', name: 'Викторина', icon: '🎯', component: Quiz },
+  ];
+
+  // Загрузка списка студентов
   useEffect(() => {
-    // Начинаем загрузку данных до выбора роли
-    fetch('https://educa-production-a98e.up.railway.app/api/admin/dashboard')
-      .then(res => res.json())
-      .then(data => {
-        // Сохраняем в sessionStorage для быстрого доступа
-        sessionStorage.setItem('adminData', JSON.stringify(data));
-      })
-      .catch(() => {
-        // Игнорируем ошибки prefetch
-      });
+    const fetchStudents = async () => {
+      try {
+        const response = await fetch(`${API_URL}/students`);
+        const data = await response.json();
+        setStudents(data.students || []);
+      } catch (error) {
+        console.error('Error fetching students:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchStudents();
   }, []);
 
-  if (!selectedRole) {
+  const ActiveComponent = tabs.find(tab => tab.id === activeTab)?.component;
+
+  // Если студент не выбран - показываем список выбора
+  if (!selectedStudent) {
     return (
-      <div className="role-selection">
-        <div className="role-container">
-          <div className="role-logo">
+      <div className="student-selection">
+        <div className="selection-container">
+          <div className="selection-logo">
             <span className="logo-ed">ED</span>
             <span className="logo-me">me</span>
           </div>
           
-          <h1 className="role-title">Выберите роль</h1>
-          <p className="role-subtitle">Как вы хотите войти в систему?</p>
+          <h1 className="selection-title">Выберите ученика</h1>
+          <p className="selection-subtitle">Войдите под своим аккаунтом</p>
 
-          <div className="role-buttons">
-            <button 
-              className="role-button role-student"
-              onClick={() => setSelectedRole('student')}
-            >
-              <div className="role-icon">👨‍🎓</div>
-              <div className="role-info">
-                <h2>Ученик</h2>
-                <p>Проходи тесты, практикуйся и выполняй задания</p>
-              </div>
-            </button>
-
-            <button 
-              className="role-button role-admin"
-              onClick={() => setSelectedRole('admin')}
-            >
-              <div className="role-icon">👨‍💼</div>
-              <div className="role-info">
-                <h2>Администратор</h2>
-                <p>Создавай задания и управляй платформой</p>
-              </div>
-            </button>
-          </div>
+          {loading ? (
+            <div className="students-loading">
+              {[1, 2, 3].map(i => (
+                <div key={i} className="student-select-card skeleton">
+                  <div className="skeleton-avatar"></div>
+                  <div className="skeleton-info">
+                    <div className="skeleton-line"></div>
+                    <div className="skeleton-line short"></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="students-select-list">
+              {students.map(student => (
+                <button
+                  key={student.id}
+                  className="student-select-card"
+                  onClick={() => setSelectedStudent(student)}
+                >
+                  <div className="student-select-avatar">
+                    {student.firstName[0]}{student.lastName[0]}
+                  </div>
+                  <div className="student-select-info">
+                    <h3>{student.firstName} {student.lastName}</h3>
+                    <p>@{student.telegramUsername || 'no username'}</p>
+                  </div>
+                  <div className="student-select-arrow">→</div>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     );
   }
 
-  // Показываем соответствующее приложение
+  // Если студент выбран - показываем приложение
   return (
-    <>
-      {selectedRole === 'student' && <StudentApp />}
-      {selectedRole === 'admin' && <AdminPanel />}
-    </>
+    <div className="student-app">
+      {/* Header */}
+      <header className="header">
+        <div className="logo">
+          <span className="logo-ed">ED</span>
+          <span className="logo-me">me</span>
+        </div>
+        <div className="user-info">
+          <div className="user-avatar" onClick={() => setSelectedStudent(null)}>
+            {selectedStudent.firstName[0]}{selectedStudent.lastName[0]}
+          </div>
+        </div>
+      </header>
+
+      {/* Content */}
+      <main className="content">
+        {ActiveComponent && <ActiveComponent studentId={selectedStudent.id} />}
+      </main>
+
+      {/* Bottom Navigation */}
+      <nav className="bottom-navigation">
+        {tabs.map(tab => (
+          <button
+            key={tab.id}
+            className={`nav-button ${activeTab === tab.id ? 'active' : ''}`}
+            onClick={() => setActiveTab(tab.id)}
+          >
+            <span className="nav-icon">{tab.icon}</span>
+            <span className="nav-text">{tab.name}</span>
+          </button>
+        ))}
+      </nav>
+    </div>
   );
 }
 
-export default App;
+export default StudentApp;
