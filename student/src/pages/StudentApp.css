@@ -253,7 +253,7 @@
 }
 
 .selection-logo .logo-me {
-  color: #F59E0B;
+  color: #F59E0B; /* ОРАНЖЕВЫЙ */
 }
 
 .selection-title {
@@ -403,4 +403,29 @@
     height: 50px;
     font-size: 20px;
   }
+}
+.header {
+  background: linear-gradient(135deg, #1E40AF 0%, #3B82F6 100%);
+  padding: 16px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.header .logo {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-weight: 900;
+  font-size: 28px;
+  letter-spacing: -1px;
+}
+
+.header .logo-ed {
+  color: #ffffff;
+}
+
+.header .logo-me {
+  color: #F59E0B;
 }

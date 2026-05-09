@@ -58,26 +58,20 @@ function Practice({ studentId }) {
       </p>
 
       {/* Фильтр по предметам */}
-      {subjects.length > 1 && (
-        <div className="subject-filters">
-          <button
-            className={`filter-button ${selectedSubject === 'all' ? 'active' : ''}`}
-            onClick={() => setSelectedSubject('all')}
-          >
-            Все предметы
-          </button>
-          {subjects.map(subject => (
-            <button
-              key={subject.id}
-              className={`filter-button ${selectedSubject === subject.id ? 'active' : ''}`}
-              onClick={() => setSelectedSubject(subject.id)}
-            >
-              <span className="filter-icon">{subject.icon}</span>
-              <span>{subject.name}</span>
-            </button>
-          ))}
-        </div>
-      )}
+{subjects.length > 1 && (
+  <div className="subject-filters">
+    {subjects.map(subject => (
+      <button
+        key={subject.id}
+        className={`filter-button ${selectedSubject === subject.id ? 'active' : ''}`}
+        onClick={() => setSelectedSubject(subject.id)}
+      >
+        <span className="filter-icon">{subject.icon}</span>
+        <span>{subject.name}</span>
+      </button>
+    ))}
+  </div>
+)}
 
       {filteredTopics.length === 0 ? (
         <div className="empty-state">
