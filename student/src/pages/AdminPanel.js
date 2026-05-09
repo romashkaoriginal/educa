@@ -10,6 +10,7 @@ function AdminPanel() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
+  const [loading, setLoading] = useState(true);
   
   const [formData, setFormData] = useState({
     telegramId: '',
@@ -19,13 +20,48 @@ function AdminPanel() {
     subjectIds: []
   });
 
-  // Загрузка данных
-  useEffect(() => {
-    if (activeSection === 'students') {
-      fetchStudents();
-      fetchSubjects();
+  // В начале компонента добавьте:
+useEffect(() => {
+  const loadData = async () => {
+    setLoading(true);
+    
+    try {
+      // Проверяем кеш
+      const cachedData = sessionStorage.getItem('adminData');
+      
+      if (cachedData) {
+        // Используем кешированные данные для мгновенной загрузки
+        const data = JSON.parse(cachedData);
+        setStudents(data.students || []);
+        setSubjects(data.subjects || []);
+        setLoading(false);
+        
+        // Обновляем данные в фоне
+        fetch(`${API_URL}/admin/dashboard`)
+          .then(res => res.json())
+          .then(freshData => {
+            setStudents(freshData.students || []);
+            setSubjects(freshData.subjects || []);
+            sessionStorage.setItem('adminData', JSON.stringify(freshData));
+          })
+          .catch(() => {});
+      } else {
+        // Загружаем с сервера
+        const response = await fetch(`${API_URL}/admin/dashboard`);
+        const data = await response.json();
+        setStudents(data.students || []);
+        setSubjects(data.subjects || []);
+        sessionStorage.setItem('adminData', JSON.stringify(data));
+        setLoading(false);
+      }
+    } catch (error) {
+      console.error('Error loading data:', error);
+      setLoading(false);
     }
-  }, [activeSection]);
+  };
+  
+  loadData();
+}, []);
 
   const fetchStudents = async () => {
     try {
@@ -58,7 +94,6 @@ function AdminPanel() {
       });
 
       if (response.ok) {
-        alert('Студент успешно добавлен!');
         setFormData({
           telegramId: '',
           telegramUsername: '',
@@ -68,13 +103,9 @@ function AdminPanel() {
         });
         setShowAddForm(false);
         fetchStudents();
-      } else {
-        const error = await response.json();
-        alert(`Ошибка: ${error.message}`);
       }
     } catch (error) {
       console.error('Error creating student:', error);
-      alert('Ошибка при создании студента');
     }
   };
 
@@ -87,9 +118,15 @@ function AdminPanel() {
       });
 
       if (response.ok) {
-        alert('Данные студента обновлены!');
-        fetchStudents();
-        setSelectedStudent(null);
+        await fetchStudents();
+        
+        const updatedStudents = await fetch(`${API_URL}/students`);
+        const data = await updatedStudents.json();
+        const updatedStudent = data.students.find(s => s.id === studentId);
+        
+        if (updatedStudent) {
+          setSelectedStudent(updatedStudent);
+        }
       }
     } catch (error) {
       console.error('Error updating student:', error);
@@ -106,15 +143,12 @@ function AdminPanel() {
   };
 
   const handleDeleteStudent = async (studentId) => {
-    if (!window.confirm('Удалить студента?')) return;
-
     try {
       const response = await fetch(`${API_URL}/students/${studentId}`, {
         method: 'DELETE'
       });
 
       if (response.ok) {
-        alert('Студент удалён');
         fetchStudents();
         setSelectedStudent(null);
       }
@@ -123,7 +157,6 @@ function AdminPanel() {
     }
   };
 
-  // Фильтрация студентов по поиску
   const filteredStudents = students.filter(student => {
     const query = searchQuery.toLowerCase();
     return (
@@ -142,7 +175,6 @@ function AdminPanel() {
 
   return (
     <div className="admin-panel">
-      {/* Header */}
       <header className="admin-header">
         <div className="logo">
           <span className="logo-ed">ED</span>
@@ -151,7 +183,6 @@ function AdminPanel() {
         <div className="admin-title">Админ-панель</div>
       </header>
 
-      {/* Tabs Navigation */}
       <nav className="admin-tabs">
         {sections.map(section => (
           <button
@@ -166,12 +197,10 @@ function AdminPanel() {
       </nav>
       
       <main className="admin-content">
-        {/* РАЗДЕЛ СТУДЕНТЫ */}
         {activeSection === 'students' && (
           <div className="admin-section">
             {!selectedStudent ? (
               <>
-                {/* Header с поиском и кнопкой добавления */}
                 <div className="section-header">
                   <h2>Студенты ({filteredStudents.length})</h2>
                   <div className="header-actions">
@@ -191,7 +220,6 @@ function AdminPanel() {
                   </div>
                 </div>
 
-                {/* Форма добавления */}
                 {showAddForm && (
                   <form className="add-form" onSubmit={handleSubmit}>
                     <div className="form-row">
@@ -248,38 +276,50 @@ function AdminPanel() {
                   </form>
                 )}
 
-                {/* Список студентов */}
-                <div className="students-grid">
-                  {filteredStudents.map(student => (
-                    <div 
-                      key={student.id} 
-                      className="student-card"
-                      onClick={() => setSelectedStudent(student)}
-                    >
-                      <div className="student-avatar">
-                        {student.firstName[0]}{student.lastName[0]}
-                      </div>
-                      <div className="student-info">
-                        <h3>{student.firstName} {student.lastName}</h3>
-                        <p className="student-username">@{student.telegramUsername || 'no username'}</p>
-                        <div className="student-subjects-mini">
-                          {student.subjects.slice(0, 3).map(subj => (
-                            <span key={subj.id} className="subject-badge">
-                              {subj.icon}
-                            </span>
-                          ))}
-                          {student.subjects.length > 3 && (
-                            <span className="subject-badge">+{student.subjects.length - 3}</span>
-                          )}
+                {loading ? (
+                  <div className="students-grid">
+                    {[1, 2, 3, 4].map(i => (
+                      <div key={i} className="student-card skeleton">
+                        <div className="skeleton-avatar"></div>
+                        <div className="skeleton-info">
+                          <div className="skeleton-line"></div>
+                          <div className="skeleton-line short"></div>
                         </div>
                       </div>
-                      <div className="student-arrow">→</div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="students-grid">
+                    {filteredStudents.map(student => (
+                      <div 
+                        key={student.id} 
+                        className="student-card"
+                        onClick={() => setSelectedStudent(student)}
+                      >
+                        <div className="student-avatar">
+                          {student.firstName[0]}{student.lastName[0]}
+                        </div>
+                        <div className="student-info">
+                          <h3>{student.firstName} {student.lastName}</h3>
+                          <p className="student-username">@{student.telegramUsername || 'no username'}</p>
+                          <div className="student-subjects-mini">
+                            {student.subjects.slice(0, 3).map(subj => (
+                              <span key={subj.id} className="subject-badge">
+                                {subj.icon}
+                              </span>
+                            ))}
+                            {student.subjects.length > 3 && (
+                              <span className="subject-badge">+{student.subjects.length - 3}</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="student-arrow">→</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </>
             ) : (
-              /* Детальная карточка студента */
               <StudentDetailCard
                 student={selectedStudent}
                 subjects={subjects}
@@ -291,7 +331,6 @@ function AdminPanel() {
           </div>
         )}
 
-        {/* ДРУГИЕ РАЗДЕЛЫ (заглушки) */}
         {activeSection === 'practice' && (
           <div className="admin-section">
             <h2>Практика</h2>
@@ -317,7 +356,6 @@ function AdminPanel() {
   );
 }
 
-// Компонент детальной карточки студента
 function StudentDetailCard({ student, subjects, onClose, onUpdate, onDelete }) {
   const [isEditing, setIsEditing] = useState(false);
   const [selectedSubjects, setSelectedSubjects] = useState(
@@ -325,8 +363,8 @@ function StudentDetailCard({ student, subjects, onClose, onUpdate, onDelete }) {
   );
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
-  // Загрузка статистики при открытии карточки
   useEffect(() => {
     const fetchStats = async () => {
       try {
@@ -343,8 +381,10 @@ function StudentDetailCard({ student, subjects, onClose, onUpdate, onDelete }) {
     fetchStats();
   }, [student.id]);
 
-  const handleSave = () => {
-    onUpdate(student.id, { subjectIds: selectedSubjects });
+  const handleSave = async () => {
+    setSaving(true);
+    await onUpdate(student.id, { subjectIds: selectedSubjects });
+    setSaving(false);
     setIsEditing(false);
   };
 
@@ -368,7 +408,6 @@ function StudentDetailCard({ student, subjects, onClose, onUpdate, onDelete }) {
       </div>
 
       <div className="detail-content">
-        {/* Основная информация */}
         <div className="detail-card">
           <div className="student-avatar-large">
             {student.firstName[0]}{student.lastName[0]}
@@ -378,7 +417,6 @@ function StudentDetailCard({ student, subjects, onClose, onUpdate, onDelete }) {
           <p className="student-id">ID: {student.telegramId}</p>
         </div>
 
-        {/* Предметы */}
         <div className="detail-card">
           <div className="card-header">
             <h3>📚 Предметы</h3>
@@ -402,8 +440,12 @@ function StudentDetailCard({ student, subjects, onClose, onUpdate, onDelete }) {
                   <span>{subject.icon} {subject.name}</span>
                 </label>
               ))}
-              <button className="save-button" onClick={handleSave}>
-                Сохранить
+              <button 
+                className="save-button" 
+                onClick={handleSave}
+                disabled={saving}
+              >
+                {saving ? '💾 Сохранение...' : '💾 Сохранить'}
               </button>
             </div>
           ) : (
@@ -418,7 +460,6 @@ function StudentDetailCard({ student, subjects, onClose, onUpdate, onDelete }) {
           )}
         </div>
 
-        {/* Статистика */}
         {loading ? (
           <p style={{ textAlign: 'center', color: '#6b7280', padding: '40px' }}>
             Загрузка статистики...
@@ -458,7 +499,6 @@ function StudentDetailCard({ student, subjects, onClose, onUpdate, onDelete }) {
           </p>
         )}
 
-        {/* История активности */}
         <div className="detail-card">
           <h3>📊 История активности</h3>
           <p className="coming-soon">Скоро здесь будет детальная история</p>

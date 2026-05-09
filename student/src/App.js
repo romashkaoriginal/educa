@@ -1,10 +1,24 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './App.css';
 import StudentApp from './pages/StudentApp';
 import AdminPanel from './pages/AdminPanel';
 
 function App() {
   const [selectedRole, setSelectedRole] = useState(null);
+
+  // Prefetch данных админки заранее (в фоне)
+  useEffect(() => {
+    // Начинаем загрузку данных до выбора роли
+    fetch('https://educa-production-a98e.up.railway.app/api/admin/dashboard')
+      .then(res => res.json())
+      .then(data => {
+        // Сохраняем в sessionStorage для быстрого доступа
+        sessionStorage.setItem('adminData', JSON.stringify(data));
+      })
+      .catch(() => {
+        // Игнорируем ошибки prefetch
+      });
+  }, []);
 
   if (!selectedRole) {
     return (

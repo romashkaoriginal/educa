@@ -6,7 +6,8 @@ const { syncDatabase } = require('./models');
 const authRoutes = require('./routes/auth');
 const subjectRoutes = require('./routes/subjects');
 const studentRoutes = require('./routes/students');
-const statsRoutes = require('./routes/stats'); // НОВОЕ
+const statsRoutes = require('./routes/stats');
+const adminRoutes = require('./routes/admin'); // НОВОЕ
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -26,7 +27,8 @@ app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/subjects', subjectRoutes);
 app.use('/api/students', studentRoutes);
-app.use('/api/stats', statsRoutes); // НОВОЕ
+app.use('/api/stats', statsRoutes);
+app.use('/api/admin', adminRoutes); // НОВОЕ
 
 // Тестовый маршрут
 app.get('/', (req, res) => {
