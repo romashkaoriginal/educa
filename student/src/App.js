@@ -1,52 +1,57 @@
 import React, { useState } from 'react';
 import './App.css';
-import Quiz from './components/Quiz';
-import Homework from './components/Homework';
-import Practice from './components/Practice';
+import StudentApp from './pages/StudentApp';
+import AdminPanel from './pages/AdminPanel';
 
 function App() {
-  const [activeTab, setActiveTab] = useState('quiz');
+  const [selectedRole, setSelectedRole] = useState(null);
 
-  const tabs = [
-    { id: 'quiz', name: 'Викторина', icon: '🎯', component: Quiz },
-    { id: 'homework', name: 'Домашка', icon: '📝', component: Homework },
-    { id: 'practice', name: 'Практика', icon: '💪', component: Practice },
-  ];
+  if (!selectedRole) {
+    return (
+      <div className="role-selection">
+        <div className="role-container">
+          <div className="role-logo">
+            <span className="logo-ed">ED</span>
+            <span className="logo-me">me</span>
+          </div>
+          
+          <h1 className="role-title">Выберите роль</h1>
+          <p className="role-subtitle">Как вы хотите войти в систему?</p>
 
-  const ActiveComponent = tabs.find(tab => tab.id === activeTab)?.component;
+          <div className="role-buttons">
+            <button 
+              className="role-button role-student"
+              onClick={() => setSelectedRole('student')}
+            >
+              <div className="role-icon">👨‍🎓</div>
+              <div className="role-info">
+                <h2>Ученик</h2>
+                <p>Проходи тесты, практикуйся и выполняй задания</p>
+              </div>
+            </button>
 
+            <button 
+              className="role-button role-admin"
+              onClick={() => setSelectedRole('admin')}
+            >
+              <div className="role-icon">👨‍💼</div>
+              <div className="role-info">
+                <h2>Администратор</h2>
+                <p>Создавай задания и управляй платформой</p>
+              </div>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Показываем соответствующее приложение
   return (
-    <div className="app">
-      {/* Header */}
-      <header className="header">
-        <div className="logo">
-          <span className="logo-ed">ED</span>
-          <span className="logo-me">me</span>
-        </div>
-        <div className="user-info">
-          <div className="user-avatar">👤</div>
-        </div>
-      </header>
-
-      {/* Navigation */}
-      <nav className="navigation">
-        {tabs.map(tab => (
-          <button
-            key={tab.id}
-            className={`nav-button ${activeTab === tab.id ? 'active' : ''}`}
-            onClick={() => setActiveTab(tab.id)}
-          >
-            <span className="nav-icon">{tab.icon}</span>
-            <span className="nav-text">{tab.name}</span>
-          </button>
-        ))}
-      </nav>
-
-      {/* Content */}
-      <main className="content">
-        {ActiveComponent && <ActiveComponent />}
-      </main>
-    </div>
+    <>
+      {selectedRole === 'student' && <StudentApp />}
+      {selectedRole === 'admin' && <AdminPanel />}
+    </>
   );
 }
 
