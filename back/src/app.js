@@ -4,6 +4,8 @@ require('dotenv').config();
 
 const { syncDatabase } = require('./models');
 const authRoutes = require('./routes/auth');
+const subjectRoutes = require('./routes/subjects');
+const studentRoutes = require('./routes/students'); 
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -11,7 +13,7 @@ const PORT = process.env.PORT || 5000;
 // Middleware
 app.use(cors({
   origin: [
-    'https://educa-student.vercel.app',
+    'https://educa-student.netlify.app',
     'http://localhost:3000',
     'https://web.telegram.org'
   ],
@@ -21,6 +23,8 @@ app.use(express.json());
 
 // Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/subjects', subjectRoutes);
+app.use('/api/students', studentRoutes); // НОВОЕ
 
 // Тестовый маршрут
 app.get('/', (req, res) => {

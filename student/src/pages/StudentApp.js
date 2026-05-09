@@ -5,7 +5,7 @@ import Homework from '../components/student/Homework';
 import Quiz from '../components/student/Quiz';
 
 function StudentApp() {
-  const [activeTab, setActiveTab] = useState('practice');
+  const [activeTab, setActiveTab] = useState('practice'); // ПЕРВЫЙ ЭКРАН - ПРАКТИКА
 
   const tabs = [
     { id: 'practice', name: 'Практика', icon: '💪', component: Practice },
