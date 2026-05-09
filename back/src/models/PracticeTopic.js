@@ -15,6 +15,14 @@ const PracticeTopic = sequelize.define('PracticeTopic', {
     type: DataTypes.TEXT,
     allowNull: true
   },
+  subjectId: {  // НОВОЕ ПОЛЕ
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: 'subjects',
+      key: 'id'
+    }
+  },
   difficulty: {
     type: DataTypes.ENUM('easy', 'medium', 'hard'),
     defaultValue: 'medium'

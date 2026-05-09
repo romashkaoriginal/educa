@@ -1,0 +1,41 @@
+const { DataTypes } = require('sequelize');
+const sequelize = require('../config/database');
+
+const UserSubject = sequelize.define('UserSubject', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true
+  },
+  userId: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: 'users',
+      key: 'id'
+    }
+  },
+  subjectId: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: 'subjects',
+      key: 'id'
+    }
+  },
+  enrolledAt: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW
+  }
+}, {
+  tableName: 'user_subjects',
+  timestamps: false,
+  indexes: [
+    {
+      unique: true,
+      fields: ['userId', 'subjectId']
+    }
+  ]
+});
+
+module.exports = UserSubject;

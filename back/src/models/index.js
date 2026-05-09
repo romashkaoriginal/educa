@@ -2,6 +2,8 @@ const sequelize = require('../config/database');
 
 // Импорт всех моделей
 const User = require('./User');
+const Subject = require('./Subject');
+const UserSubject = require('./UserSubject');
 const Quiz = require('./Quiz');
 const QuizQuestion = require('./QuizQuestion');
 const QuizParticipant = require('./QuizParticipant');
@@ -14,7 +16,29 @@ const PracticeTopic = require('./PracticeTopic');
 const PracticeQuestion = require('./PracticeQuestion');
 const PracticeAttempt = require('./PracticeAttempt');
 
-// СВЯЗИ (Associations)
+// ========== НОВЫЕ СВЯЗИ С SUBJECTS ==========
+
+// User ↔ Subject (многие ко многим через UserSubject)
+User.belongsToMany(Subject, { 
+  through: UserSubject, 
+  foreignKey: 'userId', 
+  as: 'subjects' 
+});
+Subject.belongsToMany(User, { 
+  through: UserSubject, 
+  foreignKey: 'subjectId', 
+  as: 'students' 
+});
+
+// Subject → Homeworks
+Subject.hasMany(Homework, { foreignKey: 'subjectId', as: 'homeworks' });
+Homework.belongsTo(Subject, { foreignKey: 'subjectId', as: 'subject' });
+
+// Subject → PracticeTopics
+Subject.hasMany(PracticeTopic, { foreignKey: 'subjectId', as: 'practiceTopics' });
+PracticeTopic.belongsTo(Subject, { foreignKey: 'subjectId', as: 'subject' });
+
+// ========== СУЩЕСТВУЮЩИЕ СВЯЗИ ==========
 
 // User → Quizzes (создатель)
 User.hasMany(Quiz, { foreignKey: 'createdBy', as: 'createdQuizzes' });
@@ -97,6 +121,8 @@ const syncDatabase = async () => {
 module.exports = {
   sequelize,
   User,
+  Subject,
+  UserSubject,
   Quiz,
   QuizQuestion,
   QuizParticipant,

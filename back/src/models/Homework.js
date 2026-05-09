@@ -15,6 +15,14 @@ const Homework = sequelize.define('Homework', {
     type: DataTypes.TEXT,
     allowNull: true
   },
+  subjectId: {  // НОВОЕ ПОЛЕ
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: 'subjects',
+      key: 'id'
+    }
+  },
   deadline: {
     type: DataTypes.DATE,
     allowNull: true
