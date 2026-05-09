@@ -4,8 +4,8 @@
   "description": "Backend for education platform",
   "main": "src/app.js",
   "scripts": {
-    "start": "node scr/app.js",
-    "dev": "nodemon scr/app.js"
+    "start": "node src/app.js",
+    "dev": "nodemon src/app.js"
   },
   "keywords": [],
   "author": "",
