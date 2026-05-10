@@ -15,6 +15,7 @@ const HomeworkAnswer = require('./HomeworkAnswer');
 const PracticeTopic = require('./PracticeTopic');
 const PracticeQuestion = require('./PracticeQuestion');
 const PracticeAttempt = require('./PracticeAttempt');
+const BotUser = require('./BotUser'); // ← ДОБАВЬ ЭТУ СТРОКУ
 
 // ========== НОВЫЕ СВЯЗИ С SUBJECTS ==========
 
@@ -37,6 +38,11 @@ Homework.belongsTo(Subject, { foreignKey: 'subjectId', as: 'subject' });
 // Subject → PracticeTopics
 Subject.hasMany(PracticeTopic, { foreignKey: 'subjectId', as: 'practiceTopics' });
 PracticeTopic.belongsTo(Subject, { foreignKey: 'subjectId', as: 'subject' });
+
+// ========== СВЯЗИ BOTUSER ========== ← ДОБАВЬ ВСЁ ЭТО
+// BotUser → User (опционально, если назначен в систему)
+BotUser.belongsTo(User, { foreignKey: 'userId', as: 'assignedUser' });
+User.hasOne(BotUser, { foreignKey: 'userId', as: 'botProfile' });
 
 // ========== СУЩЕСТВУЮЩИЕ СВЯЗИ ==========
 
@@ -134,5 +140,6 @@ module.exports = {
   PracticeTopic,
   PracticeQuestion,
   PracticeAttempt,
+  BotUser, 
   syncDatabase
 };

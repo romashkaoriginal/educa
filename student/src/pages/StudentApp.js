@@ -48,7 +48,7 @@ function StudentApp() {
           </div>
           
           <h1 className="selection-title">Выберите ученика</h1>
-          <p className="selection-subtitle">Войдите под своим аккаунтом</p>
+          <p className="selection-subtitle"></p>
 
           {loading ? (
             <div className="students-loading">

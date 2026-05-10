@@ -7,29 +7,47 @@ const UserSubject = sequelize.define('UserSubject', {
     primaryKey: true,
     autoIncrement: true
   },
+  
   userId: {
     type: DataTypes.INTEGER,
     allowNull: false,
     references: {
       model: 'users',
       key: 'id'
-    }
+    },
+    onDelete: 'CASCADE'
   },
+  
   subjectId: {
     type: DataTypes.INTEGER,
     allowNull: false,
     references: {
       model: 'subjects',
       key: 'id'
-    }
+    },
+    onDelete: 'CASCADE'
   },
-  enrolledAt: {
+  
+  // Даты доступа к конкретному предмету (для каждого предмета отдельно)
+  accessStartDate: {
     type: DataTypes.DATE,
-    defaultValue: DataTypes.NOW
+    allowNull: true,
+    comment: 'Дата начала доступа к предмету'
+  },
+  
+  accessEndDate: {
+    type: DataTypes.DATE,
+    allowNull: true,
+    comment: 'Дата окончания доступа к предмету'
+  },
+  
+  isActive: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
   }
 }, {
   tableName: 'user_subjects',
-  timestamps: false,
+  timestamps: true,
   indexes: [
     {
       unique: true,

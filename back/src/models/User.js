@@ -8,26 +8,12 @@ const User = sequelize.define('User', {
     autoIncrement: true
   },
   
-  // ДЛЯ АДМИНОВ (веб-сайт)
-  email: {
-    type: DataTypes.STRING,
-    allowNull: true,
-    unique: true,
-    validate: {
-      isEmail: true
-    }
-  },
-  password: {
-    type: DataTypes.STRING,
-    allowNull: true
-  },
-  
-  // ДЛЯ СТУДЕНТОВ (Telegram Mini App)
+  // TELEGRAM DATA (для всех: админов, учителей, менеджеров, студентов)
   telegramId: {
-    type: DataTypes.BIGINT,
-    allowNull: true,
-    unique: true
-  },
+  type: DataTypes.BIGINT,
+  allowNull: true,  // ← ДОЛЖНО БЫТЬ
+  unique: true
+},
   telegramUsername: {
     type: DataTypes.STRING,
     allowNull: true
@@ -47,7 +33,7 @@ const User = sequelize.define('User', {
     allowNull: false
   },
   role: {
-    type: DataTypes.ENUM('admin', 'student'),
+    type: DataTypes.ENUM('admin', 'teacher', 'manager', 'student'),
     allowNull: false,
     defaultValue: 'student'
   },
@@ -56,7 +42,17 @@ const User = sequelize.define('User', {
     defaultValue: true
   },
   
-  // СТАТИСТИКА (для студентов)
+  accessStartDate: {
+    type: DataTypes.DATE,
+    allowNull: true,
+    comment: 'Дата начала доступа к приложению (для студентов)'
+  },
+  accessEndDate: {
+    type: DataTypes.DATE,
+    allowNull: true,
+    comment: 'Дата окончания доступа к приложению (для студентов)'
+  },
+  
   totalScore: {
     type: DataTypes.INTEGER,
     defaultValue: 0
@@ -75,13 +71,7 @@ const User = sequelize.define('User', {
   indexes: [
     {
       unique: true,
-      fields: ['email'],
-      where: { email: { [Op.ne]: null } }
-    },
-    {
-      unique: true,
-      fields: ['telegramId'],
-      where: { telegramId: { [Op.ne]: null } }
+      fields: ['telegramId']
     }
   ]
 });

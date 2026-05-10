@@ -260,6 +260,31 @@ exports.deleteStudent = async (req, res) => {
   }
 };
 
+// Получить всех пользователей бота (для назначения студентом)
+exports.getAllBotUsers = async (req, res) => {
+  try {
+    // Получаем ВСЕХ пользователей из базы (и студентов, и не студентов)
+    const allUsers = await User.findAll({
+      attributes: [
+        'id',
+        'telegramId',
+        'telegramUsername',
+        'firstName',
+        'lastName',
+        'role',
+        'isActive',
+        'createdAt'
+      ],
+      order: [['createdAt', 'DESC']]
+    });
+
+    res.json({ users: allUsers });
+  } catch (error) {
+    console.error('Get all bot users error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
 // Назначить пользователя студентом
 exports.assignUserAsStudent = async (req, res) => {
   try {

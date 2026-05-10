@@ -8,8 +8,10 @@ const subjectRoutes = require('./routes/subjects');
 const studentRoutes = require('./routes/students');
 const statsRoutes = require('./routes/stats');
 const adminRoutes = require('./routes/admin');
-const homeworkRoutes = require('./routes/homework'); // НОВОЕ
-const practiceRoutes = require('./routes/practice'); // НОВОЕ
+const homeworkRoutes = require('./routes/homework');
+const practiceRoutes = require('./routes/practice');
+const usersRoutes = require('./routes/users');
+const botUsersRoutes = require('./routes/botUsers'); // ← ДОБАВЬ ЭТУ СТРОКУ
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -31,8 +33,10 @@ app.use('/api/subjects', subjectRoutes);
 app.use('/api/students', studentRoutes);
 app.use('/api/stats', statsRoutes);
 app.use('/api/admin', adminRoutes);
-app.use('/api/homework', homeworkRoutes); // НОВОЕ
-app.use('/api/practice', practiceRoutes); // НОВОЕ
+app.use('/api/homework', homeworkRoutes);
+app.use('/api/practice', practiceRoutes);
+app.use('/api/users', usersRoutes);
+app.use('/api/bot-users', botUsersRoutes); // ← ДОБАВЬ ЭТУ СТРОКУ
 
 // Тестовый маршрут
 app.get('/', (req, res) => {

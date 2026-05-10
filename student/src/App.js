@@ -25,7 +25,7 @@ function App() {
           </div>
           
           <h1 className="role-title">Выберите роль</h1>
-          <p className="role-subtitle">Как вы хотите войти в систему?</p>
+          <p className="role-subtitle"></p>
 
           <div className="role-buttons">
             <button 
@@ -35,7 +35,7 @@ function App() {
               <div className="role-icon">👨‍🎓</div>
               <div className="role-info">
                 <h2>Ученик</h2>
-                <p>Проходи тесты, практикуйся и выполняй задания</p>
+                <p></p>
               </div>
             </button>
 
@@ -46,7 +46,7 @@ function App() {
               <div className="role-icon">👨‍💼</div>
               <div className="role-info">
                 <h2>Администратор</h2>
-                <p>Создавай задания и управляй платформой</p>
+                <p></p>
               </div>
             </button>
           </div>
