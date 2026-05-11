@@ -168,3 +168,34 @@ exports.getBotUsersStats = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
+// Синхронизировать статусы isAssigned для всех BotUser
+exports.syncAssignedStatus = async (req, res) => {
+  try {
+    const botUsers = await BotUser.findAll();
+    let synced = 0;
+
+    for (const botUser of botUsers) {
+      const systemUser = await User.findOne({ 
+        where: { telegramId: botUser.telegramId } 
+      });
+      
+      const shouldBeAssigned = !!systemUser;
+      
+      if (botUser.isAssigned !== shouldBeAssigned) {
+        botUser.isAssigned = shouldBeAssigned;
+        botUser.userId = systemUser?.id || null;
+        await botUser.save();
+        synced++;
+      }
+    }
+
+    res.json({ 
+      message: 'Sync completed', 
+      totalBotUsers: botUsers.length,
+      synced 
+    });
+  } catch (error) {
+    console.error('Sync error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
