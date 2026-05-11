@@ -3,14 +3,13 @@ const botUserController = require('../controllers/botUserController');
 
 const router = express.Router();
 
-// Получить всех пользователей бота (с фильтрами и сортировкой)
-// Query params: ?sortBy=firstInteractionAt&order=DESC&filter=unassigned
+// Получить всех пользователей бота (с фильтрами)
 router.get('/', botUserController.getAllBotUsers);
 
-// Получить статистику по пользователям бота
-router.get('/stats', botUserController.getBotUsersStats);
-
-// Зарегистрировать/обновить пользователя бота (вызывается из Telegram бота)
+// Зарегистрировать/обновить пользователя бота
 router.post('/register', botUserController.registerOrUpdateBotUser);
+
+// Синхронизировать статусы isAssigned
+router.post('/sync', botUserController.syncAssignedStatus);
 
 module.exports = router;
