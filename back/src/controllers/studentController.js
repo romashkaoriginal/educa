@@ -20,8 +20,6 @@ exports.getAllStudents = async (req, res) => {
         'firstName',
         'lastName',
         'isActive',
-        'accessStartDate',
-        'accessEndDate',
         'createdAt'
       ],
       order: [['createdAt', 'DESC']]

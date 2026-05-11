@@ -5,12 +5,11 @@ const { Op } = require('sequelize');
 exports.getAllBotUsers = async (req, res) => {
   try {
     const { 
-      sortBy = 'firstInteractionAt', // firstInteractionAt | lastInteractionAt | messageCount
-      order = 'DESC', // DESC | ASC
-      filter = 'all' // all | assigned | unassigned
+      sortBy = 'firstInteractionAt',
+      order = 'DESC',
+      filter = 'all'
     } = req.query;
 
-    // Условия фильтрации
     let whereCondition = {};
     if (filter === 'assigned') {
       whereCondition.isAssigned = true;
@@ -33,7 +32,6 @@ exports.getAllBotUsers = async (req, res) => {
         'telegramUsername',
         'firstName',
         'lastName',
-        'telegramPhotoUrl',
         'isAssigned',
         'userId',
         'firstInteractionAt',
@@ -56,7 +54,7 @@ exports.getAllBotUsers = async (req, res) => {
   }
 };
 
-// Зарегистрировать/обновить пользователя бота (вызывается из Telegram бота)
+// Зарегистрировать/обновить пользователя бота
 exports.registerOrUpdateBotUser = async (req, res) => {
   try {
     const {
@@ -64,33 +62,26 @@ exports.registerOrUpdateBotUser = async (req, res) => {
       telegramUsername,
       firstName,
       lastName,
-      telegramPhotoUrl,
       languageCode,
       isBot
     } = req.body;
 
-    // Ищем существующего пользователя
     let botUser = await BotUser.findOne({ where: { telegramId } });
 
     if (botUser) {
-      // Обновляем информацию
       botUser.telegramUsername = telegramUsername || botUser.telegramUsername;
       botUser.firstName = firstName || botUser.firstName;
       botUser.lastName = lastName || botUser.lastName;
-      botUser.telegramPhotoUrl = telegramPhotoUrl || botUser.telegramPhotoUrl;
       botUser.languageCode = languageCode || botUser.languageCode;
       botUser.lastInteractionAt = new Date();
       botUser.messageCount += 1;
-
       await botUser.save();
     } else {
-      // Создаём нового
       botUser = await BotUser.create({
         telegramId,
         telegramUsername,
         firstName,
         lastName,
-        telegramPhotoUrl,
         languageCode,
         isBot: isBot || false,
         isAssigned: false,
@@ -100,11 +91,9 @@ exports.registerOrUpdateBotUser = async (req, res) => {
       });
     }
 
-    // Проверяем, есть ли этот пользователь в таблице User
     const assignedUser = await User.findOne({ where: { telegramId } });
     
     if (assignedUser && !botUser.isAssigned) {
-      // Если пользователь есть в User, но флаг не установлен
       botUser.isAssigned = true;
       botUser.userId = assignedUser.id;
       await botUser.save();
@@ -125,14 +114,13 @@ exports.registerOrUpdateBotUser = async (req, res) => {
   }
 };
 
-// Получить статистику по пользователям бота
+// Получить статистику
 exports.getBotUsersStats = async (req, res) => {
   try {
     const total = await BotUser.count();
     const assigned = await BotUser.count({ where: { isAssigned: true } });
     const unassigned = await BotUser.count({ where: { isAssigned: false } });
     
-    // Новые пользователи за последние 7 дней
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     
@@ -144,7 +132,6 @@ exports.getBotUsersStats = async (req, res) => {
       }
     });
 
-    // Активные за последние 24 часа
     const oneDayAgo = new Date();
     oneDayAgo.setDate(oneDayAgo.getDate() - 1);
     
@@ -168,7 +155,8 @@ exports.getBotUsersStats = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
-// Синхронизировать статусы isAssigned для всех BotUser
+
+// Синхронизировать статусы isAssigned
 exports.syncAssignedStatus = async (req, res) => {
   try {
     const botUsers = await BotUser.findAll();
