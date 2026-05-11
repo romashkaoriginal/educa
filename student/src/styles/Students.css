@@ -1201,6 +1201,29 @@
   color: #6b7280;
 }
 
+.extend-access-buttons {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.extend-btn {
+  padding: 8px 16px;
+  background: #10B981;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.extend-btn:hover {
+  background: #059669;
+  transform: translateY(-1px);
+}
+
 .detail-actions {
   display: flex;
   gap: 12px;

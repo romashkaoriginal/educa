@@ -14,8 +14,7 @@ const UserSubject = sequelize.define('UserSubject', {
     references: {
       model: 'users',
       key: 'id'
-    },
-    onDelete: 'CASCADE'
+    }
   },
   
   subjectId: {
@@ -24,11 +23,10 @@ const UserSubject = sequelize.define('UserSubject', {
     references: {
       model: 'subjects',
       key: 'id'
-    },
-    onDelete: 'CASCADE'
+    }
   },
   
-  // Даты доступа к конкретному предмету (для каждого предмета отдельно)
+  // Даты доступа к конкретному предмету
   accessStartDate: {
     type: DataTypes.DATE,
     allowNull: true,

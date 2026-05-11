@@ -133,7 +133,7 @@ function App() {
           </p>
 
           <a 
-            href="https://t.me/your_bot_username" 
+            href="https://t.me/educa1488_bot" 
             className="telegram-button"
             target="_blank"
             rel="noopener noreferrer"

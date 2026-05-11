@@ -158,14 +158,47 @@ function Students({ subjects }) {
     }));
   };
 
+  // Конвертация даты из ДД.ММ.ГГГГ в YYYY-MM-DD
+  const convertDateFormat = (dateStr) => {
+    if (!dateStr) return '';
+    
+    // Если уже в формате YYYY-MM-DD
+    if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) return dateStr;
+    
+    // Конвертируем ДД.ММ.ГГГГ -> YYYY-MM-DD
+    const parts = dateStr.split('.');
+    if (parts.length === 3) {
+      const [day, month, year] = parts;
+      return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    }
+    
+    return dateStr;
+  };
+
   const handleCreateStudent = async (e) => {
     e.preventDefault();
 
     try {
+      // Конвертируем даты в формат БД
+      const convertedData = {
+        ...formData,
+        accessStartDate: convertDateFormat(formData.accessStartDate),
+        accessEndDate: convertDateFormat(formData.accessEndDate),
+        subjectAccessDates: {}
+      };
+
+      // Конвертируем даты для каждого предмета
+      Object.entries(formData.subjectAccessDates).forEach(([subjectId, dates]) => {
+        convertedData.subjectAccessDates[subjectId] = {
+          startDate: convertDateFormat(dates.startDate),
+          endDate: convertDateFormat(dates.endDate)
+        };
+      });
+
       const response = await fetch(`${API_URL}/students`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(convertedData)
       });
 
       if (response.ok) {
@@ -197,10 +230,31 @@ function Students({ subjects }) {
 
       if (response.ok) {
         setSelectedStudent(null);
+        setShowDetailModal(false);
         await loadStudents();
       }
     } catch (error) {
       console.error('Error deleting student:', error);
+    }
+  };
+
+  const handleExtendAccess = async (studentId, days) => {
+    try {
+      const response = await fetch(`${API_URL}/students/${studentId}/extend-access`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ days })
+      });
+
+      if (response.ok) {
+        await loadStudents();
+        if (selectedStudent?.id === studentId) {
+          const updated = students.find(s => s.id === studentId);
+          setSelectedStudent(updated);
+        }
+      }
+    } catch (error) {
+      console.error('Error extending access:', error);
     }
   };
 
@@ -657,6 +711,29 @@ function Students({ subjects }) {
                 <h3>📅 Доступ к приложению</h3>
                 <p><strong>Начало:</strong> {selectedStudent.accessStartDate ? new Date(selectedStudent.accessStartDate).toLocaleDateString('ru-RU') : 'Не указано'}</p>
                 <p><strong>Окончание:</strong> {selectedStudent.accessEndDate ? new Date(selectedStudent.accessEndDate).toLocaleDateString('ru-RU') : '∞ Бессрочно'}</p>
+                
+                {selectedStudent.accessEndDate && (
+                  <div className="extend-access-buttons">
+                    <button 
+                      className="extend-btn"
+                      onClick={() => handleExtendAccess(selectedStudent.id, 7)}
+                    >
+                      +7 дней
+                    </button>
+                    <button 
+                      className="extend-btn"
+                      onClick={() => handleExtendAccess(selectedStudent.id, 30)}
+                    >
+                      +30 дней
+                    </button>
+                    <button 
+                      className="extend-btn"
+                      onClick={() => handleExtendAccess(selectedStudent.id, 90)}
+                    >
+                      +90 дней
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div className="detail-section">
