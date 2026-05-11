@@ -11,19 +11,24 @@ function Students({ subjects }) {
   const [loading, setLoading] = useState(true);
   const [loadingBotUsers, setLoadingBotUsers] = useState(false);
   
+  // ФИЛЬТРЫ ДЛЯ СТУДЕНТОВ
+  const [sortBy, setSortBy] = useState('createdAt'); // createdAt | name | expiresAt
+  const [filterExpiring, setFilterExpiring] = useState('all'); // all | week | month | expired
+  
   // Модалки
   const [showAddModal, setShowAddModal] = useState(false);
   const [addMode, setAddMode] = useState('bot'); // 'bot' или 'manual'
   
   // Выбранный студент для детального просмотра
   const [selectedStudent, setSelectedStudent] = useState(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
   
   // Сортировка и фильтры для пользователей бота
   const [botUsersSortBy, setBotUsersSortBy] = useState('firstInteractionAt');
   const [botUsersSortOrder, setBotUsersSortOrder] = useState('DESC');
-  const [botUsersFilter, setBotUsersFilter] = useState('unassigned'); // all | assigned | unassigned
+  const [botUsersFilter, setBotUsersFilter] = useState('unassigned');
   
-  // Выбранный пользователь бота для назначения студентом
+  // Выбранный пользователь бота
   const [selectedBotUser, setSelectedBotUser] = useState(null);
   
   // Форма добавления студента
@@ -35,7 +40,7 @@ function Students({ subjects }) {
     subjectIds: [],
     accessStartDate: new Date().toISOString().split('T')[0],
     accessEndDate: '',
-    subjectAccessDates: {}
+    subjectAccessDates: {} // { subjectId: { startDate, endDate } }
   });
 
   useEffect(() => {
@@ -70,7 +75,6 @@ function Students({ subjects }) {
     }
   };
 
-  // Загрузка пользователей бота при открытии модалки
   useEffect(() => {
     if (showAddModal && addMode === 'bot') {
       loadBotUsers();
@@ -95,6 +99,7 @@ function Students({ subjects }) {
       accessEndDate: '',
       subjectAccessDates: {}
     });
+    setSelectedBotUser(null);
   };
 
   const handleSelectBotUser = (botUser) => {
@@ -109,17 +114,53 @@ function Students({ subjects }) {
   };
 
   const handleSubjectToggle = (subjectId) => {
+    setFormData(prev => {
+      const isSelected = prev.subjectIds.includes(subjectId);
+      
+      if (isSelected) {
+        // Удаляем предмет и его даты
+        const newSubjectAccessDates = { ...prev.subjectAccessDates };
+        delete newSubjectAccessDates[subjectId];
+        
+        return {
+          ...prev,
+          subjectIds: prev.subjectIds.filter(id => id !== subjectId),
+          subjectAccessDates: newSubjectAccessDates
+        };
+      } else {
+        // Добавляем предмет с пустыми датами (пользователь укажет вручную)
+        return {
+          ...prev,
+          subjectIds: [...prev.subjectIds, subjectId],
+          subjectAccessDates: {
+            ...prev.subjectAccessDates,
+            [subjectId]: {
+              startDate: '',
+              endDate: ''
+            }
+          }
+        };
+      }
+    });
+  };
+
+  // Обновление индивидуальных дат для предмета
+  const handleSubjectDateChange = (subjectId, field, value) => {
     setFormData(prev => ({
       ...prev,
-      subjectIds: prev.subjectIds.includes(subjectId)
-        ? prev.subjectIds.filter(id => id !== subjectId)
-        : [...prev.subjectIds, subjectId]
+      subjectAccessDates: {
+        ...prev.subjectAccessDates,
+        [subjectId]: {
+          ...prev.subjectAccessDates[subjectId],
+          [field]: value
+        }
+      }
     }));
   };
 
   const handleCreateStudent = async (e) => {
     e.preventDefault();
-    
+
     try {
       const response = await fetch(`${API_URL}/students`, {
         method: 'POST',
@@ -130,10 +171,7 @@ function Students({ subjects }) {
       if (response.ok) {
         setShowAddModal(false);
         resetForm();
-        setSelectedBotUser(null);
         await loadStudents();
-        
-        // Обновляем список пользователей бота если был режим выбора
         if (addMode === 'bot') {
           await loadBotUsers();
         }
@@ -166,15 +204,52 @@ function Students({ subjects }) {
     }
   };
 
-  const filteredStudents = students.filter(student => {
-    const query = searchQuery.toLowerCase();
-    return (
-      student.firstName?.toLowerCase().includes(query) ||
-      student.lastName?.toLowerCase().includes(query) ||
-      student.telegramUsername?.toLowerCase().includes(query) ||
-      student.telegramId?.toString().includes(query)
-    );
-  });
+  // ФИЛЬТРАЦИЯ И СОРТИРОВКА СТУДЕНТОВ
+  const getFilteredAndSortedStudents = () => {
+    let filtered = students.filter(student => {
+      const query = searchQuery.toLowerCase();
+      const matchesSearch = 
+        student.firstName?.toLowerCase().includes(query) ||
+        student.lastName?.toLowerCase().includes(query) ||
+        student.telegramUsername?.toLowerCase().includes(query) ||
+        student.telegramId?.toString().includes(query);
+
+      if (!matchesSearch) return false;
+
+      // Фильтр по истечению срока
+      if (filterExpiring !== 'all') {
+        if (!student.accessEndDate) return false;
+        
+        const endDate = new Date(student.accessEndDate);
+        const now = new Date();
+        const daysUntilExpiry = Math.ceil((endDate - now) / (1000 * 60 * 60 * 24));
+
+        if (filterExpiring === 'expired' && daysUntilExpiry >= 0) return false;
+        if (filterExpiring === 'week' && (daysUntilExpiry < 0 || daysUntilExpiry > 7)) return false;
+        if (filterExpiring === 'month' && (daysUntilExpiry < 0 || daysUntilExpiry > 30)) return false;
+      }
+
+      return true;
+    });
+
+    // Сортировка
+    filtered.sort((a, b) => {
+      if (sortBy === 'name') {
+        return `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`);
+      }
+      if (sortBy === 'expiresAt') {
+        if (!a.accessEndDate) return 1;
+        if (!b.accessEndDate) return -1;
+        return new Date(a.accessEndDate) - new Date(b.accessEndDate);
+      }
+      // По умолчанию createdAt (новые сначала)
+      return new Date(b.createdAt) - new Date(a.createdAt);
+    });
+
+    return filtered;
+  };
+
+  const filteredStudents = getFilteredAndSortedStudents();
 
   const filteredBotUsers = botUsers.filter(user => {
     const query = botUsersSearchQuery.toLowerCase();
@@ -186,39 +261,94 @@ function Students({ subjects }) {
     );
   });
 
-  if (selectedStudent) {
-    return (
-      <StudentDetail 
-        student={selectedStudent}
-        subjects={subjects}
-        onClose={() => setSelectedStudent(null)}
-        onUpdate={loadStudents}
-        onDelete={handleDeleteStudent}
-      />
-    );
-  }
+  // Подсчёт истекающих скоро
+  const getExpiringCounts = () => {
+    const now = new Date();
+    let week = 0, month = 0, expired = 0;
+
+    students.forEach(s => {
+      if (!s.accessEndDate) return;
+      const endDate = new Date(s.accessEndDate);
+      const days = Math.ceil((endDate - now) / (1000 * 60 * 60 * 24));
+      
+      if (days < 0) expired++;
+      else if (days <= 7) week++;
+      else if (days <= 30) month++;
+    });
+
+    return { week, month, expired };
+  };
+
+  const expiringCounts = getExpiringCounts();
+
+  const handleViewStudent = (student) => {
+    setSelectedStudent(student);
+    setShowDetailModal(true);
+  };
+
+  const handleCloseDetail = () => {
+    setSelectedStudent(null);
+    setShowDetailModal(false);
+  };
 
   return (
     <div className="students-section">
       <div className="section-header">
-        <h2>Студенты ({filteredStudents.length})</h2>
-        <div className="header-actions">
-          <input
-            type="text"
-            className="search-input"
-            placeholder="🔍 Поиск студента..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-          <button className="add-button" onClick={handleOpenAddModal}>
-            + Добавить студента
-          </button>
+        <div className="header-left">
+          <h2>Студенты ({filteredStudents.length})</h2>
+          <div className="expiring-badges">
+            <span className="expiring-badge expired" title="Истёк">
+              ⚠️ {expiringCounts.expired}
+            </span>
+            <span className="expiring-badge week" title="Истекает в течение недели">
+              🔔 {expiringCounts.week}
+            </span>
+            <span className="expiring-badge month" title="Истекает в течение месяца">
+              ⏰ {expiringCounts.month}
+            </span>
+          </div>
         </div>
+        <button className="add-button" onClick={handleOpenAddModal}>
+          + Добавить студента
+        </button>
       </div>
 
+      {/* ФИЛЬТРЫ */}
+      <div className="filters-bar">
+        <input
+          type="text"
+          className="search-input"
+          placeholder="🔍 Поиск по имени, username или ID..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+        
+        <select 
+          className="filter-select"
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value)}
+        >
+          <option value="createdAt">📅 По дате добавления</option>
+          <option value="name">🔤 По имени (А-Я)</option>
+          <option value="expiresAt">⏰ По истечению срока</option>
+        </select>
+
+        <select 
+          className="filter-select"
+          value={filterExpiring}
+          onChange={(e) => setFilterExpiring(e.target.value)}
+        >
+          <option value="all">Все студенты</option>
+          <option value="week">⚡ Истекает до 7 дней</option>
+          <option value="month">⏰ Истекает до 30 дней</option>
+          <option value="expired">❌ Истёкшие</option>
+        </select>
+      </div>
+
+      {/* СПИСОК СТУДЕНТОВ */}
       {loading ? (
         <div className="students-grid">
-          {[1, 2, 3, 4].map(i => (
+          {[1, 2, 3].map(i => (
             <div key={i} className="student-card skeleton">
               <div className="skeleton-avatar"></div>
               <div className="skeleton-info">
@@ -230,49 +360,71 @@ function Students({ subjects }) {
         </div>
       ) : (
         <div className="students-grid">
-          {filteredStudents.map(student => (
-            <div 
-              key={student.id} 
-              className="student-card"
-              onClick={() => setSelectedStudent(student)}
-            >
-              <div className="student-avatar">
-                {student.firstName?.[0]}{student.lastName?.[0]}
-              </div>
-              <div className="student-info">
-                <h3>{student.firstName} {student.lastName}</h3>
-                <p className="student-username">@{student.telegramUsername || 'no username'}</p>
-                <div className="student-meta">
-                  <span className={`status-badge ${student.isActive ? 'active' : 'inactive'}`}>
-                    {student.isActive ? '✓ Активен' : '✕ Неактивен'}
-                  </span>
-                  {student.accessEndDate && (
-                    <span className="access-date">
-                      До {new Date(student.accessEndDate).toLocaleDateString('ru-RU')}
-                    </span>
-                  )}
+          {filteredStudents.map(student => {
+            const daysLeft = student.accessEndDate 
+              ? Math.ceil((new Date(student.accessEndDate) - new Date()) / (1000 * 60 * 60 * 24))
+              : null;
+            
+            const isExpired = daysLeft !== null && daysLeft < 0;
+            const isExpiringSoon = daysLeft !== null && daysLeft >= 0 && daysLeft <= 7;
+
+            return (
+              <div 
+                key={student.id} 
+                className={`student-card ${!student.isActive ? 'inactive' : ''} ${isExpired ? 'expired' : ''}`}
+                onClick={() => handleViewStudent(student)}
+              >
+                <div className="student-avatar">
+                  {student.firstName?.[0]}{student.lastName?.[0]}
                 </div>
-                <div className="student-subjects-mini">
-                  {student.subjects?.slice(0, 3).map(subj => (
-                    <span key={subj.id} className="subject-badge">
-                      {subj.icon}
+                
+                <div className="student-info">
+                  <h3>{student.firstName} {student.lastName}</h3>
+                  <p className="student-username">@{student.telegramUsername || 'no username'}</p>
+                  
+                  <div className="student-meta">
+                    <span className={`status-badge ${student.isActive ? 'active' : 'inactive'}`}>
+                      {student.isActive ? '✓ Активен' : '✕ Неактивен'}
                     </span>
-                  ))}
-                  {student.subjects?.length > 3 && (
-                    <span className="subject-badge">+{student.subjects.length - 3}</span>
-                  )}
+                    {student.accessEndDate && (
+                      <span className={`expiry-badge ${isExpired ? 'expired' : isExpiringSoon ? 'soon' : ''}`}>
+                        {isExpired ? `❌ Истёк ${Math.abs(daysLeft)} дн. назад` : 
+                         isExpiringSoon ? `⚡ Осталось ${daysLeft} дн.` :
+                         `⏰ Осталось ${daysLeft} дн.`}
+                      </span>
+                    )}
+                    {!student.accessEndDate && (
+                      <span className="expiry-badge permanent">∞ Бессрочно</span>
+                    )}
+                  </div>
+
+                  <div className="student-subjects">
+                    {student.subjects?.slice(0, 3).map(subject => (
+                      <span key={subject.id} className="subject-tag">
+                        {subject.icon} {subject.name}
+                      </span>
+                    ))}
+                    {student.subjects?.length > 3 && (
+                      <span className="subject-tag more">+{student.subjects.length - 3}</span>
+                    )}
+                  </div>
                 </div>
               </div>
-              <div className="student-arrow">→</div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
-      {/* Модалка добавления студента */}
+      {filteredStudents.length === 0 && !loading && (
+        <div className="empty-state">
+          <p>Студенты не найдены</p>
+        </div>
+      )}
+
+      {/* МОДАЛКА ДОБАВЛЕНИЯ */}
       {showAddModal && (
         <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content large" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>Добавить студента</h2>
               <button className="modal-close" onClick={() => setShowAddModal(false)}>✕</button>
@@ -293,7 +445,8 @@ function Students({ subjects }) {
               </button>
             </div>
 
-            {addMode === 'bot' ? (
+            {/* ВЫБОР ИЗ БОТА */}
+            {addMode === 'bot' && !selectedBotUser ? (
               <div className="bot-users-container">
                 <div className="bot-users-controls">
                   <input
@@ -341,7 +494,7 @@ function Students({ subjects }) {
                     {filteredBotUsers.map(user => (
                       <div 
                         key={user.id}
-                        className={`bot-user-row ${selectedBotUser?.id === user.id ? 'selected' : ''} ${user.isAssigned ? 'assigned' : ''}`}
+                        className={`bot-user-row ${user.isAssigned ? 'assigned' : ''}`}
                         onClick={() => !user.isAssigned && handleSelectBotUser(user)}
                       >
                         <div className="bot-user-avatar">
@@ -356,96 +509,112 @@ function Students({ subjects }) {
                             {user.isAssigned && <span className="assigned-badge">✓ Уже назначен</span>}
                           </div>
                         </div>
-                        {selectedBotUser?.id === user.id && (
-                          <div className="selected-checkmark">✓</div>
-                        )}
                       </div>
                     ))}
                   </div>
                 )}
-
-                {selectedBotUser && (
-                  <div className="selected-user-notice">
-                    ✓ Выбран: <strong>{selectedBotUser.firstName} {selectedBotUser.lastName}</strong>
-                  </div>
-                )}
               </div>
-            ) : (
-              <div className="manual-form">
-                <div className="form-row">
-                  <input
-                    type="number"
-                    placeholder="Telegram ID *"
-                    value={formData.telegramId}
-                    onChange={(e) => setFormData({...formData, telegramId: e.target.value})}
-                    required
-                  />
-                  <input
-                    type="text"
-                    placeholder="@username"
-                    value={formData.telegramUsername}
-                    onChange={(e) => setFormData({...formData, telegramUsername: e.target.value})}
-                  />
-                </div>
-                <div className="form-row">
-                  <input
-                    type="text"
-                    placeholder="Имя *"
-                    value={formData.firstName}
-                    onChange={(e) => setFormData({...formData, firstName: e.target.value})}
-                    required
-                  />
-                  <input
-                    type="text"
-                    placeholder="Фамилия *"
-                    value={formData.lastName}
-                    onChange={(e) => setFormData({...formData, lastName: e.target.value})}
-                    required
-                  />
-                </div>
-              </div>
-            )}
+            ) : null}
 
-            {/* Форма назначения предметов и дат (общая для обоих режимов) */}
+            {/* ФОРМА НАЗНАЧЕНИЯ */}
             {(selectedBotUser || addMode === 'manual') && (
               <form onSubmit={handleCreateStudent} className="assignment-form">
+                {/* Данные студента (редактируемые) */}
                 <div className="form-section">
-                  <h3>📅 Доступ к приложению</h3>
+                  <h3>👤 Данные студента</h3>
                   <div className="form-row">
                     <div className="form-group">
-                      <label>Начало доступа</label>
+                      <label>Telegram ID</label>
                       <input
-                        type="date"
-                        value={formData.accessStartDate}
-                        onChange={(e) => setFormData({...formData, accessStartDate: e.target.value})}
-                        required
+                        type="number"
+                        value={formData.telegramId}
+                        onChange={(e) => setFormData({...formData, telegramId: e.target.value})}
                       />
                     </div>
                     <div className="form-group">
-                      <label>Окончание доступа (опционально)</label>
+                      <label>Username</label>
                       <input
-                        type="date"
-                        value={formData.accessEndDate}
-                        onChange={(e) => setFormData({...formData, accessEndDate: e.target.value})}
+                        type="text"
+                        placeholder="@username"
+                        value={formData.telegramUsername}
+                        onChange={(e) => setFormData({...formData, telegramUsername: e.target.value})}
                       />
-                      <small>Оставьте пустым для бессрочного доступа</small>
+                    </div>
+                  </div>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Имя</label>
+                      <input
+                        type="text"
+                        value={formData.firstName}
+                        onChange={(e) => setFormData({...formData, firstName: e.target.value})}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Фамилия</label>
+                      <input
+                        type="text"
+                        value={formData.lastName}
+                        onChange={(e) => setFormData({...formData, lastName: e.target.value})}
+                      />
                     </div>
                   </div>
                 </div>
 
+                {/* Предметы с индивидуальными сроками */}
                 <div className="form-section">
-                  <h3>📚 Предметы</h3>
-                  <div className="subjects-grid">
-                    {subjects.map(subject => (
-                      <label key={subject.id} className="subject-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={formData.subjectIds.includes(subject.id)}
-                          onChange={() => handleSubjectToggle(subject.id)}
-                        />
-                        <span>{subject.icon} {subject.name}</span>
-                      </label>
-                    ))}
+                  <h3>📚 Предметы с индивидуальными сроками доступа</h3>
+                  <p className="section-description">
+                    Выберите предметы и укажите срок доступа для каждого (формат: ДД.ММ.ГГГГ). Оба поля обязательны.
+                  </p>
+                  
+                  <div className="subjects-with-dates">
+                    {subjects.map(subject => {
+                      const isSelected = formData.subjectIds.includes(subject.id);
+                      const subjectDates = formData.subjectAccessDates[subject.id] || {};
+                      
+                      return (
+                        <div key={subject.id} className={`subject-item ${isSelected ? 'selected' : ''}`}>
+                          <label className="subject-checkbox-label">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => handleSubjectToggle(subject.id)}
+                            />
+                            <span className="subject-name">
+                              {subject.icon} {subject.name}
+                            </span>
+                          </label>
+
+                          {isSelected && (
+                            <div className="subject-dates">
+                              <div className="date-input-group">
+                                <label>Начало доступа *</label>
+                                <input
+                                  type="text"
+                                  placeholder="01.01.2025"
+                                  value={subjectDates.startDate || ''}
+                                  onChange={(e) => handleSubjectDateChange(subject.id, 'startDate', e.target.value)}
+                                  className="date-text-input"
+                                  required
+                                />
+                              </div>
+                              <div className="date-input-group">
+                                <label>Окончание доступа *</label>
+                                <input
+                                  type="text"
+                                  placeholder="31.12.2025"
+                                  value={subjectDates.endDate || ''}
+                                  onChange={(e) => handleSubjectDateChange(subject.id, 'endDate', e.target.value)}
+                                  className="date-text-input"
+                                  required
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -453,11 +622,7 @@ function Students({ subjects }) {
                   <button type="button" className="btn-secondary" onClick={() => setShowAddModal(false)}>
                     Отмена
                   </button>
-                  <button 
-                    type="submit" 
-                    className="btn-primary"
-                    disabled={!formData.firstName || !formData.lastName || !formData.telegramId}
-                  >
+                  <button type="submit" className="btn-primary">
                     Создать студента
                   </button>
                 </div>
@@ -466,276 +631,68 @@ function Students({ subjects }) {
           </div>
         </div>
       )}
-    </div>
-  );
-}
 
-// Компонент детального просмотра студента
-function StudentDetail({ student, subjects, onClose, onUpdate, onDelete }) {
-  const [isEditingSubjects, setIsEditingSubjects] = useState(false);
-  const [isEditingAccess, setIsEditingAccess] = useState(false);
-  const [selectedSubjects, setSelectedSubjects] = useState(student.subjects?.map(s => s.id) || []);
-  const [accessData, setAccessData] = useState({
-    accessStartDate: student.accessStartDate ? new Date(student.accessStartDate).toISOString().split('T')[0] : '',
-    accessEndDate: student.accessEndDate ? new Date(student.accessEndDate).toISOString().split('T')[0] : '',
-    isActive: student.isActive
-  });
-  const [stats, setStats] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    loadStats();
-  }, [student.id]);
-
-  const loadStats = async () => {
-    try {
-      const response = await fetch(`${API_URL}/stats/students/${student.id}`);
-      const data = await response.json();
-      setStats(data.stats);
-    } catch (error) {
-      console.error('Error fetching stats:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSaveSubjects = async () => {
-    setSaving(true);
-    try {
-      const response = await fetch(`${API_URL}/students/${student.id}/subjects`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subjectIds: selectedSubjects })
-      });
-
-      if (response.ok) {
-        setIsEditingSubjects(false);
-        await onUpdate();
-      }
-    } catch (error) {
-      console.error('Error updating subjects:', error);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleSaveAccess = async () => {
-    setSaving(true);
-    try {
-      const response = await fetch(`${API_URL}/students/${student.id}/access`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(accessData)
-      });
-
-      if (response.ok) {
-        setIsEditingAccess(false);
-        await onUpdate();
-      }
-    } catch (error) {
-      console.error('Error updating access:', error);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleExtendAccess = async (days) => {
-    if (!window.confirm(`Продлить доступ на ${days} дней?`)) return;
-
-    try {
-      const response = await fetch(`${API_URL}/students/${student.id}/extend-access`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ days })
-      });
-
-      if (response.ok) {
-        await onUpdate();
-      }
-    } catch (error) {
-      console.error('Error extending access:', error);
-    }
-  };
-
-  const toggleSubject = (subjectId) => {
-    setSelectedSubjects(prev =>
-      prev.includes(subjectId)
-        ? prev.filter(id => id !== subjectId)
-        : [...prev, subjectId]
-    );
-  };
-
-  return (
-    <div className="student-detail">
-      <div className="detail-header">
-        <button className="back-button" onClick={onClose}>
-          ← Назад к списку
-        </button>
-        <button className="delete-button" onClick={() => onDelete(student.id)}>
-          🗑️ Удалить студента
-        </button>
-      </div>
-
-      <div className="detail-content">
-        <div className="detail-card">
-          <div className="student-avatar-large">
-            {student.firstName?.[0]}{student.lastName?.[0]}
-          </div>
-          <h2>{student.firstName} {student.lastName}</h2>
-          <p className="student-username-large">@{student.telegramUsername || 'no username'}</p>
-          <p className="student-id">ID: {student.telegramId}</p>
-          <span className={`status-badge-large ${student.isActive ? 'active' : 'inactive'}`}>
-            {student.isActive ? '✓ Активен' : '✕ Неактивен'}
-          </span>
-        </div>
-
-        {/* Доступ к приложению */}
-        <div className="detail-card">
-          <div className="card-header">
-            <h3>📅 Доступ к приложению</h3>
-            <button 
-              className="edit-button"
-              onClick={() => setIsEditingAccess(!isEditingAccess)}
-            >
-              {isEditingAccess ? '✕ Отмена' : '✏️ Изменить'}
-            </button>
-          </div>
-
-          {isEditingAccess ? (
-            <div className="edit-access-form">
-              <div className="form-group">
-                <label>Начало доступа</label>
-                <input
-                  type="date"
-                  value={accessData.accessStartDate}
-                  onChange={(e) => setAccessData({...accessData, accessStartDate: e.target.value})}
-                />
-              </div>
-              <div className="form-group">
-                <label>Окончание доступа</label>
-                <input
-                  type="date"
-                  value={accessData.accessEndDate}
-                  onChange={(e) => setAccessData({...accessData, accessEndDate: e.target.value})}
-                />
-              </div>
-              <div className="form-group">
-                <label className="checkbox-label">
-                  <input
-                    type="checkbox"
-                    checked={accessData.isActive}
-                    onChange={(e) => setAccessData({...accessData, isActive: e.target.checked})}
-                  />
-                  <span>Активный студент</span>
-                </label>
-              </div>
-              <button 
-                className="save-button" 
-                onClick={handleSaveAccess}
-                disabled={saving}
-              >
-                {saving ? '💾 Сохранение...' : '💾 Сохранить'}
-              </button>
+      {/* МОДАЛКА ДЕТАЛЬНОГО ПРОСМОТРА СТУДЕНТА */}
+      {showDetailModal && selectedStudent && (
+        <div className="modal-overlay" onClick={handleCloseDetail}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>👨‍🎓 {selectedStudent.firstName} {selectedStudent.lastName}</h2>
+              <button className="modal-close" onClick={handleCloseDetail}>✕</button>
             </div>
-          ) : (
-            <div className="access-info">
-              <p><strong>Начало:</strong> {student.accessStartDate ? new Date(student.accessStartDate).toLocaleDateString('ru-RU') : 'Не указано'}</p>
-              <p><strong>Окончание:</strong> {student.accessEndDate ? new Date(student.accessEndDate).toLocaleDateString('ru-RU') : 'Бессрочно'}</p>
-              
-              <div className="extend-buttons">
-                <button className="extend-btn" onClick={() => handleExtendAccess(7)}>+7 дней</button>
-                <button className="extend-btn" onClick={() => handleExtendAccess(30)}>+30 дней</button>
-                <button className="extend-btn" onClick={() => handleExtendAccess(90)}>+90 дней</button>
+
+            <div className="student-detail-content">
+              <div className="detail-section">
+                <h3>📱 Контактные данные</h3>
+                <p><strong>Telegram ID:</strong> {selectedStudent.telegramId}</p>
+                <p><strong>Username:</strong> @{selectedStudent.telegramUsername || 'не указан'}</p>
+                <p><strong>Статус:</strong> 
+                  <span className={`status-badge ${selectedStudent.isActive ? 'active' : 'inactive'}`}>
+                    {selectedStudent.isActive ? '✓ Активен' : '✕ Неактивен'}
+                  </span>
+                </p>
               </div>
-            </div>
-          )}
-        </div>
 
-        {/* Предметы */}
-        <div className="detail-card">
-          <div className="card-header">
-            <h3>📚 Предметы</h3>
-            <button 
-              className="edit-button"
-              onClick={() => setIsEditingSubjects(!isEditingSubjects)}
-            >
-              {isEditingSubjects ? '✕ Отмена' : '✏️ Изменить'}
-            </button>
-          </div>
+              <div className="detail-section">
+                <h3>📅 Доступ к приложению</h3>
+                <p><strong>Начало:</strong> {selectedStudent.accessStartDate ? new Date(selectedStudent.accessStartDate).toLocaleDateString('ru-RU') : 'Не указано'}</p>
+                <p><strong>Окончание:</strong> {selectedStudent.accessEndDate ? new Date(selectedStudent.accessEndDate).toLocaleDateString('ru-RU') : '∞ Бессрочно'}</p>
+              </div>
 
-          {isEditingSubjects ? (
-            <div className="subjects-edit">
-              {subjects.map(subject => (
-                <label key={subject.id} className="subject-checkbox">
-                  <input
-                    type="checkbox"
-                    checked={selectedSubjects.includes(subject.id)}
-                    onChange={() => toggleSubject(subject.id)}
-                  />
-                  <span>{subject.icon} {subject.name}</span>
-                </label>
-              ))}
-              <button 
-                className="save-button" 
-                onClick={handleSaveSubjects}
-                disabled={saving}
-              >
-                {saving ? '💾 Сохранение...' : '💾 Сохранить'}
-              </button>
-            </div>
-          ) : (
-            <div className="subjects-list">
-              {student.subjects?.map(subj => (
-                <div key={subj.id} className="subject-item">
-                  <span className="subject-icon">{subj.icon}</span>
-                  <span>{subj.name}</span>
+              <div className="detail-section">
+                <h3>📚 Предметы ({selectedStudent.subjects?.length || 0})</h3>
+                <div className="subjects-list">
+                  {selectedStudent.subjects?.map(subject => (
+                    <div key={subject.id} className="subject-detail-item">
+                      <span className="subject-name">{subject.icon} {subject.name}</span>
+                      {subject.UserSubject?.accessEndDate && (
+                        <span className="subject-expiry">
+                          До {new Date(subject.UserSubject.accessEndDate).toLocaleDateString('ru-RU')}
+                        </span>
+                      )}
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Статистика */}
-        {loading ? (
-          <p style={{ textAlign: 'center', color: '#6b7280', padding: '40px' }}>
-            Загрузка статистики...
-          </p>
-        ) : stats ? (
-          <div className="stats-grid">
-            <div className="stat-card">
-              <div className="stat-icon">💪</div>
-              <div className="stat-info">
-                <h4>Практика</h4>
-                <p className="stat-value">{stats.practice.completed} / {stats.practice.total}</p>
-                <p className="stat-label">Средний балл: {stats.practice.averageScore}%</p>
               </div>
-            </div>
 
-            <div className="stat-card">
-              <div className="stat-icon">📝</div>
-              <div className="stat-info">
-                <h4>Домашка</h4>
-                <p className="stat-value">{stats.homework.completed} / {stats.homework.total}</p>
-                <p className="stat-label">Средний балл: {stats.homework.averageScore}%</p>
-              </div>
-            </div>
-
-            <div className="stat-card">
-              <div className="stat-icon">🎯</div>
-              <div className="stat-info">
-                <h4>Викторины</h4>
-                <p className="stat-value">{stats.quizzes.completed}</p>
-                <p className="stat-label">Средний ранг: #{stats.quizzes.averageRank || 'N/A'}</p>
+              <div className="detail-actions">
+                <button 
+                  className="btn-danger"
+                  onClick={() => {
+                    handleDeleteStudent(selectedStudent.id);
+                    handleCloseDetail();
+                  }}
+                >
+                  🗑️ Удалить студента
+                </button>
+                <button className="btn-secondary" onClick={handleCloseDetail}>
+                  Закрыть
+                </button>
               </div>
             </div>
           </div>
-        ) : (
-          <p style={{ textAlign: 'center', color: '#ef4444', padding: '40px' }}>
-            Ошибка загрузки статистики
-          </p>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -100,3 +100,34 @@ exports.login = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
+
+// Получить пользователя по Telegram ID (для WebApp проверки роли)
+exports.getUserByTelegramId = async (req, res) => {
+  try {
+    const { telegramId } = req.params;
+
+    const user = await User.findOne({ 
+      where: { telegramId },
+      attributes: ['id', 'telegramId', 'telegramUsername', 'firstName', 'lastName', 'role', 'isActive']
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.json({ 
+      user: {
+        id: user.id,
+        telegramId: user.telegramId,
+        telegramUsername: user.telegramUsername,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        isActive: user.isActive
+      }
+    });
+  } catch (error) {
+    console.error('Get user by Telegram ID error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};

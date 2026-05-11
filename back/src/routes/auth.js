@@ -18,4 +18,7 @@ router.post('/login', [
   body('password').notEmpty().withMessage('Password is required')
 ], authController.login);
 
+// Проверка пользователя по Telegram ID (для WebApp)
+router.get('/telegram/:telegramId', authController.getUserByTelegramId);
+
 module.exports = router;

@@ -5,14 +5,24 @@ const API_URL = 'https://educa-production-a98e.up.railway.app/api';
 
 function Users() {
   const [users, setUsers] = useState([]);
+  const [botUsers, setBotUsers] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [roleFilter, setRoleFilter] = useState('all'); // all | admin | teacher | manager
+  const [botUsersSearchQuery, setBotUsersSearchQuery] = useState('');
+  const [roleFilter, setRoleFilter] = useState('all');
   const [loading, setLoading] = useState(true);
+  const [loadingBotUsers, setLoadingBotUsers] = useState(false);
   
   // Модалки
   const [showAddModal, setShowAddModal] = useState(false);
+  const [addMode, setAddMode] = useState('bot'); // 'bot' или 'manual'
   const [selectedUser, setSelectedUser] = useState(null);
+  const [selectedBotUser, setSelectedBotUser] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
+  
+  // Сортировка для пользователей бота
+  const [botUsersSortBy, setBotUsersSortBy] = useState('firstInteractionAt');
+  const [botUsersSortOrder, setBotUsersSortOrder] = useState('DESC');
+  const [botUsersFilter, setBotUsersFilter] = useState('unassigned');
   
   // Форма
   const [formData, setFormData] = useState({
@@ -27,6 +37,12 @@ function Users() {
     loadUsers();
   }, []);
 
+  useEffect(() => {
+    if (showAddModal && addMode === 'bot') {
+      loadBotUsers();
+    }
+  }, [showAddModal, addMode, botUsersSortBy, botUsersSortOrder, botUsersFilter]);
+
   const loadUsers = async () => {
     setLoading(true);
     try {
@@ -40,9 +56,26 @@ function Users() {
     }
   };
 
+  const loadBotUsers = async () => {
+    setLoadingBotUsers(true);
+    try {
+      const response = await fetch(
+        `${API_URL}/bot-users?sortBy=${botUsersSortBy}&order=${botUsersSortOrder}&filter=${botUsersFilter}`
+      );
+      const data = await response.json();
+      setBotUsers(data.botUsers || []);
+    } catch (error) {
+      console.error('Error loading bot users:', error);
+    } finally {
+      setLoadingBotUsers(false);
+    }
+  };
+
   const handleOpenAddModal = () => {
     setShowAddModal(true);
     setIsEditing(false);
+    setAddMode('bot');
+    setSelectedBotUser(null);
     resetForm();
   };
 
@@ -50,6 +83,7 @@ function Users() {
     setSelectedUser(user);
     setIsEditing(true);
     setShowAddModal(true);
+    setAddMode('manual');
     setFormData({
       telegramId: user.telegramId?.toString() || '',
       telegramUsername: user.telegramUsername || '',
@@ -68,6 +102,18 @@ function Users() {
       role: 'teacher'
     });
     setSelectedUser(null);
+    setSelectedBotUser(null);
+  };
+
+  const handleSelectBotUser = (botUser) => {
+    setSelectedBotUser(botUser);
+    setFormData({
+      telegramId: botUser.telegramId.toString(),
+      telegramUsername: botUser.telegramUsername || '',
+      firstName: botUser.firstName || '',
+      lastName: botUser.lastName || '',
+      role: 'teacher'
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -90,6 +136,9 @@ function Users() {
         setShowAddModal(false);
         resetForm();
         await loadUsers();
+        if (addMode === 'bot') {
+          await loadBotUsers();
+        }
       } else {
         const error = await response.json();
         alert(`Ошибка: ${error.message}`);
@@ -143,6 +192,16 @@ function Users() {
     const matchesRole = roleFilter === 'all' || user.role === roleFilter;
     
     return matchesSearch && matchesRole;
+  });
+
+  const filteredBotUsers = botUsers.filter(user => {
+    const query = botUsersSearchQuery.toLowerCase();
+    return (
+      user.firstName?.toLowerCase().includes(query) ||
+      user.lastName?.toLowerCase().includes(query) ||
+      user.telegramUsername?.toLowerCase().includes(query) ||
+      user.telegramId?.toString().includes(query)
+    );
   });
 
   const roleInfo = {
@@ -300,98 +359,193 @@ function Users() {
               <button className="modal-close" onClick={() => setShowAddModal(false)}>✕</button>
             </div>
 
-            <form onSubmit={handleSubmit} className="user-form">
-              <div className="form-section">
-                <h3>📱 Telegram данные</h3>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Telegram ID *</label>
-                    <input
-                      type="number"
-                      placeholder="123456789"
-                      value={formData.telegramId}
-                      onChange={(e) => setFormData({...formData, telegramId: e.target.value})}
-                      required
-                      disabled={isEditing}
-                    />
-                    {isEditing && <small>Telegram ID нельзя изменить</small>}
-                  </div>
-                  <div className="form-group">
-                    <label>Username</label>
-                    <input
-                      type="text"
-                      placeholder="@username"
-                      value={formData.telegramUsername}
-                      onChange={(e) => setFormData({...formData, telegramUsername: e.target.value})}
-                    />
-                  </div>
-                </div>
+            {!isEditing && (
+              <div className="add-mode-tabs">
+                <button 
+                  className={`mode-tab ${addMode === 'bot' ? 'active' : ''}`}
+                  onClick={() => setAddMode('bot')}
+                >
+                  🤖 Выбрать из пользователей бота
+                </button>
+                <button 
+                  className={`mode-tab ${addMode === 'manual' ? 'active' : ''}`}
+                  onClick={() => setAddMode('manual')}
+                >
+                  ✏️ Добавить вручную
+                </button>
               </div>
+            )}
 
-              <div className="form-section">
-                <h3>👤 Личные данные</h3>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Имя *</label>
-                    <input
-                      type="text"
-                      placeholder="Иван"
-                      value={formData.firstName}
-                      onChange={(e) => setFormData({...formData, firstName: e.target.value})}
-                      required
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Фамилия *</label>
-                    <input
-                      type="text"
-                      placeholder="Иванов"
-                      value={formData.lastName}
-                      onChange={(e) => setFormData({...formData, lastName: e.target.value})}
-                      required
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="form-section">
-                <h3>🎭 Роль в системе</h3>
-                <div className="role-selector">
-                  {Object.entries(roleInfo).map(([roleKey, role]) => (
-                    <label 
-                      key={roleKey}
-                      className={`role-option ${formData.role === roleKey ? 'selected' : ''}`}
+            {addMode === 'bot' && !isEditing ? (
+              <div className="bot-users-container">
+                <div className="bot-users-controls">
+                  <input
+                    type="text"
+                    className="search-input"
+                    placeholder="🔍 Поиск..."
+                    value={botUsersSearchQuery}
+                    onChange={(e) => setBotUsersSearchQuery(e.target.value)}
+                  />
+                  
+                  <div className="filter-controls">
+                    <select 
+                      value={botUsersFilter} 
+                      onChange={(e) => setBotUsersFilter(e.target.value)}
+                      className="filter-select"
                     >
-                      <input
-                        type="radio"
-                        name="role"
-                        value={roleKey}
-                        checked={formData.role === roleKey}
-                        onChange={(e) => setFormData({...formData, role: e.target.value})}
-                      />
-                      <div className="role-option-content">
-                        <div className="role-option-icon" style={{ color: role.color }}>
-                          {role.icon}
-                        </div>
-                        <div className="role-option-info">
-                          <h4>{role.name}</h4>
-                          <p>{role.description}</p>
-                        </div>
-                      </div>
-                    </label>
-                  ))}
-                </div>
-              </div>
+                      <option value="all">Все пользователи</option>
+                      <option value="unassigned">Не назначены</option>
+                      <option value="assigned">Уже назначены</option>
+                    </select>
 
-              <div className="modal-actions">
-                <button type="button" className="btn-secondary" onClick={() => setShowAddModal(false)}>
-                  Отмена
-                </button>
-                <button type="submit" className="btn-primary">
-                  {isEditing ? 'Сохранить изменения' : 'Создать пользователя'}
-                </button>
+                    <select 
+                      value={botUsersSortBy} 
+                      onChange={(e) => setBotUsersSortBy(e.target.value)}
+                      className="filter-select"
+                    >
+                      <option value="firstInteractionAt">По дате первого контакта</option>
+                      <option value="lastInteractionAt">По последней активности</option>
+                      <option value="messageCount">По кол-ву сообщений</option>
+                    </select>
+
+                    <button 
+                      className="sort-order-btn"
+                      onClick={() => setBotUsersSortOrder(prev => prev === 'DESC' ? 'ASC' : 'DESC')}
+                    >
+                      {botUsersSortOrder === 'DESC' ? '↓' : '↑'}
+                    </button>
+                  </div>
+                </div>
+
+                {loadingBotUsers ? (
+                  <div className="loading-state">Загрузка...</div>
+                ) : (
+                  <div className="bot-users-table">
+                    {filteredBotUsers.map(user => (
+                      <div 
+                        key={user.id}
+                        className={`bot-user-row ${selectedBotUser?.id === user.id ? 'selected' : ''} ${user.isAssigned ? 'assigned' : ''}`}
+                        onClick={() => !user.isAssigned && handleSelectBotUser(user)}
+                      >
+                        <div className="bot-user-avatar">
+                          {user.firstName?.[0]}{user.lastName?.[0]}
+                        </div>
+                        <div className="bot-user-info">
+                          <h4>{user.firstName} {user.lastName}</h4>
+                          <p>@{user.telegramUsername || 'no username'} • ID: {user.telegramId}</p>
+                          <div className="bot-user-meta">
+                            <span>📅 {new Date(user.firstInteractionAt).toLocaleDateString('ru-RU')}</span>
+                            <span>💬 {user.messageCount} сообщ.</span>
+                            {user.isAssigned && <span className="assigned-badge">✓ Уже назначен</span>}
+                          </div>
+                        </div>
+                        {selectedBotUser?.id === user.id && (
+                          <div className="selected-checkmark">✓</div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {selectedBotUser && (
+                  <div className="selected-user-notice">
+                    ✓ Выбран: <strong>{selectedBotUser.firstName} {selectedBotUser.lastName}</strong>
+                  </div>
+                )}
               </div>
-            </form>
+            ) : null}
+
+            {(selectedBotUser || addMode === 'manual' || isEditing) && (
+              <form onSubmit={handleSubmit} className="user-form">
+                <div className="form-section">
+                  <h3>📱 Telegram данные</h3>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Telegram ID</label>
+                      <input
+                        type="number"
+                        placeholder="123456789"
+                        value={formData.telegramId}
+                        onChange={(e) => setFormData({...formData, telegramId: e.target.value})}
+                        disabled={isEditing}
+                      />
+                      {isEditing && <small>Telegram ID нельзя изменить</small>}
+                    </div>
+                    <div className="form-group">
+                      <label>Username</label>
+                      <input
+                        type="text"
+                        placeholder="@username"
+                        value={formData.telegramUsername}
+                        onChange={(e) => setFormData({...formData, telegramUsername: e.target.value})}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="form-section">
+                  <h3>👤 Личные данные</h3>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Имя</label>
+                      <input
+                        type="text"
+                        placeholder="Иван"
+                        value={formData.firstName}
+                        onChange={(e) => setFormData({...formData, firstName: e.target.value})}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Фамилия</label>
+                      <input
+                        type="text"
+                        placeholder="Иванов"
+                        value={formData.lastName}
+                        onChange={(e) => setFormData({...formData, lastName: e.target.value})}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="form-section">
+                  <h3>🎭 Роль в системе</h3>
+                  <div className="role-selector">
+                    {Object.entries(roleInfo).map(([roleKey, role]) => (
+                      <label 
+                        key={roleKey}
+                        className={`role-option ${formData.role === roleKey ? 'selected' : ''}`}
+                      >
+                        <input
+                          type="radio"
+                          name="role"
+                          value={roleKey}
+                          checked={formData.role === roleKey}
+                          onChange={(e) => setFormData({...formData, role: e.target.value})}
+                        />
+                        <div className="role-option-content">
+                          <div className="role-option-icon" style={{ color: role.color }}>
+                            {role.icon}
+                          </div>
+                          <div className="role-option-info">
+                            <h4>{role.name}</h4>
+                            <p>{role.description}</p>
+                          </div>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="modal-actions">
+                  <button type="button" className="btn-secondary" onClick={() => setShowAddModal(false)}>
+                    Отмена
+                  </button>
+                  <button type="submit" className="btn-primary">
+                    {isEditing ? 'Сохранить изменения' : 'Создать пользователя'}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}

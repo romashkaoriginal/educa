@@ -996,6 +996,235 @@
   margin: 0;
 }
 
+/* ========== SUBJECTS WITH INDIVIDUAL DATES ========== */
+.subjects-with-dates {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.subject-item {
+  border: 2px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 16px;
+  transition: all 0.3s ease;
+}
+
+.subject-item.selected {
+  border-color: #3B82F6;
+  background: #eff6ff;
+}
+
+.subject-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.subject-checkbox-label input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+}
+
+.subject-name {
+  flex: 1;
+}
+
+.subject-dates {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.date-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.date-input-group label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.date-input-group input[type="month"] {
+  padding: 8px 12px;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 14px;
+  transition: all 0.3s ease;
+}
+
+.date-input-group input[type="month"]:focus {
+  outline: none;
+  border-color: #3B82F6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.date-text-input {
+  padding: 10px 14px;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: monospace;
+  transition: all 0.3s ease;
+}
+
+.date-text-input:focus {
+  outline: none;
+  border-color: #3B82F6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.date-text-input::placeholder {
+  color: #9ca3af;
+  font-family: system-ui;
+}
+
+.section-description {
+  font-size: 13px;
+  color: #6b7280;
+  margin: 0 0 16px 0;
+}
+
+/* ========== EXPIRING BADGES ========== */
+.expiring-badges {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.expiring-badge {
+  padding: 4px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.expiring-badge.expired {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.expiring-badge.week {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.expiring-badge.month {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.expiry-badge {
+  padding: 3px 8px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.expiry-badge.expired {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.expiry-badge.soon {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.expiry-badge.permanent {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.student-card.expired {
+  opacity: 0.7;
+  border-left: 4px solid #DC2626;
+}
+
+/* ========== MODAL SIZE ========== */
+.modal-content.large {
+  max-width: 900px;
+  max-height: 95vh;
+}
+
+/* ========== STUDENT DETAIL MODAL ========== */
+.student-detail-content {
+  padding: 24px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.detail-section h3 {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0 0 12px 0;
+  color: #1f2937;
+}
+
+.detail-section p {
+  margin: 8px 0;
+  font-size: 14px;
+  color: #374151;
+}
+
+.subjects-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.subject-detail-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  background: #f9fafb;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.subject-expiry {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.detail-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  padding-top: 16px;
+  border-top: 2px solid #e5e7eb;
+}
+
+.btn-danger {
+  padding: 12px 20px;
+  background: #DC2626;
+  color: #ffffff;
+  border: none;
+  border-radius: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-danger:hover {
+  background: #991b1b;
+  transform: translateY(-2px);
+}
+
 /* ========== RESPONSIVE ========== */
 @media (max-width: 768px) {
   .students-grid {
