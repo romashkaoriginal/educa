@@ -160,7 +160,7 @@ function Students({ subjects }) {
 
   // Конвертация даты из ДД.ММ.ГГГГ в YYYY-MM-DD
   const convertDateFormat = (dateStr) => {
-    if (!dateStr) return '';
+    if (!dateStr || dateStr.trim() === '') return null; // Пустая строка = null
     
     // Если уже в формате YYYY-MM-DD
     if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) return dateStr;
@@ -169,10 +169,18 @@ function Students({ subjects }) {
     const parts = dateStr.split('.');
     if (parts.length === 3) {
       const [day, month, year] = parts;
-      return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+      const converted = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+      
+      // Проверяем что дата валидная
+      const testDate = new Date(converted);
+      if (isNaN(testDate.getTime())) {
+        return null; // Невалидная дата
+      }
+      
+      return converted;
     }
     
-    return dateStr;
+    return null; // Неправильный формат
   };
 
   const handleCreateStudent = async (e) => {
@@ -182,16 +190,23 @@ function Students({ subjects }) {
       // Конвертируем даты в формат БД
       const convertedData = {
         ...formData,
-        accessStartDate: convertDateFormat(formData.accessStartDate),
-        accessEndDate: convertDateFormat(formData.accessEndDate),
         subjectAccessDates: {}
       };
 
       // Конвертируем даты для каждого предмета
       Object.entries(formData.subjectAccessDates).forEach(([subjectId, dates]) => {
+        const startDate = convertDateFormat(dates.startDate);
+        const endDate = convertDateFormat(dates.endDate);
+        
+        // Проверка: оба поля должны быть заполнены
+        if (!startDate || !endDate) {
+          alert(`Заполните даты начала и окончания для всех выбранных предметов!`);
+          throw new Error('Invalid dates');
+        }
+        
         convertedData.subjectAccessDates[subjectId] = {
-          startDate: convertDateFormat(dates.startDate),
-          endDate: convertDateFormat(dates.endDate)
+          startDate,
+          endDate
         };
       });
 

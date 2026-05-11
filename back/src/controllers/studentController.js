@@ -43,36 +43,34 @@ exports.createStudent = async (req, res) => {
       firstName, 
       lastName, 
       subjectIds,
-      accessStartDate,
-      accessEndDate,
       subjectAccessDates // Формат: { subjectId: { startDate, endDate } }
     } = req.body;
 
     // Валидация обязательных полей
-    if (!telegramId || !firstName || !lastName) {
+    if (!firstName || !lastName) {
       return res.status(400).json({ 
-        message: 'Required fields: telegramId, firstName, lastName' 
+        message: 'Required fields: firstName, lastName' 
       });
     }
 
     // Проверка: студент уже существует?
-    const existingStudent = await User.findOne({ where: { telegramId } });
-    if (existingStudent) {
-      return res.status(400).json({ 
-        message: 'Student with this Telegram ID already exists' 
-      });
+    if (telegramId) {
+      const existingStudent = await User.findOne({ where: { telegramId } });
+      if (existingStudent) {
+        return res.status(400).json({ 
+          message: 'Student with this Telegram ID already exists' 
+        });
+      }
     }
 
-    // Создаём студента с датами доступа к приложению
+    // Создаём студента (БЕЗ общих дат доступа)
     const student = await User.create({
-      telegramId,
+      telegramId: telegramId || null,
       telegramUsername: telegramUsername || null,
       firstName,
       lastName,
       role: 'student',
-      isActive: true,
-      accessStartDate: accessStartDate || new Date(), // По умолчанию сейчас
-      accessEndDate: accessEndDate || null // Бессрочно если не указано
+      isActive: true
     });
 
     // Привязываем предметы с индивидуальными датами доступа
@@ -81,13 +79,18 @@ exports.createStudent = async (req, res) => {
         // Берём индивидуальные даты для предмета, если есть
         const subjectAccess = subjectAccessDates?.[subjectId] || {};
         
+        let startDate = subjectAccess.startDate || null;
+        let endDate = subjectAccess.endDate || null;
+        
+        // Валидация: если пустая строка или 'Invalid date' - ставим null
+        if (startDate === '' || startDate === 'Invalid date') startDate = null;
+        if (endDate === '' || endDate === 'Invalid date') endDate = null;
+        
         await UserSubject.create({
           userId: student.id,
           subjectId: subjectId,
-          // Если для предмета указаны свои даты - используем их
-          // Иначе используем общие даты доступа студента
-          accessStartDate: subjectAccess.startDate || accessStartDate || new Date(),
-          accessEndDate: subjectAccess.endDate || accessEndDate || null,
+          accessStartDate: startDate,
+          accessEndDate: endDate,
           isActive: true
         });
       }
@@ -123,6 +126,91 @@ exports.createStudent = async (req, res) => {
       message: 'Server error', 
       error: error.message 
     });
+  }
+};
+
+// Обновить студента (все данные)
+exports.updateStudent = async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    const { 
+      telegramId,
+      telegramUsername,
+      firstName, 
+      lastName, 
+      isActive,
+      subjectIds,
+      subjectAccessDates 
+    } = req.body;
+
+    const student = await User.findByPk(studentId);
+    if (!student || student.role !== 'student') {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+
+    // Обновляем основные данные
+    if (telegramId !== undefined) student.telegramId = telegramId || null;
+    if (telegramUsername !== undefined) student.telegramUsername = telegramUsername || null;
+    if (firstName) student.firstName = firstName;
+    if (lastName) student.lastName = lastName;
+    if (typeof isActive === 'boolean') student.isActive = isActive;
+
+    await student.save();
+
+    // Обновляем предметы и их даты если переданы
+    if (subjectIds) {
+      // Удаляем старые связи
+      await UserSubject.destroy({ where: { userId: studentId } });
+
+      // Создаём новые с датами
+      for (const subjectId of subjectIds) {
+        const subjectAccess = subjectAccessDates?.[subjectId] || {};
+        
+        let startDate = subjectAccess.startDate || null;
+        let endDate = subjectAccess.endDate || null;
+        
+        if (startDate === '' || startDate === 'Invalid date') startDate = null;
+        if (endDate === '' || endDate === 'Invalid date') endDate = null;
+        
+        await UserSubject.create({
+          userId: studentId,
+          subjectId: subjectId,
+          accessStartDate: startDate,
+          accessEndDate: endDate,
+          isActive: true
+        });
+      }
+    }
+
+    // Обновляем BotUser если нужно
+    if (telegramId) {
+      const { BotUser } = require('../models');
+      const botUser = await BotUser.findOne({ where: { telegramId } });
+      if (botUser && !botUser.isAssigned) {
+        botUser.isAssigned = true;
+        botUser.userId = student.id;
+        await botUser.save();
+      }
+    }
+
+    // Получаем обновлённого студента
+    const updatedStudent = await User.findByPk(studentId, {
+      include: [{
+        model: Subject,
+        as: 'subjects',
+        through: { 
+          attributes: ['accessStartDate', 'accessEndDate', 'isActive'] 
+        }
+      }]
+    });
+
+    res.json({
+      message: 'Student updated successfully',
+      student: updatedStudent
+    });
+  } catch (error) {
+    console.error('Update student error:', error);
+    res.status(500).json({ message: 'Server error' });
   }
 };
 

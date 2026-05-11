@@ -1,4 +1,4 @@
-const { DataTypes, Op } = require('sequelize');
+const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
 
 const User = sequelize.define('User', {
@@ -8,12 +8,12 @@ const User = sequelize.define('User', {
     autoIncrement: true
   },
   
-  // TELEGRAM DATA (для всех: админов, учителей, менеджеров, студентов)
+  // TELEGRAM DATA
   telegramId: {
-  type: DataTypes.BIGINT,
-  allowNull: true,  // ← ДОЛЖНО БЫТЬ
-  unique: true
-},
+    type: DataTypes.BIGINT,
+    allowNull: true,
+    unique: true
+  },
   telegramUsername: {
     type: DataTypes.STRING,
     allowNull: true
@@ -42,17 +42,7 @@ const User = sequelize.define('User', {
     defaultValue: true
   },
   
-  accessStartDate: {
-    type: DataTypes.DATE,
-    allowNull: true,
-    comment: 'Дата начала доступа к приложению (для студентов)'
-  },
-  accessEndDate: {
-    type: DataTypes.DATE,
-    allowNull: true,
-    comment: 'Дата окончания доступа к приложению (для студентов)'
-  },
-  
+  // СТАТИСТИКА (для студентов)
   totalScore: {
     type: DataTypes.INTEGER,
     defaultValue: 0
