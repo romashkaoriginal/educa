@@ -346,7 +346,21 @@ exports.deleteStudent = async (req, res) => {
       return res.status(404).json({ message: 'Student not found' });
     }
 
+    const telegramId = student.telegramId;
+
+    // Удаляем студента
     await student.destroy();
+
+    // ВАЖНО: Обновляем BotUser если есть
+    if (telegramId) {
+      const { BotUser } = require('../models');
+      const botUser = await BotUser.findOne({ where: { telegramId } });
+      if (botUser) {
+        botUser.isAssigned = false;
+        botUser.userId = null;
+        await botUser.save();
+      }
+    }
 
     res.json({ message: 'Student deleted successfully' });
   } catch (error) {

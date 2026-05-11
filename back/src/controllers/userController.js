@@ -211,3 +211,40 @@ exports.getUserByTelegramId = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
+
+// Удалить пользователя
+exports.deleteUser = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    if (user.role === 'student') {
+      return res.status(400).json({ 
+        message: 'Cannot delete student through this endpoint. Use /students/:id instead' 
+      });
+    }
+
+    const telegramId = user.telegramId;
+    await user.destroy();
+
+    // Обновляем BotUser
+    if (telegramId) {
+      const { BotUser } = require('../models');
+      const botUser = await BotUser.findOne({ where: { telegramId } });
+      if (botUser) {
+        botUser.isAssigned = false;
+        botUser.userId = null;
+        await botUser.save();
+      }
+    }
+
+    res.json({ message: 'User deleted successfully' });
+  } catch (error) {
+    console.error('Delete user error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
