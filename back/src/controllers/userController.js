@@ -67,6 +67,15 @@ exports.createUser = async (req, res) => {
       isActive: true
     });
 
+    // ВАЖНО: Обновляем BotUser если такой есть
+    const { BotUser } = require('../models');
+    const botUser = await BotUser.findOne({ where: { telegramId } });
+    if (botUser) {
+      botUser.isAssigned = true;
+      botUser.userId = user.id;
+      await botUser.save();
+    }
+
     res.status(201).json({
       message: 'User created successfully',
       user: {

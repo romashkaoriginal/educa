@@ -3,6 +3,8 @@ const cors = require('cors');
 require('dotenv').config();
 
 const { syncDatabase } = require('./models');
+const { startBot, stopBot } = require('./bot');
+
 const authRoutes = require('./routes/auth');
 const subjectRoutes = require('./routes/subjects');
 const studentRoutes = require('./routes/students');
@@ -11,7 +13,7 @@ const adminRoutes = require('./routes/admin');
 const homeworkRoutes = require('./routes/homework');
 const practiceRoutes = require('./routes/practice');
 const usersRoutes = require('./routes/users');
-const botUsersRoutes = require('./routes/botUsers'); // ← ДОБАВЬ ЭТУ СТРОКУ
+const botUsersRoutes = require('./routes/botUsers');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -36,11 +38,11 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/homework', homeworkRoutes);
 app.use('/api/practice', practiceRoutes);
 app.use('/api/users', usersRoutes);
-app.use('/api/bot-users', botUsersRoutes); // ← ДОБАВЬ ЭТУ СТРОКУ
+app.use('/api/bot-users', botUsersRoutes);
 
 // Тестовый маршрут
 app.get('/', (req, res) => {
-  res.json({ message: 'Educa Backend API' });
+  res.json({ message: 'Educa Backend API + Telegram Bot' });
 });
 
 // Запуск сервера
@@ -49,7 +51,23 @@ const startServer = async () => {
   
   app.listen(PORT, () => {
     console.log(`🚀 Server running on http://localhost:${PORT}`);
+    
+    // Запускаем бота после запуска сервера
+    startBot();
   });
 };
+
+// Graceful shutdown
+process.on('SIGINT', () => {
+  console.log('\n🛑 Получен сигнал остановки...');
+  stopBot();
+  process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+  console.log('\n🛑 Получен сигнал завершения...');
+  stopBot();
+  process.exit(0);
+});
 
 startServer();

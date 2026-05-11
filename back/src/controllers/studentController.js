@@ -104,6 +104,15 @@ exports.createStudent = async (req, res) => {
       }]
     });
 
+    // ВАЖНО: Обновляем BotUser если такой есть
+    const { BotUser } = require('../models');
+    const botUser = await BotUser.findOne({ where: { telegramId } });
+    if (botUser) {
+      botUser.isAssigned = true;
+      botUser.userId = student.id;
+      await botUser.save();
+    }
+
     res.status(201).json({
       message: 'Student created successfully',
       student: studentWithSubjects

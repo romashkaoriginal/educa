@@ -12,29 +12,49 @@ function App() {
   const [isTelegramWebApp, setIsTelegramWebApp] = useState(false);
 
   useEffect(() => {
-    // Проверяем, запущено ли в Telegram WebApp
-    const tg = window.Telegram?.WebApp;
-    
-    if (tg) {
-      setIsTelegramWebApp(true);
-      tg.ready();
-      tg.expand();
-
-      const user = tg.initDataUnsafe?.user;
+    // Ждём инициализации Telegram WebApp SDK
+    const checkTelegramWebApp = () => {
+      const tg = window.Telegram?.WebApp;
       
-      if (user) {
-        // Проверяем роль пользователя в БД
-        checkUserRole(user.id);
+      // Проверяем несколько признаков Telegram WebApp
+      const isTelegram = !!(
+        tg && 
+        tg.initData && 
+        tg.initDataUnsafe && 
+        typeof tg.ready === 'function'
+      );
+
+      if (isTelegram) {
+        setIsTelegramWebApp(true);
+        tg.ready();
+        tg.expand();
+
+        const user = tg.initDataUnsafe?.user;
+        
+        if (user) {
+          // Проверяем роль пользователя в БД
+          checkUserRole(user.id);
+        } else {
+          // Нет данных пользователя - доступ только к разделу ученика
+          setUserRole('student');
+          setSelectedRole('student');
+          setLoading(false);
+        }
       } else {
-        // Нет данных пользователя - доступ только к разделу ученика
-        setUserRole('student');
-        setSelectedRole('student');
+        // НЕ в Telegram - блокируем доступ
+        setIsTelegramWebApp(false);
         setLoading(false);
       }
+    };
+
+    // Проверяем с небольшой задержкой на случай если SDK ещё не загрузился
+    if (window.Telegram?.WebApp) {
+      checkTelegramWebApp();
     } else {
-      // НЕ в Telegram - блокируем доступ
-      setIsTelegramWebApp(false);
-      setLoading(false);
+      // Даём SDK 500ms на загрузку
+      setTimeout(() => {
+        checkTelegramWebApp();
+      }, 500);
     }
 
     // Загрузка данных дашборда
