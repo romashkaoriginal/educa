@@ -28,7 +28,7 @@ function AdminPanel() {
 
   const sections = [
     { id: 'users', name: 'Пользователи', icon: '👨‍💼' },
-    { id: 'students', name: 'Студенты', icon: '👥' },
+    { id: 'students', name: 'Ученики', icon: '👥' },
     { id: 'practice', name: 'Практика', icon: '💪' },
     { id: 'quiz', name: 'Викторина', icon: '🎯' },
     { id: 'homework', name: 'Дом. задание', icon: '📝' }

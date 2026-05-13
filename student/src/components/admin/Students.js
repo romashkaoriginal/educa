@@ -21,6 +21,15 @@ function Students({ subjects }) {
   
   // Выбранный студент для детального просмотра
   const [selectedStudent, setSelectedStudent] = useState(null);
+  const [isEditingStudent, setIsEditingStudent] = useState(false);
+const [editFormData, setEditFormData] = useState({
+  telegramId: '',
+  telegramUsername: '',
+  firstName: '',
+  lastName: '',
+  subjectIds: [],
+  subjectAccessDates: {}
+});
   const [showDetailModal, setShowDetailModal] = useState(false);
   
   // Сортировка и фильтры для пользователей бота
@@ -229,12 +238,12 @@ function Students({ subjects }) {
       }
     } catch (error) {
       console.error('Error creating student:', error);
-      alert('Ошибка при создании студента');
+      alert('Ошибка при создании ученика');
     }
   };
 
   const handleDeleteStudent = async (studentId) => {
-    if (!window.confirm('Вы уверены, что хотите удалить этого студента?')) {
+    if (!window.confirm('Вы уверены, что хотите удалить этого ученика?')) {
       return;
     }
 
@@ -351,9 +360,127 @@ function Students({ subjects }) {
   const expiringCounts = getExpiringCounts();
 
   const handleViewStudent = (student) => {
-    setSelectedStudent(student);
-    setShowDetailModal(true);
-  };
+  setSelectedStudent(student);
+  setShowDetailModal(true);
+  setIsEditingStudent(false);
+  
+  const subjectIds = student.subjects?.map(s => s.id) || [];
+  const subjectAccessDates = {};
+  
+  student.subjects?.forEach(subject => {
+    subjectAccessDates[subject.id] = {
+      startDate: formatDateToDisplay(subject.UserSubject?.accessStartDate) || '',
+      endDate: formatDateToDisplay(subject.UserSubject?.accessEndDate) || ''
+    };
+  });
+  
+  setEditFormData({
+    telegramId: student.telegramId?.toString() || '',
+    telegramUsername: student.telegramUsername || '',
+    firstName: student.firstName || '',
+    lastName: student.lastName || '',
+    subjectIds,
+    subjectAccessDates
+  });
+};
+
+const handleStartEdit = () => {
+  setIsEditingStudent(true);
+};
+
+const handleCancelEdit = () => {
+  setIsEditingStudent(false);
+};
+
+const handleEditSubjectToggle = (subjectId) => {
+  setEditFormData(prev => {
+    const isSelected = prev.subjectIds.includes(subjectId);
+    
+    if (isSelected) {
+      const newSubjectAccessDates = { ...prev.subjectAccessDates };
+      delete newSubjectAccessDates[subjectId];
+      
+      return {
+        ...prev,
+        subjectIds: prev.subjectIds.filter(id => id !== subjectId),
+        subjectAccessDates: newSubjectAccessDates
+      };
+    } else {
+      return {
+        ...prev,
+        subjectIds: [...prev.subjectIds, subjectId],
+        subjectAccessDates: {
+          ...prev.subjectAccessDates,
+          [subjectId]: { startDate: '', endDate: '' }
+        }
+      };
+    }
+  });
+};
+
+const handleEditSubjectDateChange = (subjectId, field, value) => {
+  setEditFormData(prev => ({
+    ...prev,
+    subjectAccessDates: {
+      ...prev.subjectAccessDates,
+      [subjectId]: {
+        ...prev.subjectAccessDates[subjectId],
+        [field]: value
+      }
+    }
+  }));
+};
+
+const formatDateToDisplay = (dateStr) => {
+  if (!dateStr) return '';
+  const date = new Date(dateStr);
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+  return `${day}.${month}.${year}`;
+};
+
+const handleSaveEdit = async () => {
+  try {
+    const convertedData = {
+      telegramId: editFormData.telegramId || null,
+      telegramUsername: editFormData.telegramUsername,
+      firstName: editFormData.firstName,
+      lastName: editFormData.lastName,
+      subjectIds: editFormData.subjectIds,
+      subjectAccessDates: {}
+    };
+
+    Object.entries(editFormData.subjectAccessDates).forEach(([subjectId, dates]) => {
+      const startDate = convertDateFormat(dates.startDate);
+      const endDate = convertDateFormat(dates.endDate);
+      
+      if (!startDate || !endDate) {
+        alert(`Заполните даты для всех предметов!`);
+        throw new Error('Invalid dates');
+      }
+      
+      convertedData.subjectAccessDates[subjectId] = { startDate, endDate };
+    });
+
+    const response = await fetch(`${API_URL}/students/${selectedStudent.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(convertedData)
+    });
+
+    if (response.ok) {
+      await loadStudents();
+      const updated = students.find(s => s.id === selectedStudent.id);
+      setSelectedStudent(updated);
+      setIsEditingStudent(false);
+    }
+  } catch (error) {
+    if (error.message !== 'Invalid dates') {
+      console.error('Error updating student:', error);
+    }
+  }
+};
 
   const handleCloseDetail = () => {
     setSelectedStudent(null);
@@ -364,7 +491,7 @@ function Students({ subjects }) {
     <div className="students-section">
       <div className="section-header">
         <div className="header-left">
-          <h2>Студенты ({filteredStudents.length})</h2>
+          <h2>Ученики ({filteredStudents.length})</h2>
           <div className="expiring-badges">
             <span className="expiring-badge expired" title="Истёк">
               ⚠️ {expiringCounts.expired}
@@ -378,7 +505,7 @@ function Students({ subjects }) {
           </div>
         </div>
         <button className="add-button" onClick={handleOpenAddModal}>
-          + Добавить студента
+          + Добавить ученика
         </button>
       </div>
 
@@ -407,7 +534,7 @@ function Students({ subjects }) {
           value={filterExpiring}
           onChange={(e) => setFilterExpiring(e.target.value)}
         >
-          <option value="all">Все студенты</option>
+          <option value="all">Все Ученики</option>
           <option value="week">⚡ Истекает до 7 дней</option>
           <option value="month">⏰ Истекает до 30 дней</option>
           <option value="expired">❌ Истёкшие</option>
@@ -463,7 +590,7 @@ function Students({ subjects }) {
                       </span>
                     )}
                     {!student.accessEndDate && (
-                      <span className="expiry-badge permanent">∞ Бессрочно</span>
+                      <span className="expiry-badge permanent"></span>
                     )}
                   </div>
 
@@ -486,7 +613,7 @@ function Students({ subjects }) {
 
       {filteredStudents.length === 0 && !loading && (
         <div className="empty-state">
-          <p>Студенты не найдены</p>
+          <p>Ученики не найдены</p>
         </div>
       )}
 
@@ -495,7 +622,7 @@ function Students({ subjects }) {
         <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
           <div className="modal-content large" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>Добавить студента</h2>
+              <h2>Добавить ученика</h2>
               <button className="modal-close" onClick={() => setShowAddModal(false)}>✕</button>
             </div>
 
@@ -590,7 +717,7 @@ function Students({ subjects }) {
               <form onSubmit={handleCreateStudent} className="assignment-form">
                 {/* Данные студента (редактируемые) */}
                 <div className="form-section">
-                  <h3>👤 Данные студента</h3>
+                  <h3>👤 Данные ученика</h3>
                   <div className="form-row">
                     <div className="form-group">
                       <label>Telegram ID</label>
@@ -692,7 +819,7 @@ function Students({ subjects }) {
                     Отмена
                   </button>
                   <button type="submit" className="btn-primary">
-                    Создать студента
+                    Создать ученика
                   </button>
                 </div>
               </form>
@@ -700,91 +827,176 @@ function Students({ subjects }) {
           </div>
         </div>
       )}
+     {/* МОДАЛКА ДЕТАЛЬНОГО ПРОСМОТРА/РЕДАКТИРОВАНИЯ СТУДЕНТА */}
+{showDetailModal && selectedStudent && (
+  <div className="modal-overlay" onClick={handleCloseDetail}>
+    <div className="modal-content large" onClick={(e) => e.stopPropagation()}>
+      <div className="modal-header">
+        <h2>👨‍🎓 {selectedStudent.firstName} {selectedStudent.lastName}</h2>
+        <button className="modal-close" onClick={handleCloseDetail}>✕</button>
+      </div>
 
-      {/* МОДАЛКА ДЕТАЛЬНОГО ПРОСМОТРА СТУДЕНТА */}
-      {showDetailModal && selectedStudent && (
-        <div className="modal-overlay" onClick={handleCloseDetail}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>👨‍🎓 {selectedStudent.firstName} {selectedStudent.lastName}</h2>
-              <button className="modal-close" onClick={handleCloseDetail}>✕</button>
-            </div>
+      {!isEditingStudent ? (
+        /* РЕЖИМ ПРОСМОТРА */
+        <div className="student-detail-content">
+          <div className="detail-section">
+            <h3>📱 Контактные данные</h3>
+            <p><strong>Telegram ID:</strong> {selectedStudent.telegramId || 'Не указан'}</p>
+            <p><strong>Username:</strong> @{selectedStudent.telegramUsername || 'не указан'}</p>
+            <p><strong>Имя:</strong> {selectedStudent.firstName}</p>
+            <p><strong>Фамилия:</strong> {selectedStudent.lastName}</p>
+            <p><strong>Статус:</strong> 
+              <span className={`status-badge ${selectedStudent.isActive ? 'active' : 'inactive'}`}>
+                {selectedStudent.isActive ? '✓ Активен' : '✕ Неактивен'}
+              </span>
+            </p>
+          </div>
 
-            <div className="student-detail-content">
-              <div className="detail-section">
-                <h3>📱 Контактные данные</h3>
-                <p><strong>Telegram ID:</strong> {selectedStudent.telegramId}</p>
-                <p><strong>Username:</strong> @{selectedStudent.telegramUsername || 'не указан'}</p>
-                <p><strong>Статус:</strong> 
-                  <span className={`status-badge ${selectedStudent.isActive ? 'active' : 'inactive'}`}>
-                    {selectedStudent.isActive ? '✓ Активен' : '✕ Неактивен'}
-                  </span>
-                </p>
-              </div>
-
-              <div className="detail-section">
-                <h3>📅 Доступ к приложению</h3>
-                <p><strong>Начало:</strong> {selectedStudent.accessStartDate ? new Date(selectedStudent.accessStartDate).toLocaleDateString('ru-RU') : 'Не указано'}</p>
-                <p><strong>Окончание:</strong> {selectedStudent.accessEndDate ? new Date(selectedStudent.accessEndDate).toLocaleDateString('ru-RU') : '∞ Бессрочно'}</p>
-                
-                {selectedStudent.accessEndDate && (
-                  <div className="extend-access-buttons">
-                    <button 
-                      className="extend-btn"
-                      onClick={() => handleExtendAccess(selectedStudent.id, 7)}
-                    >
-                      +7 дней
-                    </button>
-                    <button 
-                      className="extend-btn"
-                      onClick={() => handleExtendAccess(selectedStudent.id, 30)}
-                    >
-                      +30 дней
-                    </button>
-                    <button 
-                      className="extend-btn"
-                      onClick={() => handleExtendAccess(selectedStudent.id, 90)}
-                    >
-                      +90 дней
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              <div className="detail-section">
-                <h3>📚 Предметы ({selectedStudent.subjects?.length || 0})</h3>
-                <div className="subjects-list">
-                  {selectedStudent.subjects?.map(subject => (
-                    <div key={subject.id} className="subject-detail-item">
+          <div className="detail-section">
+            <h3>📚 Предметы ({selectedStudent.subjects?.length || 0})</h3>
+            {selectedStudent.subjects?.length > 0 ? (
+              <div className="subjects-list">
+                {selectedStudent.subjects.map(subject => (
+                  <div key={subject.id} className="subject-detail-item">
+                    <div className="subject-info">
                       <span className="subject-name">{subject.icon} {subject.name}</span>
-                      {subject.UserSubject?.accessEndDate && (
-                        <span className="subject-expiry">
-                          До {new Date(subject.UserSubject.accessEndDate).toLocaleDateString('ru-RU')}
-                        </span>
-                      )}
+                      <div className="subject-dates-info">
+                        <span>📅 С: {subject.UserSubject?.accessStartDate ? new Date(subject.UserSubject.accessStartDate).toLocaleDateString('ru-RU') : '—'}</span>
+                        <span>⏰ До: {subject.UserSubject?.accessEndDate ? new Date(subject.UserSubject.accessEndDate).toLocaleDateString('ru-RU') : '—'}</span>
+                      </div>
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ))}
               </div>
+            ) : (
+              <p className="empty-message">Предметы не назначены</p>
+            )}
+          </div>
 
-              <div className="detail-actions">
-                <button 
-                  className="btn-danger"
-                  onClick={() => {
-                    handleDeleteStudent(selectedStudent.id);
-                    handleCloseDetail();
-                  }}
-                >
-                  🗑️ Удалить студента
-                </button>
-                <button className="btn-secondary" onClick={handleCloseDetail}>
-                  Закрыть
-                </button>
+          <div className="detail-actions">
+            <button className="btn-primary" onClick={handleStartEdit}>
+              ✏️ Редактировать
+            </button>
+            <button 
+              className="btn-danger"
+              onClick={() => {
+                handleDeleteStudent(selectedStudent.id);
+                handleCloseDetail();
+              }}
+            >
+              🗑️ Удалить ученика
+            </button>
+            <button className="btn-secondary" onClick={handleCloseDetail}>
+              Закрыть
+            </button>
+          </div>
+        </div>
+      ) : (
+        /* РЕЖИМ РЕДАКТИРОВАНИЯ */
+        <div className="student-edit-content">
+          <div className="form-section">
+            <h3>👤 Личные данные</h3>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Имя</label>
+                <input
+                  type="text"
+                  value={editFormData.firstName}
+                  onChange={(e) => setEditFormData({...editFormData, firstName: e.target.value})}
+                />
+              </div>
+              <div className="form-group">
+                <label>Фамилия</label>
+                <input
+                  type="text"
+                  value={editFormData.lastName}
+                  onChange={(e) => setEditFormData({...editFormData, lastName: e.target.value})}
+                />
+              </div>
+            </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Telegram ID</label>
+                <input
+                  type="number"
+                  value={editFormData.telegramId || ''}
+                  onChange={(e) => setEditFormData({...editFormData, telegramId: e.target.value})}
+                />
+              </div>
+              <div className="form-group">
+                <label>Username</label>
+                <input
+                  type="text"
+                  placeholder="@username"
+                  value={editFormData.telegramUsername}
+                  onChange={(e) => setEditFormData({...editFormData, telegramUsername: e.target.value})}
+                />
               </div>
             </div>
           </div>
+
+          <div className="form-section">
+            <h3>📚 Предметы с индивидуальными сроками</h3>
+            <div className="subjects-with-dates">
+              {subjects.map(subject => {
+                const isSelected = editFormData.subjectIds.includes(subject.id);
+                const subjectDates = editFormData.subjectAccessDates[subject.id] || {};
+                
+                return (
+                  <div key={subject.id} className={`subject-item ${isSelected ? 'selected' : ''}`}>
+                    <label className="subject-checkbox-label">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => handleEditSubjectToggle(subject.id)}
+                      />
+                      <span className="subject-name">{subject.icon} {subject.name}</span>
+                    </label>
+
+                    {isSelected && (
+                      <div className="subject-dates">
+                        <div className="date-input-group">
+                          <label>Начало доступа *</label>
+                          <input
+                            type="text"
+                            placeholder="01.01.2025"
+                            value={subjectDates.startDate || ''}
+                            onChange={(e) => handleEditSubjectDateChange(subject.id, 'startDate', e.target.value)}
+                            className="date-text-input"
+                          />
+                        </div>
+                        <div className="date-input-group">
+                          <label>Окончание доступа *</label>
+                          <input
+                            type="text"
+                            placeholder="31.12.2025"
+                            value={subjectDates.endDate || ''}
+                            onChange={(e) => handleEditSubjectDateChange(subject.id, 'endDate', e.target.value)}
+                            className="date-text-input"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="detail-actions">
+            <button className="btn-primary" onClick={handleSaveEdit}>
+              💾 Сохранить
+            </button>
+            <button className="btn-secondary" onClick={handleCancelEdit}>
+              Отмена
+            </button>
+          </div>
         </div>
       )}
+    </div>
+  </div>
+)}
+      
     </div>
   );
 }

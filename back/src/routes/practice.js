@@ -1,8 +1,24 @@
 const express = require('express');
 const { PracticeTopic, PracticeQuestion, User, Subject } = require('../models');
 const { Op } = require('sequelize');
+const practiceController = require('../controllers/practiceController');
 
 const router = express.Router();
+
+// ========== АДМИН/УЧИТЕЛЬ РОУТЫ ==========
+
+// Топики/разделы
+router.get('/topics/:subjectId', practiceController.getTopicsBySubject);
+router.post('/topics', practiceController.createTopic);
+
+// Вопросы
+router.get('/questions/:topicId', practiceController.getQuestionsByTopic);
+router.post('/questions', practiceController.createQuestion);
+router.put('/questions/:questionId', practiceController.updateQuestion);
+router.put('/questions/:questionId/toggle', practiceController.toggleQuestion);
+router.delete('/questions/:questionId', practiceController.deleteQuestion);
+
+// ========== СТУДЕНТ РОУТЫ ==========
 
 // Получить практику для конкретного студента (только по его предметам)
 router.get('/student/:studentId', async (req, res) => {
@@ -27,7 +43,8 @@ router.get('/student/:studentId', async (req, res) => {
     // Получаем практики по предметам студента
     const practiceTopics = await PracticeTopic.findAll({
       where: {
-        subjectId: { [Op.in]: subjectIds }
+        subjectId: { [Op.in]: subjectIds },
+        isActive: true // Только активные разделы
       },
       include: [
         {
@@ -38,6 +55,8 @@ router.get('/student/:studentId', async (req, res) => {
         {
           model: PracticeQuestion,
           as: 'questions',
+          where: { isActive: true }, // Только активные вопросы
+          required: false,
           attributes: ['id']
         }
       ],
