@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import './AdminPanel.css';
 import Students from '../components/admin/Students';
 import Users from '../components/admin/Users';
+import Practice from '../components/admin/Practice'; // ← ДОБАВЬ ЭТО
 
 const API_URL = 'https://educa-production-a98e.up.railway.app/api';
 
@@ -60,13 +61,7 @@ function AdminPanel() {
       <main className="admin-content">
         {activeSection === 'users' && <Users />}
         {activeSection === 'students' && <Students subjects={subjects} />}
-        
-        {activeSection === 'practice' && (
-          <div className="admin-section">
-            <h2>Практика</h2>
-            <p className="coming-soon">В разработке</p>
-          </div>
-        )}
+        {activeSection === 'practice' && <Practice subjects={subjects} />} {/* ← ЗАМЕНИ ЭТО */}
 
         {activeSection === 'quiz' && (
           <div className="admin-section">
