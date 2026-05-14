@@ -50,7 +50,7 @@ const startServer = async () => {
   const sequelize = require('./config/database'); // ← ИСПРАВЛЕНО
   
   await syncDatabase();
-  await sequelize.sync({ alter: true }); // Обновит структуру таблиц
+  await sequelize.sync({ alter: true }); 
   
   app.listen(PORT, () => {
     console.log(`🚀 Server running on http://localhost:${PORT}`);
