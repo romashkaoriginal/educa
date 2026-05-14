@@ -47,7 +47,7 @@ app.get('/', (req, res) => {
 
 // Запуск сервера
 const startServer = async () => {
-  const sequelize = require('./config/database'); // ← ИСПРАВЛЕ
+  const sequelize = require('./config/database'); 
   
   await syncDatabase();
   await sequelize.sync({ alter: true }); 
@@ -58,12 +58,7 @@ const startServer = async () => {
   });
 };
 
-// Graceful shutdown
-process.on('SIGINT', () => {
-  console.log('\n🛑 Получен сигнал остановки...');
-  stopBot();
-  process.exit(0);
-});
+
 
 process.on('SIGTERM', () => {
   console.log('\n🛑 Получен сигнал завершения...');
