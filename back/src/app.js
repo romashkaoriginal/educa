@@ -21,7 +21,8 @@ const PORT = process.env.PORT || 5000;
 // Middleware
 app.use(cors({
   origin: [
-    'https://educa-student.netlify.app',
+    'https://educa-student.vercel.app',  // ← НОВЫЙ Vercel
+    'https://educa-student.netlify.app', // ← Старый (можно удалить)
     'http://localhost:3000',
     'https://web.telegram.org'
   ],
