@@ -49,10 +49,11 @@ app.get('/', (req, res) => {
 const startServer = async () => {
   await syncDatabase();
   
+  const { sequelize } = require('./models/database');
+  await sequelize.sync({ alter: true }); // ← Обновит структуру таблиц
+  
   app.listen(PORT, () => {
     console.log(`🚀 Server running on http://localhost:${PORT}`);
-    
-    // Запускаем бота после запуска сервера
     startBot();
   });
 };

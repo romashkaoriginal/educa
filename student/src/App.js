@@ -7,54 +7,59 @@ const API_URL = 'https://educa-production-a98e.up.railway.app/api';
 
 function App() {
   const [selectedRole, setSelectedRole] = useState(null);
-  const [userRole, setUserRole] = useState(null); // Роль из БД
+  const [userRole, setUserRole] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isTelegramWebApp, setIsTelegramWebApp] = useState(false);
 
   useEffect(() => {
-    // Ждём инициализации Telegram WebApp SDK
     const checkTelegramWebApp = () => {
       const tg = window.Telegram?.WebApp;
       
-      // Проверяем несколько признаков Telegram WebApp
+      // Проверяем что действительно в Telegram (не просто наличие SDK)
       const isTelegram = !!(
         tg && 
-        tg.initData && 
-        tg.initDataUnsafe && 
-        typeof tg.ready === 'function'
+        typeof tg.ready === 'function' &&
+        (tg.initData || tg.platform === 'tdesktop' || tg.platform === 'android' || tg.platform === 'ios')
       );
 
-      if (isTelegram) {
-        setIsTelegramWebApp(true);
-        tg.ready();
-        tg.expand();
+     if (isTelegram) {
+  setIsTelegramWebApp(true);
+  tg.ready();
+  tg.expand(); // ← Этого достаточно! expand() уже открывает на максимум
+  
+  // Скрываем кнопку "назад" в Telegram
+  tg.BackButton.hide();
+  
+  // Включаем вертикальные свайпы (для мобилок)
+  tg.enableVerticalSwipes?.();
 
         const user = tg.initDataUnsafe?.user;
         
-        if (user) {
-          // Проверяем роль пользователя в БД
+        if (user && user.id) {
           checkUserRole(user.id);
         } else {
-          // Нет данных пользователя - доступ только к разделу ученика
-          setUserRole('student');
-          setSelectedRole('student');
-          setLoading(false);
+          // Нет user.id - пробуем получить из query параметров
+          const urlParams = new URLSearchParams(window.location.search);
+          const userId = urlParams.get('user_id');
+          
+          if (userId) {
+            checkUserRole(parseInt(userId));
+          } else {
+            setUserRole('student');
+            setSelectedRole('student');
+            setLoading(false);
+          }
         }
       } else {
-        // НЕ в Telegram - блокируем доступ
         setIsTelegramWebApp(false);
         setLoading(false);
       }
     };
 
-    // Проверяем с небольшой задержкой на случай если SDK ещё не загрузился
     if (window.Telegram?.WebApp) {
       checkTelegramWebApp();
     } else {
-      // Даём SDK 500ms на загрузку
-      setTimeout(() => {
-        checkTelegramWebApp();
-      }, 500);
+      setTimeout(checkTelegramWebApp, 500);
     }
 
     // Загрузка данных дашборда
@@ -74,33 +79,27 @@ function App() {
         const data = await response.json();
         const role = data.user?.role;
         
-        // Проверяем роль пользователя
         if (role === 'admin' || role === 'teacher' || role === 'manager') {
-          // Админ/учитель/менеджер - может выбирать раздел
           setUserRole(role);
           setLoading(false);
         } else {
-          // Студент или не найден - только раздел ученика
           setUserRole('student');
           setSelectedRole('student');
           setLoading(false);
         }
       } else {
-        // Пользователь не найден в БД - только раздел ученика
         setUserRole('student');
         setSelectedRole('student');
         setLoading(false);
       }
     } catch (error) {
       console.error('Error checking user role:', error);
-      // Ошибка - по умолчанию только раздел ученика
       setUserRole('student');
       setSelectedRole('student');
       setLoading(false);
     }
   };
 
-  // Показываем лоадер пока проверяем роль
   if (loading) {
     return (
       <div className="loading-screen">
@@ -183,7 +182,6 @@ function App() {
               </div>
             </button>
 
-            {/* Показываем кнопку админки только для admin/teacher/manager */}
             {userRole && userRole !== 'student' && (
               <button 
                 className="role-button role-admin"
@@ -202,7 +200,6 @@ function App() {
     );
   }
 
-  // Отрисовка выбранного раздела
   return (
     <>
       {selectedRole === 'student' && <StudentApp />}

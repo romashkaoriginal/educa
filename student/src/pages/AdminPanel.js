@@ -61,7 +61,7 @@ function AdminPanel() {
       <main className="admin-content">
         {activeSection === 'users' && <Users />}
         {activeSection === 'students' && <Students subjects={subjects} />}
-        {activeSection === 'practice' && <Practice subjects={subjects} />} {/* ← ЗАМЕНИ ЭТО */}
+        {activeSection === 'practice' && <Practice subjects={subjects} />} {}
 
         {activeSection === 'quiz' && (
           <div className="admin-section">

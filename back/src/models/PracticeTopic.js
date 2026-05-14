@@ -7,7 +7,7 @@ const PracticeTopic = sequelize.define('PracticeTopic', {
     primaryKey: true,
     autoIncrement: true
   },
-  title: {
+  name: {  // ← ЗАМЕНИ title на name
     type: DataTypes.STRING,
     allowNull: false
   },
@@ -15,7 +15,11 @@ const PracticeTopic = sequelize.define('PracticeTopic', {
     type: DataTypes.TEXT,
     allowNull: true
   },
-  subjectId: {  // НОВОЕ ПОЛЕ
+  icon: {  // ← ДОБАВЬ это поле
+    type: DataTypes.STRING,
+    defaultValue: '📝'
+  },
+  subjectId: {
     type: DataTypes.INTEGER,
     allowNull: false,
     references: {
@@ -23,21 +27,9 @@ const PracticeTopic = sequelize.define('PracticeTopic', {
       key: 'id'
     }
   },
-  difficulty: {
-    type: DataTypes.ENUM('easy', 'medium', 'hard'),
-    defaultValue: 'medium'
-  },
-  createdBy: {
-    type: DataTypes.INTEGER,
-    allowNull: false,
-    references: {
-      model: 'users',
-      key: 'id'
-    }
-  },
-  questionsCount: {
-    type: DataTypes.INTEGER,
-    defaultValue: 0
+  isActive: {  // ← ДОБАВЬ это поле
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
   }
 }, {
   tableName: 'practice_topics',
