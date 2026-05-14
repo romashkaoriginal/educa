@@ -47,7 +47,7 @@ app.get('/', (req, res) => {
 
 // Запуск сервера
 const startServer = async () => {
-  const sequelize = require('./config/database'); // ← ИСПРАВЛЕНО
+  const sequelize = require('./config/database'); // ← ИСПРАВЛЕ
   
   await syncDatabase();
   await sequelize.sync({ alter: true }); 
