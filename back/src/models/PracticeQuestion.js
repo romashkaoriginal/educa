@@ -35,6 +35,10 @@ const PracticeQuestion = sequelize.define('PracticeQuestion', {
   difficulty: {
     type: DataTypes.ENUM('easy', 'medium', 'hard'),
     defaultValue: 'medium'
+  },
+  isActive: {  // ← ДОБАВЬ ЭТО ПОЛЕ
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
   }
 }, {
   tableName: 'practice_questions',

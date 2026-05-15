@@ -7,7 +7,7 @@ const PracticeTopic = sequelize.define('PracticeTopic', {
     primaryKey: true,
     autoIncrement: true
   },
-  name: {  // ← ЗАМЕНИ title на name
+  name: {  
     type: DataTypes.STRING,
     allowNull: false
   },
@@ -15,7 +15,7 @@ const PracticeTopic = sequelize.define('PracticeTopic', {
     type: DataTypes.TEXT,
     allowNull: true
   },
-  icon: {  // ← ДОБАВЬ это поле
+  icon: {  
     type: DataTypes.STRING,
     defaultValue: '📝'
   },
@@ -27,7 +27,7 @@ const PracticeTopic = sequelize.define('PracticeTopic', {
       key: 'id'
     }
   },
-  isActive: {  // ← ДОБАВЬ это поле
+  isActive: {  
     type: DataTypes.BOOLEAN,
     defaultValue: true
   }
