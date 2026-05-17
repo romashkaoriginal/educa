@@ -58,6 +58,52 @@ exports.createTopic = async (req, res) => {
   }
 };
 
+// Обновить топик
+exports.updateTopic = async (req, res) => {
+  try {
+    const { topicId } = req.params;
+    const { name, description, icon } = req.body;
+
+    const topic = await PracticeTopic.findByPk(topicId);
+    if (!topic) {
+      return res.status(404).json({ message: 'Topic not found' });
+    }
+
+    if (name) topic.name = name;
+    if (description !== undefined) topic.description = description;
+    if (icon) topic.icon = icon;
+
+    await topic.save();
+    res.json({ topic });
+  } catch (error) {
+    console.error('Update topic error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Удалить топик
+exports.deleteTopic = async (req, res) => {
+  try {
+    const { topicId } = req.params;
+
+    const topic = await PracticeTopic.findByPk(topicId);
+    if (!topic) {
+      return res.status(404).json({ message: 'Topic not found' });
+    }
+
+    // Удаляем все вопросы (и их попытки через хук)
+    await PracticeQuestion.destroy({
+      where: { topicId: topic.id }
+    });
+
+    await topic.destroy();
+    res.json({ message: 'Topic deleted' });
+  } catch (error) {
+    console.error('Delete topic error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
 // Получить вопросы по топику
 exports.getQuestionsByTopic = async (req, res) => {
   try {
@@ -262,7 +308,7 @@ exports.getStudentStats = async (req, res) => {
         { model: Subject, as: 'subject', attributes: ['name', 'icon'] }
       ],
       order: [['createdAt', 'DESC']],
-      limit: 10
+      limit: 20
     });
 
     res.json({

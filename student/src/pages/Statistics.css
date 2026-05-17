@@ -1,0 +1,383 @@
+/* Вкладки */
+.stats-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.stats-tab {
+  padding: 8px 16px;
+  border: 2px solid #e5e7eb;
+  background: white;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.stats-tab:hover {
+  border-color: #6366f1;
+  color: #6366f1;
+}
+
+.stats-tab.active {
+  background: #6366f1;
+  color: white;
+  border-color: #6366f1;
+}
+
+/* Контент */
+.stats-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-bottom: 20px;
+}
+
+
+.stats-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.stat-card {
+  background: white;
+  border-radius: 12px;
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+}
+
+.stat-card.success {
+  background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+}
+
+.stat-card.error {
+  background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+}
+
+.stat-icon {
+  font-size: 32px;
+  flex-shrink: 0;
+}
+
+.stat-info {
+  flex: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.stat-label {
+  font-size: 14px;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+/* Блоки */
+.stats-block {
+  background: white;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+}
+
+.stats-block h3 {
+  margin: 0 0 12px 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+/* Предметы */
+.subjects-list,
+.topics-list,
+.recent-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 400px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.subject-stat-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 8px;
+  background: #f9fafb;
+}
+
+.subject-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.subject-icon {
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.subject-name {
+  font-weight: 600;
+  color: #1f2937;
+  font-size: 14px;
+}
+
+.subject-numbers {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.count {
+  font-size: 13px;
+  color: #6b7280;
+  font-weight: 600;
+  min-width: 45px;
+  text-align: left;
+  flex-shrink: 0;
+}
+
+.progress-bar {
+  flex: 1;
+  height: 6px;
+  background: #e5e7eb;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #10b981 0%, #34d399 100%);
+  transition: width 0.3s ease;
+}
+
+.percent {
+  font-size: 13px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+  min-width: 45px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.percent.good {
+  background: #d1fae5;
+  color: #059669;
+}
+
+.percent.medium {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.percent.low {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+/* Подразделы */
+.topic-stat-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px;
+  border-radius: 8px;
+  background: #f9fafb;
+}
+
+.topic-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.topic-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.topic-name {
+  font-weight: 600;
+  color: #1f2937;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.topic-subject {
+  font-size: 11px;
+  color: #6b7280;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.topic-numbers {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* Последние решения */
+.recent-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px;
+  background: #f9fafb;
+  border-radius: 8px;
+  border-left: 3px solid #e5e7eb;
+}
+
+.recent-item.correct {
+  border-left-color: #10b981;
+}
+
+.recent-item.incorrect {
+  border-left-color: #ef4444;
+}
+
+.recent-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.recent-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.recent-question {
+  font-size: 13px;
+  color: #1f2937;
+  font-weight: 500;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.recent-meta {
+  font-size: 11px;
+  color: #6b7280;
+  margin-top: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.recent-date {
+  font-size: 11px;
+  color: #9ca3af;
+  white-space: nowrap;
+  flex-shrink: 0;
+  align-self: flex-start;
+  margin-top: 2px;
+}
+
+/* Пустое состояние */
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.empty-icon {
+  font-size: 40px;
+  margin-bottom: 12px;
+}
+
+.empty-state p {
+  color: #6b7280;
+  font-size: 14px;
+  margin: 4px 0;
+  line-height: 1.5;
+}
+
+/* Убираем лишние отступы на мобильных */
+@media (max-width: 480px) {
+  .stats-summary {
+    gap: 8px;
+  }
+  
+  .stat-card {
+    padding: 12px;
+  }
+  
+  .stat-icon {
+    font-size: 22px;
+  }
+  
+  .stat-value {
+    font-size: 22px;
+  }
+  
+  .stat-label {
+    font-size: 11px;
+  }
+  
+  .stats-block {
+    padding: 14px;
+  }
+  
+  .subjects-list,
+  .topics-list,
+  .recent-list {
+    max-height: 300px;
+  }
+}
+
+/* Скроллбар */
+.subjects-list::-webkit-scrollbar,
+.topics-list::-webkit-scrollbar,
+.recent-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.subjects-list::-webkit-scrollbar-track,
+.topics-list::-webkit-scrollbar-track,
+.recent-list::-webkit-scrollbar-track {
+  background: #f3f4f6;
+  border-radius: 2px;
+}
+
+.subjects-list::-webkit-scrollbar-thumb,
+.topics-list::-webkit-scrollbar-thumb,
+.recent-list::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 2px;
+}

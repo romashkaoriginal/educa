@@ -36,13 +36,22 @@ const PracticeQuestion = sequelize.define('PracticeQuestion', {
     type: DataTypes.ENUM('easy', 'medium', 'hard'),
     defaultValue: 'medium'
   },
-  isActive: {  // ← ДОБАВЬ ЭТО ПОЛЕ
+  isActive: {
     type: DataTypes.BOOLEAN,
     defaultValue: true
   }
 }, {
   tableName: 'practice_questions',
-  timestamps: true
+  timestamps: true,
+  hooks: {
+    beforeDestroy: async (question) => {
+      // Удаляем все попытки связанные с этим вопросом
+      const { PracticeAttempt } = require('./index');
+      await PracticeAttempt.destroy({
+        where: { questionId: question.id }
+      });
+    }
+  }
 });
 
 module.exports = PracticeQuestion;

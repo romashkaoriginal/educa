@@ -22,16 +22,16 @@ function App() {
         (tg.initData || tg.platform === 'tdesktop' || tg.platform === 'android' || tg.platform === 'ios')
       );
 
-     if (isTelegram) {
+    if (isTelegram) {
   setIsTelegramWebApp(true);
   tg.ready();
-  tg.expand(); // ← Этого достаточно! expand() уже открывает на максимум
+  tg.expand();
   
-  // Скрываем кнопку "назад" в Telegram
   tg.BackButton.hide();
   
-  // Включаем вертикальные свайпы (для мобилок)
-  tg.enableVerticalSwipes?.();
+  if (tg.disableVerticalSwipes) {
+    tg.disableVerticalSwipes();
+  }
 
         const user = tg.initDataUnsafe?.user;
         

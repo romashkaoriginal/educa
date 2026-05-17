@@ -1,36 +1,52 @@
 const express = require('express');
-const { PracticeTopic, PracticeQuestion, User, Subject } = require('../models');
-const { Op } = require('sequelize');
+const router = express.Router();
 const practiceController = require('../controllers/practiceController');
 
-const router = express.Router();
+// ========== ТОПИКИ (РАЗДЕЛЫ) ==========
 
-// ========== АДМИН/УЧИТЕЛЬ РОУТЫ ==========
-
-// Топики/разделы
+// Получить разделы по предмету
 router.get('/topics/:subjectId', practiceController.getTopicsBySubject);
+
+// Создать раздел
 router.post('/topics', practiceController.createTopic);
 
-// Вопросы
+// Обновить раздел
+router.put('/topics/:topicId', practiceController.updateTopic);
+
+// Удалить раздел
+router.delete('/topics/:topicId', practiceController.deleteTopic);
+
+// ========== ВОПРОСЫ ==========
+
+// Получить вопросы по топику
 router.get('/questions/:topicId', practiceController.getQuestionsByTopic);
+
+// Создать вопрос
 router.post('/questions', practiceController.createQuestion);
+
+// Обновить вопрос
 router.put('/questions/:questionId', practiceController.updateQuestion);
+
+// Включить/выключить вопрос
 router.put('/questions/:questionId/toggle', practiceController.toggleQuestion);
+
+// Удалить вопрос
 router.delete('/questions/:questionId', practiceController.deleteQuestion);
 
-// ========== СТУДЕНТ РОУТЫ ==========
+// ========== СТУДЕНЧЕСКАЯ ЧАСТЬ ==========
 
-// Получить практику для конкретного студента (только по его предметам)
+// Получить разделы для студента (с фильтром по его предметам)
 router.get('/student/:studentId', async (req, res) => {
   try {
+    const { User, Subject, PracticeTopic, PracticeQuestion } = require('../models');
     const { studentId } = req.params;
 
-    // Получаем предметы студента
+    // Получаем студента с его предметами
     const student = await User.findByPk(studentId, {
       include: [{
         model: Subject,
         as: 'subjects',
-        attributes: ['id']
+        attributes: ['id', 'name', 'icon']
       }]
     });
 
@@ -40,10 +56,10 @@ router.get('/student/:studentId', async (req, res) => {
 
     const subjectIds = student.subjects.map(s => s.id);
 
-    // Получаем практики по предметам студента
+    // Получаем активные топики по предметам студента
     const practiceTopics = await PracticeTopic.findAll({
       where: {
-        subjectId: { [Op.in]: subjectIds },
+        subjectId: subjectIds,
         isActive: true
       },
       include: [
@@ -60,7 +76,7 @@ router.get('/student/:studentId', async (req, res) => {
           attributes: ['id']
         }
       ],
-      order: [['createdAt', 'DESC']]
+      order: [['createdAt', 'ASC']]
     });
 
     res.json({ practiceTopics });
@@ -70,14 +86,15 @@ router.get('/student/:studentId', async (req, res) => {
   }
 });
 
+// ========== ПОПЫТКИ И СТАТИСТИКА ==========
 
 // Сохранить попытку
 router.post('/attempts', practiceController.saveAttempt);
 
-// Статистика студента
+// Получить статистику студента
 router.get('/stats/:studentId', practiceController.getStudentStats);
 
-// Вопросы с ошибками
+// Получить вопросы с ошибками
 router.get('/incorrect/:studentId/:topicId', practiceController.getIncorrectQuestions);
 
 module.exports = router;

@@ -3,6 +3,7 @@ import './StudentApp.css';
 import Practice from './Practice';
 import Homework from './Homework';
 import Quiz from './Quiz';
+import Statistics from './Statistics';
 
 const API_URL = 'https://educa-production-a98e.up.railway.app/api';
 
@@ -16,9 +17,9 @@ function StudentApp() {
     { id: 'practice', name: 'Практика', icon: '💪', component: Practice },
     { id: 'homework', name: 'Домашка', icon: '📝', component: Homework },
     { id: 'quiz', name: 'Викторина', icon: '🎯', component: Quiz },
+    { id: 'stats', name: 'Статистика', icon: '📊', component: Statistics },
   ];
 
-  // Загрузка списка студентов
   useEffect(() => {
     const fetchStudents = async () => {
       try {
@@ -37,7 +38,6 @@ function StudentApp() {
 
   const ActiveComponent = tabs.find(tab => tab.id === activeTab)?.component;
 
-  // Если студент не выбран - показываем список выбора
   if (!selectedStudent) {
     return (
       <div className="student-selection">
@@ -87,7 +87,6 @@ function StudentApp() {
     );
   }
 
-  // Если студент выбран - показываем приложение
   return (
     <div className="student-app">
       <header className="header">
