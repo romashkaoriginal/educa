@@ -4,6 +4,7 @@ import Students from '../components/admin/Students';
 import Users from '../components/admin/Users';
 import Practice from '../components/admin/Practice';
 import Homework from '../components/admin/Homework';
+import Statistics from '../components/admin/Statistics';
 
 const API_URL = 'https://educa-production-a98e.up.railway.app/api';
 
@@ -65,12 +66,13 @@ function AdminPanel() {
   };
 
   const sections = [
-    { id: 'users', name: 'Пользователи', icon: '👨‍💼' },
-    { id: 'students', name: 'Ученики', icon: '👥' },
-    { id: 'practice', name: 'Практика', icon: '💪' },
-    { id: 'quiz', name: 'Викторина', icon: '🎯' },
-    { id: 'homework', name: 'Дом. задание', icon: '📝' }
-  ];
+  { id: 'users', name: 'Пользователи', icon: '👨‍💼' },
+  { id: 'students', name: 'Ученики', icon: '👥' },
+  { id: 'practice', name: 'Практика', icon: '💪' },
+  { id: 'quiz', name: 'Викторина', icon: '🎯' },
+  { id: 'homework', name: 'Дом. задание', icon: '📝' },
+  { id: 'statistics', name: 'Статистика', icon: '📊' } // ← ДОБАВИТЬ
+];
 
   return (
     <div className="admin-panel">
@@ -100,7 +102,8 @@ function AdminPanel() {
         {activeSection === 'students' && <Students subjects={subjects} />}
         {activeSection === 'practice' && <Practice subjects={subjects} />}
         {activeSection === 'homework' && <Homework subjects={subjects} currentUserId={currentUser?.id} />}
-
+        {activeSection === 'statistics' && <Statistics />} 
+        
         {activeSection === 'quiz' && (
           <div className="admin-section">
             <h2>Викторина</h2>

@@ -418,7 +418,7 @@ router.get('/:id/results', async (req, res) => {
       include: [{
         model: User,
         as: 'student',
-        attributes: ['id', 'name', 'email']
+        attributes: ['id', 'firstName', 'lastName', 'telegramUsername'] // ← ИСПРАВЛЕНО
       }],
       order: [['submittedAt', 'DESC']]
     });

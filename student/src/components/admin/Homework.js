@@ -644,50 +644,54 @@ function Homework({ subjects, currentUserId }) {  // ← Добавить curren
     return <div className="loading">Загрузка...</div>;
   }
 
-  if (selectedHomework) {
-    return (
-      <div className="admin-section">
-        <div className="section-header">
-          <button className="back-btn" onClick={() => setSelectedHomework(null)}>
-            ← Назад
-          </button>
-          <h2>Результаты: {selectedHomework.title}</h2>
-        </div>
+ if (selectedHomework) {
+  return (
+    <div className="admin-section">
+      <div className="section-header">
+        <button className="back-btn" onClick={() => setSelectedHomework(null)}>
+          ← Назад
+        </button>
+        <h2>Результаты: {selectedHomework.title}</h2>
+      </div>
 
-        <div className="results-container">
-          {selectedHomework.results?.length === 0 ? (
-            <p className="empty-message">Пока нет отправленных работ</p>
-          ) : (
-            <div className="results-list">
-              {selectedHomework.results?.map(result => (
-                <div key={result.id} className="result-card">
-                  <div className="result-header">
-                    <div className="student-info">
-                      <span className="student-name">{result.student.name}</span>
-                      <span className="student-email">{result.student.email}</span>
-                    </div>
-                    <div className="result-score">
-                      <span className="score">{result.totalScore}/{result.maxScore}</span>
-                      <span className="percentage">
-                        {Math.round((result.totalScore / result.maxScore) * 100)}%
-                      </span>
-                    </div>
+      <div className="results-container">
+        {selectedHomework.results?.length === 0 ? (
+          <p className="empty-message">Пока нет отправленных работ</p>
+        ) : (
+          <div className="results-list">
+            {selectedHomework.results?.map(result => (
+              <div key={result.id} className="result-card">
+                <div className="result-header">
+                  <div className="student-info">
+                    <span className="student-name">
+                      {result.student.firstName} {result.student.lastName}
+                    </span>
+                    <span className="student-email">
+                      @{result.student.telegramUsername || 'no username'}
+                    </span>
                   </div>
-                  <div className="result-meta">
-                    <span>Попытка {result.attemptNumber}</span>
-                    <span>Отправлено: {new Date(result.submittedAt).toLocaleString('ru-RU')}</span>
-                    {result.timeSpent && (
-                      <span>Время: {Math.floor(result.timeSpent / 60)} мин</span>
-                    )}
+                  <div className="result-score">
+                    <span className="score">{result.totalScore}/{result.maxScore}</span>
+                    <span className="percentage">
+                      {Math.round((result.totalScore / result.maxScore) * 100)}%
+                    </span>
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
+                <div className="result-meta">
+                  <span>Попытка {result.attemptNumber}</span>
+                  <span>Отправлено: {new Date(result.submittedAt).toLocaleString('ru-RU')}</span>
+                  {result.timeSpent && (
+                    <span>Время: {Math.floor(result.timeSpent / 60)} мин</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
-    );
-  }
+    </div>
+  );
+}
 
   if (showCreateModal) {
     return (
