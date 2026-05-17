@@ -7,6 +7,14 @@ const PracticeAttempt = sequelize.define('PracticeAttempt', {
     primaryKey: true,
     autoIncrement: true
   },
+  studentId: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: 'users',
+      key: 'id'
+    }
+  },
   topicId: {
     type: DataTypes.INTEGER,
     allowNull: false,
@@ -15,33 +23,37 @@ const PracticeAttempt = sequelize.define('PracticeAttempt', {
       key: 'id'
     }
   },
-  userId: {
+  questionId: {
     type: DataTypes.INTEGER,
     allowNull: false,
     references: {
-      model: 'users',
+      model: 'practice_questions',
       key: 'id'
     }
   },
-  score: {
+  subjectId: {
     type: DataTypes.INTEGER,
-    defaultValue: 0
+    allowNull: false,
+    references: {
+      model: 'subjects',
+      key: 'id'
+    }
   },
-  questionsTotal: {
+  selectedAnswer: {
     type: DataTypes.INTEGER,
     allowNull: false
   },
-  questionsCorrect: {
-    type: DataTypes.INTEGER,
-    defaultValue: 0
+  isCorrect: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false
   },
-  completedAt: {
-    type: DataTypes.DATE,
-    defaultValue: DataTypes.NOW
+  timeSpent: {
+    type: DataTypes.INTEGER, // секунды
+    allowNull: true
   }
 }, {
   tableName: 'practice_attempts',
-  timestamps: false
+  timestamps: true
 });
 
 module.exports = PracticeAttempt;

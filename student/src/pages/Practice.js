@@ -9,7 +9,6 @@ function Practice({ studentId }) {
   const [selectedSubject, setSelectedSubject] = useState('all');
   const [loading, setLoading] = useState(true);
   
-  // Режим прохождения практики
   const [activePractice, setActivePractice] = useState(null);
   const [questions, setQuestions] = useState([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -48,7 +47,6 @@ function Practice({ studentId }) {
       const response = await fetch(`${API_URL}/practice/questions/${topic.id}`);
       const data = await response.json();
       
-      // Фильтруем только активные вопросы
       const activeQuestions = data.questions.filter(q => q.isActive);
       
       if (activeQuestions.length === 0) {
@@ -72,17 +70,37 @@ function Practice({ studentId }) {
     setSelectedAnswer(answerIndex);
   };
 
-  const handleNextQuestion = () => {
-    // Сохраняем ответ
+  const handleNextQuestion = async () => {
+    const currentQuestion = questions[currentQuestionIndex];
+    const isCorrect = selectedAnswer === currentQuestion.correctAnswer;
+
+    // Сохраняем попытку на сервер сразу
+    try {
+      await fetch(`${API_URL}/practice/attempts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          studentId: studentId,
+          topicId: activePractice.id,
+          questionId: currentQuestion.id,
+          subjectId: activePractice.subjectId,
+          selectedAnswer: selectedAnswer,
+          isCorrect: isCorrect,
+          timeSpent: 0
+        })
+      });
+    } catch (error) {
+      console.error('Error saving attempt:', error);
+    }
+
     const newAnswers = [...userAnswers, {
-      questionId: questions[currentQuestionIndex].id,
+      questionId: currentQuestion.id,
       selectedAnswer: selectedAnswer,
-      correctAnswer: questions[currentQuestionIndex].correctAnswer,
-      isCorrect: selectedAnswer === questions[currentQuestionIndex].correctAnswer
+      correctAnswer: currentQuestion.correctAnswer,
+      isCorrect: isCorrect
     }];
     setUserAnswers(newAnswers);
 
-    // Переходим к следующему вопросу или показываем результат
     if (currentQuestionIndex < questions.length - 1) {
       setCurrentQuestionIndex(currentQuestionIndex + 1);
       setSelectedAnswer(null);
@@ -91,37 +109,18 @@ function Practice({ studentId }) {
     }
   };
 
-  const finishPractice = async (answers) => {
+  const finishPractice = (answers) => {
     const correctCount = answers.filter(a => a.isCorrect).length;
     const totalCount = answers.length;
     const scorePercentage = Math.round((correctCount / totalCount) * 100);
 
-    const result = {
+    setPracticeResult({
       correctCount,
       totalCount,
       scorePercentage,
       answers
-    };
-
-    setPracticeResult(result);
+    });
     setShowResult(true);
-
-    // Сохраняем попытку в БД
-    try {
-      await fetch(`${API_URL}/practice/attempts`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: studentId,
-          topicId: activePractice.id,
-          score: scorePercentage,
-          correctAnswers: correctCount,
-          totalQuestions: totalCount
-        })
-      });
-    } catch (error) {
-      console.error('Error saving attempt:', error);
-    }
   };
 
   const closePractice = () => {
@@ -134,7 +133,6 @@ function Practice({ studentId }) {
     setPracticeResult(null);
   };
 
-  // Фильтрация по предмету
   const filteredTopics = selectedSubject === 'all'
     ? practiceTopics
     : practiceTopics.filter(topic => topic.subjectId === selectedSubject);
@@ -150,7 +148,6 @@ function Practice({ studentId }) {
     );
   }
 
-  // Режим прохождения практики
   if (activePractice && !showResult) {
     const currentQuestion = questions[currentQuestionIndex];
     const progress = ((currentQuestionIndex + 1) / questions.length) * 100;
@@ -162,7 +159,7 @@ function Practice({ studentId }) {
             ← Назад к списку
           </button>
           <div className="practice-info">
-            <h2>{activePractice.title}</h2>
+            <h2>{activePractice.name}</h2>
             <p>Вопрос {currentQuestionIndex + 1} из {questions.length}</p>
           </div>
         </div>
@@ -209,13 +206,12 @@ function Practice({ studentId }) {
     );
   }
 
-  // Экран результатов
   if (showResult && practiceResult) {
     return (
       <div className="section practice-result">
         <div className="result-header">
           <h1>Результаты практики</h1>
-          <p className="result-topic">{activePractice.title}</p>
+          <p className="result-topic">{activePractice.name}</p>
         </div>
 
         <div className="result-score">
@@ -289,7 +285,6 @@ function Practice({ studentId }) {
     );
   }
 
-  // Список практик
   return (
     <div className="section">
       <h1 className="section-title">Практика</h1>

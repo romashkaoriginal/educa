@@ -1,12 +1,14 @@
 const express = require('express');
+const router = express.Router();
 const statsController = require('../controllers/statsController');
 
-const router = express.Router();
+// Статистика ученика (все разделы)
+router.get('/student/:studentId', statsController.getStudentStats);
 
-// Получить статистику студента
-router.get('/students/:studentId', statsController.getStudentStats);
+// Статистика для админа с фильтрами
+router.get('/admin', statsController.getAdminStats);
 
-// Получить детальную историю активности
-router.get('/students/:studentId/activity', statsController.getStudentActivity);
+// Список учеников для фильтра
+router.get('/students', statsController.getStudentsForFilter);
 
 module.exports = router;

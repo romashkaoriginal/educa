@@ -44,7 +44,7 @@ router.get('/student/:studentId', async (req, res) => {
     const practiceTopics = await PracticeTopic.findAll({
       where: {
         subjectId: { [Op.in]: subjectIds },
-        isActive: true // Только активные разделы
+        isActive: true
       },
       include: [
         {
@@ -55,7 +55,7 @@ router.get('/student/:studentId', async (req, res) => {
         {
           model: PracticeQuestion,
           as: 'questions',
-          where: { isActive: true }, // Только активные вопросы
+          where: { isActive: true },
           required: false,
           attributes: ['id']
         }
@@ -69,5 +69,15 @@ router.get('/student/:studentId', async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 });
+
+
+// Сохранить попытку
+router.post('/attempts', practiceController.saveAttempt);
+
+// Статистика студента
+router.get('/stats/:studentId', practiceController.getStudentStats);
+
+// Вопросы с ошибками
+router.get('/incorrect/:studentId/:topicId', practiceController.getIncorrectQuestions);
 
 module.exports = router;
