@@ -144,11 +144,13 @@ router.get('/student/:studentId', async (req, res) => {
 // Create homework
 router.post('/create', async (req, res) => {
   try {
-    const { title, description, subjectId, openDate, closeDate, maxAttempts, questions } = req.body;
+    const { title, description, subjectId, openDate, closeDate, maxAttempts, questions, createdBy } = req.body;
 
     if (!title || !subjectId || !openDate || !closeDate || !questions || questions.length === 0) {
       return res.status(400).json({ message: 'Missing required fields' });
     }
+е
+    const creatorId = createdBy || 1;
 
     // Create homework
     const homework = await Homework.create({
@@ -158,7 +160,7 @@ router.post('/create', async (req, res) => {
       openDate,
       closeDate,
       maxAttempts,
-      createdBy: 1, // TODO: Get from auth
+      createdBy: creatorId, // ← ИЗМЕНЕНО
       isActive: true
     });
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import './Homework.css';
+import '../../styles/Homework.css';
 
 const API_URL = 'https://educa-production-a98e.up.railway.app/api';
 
@@ -14,7 +14,7 @@ const QUESTION_TYPES = [
   { value: 'true_false', label: 'Верно / неверно', icon: '✓✗' }
 ];
 
-function Homework({ subjects }) {
+function Homework({ subjects, currentUserId }) {  // ← Добавить currentUserId
   const [homeworks, setHomeworks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -94,46 +94,47 @@ function Homework({ subjects }) {
   };
 
   const handleSaveHomework = async () => {
-    if (!formData.title || !formData.subjectId || !formData.openDate || !formData.closeDate) {
-      alert('Заполните все обязательные поля');
-      return;
+  if (!formData.title || !formData.subjectId || !formData.openDate || !formData.closeDate) {
+    alert('Заполните все обязательные поля');
+    return;
+  }
+
+  if (questions.length === 0) {
+    alert('Добавьте хотя бы один вопрос');
+    return;
+  }
+
+  try {
+    const url = editingHomework 
+      ? `${API_URL}/homework/${editingHomework.id}`
+      : `${API_URL}/homework/create`;
+    
+    const method = editingHomework ? 'PUT' : 'POST';
+
+    const response = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...formData,
+        maxAttempts: formData.maxAttempts === '' ? null : parseInt(formData.maxAttempts),
+        questions: questions.map((q, index) => ({ ...q, order: index })),
+        createdBy: currentUserId || 1  // ← ДОБАВИТЬ ЭТУ СТРОКУ
+      })
+    });
+
+    if (response.ok) {
+      alert(editingHomework ? 'Домашка обновлена!' : 'Домашка создана!');
+      setShowCreateModal(false);
+      loadHomeworks();
+    } else {
+      const error = await response.json();
+      alert(error.message || 'Ошибка сохранения');
     }
-
-    if (questions.length === 0) {
-      alert('Добавьте хотя бы один вопрос');
-      return;
-    }
-
-    try {
-      const url = editingHomework 
-        ? `${API_URL}/homework/${editingHomework.id}`
-        : `${API_URL}/homework/create`;
-      
-      const method = editingHomework ? 'PUT' : 'POST';
-
-      const response = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...formData,
-          maxAttempts: formData.maxAttempts === '' ? null : parseInt(formData.maxAttempts),
-          questions: questions.map((q, index) => ({ ...q, order: index }))
-        })
-      });
-
-      if (response.ok) {
-        alert(editingHomework ? 'Домашка обновлена!' : 'Домашка создана!');
-        setShowCreateModal(false);
-        loadHomeworks();
-      } else {
-        const error = await response.json();
-        alert(error.message || 'Ошибка сохранения');
-      }
-    } catch (error) {
-      console.error('Error saving homework:', error);
-      alert('Ошибка сохранения');
-    }
-  };
+  } catch (error) {
+    console.error('Error saving homework:', error);
+    alert('Ошибка сохранения');
+  }
+};
 
   const toggleHomeworkStatus = async (homework) => {
     try {
