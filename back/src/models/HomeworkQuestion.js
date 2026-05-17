@@ -16,17 +16,26 @@ const HomeworkQuestion = sequelize.define('HomeworkQuestion', {
     },
     onDelete: 'CASCADE'
   },
+  questionType: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    defaultValue: 'single_choice'
+  },
   questionText: {
     type: DataTypes.TEXT,
     allowNull: false
   },
   options: {
-    type: DataTypes.JSON,
-    allowNull: false
+    type: DataTypes.JSONB,
+    allowNull: true
   },
   correctAnswer: {
-    type: DataTypes.INTEGER,
+    type: DataTypes.JSONB,
     allowNull: false
+  },
+  explanation: {
+    type: DataTypes.TEXT,
+    allowNull: true
   },
   points: {
     type: DataTypes.INTEGER,

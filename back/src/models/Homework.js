@@ -15,7 +15,7 @@ const Homework = sequelize.define('Homework', {
     type: DataTypes.TEXT,
     allowNull: true
   },
-  subjectId: {  // НОВОЕ ПОЛЕ
+  subjectId: {
     type: DataTypes.INTEGER,
     allowNull: false,
     references: {
@@ -23,8 +23,16 @@ const Homework = sequelize.define('Homework', {
       key: 'id'
     }
   },
-  deadline: {
+  openDate: {
     type: DataTypes.DATE,
+    allowNull: false
+  },
+  closeDate: {
+    type: DataTypes.DATE,
+    allowNull: false
+  },
+  maxAttempts: {
+    type: DataTypes.INTEGER,
     allowNull: true
   },
   createdBy: {
@@ -35,9 +43,9 @@ const Homework = sequelize.define('Homework', {
       key: 'id'
     }
   },
-  isPublished: {
+  isActive: {
     type: DataTypes.BOOLEAN,
-    defaultValue: false
+    defaultValue: true
   }
 }, {
   tableName: 'homeworks',

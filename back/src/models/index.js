@@ -77,9 +77,6 @@ HomeworkSubmission.belongsTo(Homework, { foreignKey: 'homeworkId', as: 'homework
 User.hasMany(HomeworkSubmission, { foreignKey: 'userId', as: 'homeworkSubmissions' });
 HomeworkSubmission.belongsTo(User, { foreignKey: 'userId', as: 'student' });
 
-User.hasMany(HomeworkSubmission, { foreignKey: 'checkedBy', as: 'checkedSubmissions' });
-HomeworkSubmission.belongsTo(User, { foreignKey: 'checkedBy', as: 'checker' });
-
 HomeworkSubmission.hasMany(HomeworkAnswer, { foreignKey: 'submissionId', as: 'answers' });
 HomeworkAnswer.belongsTo(HomeworkSubmission, { foreignKey: 'submissionId' });
 

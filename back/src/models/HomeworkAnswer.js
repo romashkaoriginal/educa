@@ -24,21 +24,17 @@ const HomeworkAnswer = sequelize.define('HomeworkAnswer', {
       key: 'id'
     }
   },
-  answer: {
-    type: DataTypes.INTEGER,
-    allowNull: false
+  userAnswer: {
+    type: DataTypes.JSONB,
+    allowNull: true
   },
   isCorrect: {
     type: DataTypes.BOOLEAN,
     allowNull: false
-  },
-  points: {
-    type: DataTypes.INTEGER,
-    defaultValue: 0
   }
 }, {
   tableName: 'homework_answers',
-  timestamps: false
+  timestamps: true
 });
 
 module.exports = HomeworkAnswer;

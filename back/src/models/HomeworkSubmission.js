@@ -23,43 +23,34 @@ const HomeworkSubmission = sequelize.define('HomeworkSubmission', {
       key: 'id'
     }
   },
+  attemptNumber: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    defaultValue: 1
+  },
   totalScore: {
     type: DataTypes.INTEGER,
     defaultValue: 0
+  },
+  maxScore: {
+    type: DataTypes.INTEGER,
+    allowNull: true
   },
   submittedAt: {
     type: DataTypes.DATE,
     defaultValue: DataTypes.NOW
   },
-  checkedAt: {
-    type: DataTypes.DATE,
-    allowNull: true
-  },
-  checkedBy: {
+  timeSpent: {
     type: DataTypes.INTEGER,
-    allowNull: true,
-    references: {
-      model: 'users',
-      key: 'id'
-    }
-  },
-  feedback: {
-    type: DataTypes.TEXT,
     allowNull: true
   },
   status: {
-    type: DataTypes.ENUM('submitted', 'checked', 'returned'),
+    type: DataTypes.STRING,
     defaultValue: 'submitted'
   }
 }, {
   tableName: 'homework_submissions',
-  timestamps: false,
-  indexes: [
-    {
-      unique: true,
-      fields: ['homeworkId', 'userId']
-    }
-  ]
+  timestamps: false
 });
 
 module.exports = HomeworkSubmission;
