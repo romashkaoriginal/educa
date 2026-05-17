@@ -91,12 +91,29 @@ exports.deleteTopic = async (req, res) => {
       return res.status(404).json({ message: 'Topic not found' });
     }
 
-    // Удаляем все вопросы (и их попытки через хук)
+    // Шаг 1: Найти все вопросы этого топика
+    const questions = await PracticeQuestion.findAll({
+      where: { topicId: topic.id },
+      attributes: ['id']
+    });
+
+    const questionIds = questions.map(q => q.id);
+
+    // Шаг 2: Удалить все попытки по этим вопросам
+    if (questionIds.length > 0) {
+      await PracticeAttempt.destroy({
+        where: { questionId: questionIds }
+      });
+    }
+
+    // Шаг 3: Удалить все вопросы
     await PracticeQuestion.destroy({
       where: { topicId: topic.id }
     });
 
+    // Шаг 4: Удалить сам топик
     await topic.destroy();
+
     res.json({ message: 'Topic deleted' });
   } catch (error) {
     console.error('Delete topic error:', error);
@@ -325,6 +342,35 @@ exports.getStudentStats = async (req, res) => {
   } catch (error) {
     console.error('Get stats error:', error);
     res.status(500).json({ error: 'Failed to get statistics' });
+  }
+};
+
+// Получить статистику по конкретному топику для студента
+exports.getTopicStats = async (req, res) => {
+  try {
+    const { studentId, topicId } = req.params;
+
+    const totalAttempts = await PracticeAttempt.count({
+      where: { studentId, topicId }
+    });
+
+    const correctAttempts = await PracticeAttempt.count({
+      where: { studentId, topicId, isCorrect: true }
+    });
+
+    const successRate = totalAttempts > 0 
+      ? Math.round((correctAttempts / totalAttempts) * 100) 
+      : 0;
+
+    res.json({
+      total: totalAttempts,
+      correct: correctAttempts,
+      incorrect: totalAttempts - correctAttempts,
+      successRate
+    });
+  } catch (error) {
+    console.error('Get topic stats error:', error);
+    res.status(500).json({ error: 'Failed to get topic statistics' });
   }
 };
 

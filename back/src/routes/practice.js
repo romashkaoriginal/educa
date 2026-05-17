@@ -38,10 +38,9 @@ router.delete('/questions/:questionId', practiceController.deleteQuestion);
 // Получить разделы для студента (с фильтром по его предметам)
 router.get('/student/:studentId', async (req, res) => {
   try {
-    const { User, Subject, PracticeTopic, PracticeQuestion } = require('../models');
+    const { User, Subject, PracticeTopic, PracticeQuestion, PracticeAttempt } = require('../models');
     const { studentId } = req.params;
 
-    // Получаем студента с его предметами
     const student = await User.findByPk(studentId, {
       include: [{
         model: Subject,
@@ -56,7 +55,6 @@ router.get('/student/:studentId', async (req, res) => {
 
     const subjectIds = student.subjects.map(s => s.id);
 
-    // Получаем активные топики по предметам студента
     const practiceTopics = await PracticeTopic.findAll({
       where: {
         subjectId: subjectIds,
@@ -79,7 +77,37 @@ router.get('/student/:studentId', async (req, res) => {
       order: [['createdAt', 'ASC']]
     });
 
-    res.json({ practiceTopics });
+    // Добавляем статистику по каждому топику
+    const topicsWithStats = await Promise.all(
+      practiceTopics.map(async (topic) => {
+        const topicJSON = topic.toJSON();
+        
+        // Считаем попытки студента по этому топику
+        const totalAttempts = await PracticeAttempt.count({
+          where: { studentId: parseInt(studentId), topicId: topic.id }
+        });
+
+        const correctAttempts = await PracticeAttempt.count({
+          where: { studentId: parseInt(studentId), topicId: topic.id, isCorrect: true }
+        });
+
+        const successRate = totalAttempts > 0 
+          ? Math.round((correctAttempts / totalAttempts) * 100) 
+          : 0;
+
+        return {
+          ...topicJSON,
+          stats: {
+            total: totalAttempts,
+            correct: correctAttempts,
+            incorrect: totalAttempts - correctAttempts,
+            successRate
+          }
+        };
+      })
+    );
+
+    res.json({ practiceTopics: topicsWithStats });
   } catch (error) {
     console.error('Get student practice error:', error);
     res.status(500).json({ message: 'Server error' });
@@ -93,6 +121,9 @@ router.post('/attempts', practiceController.saveAttempt);
 
 // Получить статистику студента
 router.get('/stats/:studentId', practiceController.getStudentStats);
+
+// Получить статистику по топику
+router.get('/topic-stats/:studentId/:topicId', practiceController.getTopicStats);
 
 // Получить вопросы с ошибками
 router.get('/incorrect/:studentId/:topicId', practiceController.getIncorrectQuestions);

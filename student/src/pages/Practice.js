@@ -131,6 +131,18 @@ function Practice({ studentId }) {
     setUserAnswers([]);
     setShowResult(false);
     setPracticeResult(null);
+    
+    // Перезагружаем данные чтобы обновить статистику
+    const fetchData = async () => {
+      try {
+        const practiceRes = await fetch(`${API_URL}/practice/student/${studentId}`);
+        const practiceData = await practiceRes.json();
+        setPracticeTopics(practiceData.practiceTopics || []);
+      } catch (error) {
+        console.error('Error reloading practice:', error);
+      }
+    };
+    fetchData();
   };
 
   const filteredTopics = selectedSubject === 'all'
@@ -345,12 +357,47 @@ function Practice({ studentId }) {
               <p style={{ fontSize: '13px', color: '#9ca3af', marginTop: '8px' }}>
                 📚 Вопросов: {topic.questions?.length || 0}
               </p>
+              
+              {/* СТАТИСТИКА ПО ТОПИКУ */}
+              {topic.stats && topic.stats.total > 0 && (
+                <div style={{
+                  marginTop: '12px',
+                  padding: '12px',
+                  background: '#f9fafb',
+                  borderRadius: '8px',
+                  fontSize: '13px'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                    <span style={{ color: '#6b7280' }}>Ваш прогресс:</span>
+                    <span style={{ fontWeight: '600', color: '#1f2937' }}>
+                      {topic.stats.correct}/{topic.stats.total}
+                    </span>
+                  </div>
+                  <div style={{
+                    height: '6px',
+                    background: '#e5e7eb',
+                    borderRadius: '3px',
+                    overflow: 'hidden'
+                  }}>
+                    <div style={{
+                      height: '100%',
+                      width: `${topic.stats.successRate}%`,
+                      background: topic.stats.successRate >= 70 ? '#10b981' : topic.stats.successRate >= 50 ? '#f59e0b' : '#ef4444',
+                      transition: 'width 0.3s'
+                    }}></div>
+                  </div>
+                  <div style={{ marginTop: '6px', color: '#6b7280', fontSize: '12px' }}>
+                    Точность: {topic.stats.successRate}%
+                  </div>
+                </div>
+              )}
+              
               <button 
                 className="primary-button"
                 onClick={() => startPractice(topic)}
                 disabled={!topic.questions || topic.questions.length === 0}
               >
-                Начать практику
+                {topic.stats && topic.stats.total > 0 ? 'Пройти заново' : 'Начать практику'}
               </button>
             </div>
           ))}
