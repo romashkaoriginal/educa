@@ -2,7 +2,188 @@ const { PracticeTopic, PracticeQuestion, PracticeAttempt, Subject, User } = requ
 const { Op } = require('sequelize');
 const sequelize = require('../config/database');
 
-// ... существующий код ...
+// ========== АДМИН ФУНКЦИИ ==========
+
+// Получить разделы практики по предмету
+exports.getTopicsBySubject = async (req, res) => {
+  try {
+    const { subjectId } = req.params;
+
+    const topics = await PracticeTopic.findAll({
+      where: { subjectId },
+      attributes: ['id', 'name', 'description', 'icon', 'isActive', 'createdAt'],
+      order: [['createdAt', 'ASC']]
+    });
+
+    const topicsWithCounts = await Promise.all(
+      topics.map(async (topic) => {
+        const questionCount = await PracticeQuestion.count({
+          where: { topicId: topic.id }
+        });
+        return {
+          ...topic.toJSON(),
+          questionCount
+        };
+      })
+    );
+
+    res.json({ topics: topicsWithCounts });
+  } catch (error) {
+    console.error('Get topics error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Создать раздел практики
+exports.createTopic = async (req, res) => {
+  try {
+    const { name, description, icon, subjectId } = req.body;
+
+    if (!name || !subjectId) {
+      return res.status(400).json({ message: 'Name and subjectId required' });
+    }
+
+    const topic = await PracticeTopic.create({
+      name,
+      description: description || '',
+      icon: icon || '📝',
+      subjectId,
+      isActive: true
+    });
+
+    res.json({ topic });
+  } catch (error) {
+    console.error('Create topic error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Получить вопросы по топику
+exports.getQuestionsByTopic = async (req, res) => {
+  try {
+    const { topicId } = req.params;
+
+    const questions = await PracticeQuestion.findAll({
+      where: { topicId },
+      attributes: [
+        'id',
+        'questionText',
+        'options',
+        'correctAnswer',
+        'explanation',
+        'difficulty',
+        'isActive',
+        'createdAt'
+      ],
+      order: [['createdAt', 'ASC']]
+    });
+
+    res.json({ questions });
+  } catch (error) {
+    console.error('Get questions error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Создать вопрос
+exports.createQuestion = async (req, res) => {
+  try {
+    const { topicId, questionText, options, correctAnswer, explanation, difficulty } = req.body;
+
+    if (!topicId || !questionText || !options || options.length !== 4) {
+      return res.status(400).json({ 
+        message: 'topicId, questionText, and 4 options required' 
+      });
+    }
+
+    if (correctAnswer < 0 || correctAnswer > 3) {
+      return res.status(400).json({ message: 'correctAnswer must be 0-3' });
+    }
+
+    const question = await PracticeQuestion.create({
+      topicId,
+      questionText,
+      options,
+      correctAnswer,
+      explanation: explanation || '',
+      difficulty: difficulty || 'medium',
+      isActive: true
+    });
+
+    res.json({ question });
+  } catch (error) {
+    console.error('Create question error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Обновить вопрос
+exports.updateQuestion = async (req, res) => {
+  try {
+    const { questionId } = req.params;
+    const { questionText, options, correctAnswer, explanation, difficulty } = req.body;
+
+    const question = await PracticeQuestion.findByPk(questionId);
+    if (!question) {
+      return res.status(404).json({ message: 'Question not found' });
+    }
+
+    if (questionText) question.questionText = questionText;
+    if (options && options.length === 4) question.options = options;
+    if (typeof correctAnswer === 'number') question.correctAnswer = correctAnswer;
+    if (explanation !== undefined) question.explanation = explanation;
+    if (difficulty) question.difficulty = difficulty;
+
+    await question.save();
+
+    res.json({ question });
+  } catch (error) {
+    console.error('Update question error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Включить/выключить вопрос
+exports.toggleQuestion = async (req, res) => {
+  try {
+    const { questionId } = req.params;
+    const { isActive } = req.body;
+
+    const question = await PracticeQuestion.findByPk(questionId);
+    if (!question) {
+      return res.status(404).json({ message: 'Question not found' });
+    }
+
+    question.isActive = isActive;
+    await question.save();
+
+    res.json({ question });
+  } catch (error) {
+    console.error('Toggle question error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Удалить вопрос
+exports.deleteQuestion = async (req, res) => {
+  try {
+    const { questionId } = req.params;
+
+    const question = await PracticeQuestion.findByPk(questionId);
+    if (!question) {
+      return res.status(404).json({ message: 'Question not found' });
+    }
+
+    await question.destroy();
+
+    res.json({ message: 'Question deleted' });
+  } catch (error) {
+    console.error('Delete question error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// ========== ПОПЫТКИ И СТАТИСТИКА ==========
 
 // Сохранить попытку
 exports.saveAttempt = async (req, res) => {
@@ -31,19 +212,11 @@ exports.getStudentStats = async (req, res) => {
   try {
     const { studentId } = req.params;
 
-    // Общая статистика
-    const totalAttempts = await PracticeAttempt.count({
-      where: { studentId }
-    });
-
-    const correctAttempts = await PracticeAttempt.count({
-      where: { studentId, isCorrect: true }
-    });
-
+    const totalAttempts = await PracticeAttempt.count({ where: { studentId } });
+    const correctAttempts = await PracticeAttempt.count({ where: { studentId, isCorrect: true } });
     const incorrectAttempts = totalAttempts - correctAttempts;
     const successRate = totalAttempts > 0 ? Math.round((correctAttempts / totalAttempts) * 100) : 0;
 
-    // Статистика по предметам
     const subjectStats = await PracticeAttempt.findAll({
       where: { studentId },
       attributes: [
@@ -60,7 +233,6 @@ exports.getStudentStats = async (req, res) => {
       raw: false
     });
 
-    // Статистика по подразделам (топикам)
     const topicStats = await PracticeAttempt.findAll({
       where: { studentId },
       attributes: [
@@ -82,47 +254,15 @@ exports.getStudentStats = async (req, res) => {
       raw: false
     });
 
-    // Последние 10 решенных заданий
     const recentAttempts = await PracticeAttempt.findAll({
       where: { studentId },
       include: [
-        {
-          model: PracticeQuestion,
-          as: 'question',
-          attributes: ['questionText']
-        },
-        {
-          model: PracticeTopic,
-          as: 'topic',
-          attributes: ['name', 'icon']
-        },
-        {
-          model: Subject,
-          as: 'subject',
-          attributes: ['name', 'icon']
-        }
+        { model: PracticeQuestion, as: 'question', attributes: ['questionText'] },
+        { model: PracticeTopic, as: 'topic', attributes: ['name', 'icon'] },
+        { model: Subject, as: 'subject', attributes: ['name', 'icon'] }
       ],
       order: [['createdAt', 'DESC']],
       limit: 10
-    });
-
-    // Динамика за последние 30 дней
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-    const dynamicsData = await PracticeAttempt.findAll({
-      where: {
-        studentId,
-        createdAt: { [Op.gte]: thirtyDaysAgo }
-      },
-      attributes: [
-        [sequelize.fn('DATE', sequelize.col('createdAt')), 'date'],
-        [sequelize.fn('COUNT', sequelize.col('id')), 'total'],
-        [sequelize.fn('SUM', sequelize.literal('CASE WHEN "isCorrect" = true THEN 1 ELSE 0 END')), 'correct']
-      ],
-      group: [sequelize.fn('DATE', sequelize.col('createdAt'))],
-      order: [[sequelize.fn('DATE', sequelize.col('createdAt')), 'ASC']],
-      raw: true
     });
 
     res.json({
@@ -134,8 +274,7 @@ exports.getStudentStats = async (req, res) => {
       },
       subjectStats,
       topicStats,
-      recentAttempts,
-      dynamics: dynamicsData
+      recentAttempts
     });
   } catch (error) {
     console.error('Get stats error:', error);
@@ -143,18 +282,13 @@ exports.getStudentStats = async (req, res) => {
   }
 };
 
-// Получить вопросы с учётом ошибок (для режима "только ошибки")
+// Получить вопросы с ошибками
 exports.getIncorrectQuestions = async (req, res) => {
   try {
     const { studentId, topicId } = req.params;
 
-    // Находим ID вопросов, на которые студент ответил неправильно
     const incorrectQuestionIds = await PracticeAttempt.findAll({
-      where: {
-        studentId,
-        topicId,
-        isCorrect: false
-      },
+      where: { studentId, topicId, isCorrect: false },
       attributes: [[sequelize.fn('DISTINCT', sequelize.col('questionId')), 'questionId']],
       raw: true
     });
