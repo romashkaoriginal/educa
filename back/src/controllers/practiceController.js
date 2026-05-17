@@ -270,53 +270,126 @@ exports.saveAttempt = async (req, res) => {
   }
 };
 
-// Получить статистику студента
+// Получить статистику по конкретному топику для студента (последняя попытка)
+exports.getTopicStats = async (req, res) => {
+  try {
+    const { studentId, topicId } = req.params;
+
+    // Получаем последнюю попытку по каждому вопросу в этом топике
+    const lastAttempts = await sequelize.query(`
+      SELECT DISTINCT ON ("questionId") "questionId", "isCorrect"
+      FROM practice_attempts
+      WHERE "studentId" = :studentId AND "topicId" = :topicId
+      ORDER BY "questionId", "createdAt" DESC
+    `, {
+      replacements: { studentId, topicId },
+      type: sequelize.QueryTypes.SELECT
+    });
+
+    const total = lastAttempts.length;
+    const correct = lastAttempts.filter(a => a.isCorrect).length;
+    const successRate = total > 0 ? Math.round((correct / total) * 100) : 0;
+
+    res.json({
+      total,
+      correct,
+      incorrect: total - correct,
+      successRate
+    });
+  } catch (error) {
+    console.error('Get topic stats error:', error);
+    res.status(500).json({ error: 'Failed to get topic statistics' });
+  }
+};
+
+// Получить статистику студента (по последним попыткам)
 exports.getStudentStats = async (req, res) => {
   try {
     const { studentId } = req.params;
 
-    const totalAttempts = await PracticeAttempt.count({ where: { studentId } });
-    const correctAttempts = await PracticeAttempt.count({ where: { studentId, isCorrect: true } });
+    // Все последние попытки по каждому вопросу
+    const lastAttempts = await sequelize.query(`
+      SELECT DISTINCT ON (pa."questionId") 
+        pa."questionId", 
+        pa."isCorrect", 
+        pa."topicId", 
+        pa."subjectId",
+        pa."createdAt"
+      FROM practice_attempts pa
+      WHERE pa."studentId" = :studentId
+      ORDER BY pa."questionId", pa."createdAt" DESC
+    `, {
+      replacements: { studentId },
+      type: sequelize.QueryTypes.SELECT
+    });
+
+    const totalAttempts = lastAttempts.length;
+    const correctAttempts = lastAttempts.filter(a => a.isCorrect).length;
     const incorrectAttempts = totalAttempts - correctAttempts;
     const successRate = totalAttempts > 0 ? Math.round((correctAttempts / totalAttempts) * 100) : 0;
 
-    const subjectStats = await PracticeAttempt.findAll({
-      where: { studentId },
-      attributes: [
-        'subjectId',
-        [sequelize.fn('COUNT', sequelize.col('PracticeAttempt.id')), 'total'],
-        [sequelize.fn('SUM', sequelize.literal('CASE WHEN "PracticeAttempt"."isCorrect" = true THEN 1 ELSE 0 END')), 'correct']
-      ],
+    // Группируем по предметам
+    const subjectMap = {};
+    for (const attempt of lastAttempts) {
+      const sid = attempt.subjectId;
+      if (!subjectMap[sid]) {
+        subjectMap[sid] = { total: 0, correct: 0 };
+      }
+      subjectMap[sid].total++;
+      if (attempt.isCorrect) subjectMap[sid].correct++;
+    }
+
+    // Получаем инфу о предметах
+    const subjectIds = Object.keys(subjectMap);
+    const subjects = await Subject.findAll({
+      where: { id: subjectIds },
+      attributes: ['id', 'name', 'icon']
+    });
+
+    const subjectStats = subjects.map(subj => ({
+      subjectId: subj.id,
+      subject: { name: subj.name, icon: subj.icon },
+      total: subjectMap[subj.id].total,
+      correct: subjectMap[subj.id].correct,
+      successRate: Math.round((subjectMap[subj.id].correct / subjectMap[subj.id].total) * 100)
+    }));
+
+    // Группируем по топикам
+    const topicMap = {};
+    for (const attempt of lastAttempts) {
+      const tid = attempt.topicId;
+      if (!topicMap[tid]) {
+        topicMap[tid] = { total: 0, correct: 0 };
+      }
+      topicMap[tid].total++;
+      if (attempt.isCorrect) topicMap[tid].correct++;
+    }
+
+    // Получаем инфу о топиках
+    const topicIds = Object.keys(topicMap);
+    const topics = await PracticeTopic.findAll({
+      where: { id: topicIds },
+      attributes: ['id', 'name', 'icon'],
       include: [{
         model: Subject,
         as: 'subject',
-        attributes: ['name', 'icon']
-      }],
-      group: ['subjectId', 'subject.id'],
-      raw: false
+        attributes: ['name']
+      }]
     });
 
-    const topicStats = await PracticeAttempt.findAll({
-      where: { studentId },
-      attributes: [
-        'topicId',
-        [sequelize.fn('COUNT', sequelize.col('PracticeAttempt.id')), 'total'],
-        [sequelize.fn('SUM', sequelize.literal('CASE WHEN "PracticeAttempt"."isCorrect" = true THEN 1 ELSE 0 END')), 'correct']
-      ],
-      include: [{
-        model: PracticeTopic,
-        as: 'topic',
-        attributes: ['name', 'icon'],
-        include: [{
-          model: Subject,
-          as: 'subject',
-          attributes: ['name']
-        }]
-      }],
-      group: ['topicId', 'topic.id', 'topic->subject.id'],
-      raw: false
-    });
+    const topicStats = topics.map(t => ({
+      topicId: t.id,
+      topic: { 
+        name: t.name, 
+        icon: t.icon, 
+        subject: { name: t.subject?.name }
+      },
+      total: topicMap[t.id].total,
+      correct: topicMap[t.id].correct,
+      successRate: Math.round((topicMap[t.id].correct / topicMap[t.id].total) * 100)
+    }));
 
+    // Последние 20 решений (по дате)
     const recentAttempts = await PracticeAttempt.findAll({
       where: { studentId },
       include: [
@@ -342,35 +415,6 @@ exports.getStudentStats = async (req, res) => {
   } catch (error) {
     console.error('Get stats error:', error);
     res.status(500).json({ error: 'Failed to get statistics' });
-  }
-};
-
-// Получить статистику по конкретному топику для студента
-exports.getTopicStats = async (req, res) => {
-  try {
-    const { studentId, topicId } = req.params;
-
-    const totalAttempts = await PracticeAttempt.count({
-      where: { studentId, topicId }
-    });
-
-    const correctAttempts = await PracticeAttempt.count({
-      where: { studentId, topicId, isCorrect: true }
-    });
-
-    const successRate = totalAttempts > 0 
-      ? Math.round((correctAttempts / totalAttempts) * 100) 
-      : 0;
-
-    res.json({
-      total: totalAttempts,
-      correct: correctAttempts,
-      incorrect: totalAttempts - correctAttempts,
-      successRate
-    });
-  } catch (error) {
-    console.error('Get topic stats error:', error);
-    res.status(500).json({ error: 'Failed to get topic statistics' });
   }
 };
 

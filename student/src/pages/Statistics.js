@@ -70,40 +70,40 @@ function Statistics({ studentId }) {
             </div>
           ) : (
             <>
-             {/* Общие показатели */}
-<div className="stats-summary">
-  <div className="stat-card">
-    <div className="stat-icon">📝</div>
-    <div className="stat-info">
-      <div className="stat-label">Решено</div>
-      <div className="stat-value">{stats.stats.total}</div>
-    </div>
-  </div>
+              {/* Общие показатели */}
+              <div className="stats-summary">
+                <div className="stat-card">
+                  <div className="stat-icon">📝</div>
+                  <div className="stat-info">
+                    <div className="stat-label">Решено</div>
+                    <div className="stat-value">{stats.stats.total}</div>
+                  </div>
+                </div>
 
-  <div className="stat-card success">
-    <div className="stat-icon">✅</div>
-    <div className="stat-info">
-      <div className="stat-label">Правильно</div>
-      <div className="stat-value">{stats.stats.correct}</div>
-    </div>
-  </div>
+                <div className="stat-card success">
+                  <div className="stat-icon">✅</div>
+                  <div className="stat-info">
+                    <div className="stat-label">Правильно</div>
+                    <div className="stat-value">{stats.stats.correct}</div>
+                  </div>
+                </div>
 
-  <div className="stat-card error">
-    <div className="stat-icon">❌</div>
-    <div className="stat-info">
-      <div className="stat-label">Ошибок</div>
-      <div className="stat-value">{stats.stats.incorrect}</div>
-    </div>
-  </div>
+                <div className="stat-card error">
+                  <div className="stat-icon">❌</div>
+                  <div className="stat-info">
+                    <div className="stat-label">Ошибок</div>
+                    <div className="stat-value">{stats.stats.incorrect}</div>
+                  </div>
+                </div>
 
-  <div className="stat-card">
-    <div className="stat-icon">📈</div>
-    <div className="stat-info">
-      <div className="stat-label">Успешность</div>
-      <div className="stat-value">{stats.stats.successRate}%</div>
-    </div>
-  </div>
-</div>
+                <div className="stat-card">
+                  <div className="stat-icon">📈</div>
+                  <div className="stat-info">
+                    <div className="stat-label">Успешность</div>
+                    <div className="stat-value">{stats.stats.successRate}%</div>
+                  </div>
+                </div>
+              </div>
 
               {/* По предметам */}
               {stats.subjectStats && stats.subjectStats.length > 0 && (
@@ -111,9 +111,9 @@ function Statistics({ studentId }) {
                   <h3>📚 По предметам</h3>
                   <div className="subjects-list">
                     {stats.subjectStats.map((subj, idx) => {
-                      const total = parseInt(subj.dataValues?.total || 0);
-                      const correct = parseInt(subj.dataValues?.correct || 0);
-                      const percent = total > 0 ? Math.round((correct / total) * 100) : 0;
+                      const total = subj.total || 0;
+                      const correct = subj.correct || 0;
+                      const percent = subj.successRate || 0;
                       return (
                         <div key={idx} className="subject-stat-row">
                           <div className="subject-info">
@@ -142,9 +142,9 @@ function Statistics({ studentId }) {
                   <h3>📑 По подразделам</h3>
                   <div className="topics-list">
                     {stats.topicStats.map((topic, idx) => {
-                      const total = parseInt(topic.dataValues?.total || 0);
-                      const correct = parseInt(topic.dataValues?.correct || 0);
-                      const percent = total > 0 ? Math.round((correct / total) * 100) : 0;
+                      const total = topic.total || 0;
+                      const correct = topic.correct || 0;
+                      const percent = topic.successRate || 0;
                       return (
                         <div key={idx} className="topic-stat-row">
                           <div className="topic-info">

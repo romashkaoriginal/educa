@@ -38,7 +38,8 @@ router.delete('/questions/:questionId', practiceController.deleteQuestion);
 // Получить разделы для студента (с фильтром по его предметам)
 router.get('/student/:studentId', async (req, res) => {
   try {
-    const { User, Subject, PracticeTopic, PracticeQuestion, PracticeAttempt } = require('../models');
+    const { User, Subject, PracticeTopic, PracticeQuestion } = require('../models');
+    const sequelize = require('../config/database');
     const { studentId } = req.params;
 
     const student = await User.findByPk(studentId, {
@@ -77,30 +78,32 @@ router.get('/student/:studentId', async (req, res) => {
       order: [['createdAt', 'ASC']]
     });
 
-    // Добавляем статистику по каждому топику
+    // Добавляем статистику (последняя попытка по каждому вопросу)
     const topicsWithStats = await Promise.all(
       practiceTopics.map(async (topic) => {
         const topicJSON = topic.toJSON();
         
-        // Считаем попытки студента по этому топику
-        const totalAttempts = await PracticeAttempt.count({
-          where: { studentId: parseInt(studentId), topicId: topic.id }
+        // Берём последнюю попытку по каждому вопросу
+        const lastAttempts = await sequelize.query(`
+          SELECT DISTINCT ON ("questionId") "questionId", "isCorrect"
+          FROM practice_attempts
+          WHERE "studentId" = :studentId AND "topicId" = :topicId
+          ORDER BY "questionId", "createdAt" DESC
+        `, {
+          replacements: { studentId: parseInt(studentId), topicId: topic.id },
+          type: sequelize.QueryTypes.SELECT
         });
 
-        const correctAttempts = await PracticeAttempt.count({
-          where: { studentId: parseInt(studentId), topicId: topic.id, isCorrect: true }
-        });
-
-        const successRate = totalAttempts > 0 
-          ? Math.round((correctAttempts / totalAttempts) * 100) 
-          : 0;
+        const total = lastAttempts.length;
+        const correct = lastAttempts.filter(a => a.isCorrect).length;
+        const successRate = total > 0 ? Math.round((correct / total) * 100) : 0;
 
         return {
           ...topicJSON,
           stats: {
-            total: totalAttempts,
-            correct: correctAttempts,
-            incorrect: totalAttempts - correctAttempts,
+            total,
+            correct,
+            incorrect: total - correct,
             successRate
           }
         };
