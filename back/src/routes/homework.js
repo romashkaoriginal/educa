@@ -149,7 +149,7 @@ router.post('/create', async (req, res) => {
     if (!title || !subjectId || !openDate || !closeDate || !questions || questions.length === 0) {
       return res.status(400).json({ message: 'Missing required fields' });
     }
-е
+
     const creatorId = createdBy || 1;
 
     // Create homework
