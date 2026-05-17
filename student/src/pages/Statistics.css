@@ -381,3 +381,152 @@
   background: #d1d5db;
   border-radius: 2px;
 }
+/* Домашки - список */
+.homework-stats-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.homework-stat-card {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.hw-stat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.hw-stat-title-block {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+.hw-stat-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.hw-stat-title {
+  font-weight: 600;
+  color: #1f2937;
+  font-size: 14px;
+}
+
+.hw-stat-subject {
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 2px;
+}
+
+.hw-status-badge {
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.status-upcoming {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.status-active {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.status-expired {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.hw-stat-result {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: #f9fafb;
+  border-radius: 8px;
+}
+
+.hw-stat-score {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+}
+
+.hw-score-label {
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.hw-score-value {
+  color: #1f2937;
+  font-weight: 700;
+}
+
+.hw-stat-attempts {
+  font-size: 12px;
+  color: #6b7280;
+  text-align: center;
+}
+
+.hw-stat-not-completed {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px;
+  background: #f9fafb;
+  border-radius: 8px;
+  color: #9ca3af;
+  font-size: 13px;
+}
+
+.not-completed-icon {
+  font-size: 20px;
+}
+
+.hw-stat-dates {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.hw-date-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+}
+
+.hw-date-label {
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.hw-date-value {
+  color: #1f2937;
+  font-weight: 600;
+}
+
+.hw-date-value.expired {
+  color: #dc2626;
+}

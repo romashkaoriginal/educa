@@ -483,5 +483,98 @@ function checkAnswer(question, userAnswer) {
       return false;
   }
 }
+// Get homework statistics for student
+router.get('/student/:studentId/stats', async (req, res) => {
+  try {
+    const { studentId } = req.params;
+
+    // Get student's subjects
+    const student = await User.findByPk(studentId, {
+      include: [{
+        model: Subject,
+        as: 'subjects',
+        attributes: ['id']
+      }]
+    });
+
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+
+    const subjectIds = student.subjects.map(s => s.id);
+
+    // Get all homeworks for student's subjects
+    const homeworks = await Homework.findAll({
+      where: {
+        subjectId: { [Op.in]: subjectIds },
+        isActive: true
+      },
+      include: [
+        {
+          model: Subject,
+          as: 'subject',
+          attributes: ['id', 'name', 'icon']
+        },
+        {
+          model: HomeworkQuestion,
+          as: 'questions',
+          attributes: ['id', 'points']
+        }
+      ]
+    });
+
+    // Get all submissions for this student
+    const submissions = await HomeworkSubmission.findAll({
+      where: {
+        userId: studentId
+      }
+    });
+
+    // Calculate stats for each homework
+    const homeworksWithStats = homeworks.map(hw => {
+      const hwSubmissions = submissions.filter(s => s.homeworkId === hw.id);
+      const bestSubmission = hwSubmissions.length > 0
+        ? hwSubmissions.reduce((best, current) => 
+            current.totalScore > best.totalScore ? current : best
+          )
+        : null;
+
+      return {
+        ...hw.toJSON(),
+        submissionCount: hwSubmissions.length,
+        bestSubmission
+      };
+    });
+
+    // Calculate overall stats
+    const now = new Date();
+    const total = homeworks.length;
+    const completed = homeworksWithStats.filter(hw => hw.bestSubmission).length;
+    const active = homeworks.filter(hw => 
+      new Date(hw.openDate) <= now && new Date(hw.closeDate) >= now
+    ).length;
+
+    const avgScore = completed > 0
+      ? Math.round(
+          homeworksWithStats
+            .filter(hw => hw.bestSubmission)
+            .reduce((sum, hw) => 
+              sum + (hw.bestSubmission.totalScore / hw.bestSubmission.maxScore * 100), 0
+            ) / completed
+        )
+      : 0;
+
+    res.json({
+      total,
+      completed,
+      active,
+      avgScore,
+      homeworks: homeworksWithStats
+    });
+  } catch (error) {
+    console.error('Get homework stats error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
 
 module.exports = router;

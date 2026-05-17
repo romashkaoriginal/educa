@@ -167,88 +167,100 @@ function Homework({ subjects, currentUserId }) {  // ← Добавить curren
   };
 
   const addQuestion = () => {
-    if (!currentQuestion.questionText.trim()) {
-      alert('Введите текст вопроса');
-      return;
-    }
+  if (!currentQuestion.questionText.trim()) {
+    alert('Введите текст вопроса');
+    return;
+  }
 
-    // Validate based on question type
-    if (!validateQuestion(currentQuestion)) {
-      return;
-    }
+  // Validate based on question type
+  if (!validateQuestion(currentQuestion)) {
+    return;
+  }
 
-    setQuestions([...questions, { ...currentQuestion }]);
-    resetCurrentQuestion();
+  // ВАЖНО: Убедитесь что correctAnswer не null
+  const questionToAdd = {
+    ...currentQuestion,
+    correctAnswer: currentQuestion.correctAnswer === null ? '' : currentQuestion.correctAnswer
   };
+
+  setQuestions([...questions, questionToAdd]);
+  resetCurrentQuestion();
+};
 
   const validateQuestion = (question) => {
-    switch (question.questionType) {
-      case 'single_choice':
-        if (!question.options.some(opt => opt.trim())) {
-          alert('Добавьте варианты ответов');
-          return false;
-        }
-        if (question.correctAnswer === null) {
-          alert('Укажите правильный ответ');
-          return false;
-        }
-        break;
-      
-      case 'multiple_choice':
-        if (!question.options.some(opt => opt.trim())) {
-          alert('Добавьте варианты ответов');
-          return false;
-        }
-        if (!question.correctAnswer || question.correctAnswer.length === 0) {
-          alert('Выберите правильные ответы');
-          return false;
-        }
-        break;
-      
-      case 'short_answer':
-        if (!question.correctAnswer || question.correctAnswer.length === 0) {
-          alert('Укажите правильные варианты ответа');
-          return false;
-        }
-        break;
-      
-      case 'numeric':
-        if (question.correctAnswer?.value === undefined) {
-          alert('Укажите правильный ответ');
-          return false;
-        }
-        break;
-      
-      case 'matching':
-        if (!question.options || question.options.length === 0) {
-          alert('Добавьте пары для соединения');
-          return false;
-        }
-        break;
-      
-      case 'ordering':
-        if (!question.correctAnswer || question.correctAnswer.length === 0) {
-          alert('Укажите правильный порядок элементов');
-          return false;
-        }
-        break;
-      
-      case 'fill_blanks':
-        if (!question.correctAnswer || question.correctAnswer.length === 0) {
-          alert('Укажите правильные ответы для пропусков');
-          return false;
-        }
-        break;
-      
-      case 'true_false':
-        if (question.correctAnswer === null) {
-          alert('Укажите правильный ответ');
-          return false;
-        }
-        break;
-    }
-    return true;
-  };
+  switch (question.questionType) {
+    case 'single_choice':
+      if (!question.options.some(opt => opt.trim())) {
+        alert('Добавьте варианты ответов');
+        return false;
+      }
+      if (question.correctAnswer === null || question.correctAnswer === undefined) {
+        alert('Укажите правильный ответ');
+        return false;
+      }
+      break;
+    
+    case 'multiple_choice':
+      if (!question.options.some(opt => opt.trim())) {
+        alert('Добавьте варианты ответов');
+        return false;
+      }
+      if (!question.correctAnswer || question.correctAnswer.length === 0) {
+        alert('Выберите правильные ответы');
+        return false;
+      }
+      break;
+    
+    case 'short_answer':
+      if (!question.correctAnswer || question.correctAnswer.length === 0 || 
+          question.correctAnswer.every(ans => !ans.trim())) {
+        alert('Укажите правильные варианты ответа');
+        return false;
+      }
+      break;
+    
+    case 'numeric':
+      if (question.correctAnswer?.value === undefined || question.correctAnswer?.value === null) {
+        alert('Укажите правильный ответ');
+        return false;
+      }
+      break;
+    
+    case 'matching':
+      if (!question.options || question.options.length === 0) {
+        alert('Добавьте пары для соединения');
+        return false;
+      }
+      // Используем options как correctAnswer для matching
+      question.correctAnswer = question.options;
+      break;
+    
+    case 'ordering':
+      if (!question.correctAnswer || question.correctAnswer.length === 0) {
+        alert('Укажите правильный порядок элементов');
+        return false;
+      }
+      break;
+    
+    case 'fill_blanks':
+      if (!question.correctAnswer || question.correctAnswer.length === 0) {
+        alert('Укажите правильные ответы для пропусков');
+        return false;
+      }
+      break;
+    
+    case 'true_false':
+      if (question.correctAnswer === null || question.correctAnswer === undefined) {
+        alert('Укажите правильный ответ');
+        return false;
+      }
+      break;
+    
+    default:
+      return true;
+  }
+  return true;
+};
 
   const resetCurrentQuestion = () => {
     setCurrentQuestion({

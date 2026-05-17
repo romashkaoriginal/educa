@@ -22,16 +22,18 @@ function App() {
         (tg.initData || tg.platform === 'tdesktop' || tg.platform === 'android' || tg.platform === 'ios')
       );
 
-    if (isTelegram) {
-  setIsTelegramWebApp(true);
-  tg.ready();
-  tg.expand();
-  
-  tg.BackButton.hide();
-  
-  if (tg.disableVerticalSwipes) {
-    tg.disableVerticalSwipes();
-  }
+      if (isTelegram) {
+        setIsTelegramWebApp(true);
+        tg.ready();
+        tg.expand();
+        
+        // Скрываем кнопку "назад"
+        tg.BackButton.hide();
+        
+        // ОТКЛЮЧАЕМ вертикальные свайпы чтобы не закрывалась
+        if (tg.disableVerticalSwipes) {
+          tg.disableVerticalSwipes();
+        }
 
         const user = tg.initDataUnsafe?.user;
         
@@ -51,14 +53,31 @@ function App() {
           }
         }
       } else {
-        setIsTelegramWebApp(false);
-        setLoading(false);
+        // Дополнительная проверка для десктопного Telegram
+        const isDesktopTelegram = /Telegram/i.test(navigator.userAgent);
+        if (isDesktopTelegram) {
+          setIsTelegramWebApp(true);
+          // На десктопе user может прийти по-другому, пробуем URL
+          const urlParams = new URLSearchParams(window.location.search);
+          const userId = urlParams.get('user_id');
+          if (userId) {
+            checkUserRole(parseInt(userId));
+          } else {
+            setUserRole('student');
+            setSelectedRole('student');
+            setLoading(false);
+          }
+        } else {
+          setIsTelegramWebApp(false);
+          setLoading(false);
+        }
       }
     };
 
     if (window.Telegram?.WebApp) {
       checkTelegramWebApp();
     } else {
+      // Небольшая задержка на случай поздней инициализации
       setTimeout(checkTelegramWebApp, 500);
     }
 
@@ -113,7 +132,7 @@ function App() {
     );
   }
 
-  // Если НЕ Telegram WebApp - показываем блокировку
+  // ✅ ИСПОЛЬЗУЕМ СУЩЕСТВУЮЩИЙ СТЕЙТ, А НЕ СОЗДАЁМ НОВУЮ КОНСТАНТУ
   if (!isTelegramWebApp) {
     return (
       <div className="blocked-screen">
@@ -122,17 +141,17 @@ function App() {
             <span className="logo-ed">ED</span>
             <span className="logo-me">me</span>
           </div>
-          
+
           <div className="blocked-icon">🔒</div>
-          
+
           <h1 className="blocked-title">Доступ через Telegram</h1>
           <p className="blocked-description">
             Это приложение работает только внутри Telegram Mini App.<br/>
             Откройте наш бот в Telegram для доступа к платформе.
           </p>
 
-          <a 
-            href="https://t.me/educa1488_bot" 
+          <a
+            href="https://t.me/educa1488_bot"
             className="telegram-button"
             target="_blank"
             rel="noopener noreferrer"

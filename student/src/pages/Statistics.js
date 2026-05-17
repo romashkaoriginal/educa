@@ -6,10 +6,12 @@ const API_URL = 'https://educa-production-a98e.up.railway.app/api';
 function Statistics({ studentId }) {
   const [activeTab, setActiveTab] = useState('practice');
   const [stats, setStats] = useState(null);
+  const [homeworkStats, setHomeworkStats] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadStats();
+    loadHomeworkStats();
   }, [studentId]);
 
   const loadStats = async () => {
@@ -21,6 +23,44 @@ function Statistics({ studentId }) {
       console.error('Error loading stats:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadHomeworkStats = async () => {
+    try {
+      const response = await fetch(`${API_URL}/homework/student/${studentId}/stats`);
+      const data = await response.json();
+      setHomeworkStats(data);
+    } catch (error) {
+      console.error('Error loading homework stats:', error);
+    }
+  };
+
+  const getHomeworkStatus = (homework) => {
+    const now = new Date();
+    const openDate = new Date(homework.openDate);
+    const closeDate = new Date(homework.closeDate);
+
+    if (now < openDate) return 'upcoming';
+    if (now > closeDate) return 'expired';
+    return 'active';
+  };
+
+  const getStatusLabel = (status) => {
+    switch (status) {
+      case 'upcoming': return '🕐 Скоро';
+      case 'active': return '✅ Активна';
+      case 'expired': return '⏰ Просрочена';
+      default: return '';
+    }
+  };
+
+  const getStatusClass = (status) => {
+    switch (status) {
+      case 'upcoming': return 'status-upcoming';
+      case 'active': return 'status-active';
+      case 'expired': return 'status-expired';
+      default: return '';
     }
   };
 
@@ -200,11 +240,158 @@ function Statistics({ studentId }) {
       {/* ДОМАШКА */}
       {activeTab === 'homework' && (
         <div className="stats-content">
-          <div className="empty-state">
-            <div className="empty-icon">📝</div>
-            <p>Раздел статистики по домашке в разработке.</p>
-            <p>Скоро здесь появится информация о ваших домашних заданиях!</p>
-          </div>
+          {!homeworkStats || homeworkStats.homeworks?.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-icon">📝</div>
+              <p>У вас пока нет домашних заданий.</p>
+              <p>Они появятся, когда преподаватель их создаст!</p>
+            </div>
+          ) : (
+            <>
+              {/* Общая статистика по домашкам */}
+              <div className="stats-summary">
+                <div className="stat-card">
+                  <div className="stat-icon">📚</div>
+                  <div className="stat-info">
+                    <div className="stat-label">Всего</div>
+                    <div className="stat-value">{homeworkStats.total || 0}</div>
+                  </div>
+                </div>
+
+                <div className="stat-card success">
+                  <div className="stat-icon">✅</div>
+                  <div className="stat-info">
+                    <div className="stat-label">Выполнено</div>
+                    <div className="stat-value">{homeworkStats.completed || 0}</div>
+                  </div>
+                </div>
+
+                <div className="stat-card">
+                  <div className="stat-icon">⏳</div>
+                  <div className="stat-info">
+                    <div className="stat-label">Активных</div>
+                    <div className="stat-value">{homeworkStats.active || 0}</div>
+                  </div>
+                </div>
+
+                <div className="stat-card">
+                  <div className="stat-icon">📈</div>
+                  <div className="stat-info">
+                    <div className="stat-label">Ср. балл</div>
+                    <div className="stat-value">{homeworkStats.avgScore || 0}%</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Список домашек */}
+              <div className="stats-block">
+                <h3>📝 Домашние задания</h3>
+                <div className="homework-stats-list">
+                  {homeworkStats.homeworks.map((hw) => {
+                    const status = getHomeworkStatus(hw);
+                    const submission = hw.bestSubmission;
+                    const percentage = submission 
+                      ? Math.round((submission.totalScore / submission.maxScore) * 100)
+                      : 0;
+
+                    return (
+                      <div key={hw.id} className="homework-stat-card">
+                        {/* Заголовок */}
+                        <div className="hw-stat-header">
+                          <div className="hw-stat-title-block">
+                            <span className="hw-stat-icon">{hw.subject?.icon || '📖'}</span>
+                            <div>
+                              <div className="hw-stat-title">{hw.title}</div>
+                              <div className="hw-stat-subject">{hw.subject?.name}</div>
+                            </div>
+                          </div>
+                          <span className={`hw-status-badge ${getStatusClass(status)}`}>
+                            {getStatusLabel(status)}
+                          </span>
+                        </div>
+
+                        {/* Результат */}
+                        {submission ? (
+                          <div className="hw-stat-result">
+                            <div className="hw-stat-score">
+                              <span className="hw-score-label">Лучший результат:</span>
+                              <span className="hw-score-value">
+                                {submission.totalScore}/{submission.maxScore} ({percentage}%)
+                              </span>
+                            </div>
+                            <div className="progress-bar">
+                              <div 
+                                className="progress-fill" 
+                                style={{ 
+                                  width: `${percentage}%`,
+                                  background: percentage >= 70 
+                                    ? 'linear-gradient(90deg, #10b981 0%, #34d399 100%)' 
+                                    : percentage >= 50 
+                                    ? 'linear-gradient(90deg, #f59e0b 0%, #fbbf24 100%)' 
+                                    : 'linear-gradient(90deg, #ef4444 0%, #f87171 100%)'
+                                }}
+                              ></div>
+                            </div>
+                            <div className="hw-stat-attempts">
+                              Попыток: {hw.submissionCount || 1}
+                              {hw.maxAttempts && ` из ${hw.maxAttempts}`}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="hw-stat-not-completed">
+                            <span className="not-completed-icon">📋</span>
+                            <span>Не выполнено</span>
+                          </div>
+                        )}
+
+                        {/* Даты */}
+                        <div className="hw-stat-dates">
+                          <div className="hw-date-item">
+                            <span className="hw-date-label">📅 Открыто:</span>
+                            <span className="hw-date-value">
+                              {new Date(hw.openDate).toLocaleString('ru-RU', {
+                                day: '2-digit',
+                                month: '2-digit',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </span>
+                          </div>
+                          <div className="hw-date-item">
+                            <span className="hw-date-label">⏰ Дедлайн:</span>
+                            <span className={`hw-date-value ${status === 'expired' ? 'expired' : ''}`}>
+                              {new Date(hw.closeDate).toLocaleString('ru-RU', {
+                                day: '2-digit',
+                                month: '2-digit',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </span>
+                          </div>
+                          {submission && (
+                            <div className="hw-date-item">
+                              <span className="hw-date-label">✅ Выполнено:</span>
+                              <span className="hw-date-value">
+                                {new Date(submission.submittedAt).toLocaleString('ru-RU', {
+                                  day: '2-digit',
+                                  month: '2-digit',
+                                  year: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          )}
         </div>
       )}
 
