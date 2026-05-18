@@ -18,6 +18,8 @@ const PracticeAttempt = require('./PracticeAttempt');
 const BotUser = require('./BotUser');
 
 // ========== СВЯЗИ С SUBJECTS ==========
+
+// User ↔ Subject (многие ко многим через UserSubject)
 User.belongsToMany(Subject, { 
   through: UserSubject, 
   foreignKey: 'userId', 
@@ -29,9 +31,11 @@ Subject.belongsToMany(User, {
   as: 'students' 
 });
 
+// Subject → Homeworks
 Subject.hasMany(Homework, { foreignKey: 'subjectId', as: 'homeworks' });
 Homework.belongsTo(Subject, { foreignKey: 'subjectId', as: 'subject' });
 
+// Subject → PracticeTopics
 Subject.hasMany(PracticeTopic, { foreignKey: 'subjectId', as: 'practiceTopics' });
 PracticeTopic.belongsTo(Subject, { foreignKey: 'subjectId', as: 'subject' });
 
@@ -40,26 +44,41 @@ BotUser.belongsTo(User, { foreignKey: 'userId', as: 'assignedUser' });
 User.hasOne(BotUser, { foreignKey: 'userId', as: 'botProfile' });
 
 // ========== QUIZ ==========
+
+// ✅ ДОБАВЛЕНА СВЯЗЬ QUIZ ↔ SUBJECT
+Quiz.belongsTo(Subject, { foreignKey: 'subjectId', as: 'subject' });
+Subject.hasMany(Quiz, { foreignKey: 'subjectId', as: 'quizzes' });
+
+// Quiz ↔ User (создатель)
 User.hasMany(Quiz, { foreignKey: 'createdBy', as: 'createdQuizzes' });
 Quiz.belongsTo(User, { foreignKey: 'createdBy', as: 'creator' });
 
-// ОСТАВЬТЕ ТОЛЬКО ОДИН РАЗ:
+// Quiz ↔ QuizQuestion
 Quiz.hasMany(QuizQuestion, { foreignKey: 'quizId', as: 'questions' });
 QuizQuestion.belongsTo(Quiz, { foreignKey: 'quizId' });
 
+// Quiz ↔ QuizParticipant
 Quiz.hasMany(QuizParticipant, { foreignKey: 'quizId', as: 'participants' });
 QuizParticipant.belongsTo(Quiz, { foreignKey: 'quizId' });
 
+// User ↔ QuizParticipant
 User.hasMany(QuizParticipant, { foreignKey: 'userId', as: 'quizParticipations' });
 QuizParticipant.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 
+// QuizParticipant ↔ QuizAnswer
 QuizParticipant.hasMany(QuizAnswer, { foreignKey: 'participantId', as: 'answers' });
 QuizAnswer.belongsTo(QuizParticipant, { foreignKey: 'participantId' });
 
+// QuizQuestion ↔ QuizAnswer
 QuizQuestion.hasMany(QuizAnswer, { foreignKey: 'questionId' });
 QuizAnswer.belongsTo(QuizQuestion, { foreignKey: 'questionId', as: 'question' });
 
+// QuizAnswer ↔ User (кто ответил)
+QuizAnswer.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+User.hasMany(QuizAnswer, { foreignKey: 'userId', as: 'quizAnswers' });
+
 // ========== HOMEWORK ==========
+
 User.hasMany(Homework, { foreignKey: 'createdBy', as: 'createdHomeworks' });
 Homework.belongsTo(User, { foreignKey: 'createdBy', as: 'creator' });
 
@@ -79,9 +98,12 @@ HomeworkQuestion.hasMany(HomeworkAnswer, { foreignKey: 'questionId' });
 HomeworkAnswer.belongsTo(HomeworkQuestion, { foreignKey: 'questionId', as: 'question' });
 
 // ========== PRACTICE ==========
+
+// PracticeTopic → PracticeQuestions
 PracticeTopic.hasMany(PracticeQuestion, { foreignKey: 'topicId', as: 'questions' });
 PracticeQuestion.belongsTo(PracticeTopic, { foreignKey: 'topicId' });
 
+// PracticeAttempt связи
 PracticeAttempt.belongsTo(User, { foreignKey: 'studentId', as: 'student' });
 PracticeAttempt.belongsTo(PracticeTopic, { foreignKey: 'topicId', as: 'topic' });
 PracticeAttempt.belongsTo(PracticeQuestion, { foreignKey: 'questionId', as: 'question' });

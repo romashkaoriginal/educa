@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { io } from 'socket.io-client';
-import './Quiz.css';
+import '../../styles/Quiz.css';
 
 const API_URL = 'https://educa-production-a98e.up.railway.app/api';
 const SOCKET_URL = 'https://educa-production-a98e.up.railway.app';
