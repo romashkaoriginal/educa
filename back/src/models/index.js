@@ -99,10 +99,6 @@ User.hasMany(PracticeAttempt, { foreignKey: 'studentId', as: 'practiceAttempts' 
 PracticeTopic.hasMany(PracticeAttempt, { foreignKey: 'topicId', as: 'attempts' });
 PracticeQuestion.hasMany(PracticeAttempt, { foreignKey: 'questionId', as: 'attempts' });
 Subject.hasMany(PracticeAttempt, { foreignKey: 'subjectId', as: 'practiceAttempts' });
-const Quiz = require('./Quiz');
-const QuizQuestion = require('./QuizQuestion');
-const QuizParticipant = require('./QuizParticipant');
-const QuizAnswer = require('./QuizAnswer');
 
 // Quiz associations
 Quiz.hasMany(QuizQuestion, { as: 'questions', foreignKey: 'quizId' });
