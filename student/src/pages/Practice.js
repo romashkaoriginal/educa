@@ -1,13 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './Practice.css';
+import { useData } from './DataContext';
 
 const API_URL = 'https://educa-production-a98e.up.railway.app/api';
 
 function Practice({ studentId }) {
-  const [practiceTopics, setPracticeTopics] = useState([]);
-  const [subjects, setSubjects] = useState([]);
+  // Используем данные из контекста
+  const { practiceTopics, subjects, refreshAfterPractice, loading: contextLoading } = useData();
+  
   const [selectedSubject, setSelectedSubject] = useState('all');
-  const [loading, setLoading] = useState(true);
   
   const [activePractice, setActivePractice] = useState(null);
   const [questions, setQuestions] = useState([]);
@@ -16,31 +17,29 @@ function Practice({ studentId }) {
   const [userAnswers, setUserAnswers] = useState([]);
   const [showResult, setShowResult] = useState(false);
   const [practiceResult, setPracticeResult] = useState(null);
+  
+  const [holdingAnswer, setHoldingAnswer] = useState(null);
+  const [holdProgress, setHoldProgress] = useState(0);
+  const [showAnswerResult, setShowAnswerResult] = useState(false);
+  const [isCorrect, setIsCorrect] = useState(false);
+  const [showExplanationHint, setShowExplanationHint] = useState(false);
+  
+  const holdTimerRef = useRef(null);
+  const progressIntervalRef = useRef(null);
+  const autoNextTimerRef = useRef(null);
 
+  const HOLD_DURATION = 1000;
+const PROGRESS_INTERVAL = 20;  // Уменьшить интервал для плавности
+const RESULT_DURATION = 1200;
+
+  // Очистка таймеров при размонтировании
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [practiceRes, subjectsRes] = await Promise.all([
-          fetch(`${API_URL}/practice/student/${studentId}`),
-          fetch(`${API_URL}/subjects/student/${studentId}`)
-        ]);
-
-        const practiceData = await practiceRes.json();
-        const subjectsData = await subjectsRes.json();
-
-        setPracticeTopics(practiceData.practiceTopics || []);
-        setSubjects(subjectsData.subjects || []);
-      } catch (error) {
-        console.error('Error fetching practice:', error);
-      } finally {
-        setLoading(false);
-      }
+    return () => {
+      if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
+      if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+      if (autoNextTimerRef.current) clearTimeout(autoNextTimerRef.current);
     };
-
-    if (studentId) {
-      fetchData();
-    }
-  }, [studentId]);
+  }, []);
 
   const startPractice = async (topic) => {
     try {
@@ -60,21 +59,67 @@ function Practice({ studentId }) {
       setSelectedAnswer(null);
       setUserAnswers([]);
       setShowResult(false);
+      setShowAnswerResult(false);
+      setShowExplanationHint(false);
     } catch (error) {
       console.error('Error loading questions:', error);
       alert('Ошибка загрузки вопросов');
     }
   };
 
-  const handleAnswerSelect = (answerIndex) => {
-    setSelectedAnswer(answerIndex);
+  const handleAnswerPress = (answerIndex) => {
+    if (showAnswerResult || selectedAnswer !== null) return;
+
+    setHoldingAnswer(answerIndex);
+    setHoldProgress(0);
+
+    progressIntervalRef.current = setInterval(() => {
+      setHoldProgress(prev => {
+        const newProgress = prev + (PROGRESS_INTERVAL / HOLD_DURATION) * 100;
+        return newProgress >= 100 ? 100 : newProgress;
+      });
+    }, PROGRESS_INTERVAL);
+
+    holdTimerRef.current = setTimeout(() => {
+      submitAnswer(answerIndex);
+    }, HOLD_DURATION);
   };
 
-  const handleNextQuestion = async () => {
-    const currentQuestion = questions[currentQuestionIndex];
-    const isCorrect = selectedAnswer === currentQuestion.correctAnswer;
+  const handleAnswerRelease = () => {
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
+    }
+    setHoldingAnswer(null);
+    setHoldProgress(0);
+  };
 
-    // Сохраняем попытку на сервер сразу
+  const submitAnswer = async (answerIndex) => {
+    const currentQuestion = questions[currentQuestionIndex];
+    const correct = answerIndex === currentQuestion.correctAnswer;
+
+    setSelectedAnswer(answerIndex);
+    setIsCorrect(correct);
+    setShowAnswerResult(true);
+    setShowExplanationHint(false);
+
+    if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
+    if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+    setHoldingAnswer(null);
+    setHoldProgress(0);
+
+    const newAnswers = [...userAnswers, {
+      questionId: currentQuestion.id,
+      selectedAnswer: answerIndex,
+      correctAnswer: currentQuestion.correctAnswer,
+      isCorrect: correct
+    }];
+    setUserAnswers(newAnswers);
+
     try {
       await fetch(`${API_URL}/practice/attempts`, {
         method: 'POST',
@@ -84,8 +129,8 @@ function Practice({ studentId }) {
           topicId: activePractice.id,
           questionId: currentQuestion.id,
           subjectId: activePractice.subjectId,
-          selectedAnswer: selectedAnswer,
-          isCorrect: isCorrect,
+          selectedAnswer: answerIndex,
+          isCorrect: correct,
           timeSpent: 0
         })
       });
@@ -93,20 +138,16 @@ function Practice({ studentId }) {
       console.error('Error saving attempt:', error);
     }
 
-    const newAnswers = [...userAnswers, {
-      questionId: currentQuestion.id,
-      selectedAnswer: selectedAnswer,
-      correctAnswer: currentQuestion.correctAnswer,
-      isCorrect: isCorrect
-    }];
-    setUserAnswers(newAnswers);
-
-    if (currentQuestionIndex < questions.length - 1) {
-      setCurrentQuestionIndex(currentQuestionIndex + 1);
-      setSelectedAnswer(null);
-    } else {
-      finishPractice(newAnswers);
-    }
+    autoNextTimerRef.current = setTimeout(() => {
+      if (currentQuestionIndex < questions.length - 1) {
+        setCurrentQuestionIndex(currentQuestionIndex + 1);
+        setSelectedAnswer(null);
+        setShowAnswerResult(false);
+        setIsCorrect(false);
+      } else {
+        finishPractice(newAnswers);
+      }
+    }, RESULT_DURATION);
   };
 
   const finishPractice = (answers) => {
@@ -124,6 +165,10 @@ function Practice({ studentId }) {
   };
 
   const closePractice = () => {
+    if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
+    if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+    if (autoNextTimerRef.current) clearTimeout(autoNextTimerRef.current);
+
     setActivePractice(null);
     setQuestions([]);
     setCurrentQuestionIndex(0);
@@ -131,25 +176,20 @@ function Practice({ studentId }) {
     setUserAnswers([]);
     setShowResult(false);
     setPracticeResult(null);
+    setShowAnswerResult(false);
+    setShowExplanationHint(false);
+    setHoldingAnswer(null);
+    setHoldProgress(0);
     
-    // Перезагружаем данные чтобы обновить статистику
-    const fetchData = async () => {
-      try {
-        const practiceRes = await fetch(`${API_URL}/practice/student/${studentId}`);
-        const practiceData = await practiceRes.json();
-        setPracticeTopics(practiceData.practiceTopics || []);
-      } catch (error) {
-        console.error('Error reloading practice:', error);
-      }
-    };
-    fetchData();
+    // Обновляем данные через контекст
+    refreshAfterPractice();
   };
 
   const filteredTopics = selectedSubject === 'all'
     ? practiceTopics
     : practiceTopics.filter(topic => topic.subjectId === selectedSubject);
 
-  if (loading) {
+  if (contextLoading.practice && practiceTopics.length === 0) {
     return (
       <div className="section">
         <h1 className="section-title">Практика</h1>
@@ -189,30 +229,98 @@ function Practice({ studentId }) {
                 {currentQuestion.difficulty === 'hard' && '🔴 Сложный'}
               </span>
             )}
+            {currentQuestion.explanation && !showAnswerResult && (
+              <button 
+                className="hint-button"
+                onClick={() => setShowExplanationHint(!showExplanationHint)}
+              >
+                💡 {showExplanationHint ? 'Скрыть подсказку' : 'Подсказка'}
+              </button>
+            )}
           </div>
 
           <h3 className="question-text">{currentQuestion.questionText}</h3>
 
+          {showExplanationHint && currentQuestion.explanation && !showAnswerResult && (
+            <div className="hint-box">
+              <div className="hint-title">💡 Подсказка:</div>
+              <div className="hint-text">{currentQuestion.explanation}</div>
+            </div>
+          )}
+
           <div className="answers-list">
-            {currentQuestion.options.map((option, index) => (
-              <button
-                key={index}
-                className={`answer-option ${selectedAnswer === index ? 'selected' : ''}`}
-                onClick={() => handleAnswerSelect(index)}
-              >
-                <span className="answer-letter">{String.fromCharCode(65 + index)}</span>
-                <span className="answer-text">{option}</span>
-              </button>
-            ))}
+            {currentQuestion.options.map((option, index) => {
+              const isSelected = selectedAnswer === index;
+              const isHolding = holdingAnswer === index;
+              const showCorrect = showAnswerResult && index === currentQuestion.correctAnswer;
+              const showWrong = showAnswerResult && isSelected && !isCorrect;
+
+              return (
+                <div
+                  key={index}
+                  className={`answer-option ${isHolding ? 'holding' : ''} ${showCorrect ? 'correct' : ''} ${showWrong ? 'wrong' : ''}`}
+                  onMouseDown={() => handleAnswerPress(index)}
+                  onMouseUp={handleAnswerRelease}
+                  onMouseLeave={handleAnswerRelease}
+                  onTouchStart={(e) => {
+                    e.preventDefault();
+                    handleAnswerPress(index);
+                  }}
+                  onTouchEnd={(e) => {
+                    e.preventDefault();
+                    handleAnswerRelease();
+                  }}
+                  style={{
+                    pointerEvents: showAnswerResult ? 'none' : 'auto',
+                    position: 'relative',
+                    overflow: 'hidden'
+                  }}
+                >
+                  {isHolding && (
+                    <div 
+                      className="hold-progress" 
+                      style={{ 
+                        width: `${holdProgress}%`,
+                        position: 'absolute',
+                        left: 0,
+                        top: 0,
+                        height: '100%',
+                        background: 'linear-gradient(90deg, rgba(59, 130, 246, 0.15) 0%, rgba(30, 64, 175, 0.3) 100%)',
+                        transition: 'width 0.02s linear',
+                        pointerEvents: 'none',
+                        zIndex: 0
+                      }}
+                    />
+                  )}
+                  <span className="answer-letter" style={{ position: 'relative', zIndex: 1 }}>
+                    {String.fromCharCode(65 + index)}
+                  </span>
+                  <span className="answer-text" style={{ position: 'relative', zIndex: 1 }}>
+                    {option}
+                  </span>
+                  {showCorrect && <span className="answer-icon correct-icon" style={{ position: 'relative', zIndex: 1 }}>✓</span>}
+                  {showWrong && <span className="answer-icon wrong-icon" style={{ position: 'relative', zIndex: 1 }}>✗</span>}
+                </div>
+              );
+            })}
           </div>
 
-          <button
-            className="primary-button"
-            disabled={selectedAnswer === null}
-            onClick={handleNextQuestion}
-          >
-            {currentQuestionIndex < questions.length - 1 ? 'Следующий вопрос →' : 'Завершить практику'}
-          </button>
+          {showAnswerResult && (
+            <div className={`answer-result-box ${isCorrect ? 'correct-result' : 'wrong-result'}`}>
+              <div className="result-icon">
+                {isCorrect ? '✅' : '❌'}
+              </div>
+              <div className="result-text">
+                {isCorrect ? 'Правильно!' : 'Неправильно'}
+              </div>
+            </div>
+          )}
+
+          {!showAnswerResult && (
+            <div className="hold-hint">
+              💡 Зажмите ответ чтобы подтвердить
+            </div>
+          )}
         </div>
       </div>
     );
@@ -358,7 +466,6 @@ function Practice({ studentId }) {
                 📚 Вопросов: {topic.questions?.length || 0}
               </p>
               
-              {/* СТАТИСТИКА ПО ТОПИКУ */}
               {topic.stats && topic.stats.total > 0 && (
                 <div style={{
                   marginTop: '12px',

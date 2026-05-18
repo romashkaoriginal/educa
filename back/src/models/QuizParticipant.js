@@ -9,54 +9,27 @@ const QuizParticipant = sequelize.define('QuizParticipant', {
   },
   quizId: {
     type: DataTypes.INTEGER,
-    allowNull: false,
-    references: {
-      model: 'quizzes',
-      key: 'id'
-    },
-    onDelete: 'CASCADE'
+    references: { model: 'quizzes', key: 'id' }
   },
   userId: {
     type: DataTypes.INTEGER,
-    allowNull: false,
-    references: {
-      model: 'users',
-      key: 'id'
-    }
+    references: { model: 'users', key: 'id' }
   },
   totalScore: {
-    type: DataTypes.INTEGER,
+    type: DataTypes.DECIMAL(10, 2),
     defaultValue: 0
-  },
-  totalTime: {
-    type: DataTypes.INTEGER, // общее время в секундах
-    defaultValue: 0
-  },
-  rank: {
-    type: DataTypes.INTEGER,
-    allowNull: true
-  },
-  status: {
-    type: DataTypes.ENUM('active', 'completed', 'abandoned'),
-    defaultValue: 'active'
   },
   joinedAt: {
     type: DataTypes.DATE,
     defaultValue: DataTypes.NOW
   },
-  finishedAt: {
+  lastActivityAt: {
     type: DataTypes.DATE,
-    allowNull: true
+    defaultValue: DataTypes.NOW
   }
 }, {
   tableName: 'quiz_participants',
-  timestamps: false,
-  indexes: [
-    {
-      unique: true,
-      fields: ['quizId', 'userId']
-    }
-  ]
+  timestamps: false
 });
 
 module.exports = QuizParticipant;

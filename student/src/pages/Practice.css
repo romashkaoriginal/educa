@@ -353,3 +353,147 @@
 .secondary-button:hover {
   background: #eff6ff;
 }
+/* Кнопка подсказки */
+.question-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.hint-button {
+  background: #f3f4f6;
+  color: #6366f1;
+  border: 2px solid #e5e7eb;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.hint-button:hover {
+  background: #e5e7eb;
+  border-color: #6366f1;
+}
+
+/* Подсказка ДО ответа */
+.hint-box {
+  margin-bottom: 20px;
+  padding: 16px;
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  border: 2px solid #f59e0b;
+  border-radius: 12px;
+  animation: slideIn 0.3s ease-out;
+}
+
+.hint-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #92400e;
+  margin-bottom: 8px;
+}
+
+.hint-text {
+  font-size: 13px;
+  line-height: 1.6;
+  color: #78350f;
+}
+
+/* Результат ПОСЛЕ ответа */
+.answer-result-box {
+  margin-top: 20px;
+  padding: 20px;
+  border-radius: 12px;
+  text-align: center;
+  animation: slideIn 0.3s ease-out;
+}
+
+.correct-result {
+  background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+  border: 2px solid #10b981;
+}
+
+.wrong-result {
+  background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+  border: 2px solid #ef4444;
+}
+
+.result-icon {
+  font-size: 48px;
+  margin-bottom: 8px;
+}
+
+.result-text {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+/* Зажатие ответа */
+.answer-option {
+  position: relative;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.answer-option.holding {
+  transform: scale(0.98);
+}
+
+.answer-option.correct {
+  background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+  border-color: #10b981;
+}
+
+.answer-option.wrong {
+  background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+  border-color: #ef4444;
+}
+
+.answer-icon {
+  font-size: 20px;
+  margin-left: auto;
+  font-weight: bold;
+}
+
+.correct-icon {
+  color: #10b981;
+}
+
+.wrong-icon {
+  color: #ef4444;
+}
+
+/* Подсказка */
+.hold-hint {
+  margin-top: 16px;
+  padding: 12px;
+  background: #f3f4f6;
+  border-radius: 8px;
+  text-align: center;
+  color: #6b7280;
+  font-size: 13px;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}

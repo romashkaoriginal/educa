@@ -1,40 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import './Statistics.css'; 
-
-const API_URL = 'https://educa-production-a98e.up.railway.app/api';
+import React, { useState } from 'react';
+import './Statistics.css';
+import { useData } from './DataContext';
 
 function Statistics({ studentId }) {
+  // Используем контекст
+  const { practiceStats: stats, homeworkStats, loading: contextLoading } = useData();
+  
   const [activeTab, setActiveTab] = useState('practice');
-  const [stats, setStats] = useState(null);
-  const [homeworkStats, setHomeworkStats] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    loadStats();
-    loadHomeworkStats();
-  }, [studentId]);
-
-  const loadStats = async () => {
-    try {
-      const response = await fetch(`${API_URL}/practice/stats/${studentId}`);
-      const data = await response.json();
-      setStats(data);
-    } catch (error) {
-      console.error('Error loading stats:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadHomeworkStats = async () => {
-    try {
-      const response = await fetch(`${API_URL}/homework/student/${studentId}/stats`);
-      const data = await response.json();
-      setHomeworkStats(data);
-    } catch (error) {
-      console.error('Error loading homework stats:', error);
-    }
-  };
 
   const getHomeworkStatus = (homework) => {
     const now = new Date();
@@ -64,7 +36,7 @@ function Statistics({ studentId }) {
     }
   };
 
-  if (loading) {
+  if ((contextLoading.practiceStats || contextLoading.homeworkStats) && !stats && !homeworkStats) {
     return (
       <div className="section">
         <h1 className="section-title">Статистика</h1>
@@ -77,7 +49,6 @@ function Statistics({ studentId }) {
     <div className="section">
       <h1 className="section-title">📊 Моя статистика</h1>
 
-      {/* Вкладки */}
       <div className="stats-tabs">
         <button
           className={`stats-tab ${activeTab === 'practice' ? 'active' : ''}`}
@@ -99,7 +70,6 @@ function Statistics({ studentId }) {
         </button>
       </div>
 
-      {/* ПРАКТИКА */}
       {activeTab === 'practice' && stats && (
         <div className="stats-content">
           {stats.stats.total === 0 ? (
@@ -110,7 +80,6 @@ function Statistics({ studentId }) {
             </div>
           ) : (
             <>
-              {/* Общие показатели */}
               <div className="stats-summary">
                 <div className="stat-card">
                   <div className="stat-icon">📝</div>
@@ -145,7 +114,6 @@ function Statistics({ studentId }) {
                 </div>
               </div>
 
-              {/* По предметам */}
               {stats.subjectStats && stats.subjectStats.length > 0 && (
                 <div className="stats-block">
                   <h3>📚 По предметам</h3>
@@ -176,7 +144,6 @@ function Statistics({ studentId }) {
                 </div>
               )}
 
-              {/* По подразделам */}
               {stats.topicStats && stats.topicStats.length > 0 && (
                 <div className="stats-block">
                   <h3>📑 По подразделам</h3>
@@ -207,7 +174,6 @@ function Statistics({ studentId }) {
                 </div>
               )}
 
-              {/* Последние решения */}
               {stats.recentAttempts && stats.recentAttempts.length > 0 && (
                 <div className="stats-block">
                   <h3>🕐 Последние решения</h3>
@@ -237,7 +203,6 @@ function Statistics({ studentId }) {
         </div>
       )}
 
-      {/* ДОМАШКА */}
       {activeTab === 'homework' && (
         <div className="stats-content">
           {!homeworkStats || homeworkStats.homeworks?.length === 0 ? (
@@ -248,7 +213,6 @@ function Statistics({ studentId }) {
             </div>
           ) : (
             <>
-              {/* Общая статистика по домашкам */}
               <div className="stats-summary">
                 <div className="stat-card">
                   <div className="stat-icon">📚</div>
@@ -283,7 +247,6 @@ function Statistics({ studentId }) {
                 </div>
               </div>
 
-              {/* Список домашек */}
               <div className="stats-block">
                 <h3>📝 Домашние задания</h3>
                 <div className="homework-stats-list">
@@ -296,7 +259,6 @@ function Statistics({ studentId }) {
 
                     return (
                       <div key={hw.id} className="homework-stat-card">
-                        {/* Заголовок */}
                         <div className="hw-stat-header">
                           <div className="hw-stat-title-block">
                             <span className="hw-stat-icon">{hw.subject?.icon || '📖'}</span>
@@ -310,7 +272,6 @@ function Statistics({ studentId }) {
                           </span>
                         </div>
 
-                        {/* Результат */}
                         {submission ? (
                           <div className="hw-stat-result">
                             <div className="hw-stat-score">
@@ -344,7 +305,6 @@ function Statistics({ studentId }) {
                           </div>
                         )}
 
-                        {/* Даты */}
                         <div className="hw-stat-dates">
                           <div className="hw-date-item">
                             <span className="hw-date-label">📅 Открыто:</span>
@@ -395,7 +355,6 @@ function Statistics({ studentId }) {
         </div>
       )}
 
-      {/* ВИКТОРИНЫ */}
       {activeTab === 'quiz' && (
         <div className="stats-content">
           <div className="empty-state">

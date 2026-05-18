@@ -12,35 +12,32 @@ const Quiz = sequelize.define('Quiz', {
     allowNull: false
   },
   description: {
-    type: DataTypes.TEXT,
-    allowNull: true
+    type: DataTypes.TEXT
+  },
+  subjectId: {
+    type: DataTypes.INTEGER,
+    references: { model: 'subjects', key: 'id' }
   },
   accessCode: {
     type: DataTypes.STRING(10),
     allowNull: false,
     unique: true
   },
-  isActive: {
-    type: DataTypes.BOOLEAN,
-    defaultValue: false
-  },
-  startTime: {
-    type: DataTypes.DATE,
-    allowNull: true
-  },
-  duration: {
-    type: DataTypes.INTEGER, // в минутах
-    allowNull: false,
-    defaultValue: 30
+  status: {
+    type: DataTypes.ENUM('draft', 'active', 'finished'),
+    defaultValue: 'draft'
   },
   createdBy: {
     type: DataTypes.INTEGER,
-    allowNull: false,
-    references: {
-      model: 'users',
-      key: 'id'
-    }
-  }
+    references: { model: 'users', key: 'id' }
+  },
+  startedAt: DataTypes.DATE,
+  finishedAt: DataTypes.DATE,
+  currentQuestionIndex: {
+    type: DataTypes.INTEGER,
+    defaultValue: -1
+  },
+  questionStartedAt: DataTypes.DATE
 }, {
   tableName: 'quizzes',
   timestamps: true

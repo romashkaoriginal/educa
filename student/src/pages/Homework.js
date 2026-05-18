@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import './Homework.css';
+import { useData } from './DataContext';
 
 const API_URL = 'https://educa-production-a98e.up.railway.app/api';
 
 function StudentHomework({ studentId }) {
-  const [homeworks, setHomeworks] = useState([]);
-  const [loading, setLoading] = useState(true);
+  // Используем контекст
+  const { homeworks, refreshAfterHomework, loading: contextLoading } = useData();
+  
   const [selectedHomework, setSelectedHomework] = useState(null);
   const [questions, setQuestions] = useState([]);
   const [answers, setAnswers] = useState({});
@@ -13,22 +15,6 @@ function StudentHomework({ studentId }) {
   const [showResult, setShowResult] = useState(false);
   const [result, setResult] = useState(null);
   const [startTime, setStartTime] = useState(null);
-
-  useEffect(() => {
-    loadHomeworks();
-  }, [studentId]);
-
-  const loadHomeworks = async () => {
-    try {
-      const response = await fetch(`${API_URL}/homework/student/${studentId}`);
-      const data = await response.json();
-      setHomeworks(data.homeworks || []);
-    } catch (error) {
-      console.error('Error loading homeworks:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const startHomework = async (homework) => {
     try {
@@ -55,7 +41,7 @@ function StudentHomework({ studentId }) {
   };
 
   const submitHomework = async () => {
-    const timeSpent = Math.floor((Date.now() - startTime) / 1000); // seconds
+    const timeSpent = Math.floor((Date.now() - startTime) / 1000);
 
     try {
       const response = await fetch(`${API_URL}/homework/submit`, {
@@ -89,7 +75,8 @@ function StudentHomework({ studentId }) {
     setAnswers({});
     setShowResult(false);
     setResult(null);
-    loadHomeworks();
+    // Обновляем через контекст
+    refreshAfterHomework();
   };
 
   const renderQuestion = (question, index) => {
@@ -286,7 +273,7 @@ function StudentHomework({ studentId }) {
     }
   };
 
-  if (loading) {
+  if (contextLoading.homework && homeworks.length === 0) {
     return (
       <div className="section">
         <h1 className="section-title">Домашние задания</h1>

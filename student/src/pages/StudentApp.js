@@ -4,14 +4,22 @@ import Practice from './Practice';
 import Homework from './Homework';
 import Quiz from './Quiz';
 import Statistics from './Statistics';
+import { DataProvider, useData } from './DataContext';
 
 const API_URL = 'https://educa-production-a98e.up.railway.app/api';
 
-function StudentApp() {
+function StudentAppContent({ selectedStudent, onLogout }) {
   const [activeTab, setActiveTab] = useState('practice');
-  const [students, setStudents] = useState([]);
-  const [selectedStudent, setSelectedStudent] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const { preloadAllData } = useData();
+  const [initialLoading, setInitialLoading] = useState(true);
+
+  useEffect(() => {
+    const loadInitialData = async () => {
+      await preloadAllData();
+      setInitialLoading(false);
+    };
+    loadInitialData();
+  }, [preloadAllData]);
 
   const tabs = [
     { id: 'practice', name: 'Практика', icon: '💪', component: Practice },
@@ -19,6 +27,60 @@ function StudentApp() {
     { id: 'quiz', name: 'Викторина', icon: '🎯', component: Quiz },
     { id: 'stats', name: 'Статистика', icon: '📊', component: Statistics },
   ];
+
+  const ActiveComponent = tabs.find(tab => tab.id === activeTab)?.component;
+
+  if (initialLoading) {
+    return (
+      <div className="initial-loading">
+        <div className="loading-logo">
+          <span className="logo-ed">ED</span>
+          <span className="logo-me">me</span>
+        </div>
+        <div className="loading-spinner"></div>
+        <p>Загружаем данные...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="student-app">
+      <header className="header">
+        <div className="logo">
+          <span className="logo-ed">ED</span>
+          <span className="logo-me">me</span>
+        </div>
+        <div className="user-info">
+          <div className="user-avatar" onClick={onLogout}>
+            {selectedStudent.firstName[0]}{selectedStudent.lastName[0]}
+          </div>
+        </div>
+      </header>
+
+      <main className="content">
+        {ActiveComponent && <ActiveComponent studentId={selectedStudent.id} />}
+      </main>
+
+      <nav className="bottom-navigation">
+        {tabs.map(tab => (
+          <button
+            key={tab.id}
+            className={`nav-button ${activeTab === tab.id ? 'active' : ''}`}
+            onClick={() => setActiveTab(tab.id)}
+          >
+            <span className="nav-icon">{tab.icon}</span>
+            <span className="nav-text">{tab.name}</span>
+          </button>
+        ))}
+      </nav>
+    </div>
+  );
+}
+
+function StudentApp() {
+  const [students, setStudents] = useState([]);
+  const [selectedStudent, setSelectedStudent] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchStudents = async () => {
@@ -35,8 +97,6 @@ function StudentApp() {
 
     fetchStudents();
   }, []);
-
-  const ActiveComponent = tabs.find(tab => tab.id === activeTab)?.component;
 
   if (!selectedStudent) {
     return (
@@ -88,36 +148,12 @@ function StudentApp() {
   }
 
   return (
-    <div className="student-app">
-      <header className="header">
-        <div className="logo">
-          <span className="logo-ed">ED</span>
-          <span className="logo-me">me</span>
-        </div>
-        <div className="user-info">
-          <div className="user-avatar" onClick={() => setSelectedStudent(null)}>
-            {selectedStudent.firstName[0]}{selectedStudent.lastName[0]}
-          </div>
-        </div>
-      </header>
-
-      <main className="content">
-        {ActiveComponent && <ActiveComponent studentId={selectedStudent.id} />}
-      </main>
-
-      <nav className="bottom-navigation">
-        {tabs.map(tab => (
-          <button
-            key={tab.id}
-            className={`nav-button ${activeTab === tab.id ? 'active' : ''}`}
-            onClick={() => setActiveTab(tab.id)}
-          >
-            <span className="nav-icon">{tab.icon}</span>
-            <span className="nav-text">{tab.name}</span>
-          </button>
-        ))}
-      </nav>
-    </div>
+    <DataProvider studentId={selectedStudent.id}>
+      <StudentAppContent 
+        selectedStudent={selectedStudent} 
+        onLogout={() => setSelectedStudent(null)}
+      />
+    </DataProvider>
   );
 }
 

@@ -7,37 +7,23 @@ const QuizAnswer = sequelize.define('QuizAnswer', {
     primaryKey: true,
     autoIncrement: true
   },
-  participantId: {
+  quizId: {
     type: DataTypes.INTEGER,
-    allowNull: false,
-    references: {
-      model: 'quiz_participants',
-      key: 'id'
-    },
-    onDelete: 'CASCADE'
+    references: { model: 'quizzes', key: 'id' }
   },
   questionId: {
     type: DataTypes.INTEGER,
-    allowNull: false,
-    references: {
-      model: 'quiz_questions',
-      key: 'id'
-    }
+    references: { model: 'quiz_questions', key: 'id' }
   },
-  answer: {
-    type: DataTypes.INTEGER, // индекс выбранного ответа
-    allowNull: false
-  },
-  isCorrect: {
-    type: DataTypes.BOOLEAN,
-    allowNull: false
-  },
-  timeSpent: {
-    type: DataTypes.INTEGER, // в секундах
-    allowNull: false
-  },
-  pointsEarned: {
+  userId: {
     type: DataTypes.INTEGER,
+    references: { model: 'users', key: 'id' }
+  },
+  selectedAnswer: DataTypes.INTEGER,
+  isCorrect: DataTypes.BOOLEAN,
+  responseTime: DataTypes.INTEGER,
+  score: {
+    type: DataTypes.DECIMAL(10, 2),
     defaultValue: 0
   },
   answeredAt: {

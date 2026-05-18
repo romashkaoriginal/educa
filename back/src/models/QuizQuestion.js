@@ -9,37 +9,33 @@ const QuizQuestion = sequelize.define('QuizQuestion', {
   },
   quizId: {
     type: DataTypes.INTEGER,
-    allowNull: false,
-    references: {
-      model: 'quizzes',
-      key: 'id'
-    },
-    onDelete: 'CASCADE'
+    references: { model: 'quizzes', key: 'id' }
   },
   questionText: {
     type: DataTypes.TEXT,
     allowNull: false
   },
   options: {
-    type: DataTypes.JSON, // ["Option 1", "Option 2", "Option 3", "Option 4"]
+    type: DataTypes.JSONB,
     allowNull: false
   },
   correctAnswer: {
-    type: DataTypes.INTEGER, // индекс правильного ответа (0, 1, 2, 3)
+    type: DataTypes.INTEGER,
     allowNull: false
+  },
+  timeLimit: {
+    type: DataTypes.INTEGER,
+    defaultValue: 30
   },
   points: {
     type: DataTypes.INTEGER,
-    defaultValue: 10
-  },
-  timeLimit: {
-    type: DataTypes.INTEGER, // в секундах
-    defaultValue: 30
+    defaultValue: 1
   },
   order: {
     type: DataTypes.INTEGER,
     defaultValue: 0
-  }
+  },
+  explanation: DataTypes.TEXT
 }, {
   tableName: 'quiz_questions',
   timestamps: true

@@ -99,6 +99,26 @@ User.hasMany(PracticeAttempt, { foreignKey: 'studentId', as: 'practiceAttempts' 
 PracticeTopic.hasMany(PracticeAttempt, { foreignKey: 'topicId', as: 'attempts' });
 PracticeQuestion.hasMany(PracticeAttempt, { foreignKey: 'questionId', as: 'attempts' });
 Subject.hasMany(PracticeAttempt, { foreignKey: 'subjectId', as: 'practiceAttempts' });
+const Quiz = require('./Quiz');
+const QuizQuestion = require('./QuizQuestion');
+const QuizParticipant = require('./QuizParticipant');
+const QuizAnswer = require('./QuizAnswer');
+
+// Quiz associations
+Quiz.hasMany(QuizQuestion, { as: 'questions', foreignKey: 'quizId' });
+QuizQuestion.belongsTo(Quiz, { foreignKey: 'quizId' });
+
+Quiz.hasMany(QuizParticipant, { as: 'participants', foreignKey: 'quizId' });
+QuizParticipant.belongsTo(Quiz, { foreignKey: 'quizId' });
+QuizParticipant.belongsTo(User, { as: 'user', foreignKey: 'userId' });
+
+Quiz.belongsTo(Subject, { as: 'subject', foreignKey: 'subjectId' });
+Quiz.belongsTo(User, { as: 'creator', foreignKey: 'createdBy' });
+
+Quiz.hasMany(QuizAnswer, { as: 'answers', foreignKey: 'quizId' });
+QuizAnswer.belongsTo(Quiz, { foreignKey: 'quizId' });
+QuizAnswer.belongsTo(QuizQuestion, { as: 'question', foreignKey: 'questionId' });
+QuizAnswer.belongsTo(User, { as: 'user', foreignKey: 'userId' });
 
 // Синхронизация моделей с БД
 const syncDatabase = async () => {
