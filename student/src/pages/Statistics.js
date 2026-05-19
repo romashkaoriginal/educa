@@ -1,12 +1,39 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './Statistics.css';
 import { useData } from './DataContext';
+
+const API_URL = 'https://educa-production-a98e.up.railway.app/api';
 
 function Statistics({ studentId }) {
   // Используем контекст
   const { practiceStats: stats, homeworkStats, loading: contextLoading } = useData();
   
   const [activeTab, setActiveTab] = useState('practice');
+
+  // Статистика викторин
+  const [quizStats, setQuizStats] = useState([]);
+  const [quizSummary, setQuizSummary] = useState({ totalQuizzes: 0, totalPoints: 0, averageScore: 0 });
+  const [loadingQuiz, setLoadingQuiz] = useState(false);
+
+  useEffect(() => {
+    if (activeTab === 'quiz') {
+      fetchQuizStats();
+    }
+  }, [activeTab, studentId]);
+
+  const fetchQuizStats = async () => {
+    setLoadingQuiz(true);
+    try {
+      const response = await fetch(`${API_URL}/quiz/student/${studentId}/stats`);
+      const data = await response.json();
+      setQuizStats(data.quizzes || []);
+      setQuizSummary(data.summary || { totalQuizzes: 0, totalPoints: 0, averageScore: 0 });
+    } catch (error) {
+      console.error('Error fetching quiz stats:', error);
+    } finally {
+      setLoadingQuiz(false);
+    }
+  };
 
   const getHomeworkStatus = (homework) => {
     const now = new Date();
@@ -70,6 +97,7 @@ function Statistics({ studentId }) {
         </button>
       </div>
 
+      {/* ВКЛАДКА: ПРАКТИКА */}
       {activeTab === 'practice' && stats && (
         <div className="stats-content">
           {stats.stats.total === 0 ? (
@@ -203,6 +231,7 @@ function Statistics({ studentId }) {
         </div>
       )}
 
+      {/* ВКЛАДКА: ДОМАШКА */}
       {activeTab === 'homework' && (
         <div className="stats-content">
           {!homeworkStats || homeworkStats.homeworks?.length === 0 ? (
@@ -355,13 +384,110 @@ function Statistics({ studentId }) {
         </div>
       )}
 
+      {/* ВКЛАДКА: ВИКТОРИНЫ */}
       {activeTab === 'quiz' && (
         <div className="stats-content">
-          <div className="empty-state">
-            <div className="empty-icon">🎯</div>
-            <p>Раздел статистики по викторинам в разработке.</p>
-            <p>Скоро здесь появятся ваши результаты и место в лидерборде!</p>
-          </div>
+          {loadingQuiz ? (
+            <div className="loading-state">
+              <div className="spinner"></div>
+              <p>Загрузка статистики викторин...</p>
+            </div>
+          ) : (
+            <>
+              {/* Общая статистика */}
+              <div className="stats-summary">
+                <div className="stat-card quiz-card">
+                  <div className="stat-icon">🎮</div>
+                  <div className="stat-info">
+                    <div className="stat-label">Пройдено викторин</div>
+                    <div className="stat-value">{quizSummary.totalQuizzes}</div>
+                  </div>
+                </div>
+                <div className="stat-card quiz-card">
+                  <div className="stat-icon">⭐</div>
+                  <div className="stat-info">
+                    <div className="stat-label">Всего баллов</div>
+                    <div className="stat-value">{parseFloat(quizSummary.totalPoints).toFixed(1)}</div>
+                  </div>
+                </div>
+                <div className="stat-card quiz-card">
+                  <div className="stat-icon">📊</div>
+                  <div className="stat-info">
+                    <div className="stat-label">Средний балл</div>
+                    <div className="stat-value">{parseFloat(quizSummary.averageScore).toFixed(1)}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Список викторин */}
+              {quizStats.length === 0 ? (
+                <div className="empty-state">
+                  <div className="empty-icon">🎯</div>
+                  <p>Вы ещё не проходили викторины</p>
+                  <p className="empty-hint">Викторины проводятся преподавателем во время уроков</p>
+                </div>
+              ) : (
+                <div className="stats-block">
+                  <h3>📋 История викторин</h3>
+                  <div className="quiz-stats-list">
+                    {quizStats.map((quiz) => (
+                      <div key={quiz.quizId} className="quiz-stat-card">
+                        <div className="quiz-stat-header">
+                          <div className="quiz-stat-subject">
+                            <span className="subject-icon-big">{quiz.subjectIcon}</span>
+                            <div>
+                              <h4>{quiz.quizTitle}</h4>
+                              <span className="subject-name">{quiz.subjectName}</span>
+                            </div>
+                          </div>
+                          <div className={`quiz-rank rank-${quiz.rank}`}>
+                            {quiz.rank === 1 ? '🥇' : quiz.rank === 2 ? '🥈' : quiz.rank === 3 ? '🥉' : `#${quiz.rank}`}
+                            <span className="rank-label">место</span>
+                          </div>
+                        </div>
+
+                        <div className="quiz-stat-details">
+                          <div className="detail-row">
+                            <span className="detail-label">Баллы:</span>
+                            <span className="detail-value score">{parseFloat(quiz.totalScore).toFixed(1)}</span>
+                          </div>
+                          <div className="detail-row">
+                            <span className="detail-label">Точность:</span>
+                            <span className="detail-value">
+                              {quiz.correctAnswers}/{quiz.totalQuestions} ({quiz.totalQuestions > 0 ? ((quiz.correctAnswers / quiz.totalQuestions) * 100).toFixed(0) : 0}%)
+                            </span>
+                          </div>
+                          <div className="detail-row">
+                            <span className="detail-label">Участников:</span>
+                            <span className="detail-value">{quiz.totalParticipants} человек</span>
+                          </div>
+                          <div className="detail-row">
+                            <span className="detail-label">Дата:</span>
+                            <span className="detail-value">
+                              {new Date(quiz.finishedAt).toLocaleDateString('ru-RU', { 
+                                day: 'numeric', 
+                                month: 'long', 
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="quiz-stat-footer">
+                          <span className="quiz-code">Код: {quiz.accessCode}</span>
+                          <span className="quiz-position">
+                            {quiz.rank}-е место из {quiz.totalParticipants}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </div>
       )}
     </div>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { io } from 'socket.io-client';
-import '../../styles/Quiz.css';
+import './Quiz.css';
 
 const API_URL = 'https://educa-production-a98e.up.railway.app/api';
 const SOCKET_URL = 'https://educa-production-a98e.up.railway.app';
@@ -8,7 +8,7 @@ const SOCKET_URL = 'https://educa-production-a98e.up.railway.app';
 function Quiz({ subjects, currentUserId }) {
   const [quizzes, setQuizzes] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState('list'); // list, create, live
+  const [view, setView] = useState('list'); // list, create, live, results
   const [activeQuiz, setActiveQuiz] = useState(null);
   const [socket, setSocket] = useState(null);
 
@@ -35,6 +35,11 @@ function Quiz({ subjects, currentUserId }) {
   const [questionIndex, setQuestionIndex] = useState(0);
   const [totalQuestions, setTotalQuestions] = useState(0);
   const [timeLeft, setTimeLeft] = useState(0);
+
+  // Результаты викторины
+  const [resultsQuiz, setResultsQuiz] = useState(null);
+  const [resultsData, setResultsData] = useState(null);
+  const [loadingResults, setLoadingResults] = useState(false);
 
   useEffect(() => {
     loadQuizzes();
@@ -195,7 +200,189 @@ function Quiz({ subjects, currentUserId }) {
     }
   };
 
-  // LIVE РЕЖИМ
+  const viewResults = async (quiz) => {
+    setResultsQuiz(quiz);
+    setLoadingResults(true);
+    setView('results');
+
+    try {
+      const response = await fetch(`${API_URL}/quiz/${quiz.id}/results`);
+      const data = await response.json();
+      setResultsData(data);
+    } catch (error) {
+      console.error('Error loading results:', error);
+    } finally {
+      setLoadingResults(false);
+    }
+  };
+
+  // ========== РЕЗУЛЬТАТЫ ВИКТОРИНЫ ==========
+  if (view === 'results' && resultsQuiz) {
+    if (loadingResults) {
+      return (
+        <div className="admin-section">
+          <div className="section-header">
+            <button className="back-btn" onClick={() => {
+              setView('list');
+              setResultsQuiz(null);
+              setResultsData(null);
+            }}>← Назад</button>
+            <h2>Загрузка результатов...</h2>
+          </div>
+        </div>
+      );
+    }
+
+    if (!resultsData) {
+      return (
+        <div className="admin-section">
+          <div className="section-header">
+            <button className="back-btn" onClick={() => {
+              setView('list');
+              setResultsQuiz(null);
+            }}>← Назад</button>
+            <h2>Ошибка загрузки</h2>
+          </div>
+        </div>
+      );
+    }
+
+    const { quiz, participants, questionStats } = resultsData;
+
+    return (
+      <div className="admin-section quiz-results-view">
+        <div className="section-header">
+          <button className="back-btn" onClick={() => {
+            setView('list');
+            setResultsQuiz(null);
+            setResultsData(null);
+          }}>← Назад</button>
+          <h2>Результаты викторины</h2>
+        </div>
+
+        {/* Инфо о викторине */}
+        <div className="results-quiz-info">
+          <div className="info-card">
+            <h3>{quiz.title}</h3>
+            <div className="info-meta">
+              <span>{quiz.subject?.icon} {quiz.subject?.name}</span>
+              <span>•</span>
+              <span>Код: {quiz.accessCode}</span>
+              <span>•</span>
+              <span>{participants.length} участников</span>
+            </div>
+            {quiz.description && <p className="quiz-desc">{quiz.description}</p>}
+            <div className="quiz-dates">
+              <span>Запущена: {new Date(quiz.startedAt).toLocaleString('ru-RU')}</span>
+              <span>Завершена: {new Date(quiz.finishedAt).toLocaleString('ru-RU')}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Статистика по вопросам */}
+        <div className="results-section">
+          <h3>📊 Статистика по вопросам</h3>
+          <div className="question-stats-grid">
+            {questionStats.map((stat, i) => (
+              <div key={stat.questionId} className="question-stat-card">
+                <div className="stat-header">
+                  <span className="q-number">Вопрос {i + 1}</span>
+                  <span className={`accuracy ${parseInt(stat.accuracy) >= 70 ? 'good' : parseInt(stat.accuracy) >= 40 ? 'medium' : 'low'}`}>
+                    {stat.accuracy}% правильных
+                  </span>
+                </div>
+                <p className="stat-question">{stat.questionText}</p>
+                <div className="stat-footer">
+                  <span>{stat.correctAnswers} из {stat.totalAnswers} ответили правильно</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Лидерборд участников */}
+        <div className="results-section">
+          <h3>🏆 Лидерборд</h3>
+          <div className="results-leaderboard">
+            {participants.map((p, i) => (
+              <div key={p.id} className={`result-participant rank-${i + 1}`}>
+                <div className="participant-rank">
+                  {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i + 1}`}
+                </div>
+                <div className="participant-avatar">
+                  {p.user?.firstName?.[0]}{p.user?.lastName?.[0]}
+                </div>
+                <div className="participant-details">
+                  <div className="participant-name">
+                    {p.user?.firstName} {p.user?.lastName}
+                  </div>
+                  <div className="participant-username">@{p.user?.telegramUsername}</div>
+                </div>
+                <div className="participant-stats">
+                  <div className="stat-item">
+                    <span className="stat-value">{parseFloat(p.totalScore).toFixed(1)}</span>
+                    <span className="stat-label">баллов</span>
+                  </div>
+                  <div className="stat-item">
+                    <span className="stat-value">{p.correctAnswers}/{p.totalQuestions}</span>
+                    <span className="stat-label">верно</span>
+                  </div>
+                  <div className="stat-item">
+                    <span className="stat-value">{p.accuracy}%</span>
+                    <span className="stat-label">точность</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Детальные ответы */}
+        <div className="results-section">
+          <h3>📝 Детальные ответы участников</h3>
+          {participants.map((p, i) => (
+            <details key={p.id} className="participant-details-accordion">
+              <summary className="accordion-header">
+                <span className="participant-rank-mini">
+                  {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i + 1}`}
+                </span>
+                <span className="participant-name-mini">
+                  {p.user?.firstName} {p.user?.lastName}
+                </span>
+                <span className="participant-score-mini">
+                  {parseFloat(p.totalScore).toFixed(1)} баллов • {p.correctAnswers}/{p.totalQuestions} верно
+                </span>
+              </summary>
+              <div className="accordion-content">
+                {p.answers.map((answer) => {
+                  const question = quiz.questions.find(q => q.id === answer.questionId);
+                  return (
+                    <div key={answer.id} className={`answer-item ${answer.isCorrect ? 'correct' : 'wrong'}`}>
+                      <div className="answer-header">
+                        <span className="q-num">Вопрос {question?.order + 1}</span>
+                        <span className={`answer-badge ${answer.isCorrect ? 'correct' : 'wrong'}`}>
+                          {answer.isCorrect ? '✓ Правильно' : '✗ Неправильно'}
+                        </span>
+                        <span className="answer-score">+{parseFloat(answer.score).toFixed(2)} баллов</span>
+                      </div>
+                      <p className="answer-question">{question?.questionText}</p>
+                      <div className="answer-info">
+                        <span>Ответ: вариант {String.fromCharCode(65 + answer.selectedAnswer)}</span>
+                        <span>•</span>
+                        <span>Время: {(answer.responseTime / 1000).toFixed(1)}с</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </details>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // ========== LIVE РЕЖИМ ==========
   if (view === 'live' && activeQuiz) {
     return (
       <div className="admin-section quiz-live">
@@ -301,7 +488,7 @@ function Quiz({ subjects, currentUserId }) {
     );
   }
 
-  // СОЗДАНИЕ
+  // ========== СОЗДАНИЕ ==========
   if (view === 'create') {
     return (
       <div className="admin-section">
@@ -414,7 +601,7 @@ function Quiz({ subjects, currentUserId }) {
     );
   }
 
-  // СПИСОК
+  // ========== СПИСОК ==========
   return (
     <div className="admin-section">
       <div className="section-header">
@@ -451,6 +638,11 @@ function Quiz({ subjects, currentUserId }) {
                 Код: <strong>{q.accessCode}</strong>
               </div>
               <div className="quiz-actions">
+                {q.status === 'finished' && (
+                  <button onClick={() => viewResults(q)} className="view-results-btn">
+                    📊 Результаты
+                  </button>
+                )}
                 {q.status !== 'finished' && (
                   <button onClick={() => startLiveQuiz(q)} className="live-btn">
                     🎮 Запустить

@@ -27,6 +27,10 @@ const Quiz = sequelize.define('Quiz', {
     type: DataTypes.ENUM('draft', 'active', 'finished'),
     defaultValue: 'draft'
   },
+  isDeleted: {
+  type: DataTypes.BOOLEAN,
+  defaultValue: false
+},
   createdBy: {
     type: DataTypes.INTEGER,
     references: { model: 'users', key: 'id' }

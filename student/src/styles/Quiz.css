@@ -828,3 +828,376 @@
     max-width: 100%;
   }
 }
+/* ========== РЕЗУЛЬТАТЫ ВИКТОРИНЫ ========== */
+.quiz-results-view {
+  max-width: 1200px;
+}
+
+.results-quiz-info {
+  margin-bottom: 32px;
+}
+
+.info-card {
+  background: white;
+  border: 2px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 24px;
+}
+
+.info-card h3 {
+  font-size: 24px;
+  font-weight: 800;
+  color: #1f2937;
+  margin: 0 0 12px 0;
+}
+
+.info-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #6b7280;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.quiz-desc {
+  font-size: 14px;
+  color: #6b7280;
+  margin: 12px 0;
+  line-height: 1.6;
+}
+
+.quiz-dates {
+  display: flex;
+  gap: 20px;
+  font-size: 13px;
+  color: #6b7280;
+  padding-top: 12px;
+  border-top: 1px solid #f3f4f6;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+
+.results-section {
+  margin-bottom: 32px;
+}
+
+.results-section h3 {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1f2937;
+  margin-bottom: 16px;
+}
+
+/* Статистика вопросов */
+.question-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+.question-stat-card {
+  background: white;
+  border: 2px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 16px;
+  transition: all 0.2s;
+}
+
+.question-stat-card:hover {
+  border-color: #3B82F6;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.1);
+}
+
+.stat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.q-number {
+  font-size: 12px;
+  font-weight: 700;
+  color: #1E40AF;
+  background: #f0f9ff;
+  padding: 4px 10px;
+  border-radius: 6px;
+}
+
+.accuracy {
+  font-size: 13px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 6px;
+}
+
+.accuracy.good {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.accuracy.medium {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.accuracy.low {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.stat-question {
+  font-size: 14px;
+  color: #1f2937;
+  line-height: 1.5;
+  margin: 0 0 12px 0;
+}
+
+.stat-footer {
+  font-size: 12px;
+  color: #6b7280;
+  padding-top: 12px;
+  border-top: 1px solid #f3f4f6;
+}
+
+/* Лидерборд результатов */
+.results-leaderboard {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.result-participant {
+  background: white;
+  border: 2px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  transition: all 0.2s;
+}
+
+.result-participant:hover {
+  transform: translateX(4px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.result-participant.rank-1 {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  border-color: #F59E0B;
+}
+
+.result-participant.rank-2 {
+  background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+  border-color: #9ca3af;
+}
+
+.result-participant.rank-3 {
+  background: linear-gradient(135deg, #fed7aa 0%, #fdba74 100%);
+  border-color: #f97316;
+}
+
+.participant-rank {
+  font-size: 24px;
+  min-width: 40px;
+  text-align: center;
+}
+
+.participant-details {
+  flex: 1;
+  min-width: 0;
+}
+
+.participant-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1f2937;
+  margin-bottom: 4px;
+}
+
+.participant-username {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.participant-stats {
+  display: flex;
+  gap: 20px;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.stat-value {
+  font-size: 18px;
+  font-weight: 800;
+  color: #1E40AF;
+}
+
+.stat-label {
+  font-size: 11px;
+  color: #6b7280;
+  margin-top: 2px;
+}
+
+/* Детальные ответы */
+.participant-details-accordion {
+  background: white;
+  border: 2px solid #e5e7eb;
+  border-radius: 12px;
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+
+.accordion-header {
+  padding: 16px 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #f9fafb;
+  transition: all 0.2s;
+  user-select: none;
+}
+
+.accordion-header:hover {
+  background: #f3f4f6;
+}
+
+.participant-rank-mini {
+  font-size: 18px;
+  min-width: 30px;
+}
+
+.participant-name-mini {
+  flex: 1;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.participant-score-mini {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.accordion-content {
+  padding: 16px 20px;
+  background: white;
+}
+
+.answer-item {
+  padding: 12px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  border-left: 4px solid;
+}
+
+.answer-item.correct {
+  background: #f0fdf4;
+  border-color: #10b981;
+}
+
+.answer-item.wrong {
+  background: #fef2f2;
+  border-color: #ef4444;
+}
+
+.answer-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.q-num {
+  font-size: 12px;
+  font-weight: 700;
+  color: #1E40AF;
+  background: #f0f9ff;
+  padding: 4px 10px;
+  border-radius: 6px;
+}
+
+.answer-badge {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 6px;
+}
+
+.answer-badge.correct {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.answer-badge.wrong {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.answer-score {
+  font-size: 12px;
+  font-weight: 700;
+  color: #F59E0B;
+  margin-left: auto;
+}
+
+.answer-question {
+  font-size: 14px;
+  color: #1f2937;
+  margin: 0 0 8px 0;
+  line-height: 1.5;
+}
+
+.answer-info {
+  font-size: 12px;
+  color: #6b7280;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.view-results-btn {
+  background: linear-gradient(135deg, #F59E0B 0%, #FBBF24 100%);
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.view-results-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+}
+
+/* Адаптив */
+@media (max-width: 768px) {
+  .question-stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .participant-stats {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .accordion-header {
+    flex-direction: column;
+    align-items: start;
+  }
+
+  .participant-score-mini {
+    margin-left: 42px;
+  }
+}
