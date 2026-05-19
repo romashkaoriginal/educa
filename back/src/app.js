@@ -75,7 +75,7 @@ const startServer = async () => {
   const sequelize = require('./config/database'); 
   
   await syncDatabase();
-  await sequelize.sync({ alter: true }); 
+  //await sequelize.sync({ alter: true }); //
   
   // ИЗМЕНЕНО: server.listen вместо app.listen!
   server.listen(PORT, () => {
