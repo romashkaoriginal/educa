@@ -115,10 +115,10 @@ Subject.hasMany(PracticeAttempt, { foreignKey: 'subjectId', as: 'practiceAttempt
 // Синхронизация моделей с БД
 const syncDatabase = async () => {
   try {
-   // await sequelize.sync({ alter: true });//
-    console.log('✅ Database models synchronized');
+    // await sequelize.sync({ alter: true }); // ← ДОЛЖНО БЫТЬ ЗАКОММЕНТИРОВАНО
+    console.log('✅ Database connection established (sync disabled)');
   } catch (error) {
-    console.error('❌ Error synchronizing models:', error);
+    console.error('❌ Error connecting to database:', error);
   }
 };
 
