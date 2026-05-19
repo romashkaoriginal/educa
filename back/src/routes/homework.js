@@ -1,5 +1,5 @@
 const express = require('express');
-const { Homework, HomeworkQuestion, HomeworkSubmission, HomeworkAnswer, User, Subject } = require('../models');
+const { Homework, HomeworkQuestion, HomeworkSubmission, HomeworkAnswer, User, Subject, sequelize } = require('../models');
 const { Op } = require('sequelize');
 
 const router = express.Router();
@@ -160,7 +160,7 @@ router.post('/create', async (req, res) => {
       openDate,
       closeDate,
       maxAttempts,
-      createdBy: creatorId, // ← ИЗМЕНЕНО
+      createdBy: creatorId,
       isActive: true
     });
 
@@ -328,16 +328,25 @@ router.post('/submit', async (req, res) => {
       });
     });
 
-    // Create submission
-    const submission = await HomeworkSubmission.create({
-      homeworkId,
-      userId: studentId,
-      attemptNumber: submissionCount + 1,
-      totalScore,
-      maxScore,
-      timeSpent,
-      status: 'submitted'
+    // Create submission using raw SQL (bypass Sequelize constraint cache)
+    const [results] = await sequelize.query(`
+      INSERT INTO homework_submissions 
+      ("homeworkId", "userId", "attemptNumber", "totalScore", "maxScore", "submittedAt", "timeSpent", "status")
+      VALUES (:homeworkId, :userId, :attemptNumber, :totalScore, :maxScore, NOW(), :timeSpent, 'submitted')
+      RETURNING *
+    `, {
+      replacements: {
+        homeworkId,
+        userId: studentId,
+        attemptNumber: submissionCount + 1,
+        totalScore,
+        maxScore,
+        timeSpent
+      },
+      type: sequelize.QueryTypes.SELECT
     });
+
+    const submission = results[0];
 
     // Create answers
     const answerPromises = gradedAnswers.map(ans =>
@@ -418,7 +427,7 @@ router.get('/:id/results', async (req, res) => {
       include: [{
         model: User,
         as: 'student',
-        attributes: ['id', 'firstName', 'lastName', 'telegramUsername'] // ← ИСПРАВЛЕНО
+        attributes: ['id', 'firstName', 'lastName', 'telegramUsername']
       }],
       order: [['submittedAt', 'DESC']]
     });
@@ -483,6 +492,7 @@ function checkAnswer(question, userAnswer) {
       return false;
   }
 }
+
 // Get homework statistics for student
 router.get('/student/:studentId/stats', async (req, res) => {
   try {
