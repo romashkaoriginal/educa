@@ -339,20 +339,27 @@ router.get('/leaderboard/:subjectId', async (req, res) => {
 });
 
 // Получить предметы по которым у ученика были викторины
+// Получить предметы ученика
 router.get('/student/:studentId/subjects', async (req, res) => {
   try {
     const { studentId } = req.params;
-    const { Subject, UserSubject } = require('../models');
+    const { User } = require('../models');
 
-    // Получаем все предметы привязанные к ученику
-    const userSubjects = await UserSubject.findAll({
-      where: { userId: studentId },
-      include: [{ model: Subject }]
+    // Используем ассоциацию User → subjects (через UserSubject)
+    const user = await User.findByPk(studentId, {
+      include: [
+        { 
+          association: 'subjects', // Это правильная ассоциация из models/index.js
+          attributes: ['id', 'name', 'icon']
+        }
+      ]
     });
 
-    const subjects = userSubjects.map(us => us.Subject).filter(Boolean);
+    if (!user) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
 
-    res.json({ subjects });
+    res.json({ subjects: user.subjects || [] });
   } catch (error) {
     console.error('Get student subjects error:', error);
     res.status(500).json({ message: 'Server error' });
