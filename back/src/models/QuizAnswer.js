@@ -9,15 +9,23 @@ const QuizAnswer = sequelize.define('QuizAnswer', {
   },
   quizId: {
     type: DataTypes.INTEGER,
+    allowNull: false,
     references: { model: 'quizzes', key: 'id' }
   },
   questionId: {
     type: DataTypes.INTEGER,
+    allowNull: false,
     references: { model: 'quiz_questions', key: 'id' }
   },
   userId: {
     type: DataTypes.INTEGER,
+    allowNull: false,
     references: { model: 'users', key: 'id' }
+  },
+  participantId: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: { model: 'quiz_participants', key: 'id' }
   },
   selectedAnswer: DataTypes.INTEGER,
   isCorrect: DataTypes.BOOLEAN,

@@ -154,6 +154,16 @@ function setupQuizSocket(io) {
 
         if (existing) return;
 
+        // Получаем участника
+        const participant = await QuizParticipant.findOne({
+          where: { quizId, userId }
+        });
+
+        if (!participant) {
+          console.error('Participant not found for quiz:', quizId, 'user:', userId);
+          return;
+        }
+
         const question = await QuizQuestion.findByPk(questionId);
         const isCorrect = selectedAnswer === question.correctAnswer;
 
@@ -168,6 +178,7 @@ function setupQuizSocket(io) {
           quizId,
           questionId,
           userId,
+          participantId: participant.id,
           selectedAnswer,
           isCorrect,
           responseTime,

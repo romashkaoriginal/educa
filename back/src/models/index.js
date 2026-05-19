@@ -65,9 +65,7 @@ QuizParticipant.belongsTo(Quiz, { foreignKey: 'quizId' });
 User.hasMany(QuizParticipant, { foreignKey: 'userId', as: 'quizParticipations' });
 QuizParticipant.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 
-// QuizParticipant ↔ QuizAnswer
-QuizParticipant.hasMany(QuizAnswer, { foreignKey: 'participantId', as: 'answers' });
-QuizAnswer.belongsTo(QuizParticipant, { foreignKey: 'participantId' });
+
 
 // QuizQuestion ↔ QuizAnswer
 QuizQuestion.hasMany(QuizAnswer, { foreignKey: 'questionId' });
