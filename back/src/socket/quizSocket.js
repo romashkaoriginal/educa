@@ -15,9 +15,7 @@ function setupQuizSocket(io) {
 
       // Отправляем текущее состояние
       const participants = await getParticipants(quizId);
-      const leaderboard = await getLeaderboard(quizId);
       io.to(`quiz-${quizId}-admin`).emit('participants:updated', { participants });
-      io.to(`quiz-${quizId}-admin`).emit('leaderboard:updated', { leaderboard });
     });
 
     // СТУДЕНТ: присоединение к викторине
@@ -102,8 +100,7 @@ function setupQuizSocket(io) {
             { where: { id: quizId } }
           );
 
-          const leaderboard = await getLeaderboard(quizId);
-          io.to(`quiz-${quizId}`).emit('quiz:finished', { leaderboard });
+          io.to(`quiz-${quizId}`).emit('quiz:finished');
           return;
         }
 
@@ -137,8 +134,7 @@ function setupQuizSocket(io) {
           { where: { id: quizId } }
         );
 
-        const leaderboard = await getLeaderboard(quizId);
-        io.to(`quiz-${quizId}`).emit('quiz:finished', { leaderboard });
+        io.to(`quiz-${quizId}`).emit('quiz:finished');
       } catch (error) {
         console.error('Finish quiz error:', error);
       }
@@ -197,18 +193,12 @@ function setupQuizSocket(io) {
 
         socket.emit('student:answer-received', { isCorrect, score });
 
-        // Обновить лидерборд у админа
-        const leaderboard = await getLeaderboard(quizId);
-        io.to(`quiz-${quizId}-admin`).emit('leaderboard:updated', { leaderboard });
+        // Обновить список участников для всех (для мини-лидерборда)
+        const participants = await getParticipants(quizId);
+        io.to(`quiz-${quizId}`).emit('participants:updated', { participants });
       } catch (error) {
         console.error('Submit answer error:', error);
       }
-    });
-
-    // АДМИН: получить лидерборд
-    socket.on('admin:get-leaderboard', async ({ quizId }) => {
-      const leaderboard = await getLeaderboard(quizId);
-      socket.emit('leaderboard:updated', { leaderboard });
     });
 
     socket.on('disconnect', () => {
@@ -257,9 +247,6 @@ async function sendQuestion(io, quizId, question, index) {
       correctAnswer: question.correctAnswer,
       explanation: question.explanation
     });
-
-    const leaderboard = await getLeaderboard(quizId);
-    io.to(`quiz-${quizId}`).emit('leaderboard:updated', { leaderboard });
   }, question.timeLimit * 1000);
 }
 
@@ -270,16 +257,6 @@ async function getParticipants(quizId) {
       { model: User, as: 'user', attributes: ['id', 'firstName', 'lastName', 'telegramUsername'] }
     ],
     order: [['joinedAt', 'ASC']]
-  });
-}
-
-async function getLeaderboard(quizId) {
-  return await QuizParticipant.findAll({
-    where: { quizId },
-    include: [
-      { model: User, as: 'user', attributes: ['id', 'firstName', 'lastName', 'telegramUsername'] }
-    ],
-    order: [['totalScore', 'DESC']]
   });
 }
 

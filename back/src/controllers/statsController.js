@@ -165,30 +165,18 @@ async function getQuizStats(studentId) {
       order: [['createdAt', 'DESC']]
     });
 
-    // Получаем лидерборд для каждой викторины
-    const quizzesWithRanks = await Promise.all(
-      participations.map(async (part) => {
-        const leaderboard = await QuizParticipant.findAll({
-          where: { quizId: part.quizId },
-          order: [['score', 'DESC']],
-          attributes: ['userId', 'score']
-        });
+    // Формируем статистику викторин
+    const quizzesStats = participations.map((part) => {
+      return {
+        id: part.id,
+        quizTitle: part.Quiz?.title || 'Без названия',
+        subject: part.Quiz?.subject,
+        score: part.score || 0,
+        participationDate: part.createdAt
+      };
+    });
 
-        const rank = leaderboard.findIndex(p => p.userId === parseInt(studentId)) + 1;
-
-        return {
-          id: part.id,
-          quizTitle: part.Quiz?.title || 'Без названия',
-          subject: part.Quiz?.subject,
-          score: part.score || 0,
-          rank,
-          totalParticipants: leaderboard.length,
-          participationDate: part.createdAt
-        };
-      })
-    );
-
-    return quizzesWithRanks;
+    return quizzesStats;
   } catch (error) {
     console.error('Quiz stats error:', error);
     return [];
