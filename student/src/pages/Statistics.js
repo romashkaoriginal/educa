@@ -440,31 +440,17 @@ function Statistics({ studentId }) {
                               <span className="subject-name">{quiz.subjectName}</span>
                             </div>
                           </div>
-                          <div className={`quiz-rank rank-${quiz.rank}`}>
-                            {quiz.rank === 1 ? '🥇' : quiz.rank === 2 ? '🥈' : quiz.rank === 3 ? '🥉' : `#${quiz.rank}`}
-                            <span className="rank-label">место</span>
-                          </div>
                         </div>
 
                         <div className="quiz-stat-details">
                           <div className="detail-row">
                             <span className="detail-label">Баллы:</span>
-                            <span className="detail-value score">{parseFloat(quiz.totalScore).toFixed(1)}</span>
-                          </div>
-                          <div className="detail-row">
-                            <span className="detail-label">Точность:</span>
-                            <span className="detail-value">
-                              {quiz.correctAnswers}/{quiz.totalQuestions} ({quiz.totalQuestions > 0 ? ((quiz.correctAnswers / quiz.totalQuestions) * 100).toFixed(0) : 0}%)
-                            </span>
-                          </div>
-                          <div className="detail-row">
-                            <span className="detail-label">Участников:</span>
-                            <span className="detail-value">{quiz.totalParticipants} человек</span>
+                            <span className="detail-value score">{parseFloat(quiz.score || 0).toFixed(1)}</span>
                           </div>
                           <div className="detail-row">
                             <span className="detail-label">Дата:</span>
                             <span className="detail-value">
-                              {new Date(quiz.finishedAt).toLocaleDateString('ru-RU', { 
+                              {new Date(quiz.participationDate).toLocaleDateString('ru-RU', { 
                                 day: 'numeric', 
                                 month: 'long', 
                                 year: 'numeric',
@@ -473,13 +459,6 @@ function Statistics({ studentId }) {
                               })}
                             </span>
                           </div>
-                        </div>
-
-                        <div className="quiz-stat-footer">
-                          <span className="quiz-code">Код: {quiz.accessCode}</span>
-                          <span className="quiz-position">
-                            {quiz.rank}-е место из {quiz.totalParticipants}
-                          </span>
                         </div>
                       </div>
                     ))}

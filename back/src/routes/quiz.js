@@ -1,161 +1,163 @@
-const { 
-  PracticeAttempt, 
-  PracticeTopic, 
-  PracticeQuestion,
-  Subject, 
-  User,
-  HomeworkSubmission,
-  Homework,
-  QuizParticipant,
-  Quiz
-} = require('../models');
+const express = require('express');
+const router = express.Router();
+const { Quiz, QuizQuestion, QuizParticipant, QuizAnswer, User, Subject } = require('../models');
 const { Op } = require('sequelize');
-const sequelize = require('../config/database');
 
-// ========== СТАТИСТИКА УЧЕНИКА ==========
-
-// Общая статистика ученика (все разделы)
-exports.getStudentStats = async (req, res) => {
-  try {
-    const { studentId } = req.params;
-
-    // ===== ПРАКТИКА =====
-    const practiceStats = await getPracticeStats(studentId);
-    
-    // ===== ДОМАШКА =====
-    const homeworkStats = await getHomeworkStats(studentId);
-    
-    // ===== ВИКТОРИНЫ =====
-    const quizStats = await getQuizStats(studentId);
-
-    res.json({
-      practice: practiceStats,
-      homework: homeworkStats,
-      quiz: quizStats
-    });
-  } catch (error) {
-    console.error('Get student stats error:', error);
-    res.status(500).json({ error: 'Failed to get statistics' });
-  }
-};
-
-// Статистика по практике
-async function getPracticeStats(studentId) {
-  try {
-    const totalAttempts = await PracticeAttempt.count({ where: { studentId } });
-    const correctAttempts = await PracticeAttempt.count({ where: { studentId, isCorrect: true } });
-    const incorrectAttempts = totalAttempts - correctAttempts;
-    const successRate = totalAttempts > 0 ? Math.round((correctAttempts / totalAttempts) * 100) : 0;
-
-    // Доступные предметы
-    const student = await User.findByPk(studentId, {
-      include: [{
-        model: Subject,
-        as: 'subjects',
-        attributes: ['id', 'name', 'icon']
-      }]
-    });
-
-    const availableSubjects = student?.subjects || [];
-
-    // По предметам
-    const subjectStats = await PracticeAttempt.findAll({
-      where: { studentId },
-      attributes: [
-        'subjectId',
-        [sequelize.fn('COUNT', sequelize.col('PracticeAttempt.id')), 'total'],
-        [sequelize.fn('SUM', sequelize.literal('CASE WHEN "PracticeAttempt"."isCorrect" = true THEN 1 ELSE 0 END')), 'correct']
-      ],
-      include: [{
-        model: Subject,
-        as: 'subject',
-        attributes: ['name', 'icon']
-      }],
-      group: ['subjectId', 'subject.id'],
-      raw: false
-    });
-
-    // По подразделам
-    const topicStats = await PracticeAttempt.findAll({
-      where: { studentId },
-      attributes: [
-        'topicId',
-        [sequelize.fn('COUNT', sequelize.col('PracticeAttempt.id')), 'total'],
-        [sequelize.fn('SUM', sequelize.literal('CASE WHEN "PracticeAttempt"."isCorrect" = true THEN 1 ELSE 0 END')), 'correct']
-      ],
-      include: [{
-        model: PracticeTopic,
-        as: 'topic',
-        attributes: ['name', 'icon'],
-        include: [{
-          model: Subject,
-          as: 'subject',
-          attributes: ['name']
-        }]
-      }],
-      group: ['topicId', 'topic.id', 'topic->subject.id'],
-      raw: false
-    });
-
-    return {
-      availableSubjects,
-      totalAttempts,
-      correctAttempts,
-      incorrectAttempts,
-      successRate,
-      subjectStats,
-      topicStats
-    };
-  } catch (error) {
-    console.error('Practice stats error:', error);
-    return null;
-  }
+// Генерация уникального кода
+function generateAccessCode() {
+  return Math.random().toString(36).substring(2, 8).toUpperCase();
 }
 
-// Статистика по домашке
-async function getHomeworkStats(studentId) {
+// Создать викторину
+router.post('/create', async (req, res) => {
   try {
-    const submissions = await HomeworkSubmission.findAll({
-      where: { userId: studentId },
-      include: [{
-        model: Homework,
-        as: 'homework',
-        attributes: ['title', 'deadline', 'subjectId'],
-        include: [{
-          model: Subject,
+    const { title, subjectId, questions } = req.body;
+
+    if (!title || !questions || questions.length === 0) {
+      return res.status(400).json({ message: 'Title and questions required' });
+    }
+
+    const accessCode = generateAccessCode();
+
+    const quiz = await Quiz.create({
+      title,
+      subjectId,
+      accessCode,
+      status: 'waiting',
+      createdBy: req.user?.id || 1
+    });
+
+    // Создаём вопросы
+    for (let i = 0; i < questions.length; i++) {
+      const q = questions[i];
+      await QuizQuestion.create({
+        quizId: quiz.id,
+        questionText: q.questionText,
+        options: q.options,
+        correctAnswer: q.correctAnswer,
+        explanation: q.explanation,
+        timeLimit: q.timeLimit || 30,
+        points: q.points || 1,
+        order: i
+      });
+    }
+
+    const quizWithQuestions = await Quiz.findByPk(quiz.id, {
+      include: [{ model: QuizQuestion, as: 'questions' }]
+    });
+
+    res.status(201).json({ quiz: quizWithQuestions });
+  } catch (error) {
+    console.error('Create quiz error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Получить викторину по коду доступа
+router.get('/code/:accessCode', async (req, res) => {
+  try {
+    const { accessCode } = req.params;
+
+    const quiz = await Quiz.findOne({
+      where: { accessCode: accessCode.toUpperCase() },
+      include: [
+        { 
+          model: Subject, 
           as: 'subject',
-          attributes: ['name', 'icon']
-        }]
-      }],
+          attributes: ['id', 'name', 'icon']
+        },
+        { 
+          model: QuizQuestion, 
+          as: 'questions',
+          attributes: ['id', 'questionText', 'timeLimit', 'points', 'order']
+        }
+      ]
+    });
+
+    if (!quiz) {
+      return res.status(404).json({ message: 'Quiz not found' });
+    }
+
+    res.json({ quiz });
+  } catch (error) {
+    console.error('Get quiz by code error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Получить все викторины
+router.get('/', async (req, res) => {
+  try {
+    const quizzes = await Quiz.findAll({
+      include: [
+        { model: Subject, as: 'subject', attributes: ['name', 'icon'] },
+        { model: QuizQuestion, as: 'questions' }
+      ],
       order: [['createdAt', 'DESC']]
     });
 
-    return submissions.map(sub => ({
-      id: sub.id,
-      title: sub.homework?.title || 'Без названия',
-      subject: sub.homework?.subject,
-      status: sub.status || 'pending',
-      score: sub.score || 0,
-      maxScore: sub.maxScore || 100,
-      percentage: sub.maxScore > 0 ? Math.round((sub.score / sub.maxScore) * 100) : 0,
-      startDate: sub.createdAt,
-      submitDate: sub.submittedAt,
-      deadline: sub.homework?.deadline
-    }));
+    res.json({ quizzes });
   } catch (error) {
-    console.error('Homework stats error:', error);
-    return [];
+    console.error('Get quizzes error:', error);
+    res.status(500).json({ message: 'Server error' });
   }
-}
+});
 
-// Статистика по викторинам
-async function getQuizStats(studentId) {
+// Получить викторину по ID
+router.get('/:quizId', async (req, res) => {
   try {
+    const { quizId } = req.params;
+
+    const quiz = await Quiz.findByPk(quizId, {
+      include: [
+        { model: Subject, as: 'subject' },
+        { model: QuizQuestion, as: 'questions', order: [['order', 'ASC']] },
+        { 
+          model: QuizParticipant, 
+          as: 'participants',
+          include: [{ model: User, as: 'user', attributes: ['firstName', 'lastName'] }]
+        }
+      ]
+    });
+
+    if (!quiz) {
+      return res.status(404).json({ message: 'Quiz not found' });
+    }
+
+    res.json({ quiz });
+  } catch (error) {
+    console.error('Get quiz error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Удалить викторину
+router.delete('/:quizId', async (req, res) => {
+  try {
+    const { quizId } = req.params;
+
+    const quiz = await Quiz.findByPk(quizId);
+    if (!quiz) {
+      return res.status(404).json({ message: 'Quiz not found' });
+    }
+
+    await quiz.destroy();
+    res.json({ message: 'Quiz deleted successfully' });
+  } catch (error) {
+    console.error('Delete quiz error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Статистика студента по викторинам
+router.get('/student/:studentId/stats', async (req, res) => {
+  try {
+    const { studentId } = req.params;
+
     const participations = await QuizParticipant.findAll({
       where: { userId: studentId },
       include: [{
         model: Quiz,
-        attributes: ['title', 'subjectId'],
         include: [{
           model: Subject,
           as: 'subject',
@@ -165,135 +167,54 @@ async function getQuizStats(studentId) {
       order: [['createdAt', 'DESC']]
     });
 
-    // Формируем статистику викторин
-    const quizzesStats = participations.map((part) => {
-      return {
-        id: part.id,
-        quizTitle: part.Quiz?.title || 'Без названия',
-        subject: part.Quiz?.subject,
-        score: part.score || 0,
-        participationDate: part.createdAt
-      };
+    const quizzes = participations.map(p => ({
+      quizId: p.quizId,
+      quizTitle: p.Quiz?.title,
+      subjectName: p.Quiz?.subject?.name,
+      subjectIcon: p.Quiz?.subject?.icon,
+      score: p.totalScore || 0,
+      participationDate: p.createdAt
+    }));
+
+    const totalQuizzes = quizzes.length;
+    const totalPoints = quizzes.reduce((sum, q) => sum + parseFloat(q.score || 0), 0);
+    const averageScore = totalQuizzes > 0 ? totalPoints / totalQuizzes : 0;
+
+    res.json({
+      quizzes,
+      summary: {
+        totalQuizzes,
+        totalPoints,
+        averageScore
+      }
+    });
+  } catch (error) {
+    console.error('Get student quiz stats error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Получить предметы студента (для выбора викторины)
+router.get('/student/:studentId/subjects', async (req, res) => {
+  try {
+    const { studentId } = req.params;
+
+    const user = await User.findByPk(studentId, {
+      include: [{ 
+        association: 'subjects',
+        attributes: ['id', 'name', 'icon']
+      }]
     });
 
-    return quizzesStats;
+    if (!user) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+
+    res.json({ subjects: user.subjects || [] });
   } catch (error) {
-    console.error('Quiz stats error:', error);
-    return [];
+    console.error('Get student subjects error:', error);
+    res.status(500).json({ message: 'Server error' });
   }
-}
+});
 
-// ========== СТАТИСТИКА АДМИНА ==========
-
-// Общая админская статистика с фильтрами
-exports.getAdminStats = async (req, res) => {
-  try {
-    const { 
-      studentId, 
-      subjectId, 
-      section, // 'practice', 'homework', 'quiz'
-      dateFrom, 
-      dateTo, 
-      minPercent, 
-      maxPercent 
-    } = req.query;
-
-    const whereClause = {};
-    if (studentId) whereClause.studentId = studentId;
-    if (subjectId) whereClause.subjectId = subjectId;
-    
-    if (dateFrom || dateTo) {
-      whereClause.createdAt = {};
-      if (dateFrom) whereClause.createdAt[Op.gte] = new Date(dateFrom);
-      if (dateTo) whereClause.createdAt[Op.lte] = new Date(dateTo);
-    }
-
-    const result = {};
-
-    // Статистика по практике
-    if (!section || section === 'practice') {
-      const practiceAttempts = await PracticeAttempt.findAll({
-        where: whereClause,
-        include: [
-          { model: User, as: 'student', attributes: ['id', 'firstName', 'lastName'] },
-          { model: Subject, as: 'subject', attributes: ['name', 'icon'] },
-          { model: PracticeTopic, as: 'topic', attributes: ['name'] }
-        ],
-        order: [['createdAt', 'DESC']]
-      });
-
-      result.practice = practiceAttempts;
-    }
-
-    // Статистика по домашке
-    if (!section || section === 'homework') {
-      const homeworkWhere = {};
-      if (studentId) homeworkWhere.userId = studentId;
-
-      const homeworks = await HomeworkSubmission.findAll({
-        where: homeworkWhere,
-        include: [
-          { model: User, as: 'student', attributes: ['id', 'firstName', 'lastName'] },
-          { 
-            model: Homework, 
-            as: 'homework',
-            attributes: ['title', 'deadline'],
-            include: [{ model: Subject, as: 'subject', attributes: ['name'] }]
-          }
-        ],
-        order: [['createdAt', 'DESC']]
-      });
-
-      result.homework = homeworks.filter(h => {
-        if (minPercent || maxPercent) {
-          const percent = h.maxScore > 0 ? (h.score / h.maxScore) * 100 : 0;
-          if (minPercent && percent < parseInt(minPercent)) return false;
-          if (maxPercent && percent > parseInt(maxPercent)) return false;
-        }
-        return true;
-      });
-    }
-
-    // Статистика по викторинам
-    if (!section || section === 'quiz') {
-      const quizWhere = {};
-      if (studentId) quizWhere.userId = studentId;
-
-      const quizzes = await QuizParticipant.findAll({
-        where: quizWhere,
-        include: [
-          { model: User, as: 'user', attributes: ['id', 'firstName', 'lastName'] },
-          { 
-            model: Quiz,
-            attributes: ['title'],
-            include: [{ model: Subject, as: 'subject', attributes: ['name'] }]
-          }
-        ],
-        order: [['createdAt', 'DESC']]
-      });
-
-      result.quiz = quizzes;
-    }
-
-    res.json(result);
-  } catch (error) {
-    console.error('Get admin stats error:', error);
-    res.status(500).json({ error: 'Failed to get admin statistics' });
-  }
-};
-
-// Список всех учеников для фильтра
-exports.getStudentsForFilter = async (req, res) => {
-  try {
-    const students = await User.findAll({
-      where: { role: 'student' },
-      attributes: ['id', 'firstName', 'lastName'],
-      order: [['firstName', 'ASC']]
-    });
-
-    res.json({ students });
-  } catch (error) {
-    console.error('Get students error:', error);
-    res.status(500).json({ error: 'Failed to get students' });
-  }
-};
+module.exports = router;
