@@ -44,10 +44,10 @@ exports.createStudent = async (req, res) => {
       subjectAccessDates // Формат: { subjectId: { startDate, endDate } }
     } = req.body;
 
-    // Валидация обязательных полей
-    if (!firstName || !lastName) {
+    // ИСПРАВЛЕНО: lastName больше не обязательное поле
+    if (!firstName) {
       return res.status(400).json({ 
-        message: 'Required fields: firstName, lastName' 
+        message: 'Required fields: firstName' 
       });
     }
 
@@ -66,7 +66,7 @@ exports.createStudent = async (req, res) => {
       telegramId: telegramId || null,
       telegramUsername: telegramUsername || null,
       firstName,
-      lastName,
+      lastName: lastName || null, // ИСПРАВЛЕНО: если фамилия пустая, сохраняем null
       role: 'student',
       isActive: true
     });
@@ -149,8 +149,9 @@ exports.updateStudent = async (req, res) => {
     // Обновляем основные данные
     if (telegramId !== undefined) student.telegramId = telegramId || null;
     if (telegramUsername !== undefined) student.telegramUsername = telegramUsername || null;
-    if (firstName) student.firstName = firstName;
-    if (lastName) student.lastName = lastName;
+    if (firstName !== undefined) student.firstName = firstName;
+    // ИСПРАВЛЕНО: разрешаем устанавливать пустую фамилию
+    if (lastName !== undefined) student.lastName = lastName || null;
     if (typeof isActive === 'boolean') student.isActive = isActive;
 
     await student.save();

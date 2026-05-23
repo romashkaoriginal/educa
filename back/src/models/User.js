@@ -8,7 +8,6 @@ const User = sequelize.define('User', {
     autoIncrement: true
   },
   
-  // TELEGRAM DATA
   telegramId: {
     type: DataTypes.BIGINT,
     allowNull: true,
@@ -26,7 +25,7 @@ const User = sequelize.define('User', {
   // ОБЩИЕ ПОЛЯ
   firstName: {
     type: DataTypes.STRING,
-    allowNull: false  // Имя обязательно
+    allowNull: false  
   },
   lastName: {
     type: DataTypes.STRING,

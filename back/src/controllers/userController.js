@@ -42,10 +42,10 @@ exports.createUser = async (req, res) => {
       });
     }
 
-    // ИСПРАВЛЕНО: lastName больше не обязательное поле
-    if (!telegramId || !firstName) {
+    // Валидация обязательных полей
+    if (!telegramId || !firstName || !lastName) {
       return res.status(400).json({ 
-        message: 'Required fields: telegramId, firstName' 
+        message: 'Required fields: telegramId, firstName, lastName' 
       });
     }
 
@@ -62,7 +62,7 @@ exports.createUser = async (req, res) => {
       telegramId,
       telegramUsername: telegramUsername || null,
       firstName,
-      lastName: lastName || null, // ИСПРАВЛЕНО: если фамилия пустая, сохраняем null
+      lastName,
       role,
       isActive: true
     });
@@ -107,9 +107,8 @@ exports.updateUser = async (req, res) => {
     }
 
     // Обновление полей
-    if (firstName !== undefined) user.firstName = firstName;
-    // ИСПРАВЛЕНО: разрешаем устанавливать пустую фамилию
-    if (lastName !== undefined) user.lastName = lastName || null;
+    if (firstName) user.firstName = firstName;
+    if (lastName) user.lastName = lastName;
     if (telegramUsername !== undefined) user.telegramUsername = telegramUsername;
     if (role && ['admin', 'teacher', 'manager'].includes(role)) {
       user.role = role;
@@ -143,29 +142,11 @@ exports.deleteUser = async (req, res) => {
     const { userId } = req.params;
 
     const user = await User.findByPk(userId);
-    if (!user) {
+    if (!user || user.role === 'student') {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    if (user.role === 'student') {
-      return res.status(400).json({ 
-        message: 'Cannot delete student through this endpoint. Use /students/:id instead' 
-      });
-    }
-
-    const telegramId = user.telegramId;
     await user.destroy();
-
-    // Обновляем BotUser
-    if (telegramId) {
-      const { BotUser } = require('../models');
-      const botUser = await BotUser.findOne({ where: { telegramId } });
-      if (botUser) {
-        botUser.isAssigned = false;
-        botUser.userId = null;
-        await botUser.save();
-      }
-    }
 
     res.json({ message: 'User deleted successfully' });
   } catch (error) {
@@ -227,6 +208,43 @@ exports.getUserByTelegramId = async (req, res) => {
     res.json({ user });
   } catch (error) {
     console.error('Get user by Telegram ID error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Удалить пользователя
+exports.deleteUser = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    if (user.role === 'student') {
+      return res.status(400).json({ 
+        message: 'Cannot delete student through this endpoint. Use /students/:id instead' 
+      });
+    }
+
+    const telegramId = user.telegramId;
+    await user.destroy();
+
+    // Обновляем BotUser
+    if (telegramId) {
+      const { BotUser } = require('../models');
+      const botUser = await BotUser.findOne({ where: { telegramId } });
+      if (botUser) {
+        botUser.isAssigned = false;
+        botUser.userId = null;
+        await botUser.save();
+      }
+    }
+
+    res.json({ message: 'User deleted successfully' });
+  } catch (error) {
+    console.error('Delete user error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
