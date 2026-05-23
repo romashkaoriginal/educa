@@ -1,22 +1,16 @@
 .student-app {
   max-width: 480px;
+  width: 100%;
   margin: 0 auto;
   min-height: 100vh;
   background: #ffffff;
   box-shadow: 0 0 50px rgba(0, 0, 0, 0.1);
   display: flex;
   flex-direction: column;
+  overflow-x: hidden; /* Убрать горизонтальный скролл */
 }
 
-/* Header */
-.header {
-  background: linear-gradient(135deg, #1E40AF 0%, #3B82F6 100%);
-  padding: 20px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  box-shadow: 0 4px 15px rgba(30, 64, 175, 0.2);
-}
+/* Header УДАЛЁН - каждая страница показывает свой */
 
 .logo {
   display: flex;
@@ -35,31 +29,15 @@
   color: #F59E0B;
 }
 
-.user-info {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.user-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.2);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 20px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-}
-
 /* Content */
 .content {
   flex: 1;
-  padding: 20px;
+  padding: 0; /* Каждая страница добавляет свой padding */
   padding-bottom: 90px; /* Отступ для bottom navigation */
+  overflow-x: hidden; /* Убрать горизонтальный скролл */
   overflow-y: auto;
   background: #f9fafb;
+  max-width: 100%; /* Не шире контейнера */
 }
 
 /* Bottom Navigation */
@@ -374,16 +352,6 @@
   width: 60%;
 }
 
-/* Header user avatar кликабельный */
-.user-avatar {
-  cursor: pointer;
-  transition: transform 0.2s ease;
-}
-
-.user-avatar:hover {
-  transform: scale(1.1);
-}
-
 /* Responsive */
 @media (max-width: 400px) {
   .selection-logo {
@@ -404,31 +372,7 @@
     font-size: 20px;
   }
 }
-.header {
-  background: linear-gradient(135deg, #1E40AF 0%, #3B82F6 100%);
-  padding: 16px 20px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
 
-.header .logo {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  font-weight: 900;
-  font-size: 28px;
-  letter-spacing: -1px;
-}
-
-.header .logo-ed {
-  color: #ffffff;
-}
-
-.header .logo-me {
-  color: #F59E0B;
-}
 /* Начальная загрузка приложения */
 .initial-loading {
   min-height: 100vh;
@@ -478,6 +422,11 @@
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 
 @keyframes pulseLogo {

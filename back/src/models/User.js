@@ -26,11 +26,11 @@ const User = sequelize.define('User', {
   // ОБЩИЕ ПОЛЯ
   firstName: {
     type: DataTypes.STRING,
-    allowNull: false
+    allowNull: false  // Имя обязательно
   },
   lastName: {
     type: DataTypes.STRING,
-    allowNull: false
+    allowNull: true  
   },
   role: {
     type: DataTypes.ENUM('admin', 'teacher', 'manager', 'student'),

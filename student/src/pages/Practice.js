@@ -382,16 +382,19 @@ function Practice({ studentId }) {
 
   return (
     <div className="section">
-      <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '20px' }}>
-        {subjects.length > 1 && selectedSubject && (
-          <button className="back-button" onClick={backToSubjects}>
-            ← Назад к предметам
-          </button>
-        )}
-        <h1 className="section-title">
-          {selectedSubject ? `${selectedSubject.icon} ${selectedSubject.name}` : '💪 Практика'}
-        </h1>
-      </div>
+      <div className={`page-header ${subjects.length === 1 ? 'single-subject' : ''}`}>
+  {subjects.length > 1 && selectedSubject && (
+    <button className="back-button" onClick={backToSubjects}>
+      ← Назад
+    </button>
+  )}
+  <div className="page-header-title">
+    <span className="page-header-icon">{selectedSubject?.icon || '💪'}</span>
+    <span className="page-header-text">
+      {selectedSubject ? selectedSubject.name : 'Практика'}
+    </span>
+  </div>
+</div>
       
       <p style={{ marginBottom: '20px', color: '#6b7280', fontSize: '14px' }}>
         💪 Тренируйся в свободное время и улучшай свои навыки!

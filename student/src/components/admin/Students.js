@@ -22,14 +22,14 @@ function Students({ subjects }) {
   // Выбранный студент для детального просмотра
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [isEditingStudent, setIsEditingStudent] = useState(false);
-const [editFormData, setEditFormData] = useState({
-  telegramId: '',
-  telegramUsername: '',
-  firstName: '',
-  lastName: '',
-  subjectIds: [],
-  subjectAccessDates: {}
-});
+  const [editFormData, setEditFormData] = useState({
+    telegramId: '',
+    telegramUsername: '',
+    firstName: '',
+    lastName: '',
+    subjectIds: [],
+    subjectAccessDates: {}
+  });
   const [showDetailModal, setShowDetailModal] = useState(false);
   
   // Сортировка и фильтры для пользователей бота
@@ -199,6 +199,7 @@ const [editFormData, setEditFormData] = useState({
       // Конвертируем даты в формат БД
       const convertedData = {
         ...formData,
+        lastName: formData.lastName || null, // Фамилия не обязательна
         subjectAccessDates: {}
       };
 
@@ -238,7 +239,9 @@ const [editFormData, setEditFormData] = useState({
       }
     } catch (error) {
       console.error('Error creating student:', error);
-      alert('Ошибка при создании ученика');
+      if (error.message !== 'Invalid dates') {
+        alert('Ошибка при создании ученика');
+      }
     }
   };
 
@@ -360,127 +363,127 @@ const [editFormData, setEditFormData] = useState({
   const expiringCounts = getExpiringCounts();
 
   const handleViewStudent = (student) => {
-  setSelectedStudent(student);
-  setShowDetailModal(true);
-  setIsEditingStudent(false);
-  
-  const subjectIds = student.subjects?.map(s => s.id) || [];
-  const subjectAccessDates = {};
-  
-  student.subjects?.forEach(subject => {
-    subjectAccessDates[subject.id] = {
-      startDate: formatDateToDisplay(subject.UserSubject?.accessStartDate) || '',
-      endDate: formatDateToDisplay(subject.UserSubject?.accessEndDate) || ''
-    };
-  });
-  
-  setEditFormData({
-    telegramId: student.telegramId?.toString() || '',
-    telegramUsername: student.telegramUsername || '',
-    firstName: student.firstName || '',
-    lastName: student.lastName || '',
-    subjectIds,
-    subjectAccessDates
-  });
-};
-
-const handleStartEdit = () => {
-  setIsEditingStudent(true);
-};
-
-const handleCancelEdit = () => {
-  setIsEditingStudent(false);
-};
-
-const handleEditSubjectToggle = (subjectId) => {
-  setEditFormData(prev => {
-    const isSelected = prev.subjectIds.includes(subjectId);
+    setSelectedStudent(student);
+    setShowDetailModal(true);
+    setIsEditingStudent(false);
     
-    if (isSelected) {
-      const newSubjectAccessDates = { ...prev.subjectAccessDates };
-      delete newSubjectAccessDates[subjectId];
-      
-      return {
-        ...prev,
-        subjectIds: prev.subjectIds.filter(id => id !== subjectId),
-        subjectAccessDates: newSubjectAccessDates
+    const subjectIds = student.subjects?.map(s => s.id) || [];
+    const subjectAccessDates = {};
+    
+    student.subjects?.forEach(subject => {
+      subjectAccessDates[subject.id] = {
+        startDate: formatDateToDisplay(subject.UserSubject?.accessStartDate) || '',
+        endDate: formatDateToDisplay(subject.UserSubject?.accessEndDate) || ''
       };
-    } else {
-      return {
-        ...prev,
-        subjectIds: [...prev.subjectIds, subjectId],
-        subjectAccessDates: {
-          ...prev.subjectAccessDates,
-          [subjectId]: { startDate: '', endDate: '' }
+    });
+    
+    setEditFormData({
+      telegramId: student.telegramId?.toString() || '',
+      telegramUsername: student.telegramUsername || '',
+      firstName: student.firstName || '',
+      lastName: student.lastName || '',
+      subjectIds,
+      subjectAccessDates
+    });
+  };
+
+  const handleStartEdit = () => {
+    setIsEditingStudent(true);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditingStudent(false);
+  };
+
+  const handleEditSubjectToggle = (subjectId) => {
+    setEditFormData(prev => {
+      const isSelected = prev.subjectIds.includes(subjectId);
+      
+      if (isSelected) {
+        const newSubjectAccessDates = { ...prev.subjectAccessDates };
+        delete newSubjectAccessDates[subjectId];
+        
+        return {
+          ...prev,
+          subjectIds: prev.subjectIds.filter(id => id !== subjectId),
+          subjectAccessDates: newSubjectAccessDates
+        };
+      } else {
+        return {
+          ...prev,
+          subjectIds: [...prev.subjectIds, subjectId],
+          subjectAccessDates: {
+            ...prev.subjectAccessDates,
+            [subjectId]: { startDate: '', endDate: '' }
+          }
+        };
+      }
+    });
+  };
+
+  const handleEditSubjectDateChange = (subjectId, field, value) => {
+    setEditFormData(prev => ({
+      ...prev,
+      subjectAccessDates: {
+        ...prev.subjectAccessDates,
+        [subjectId]: {
+          ...prev.subjectAccessDates[subjectId],
+          [field]: value
         }
+      }
+    }));
+  };
+
+  const formatDateToDisplay = (dateStr) => {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}.${month}.${year}`;
+  };
+
+  const handleSaveEdit = async () => {
+    try {
+      const convertedData = {
+        telegramId: editFormData.telegramId || null,
+        telegramUsername: editFormData.telegramUsername,
+        firstName: editFormData.firstName,
+        lastName: editFormData.lastName || null, // Фамилия не обязательна
+        subjectIds: editFormData.subjectIds,
+        subjectAccessDates: {}
       };
-    }
-  });
-};
 
-const handleEditSubjectDateChange = (subjectId, field, value) => {
-  setEditFormData(prev => ({
-    ...prev,
-    subjectAccessDates: {
-      ...prev.subjectAccessDates,
-      [subjectId]: {
-        ...prev.subjectAccessDates[subjectId],
-        [field]: value
+      Object.entries(editFormData.subjectAccessDates).forEach(([subjectId, dates]) => {
+        const startDate = convertDateFormat(dates.startDate);
+        const endDate = convertDateFormat(dates.endDate);
+        
+        if (!startDate || !endDate) {
+          alert(`Заполните даты для всех предметов!`);
+          throw new Error('Invalid dates');
+        }
+        
+        convertedData.subjectAccessDates[subjectId] = { startDate, endDate };
+      });
+
+      const response = await fetch(`${API_URL}/students/${selectedStudent.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(convertedData)
+      });
+
+      if (response.ok) {
+        await loadStudents();
+        const updated = students.find(s => s.id === selectedStudent.id);
+        setSelectedStudent(updated);
+        setIsEditingStudent(false);
+      }
+    } catch (error) {
+      if (error.message !== 'Invalid dates') {
+        console.error('Error updating student:', error);
       }
     }
-  }));
-};
-
-const formatDateToDisplay = (dateStr) => {
-  if (!dateStr) return '';
-  const date = new Date(dateStr);
-  const day = String(date.getDate()).padStart(2, '0');
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const year = date.getFullYear();
-  return `${day}.${month}.${year}`;
-};
-
-const handleSaveEdit = async () => {
-  try {
-    const convertedData = {
-      telegramId: editFormData.telegramId || null,
-      telegramUsername: editFormData.telegramUsername,
-      firstName: editFormData.firstName,
-      lastName: editFormData.lastName,
-      subjectIds: editFormData.subjectIds,
-      subjectAccessDates: {}
-    };
-
-    Object.entries(editFormData.subjectAccessDates).forEach(([subjectId, dates]) => {
-      const startDate = convertDateFormat(dates.startDate);
-      const endDate = convertDateFormat(dates.endDate);
-      
-      if (!startDate || !endDate) {
-        alert(`Заполните даты для всех предметов!`);
-        throw new Error('Invalid dates');
-      }
-      
-      convertedData.subjectAccessDates[subjectId] = { startDate, endDate };
-    });
-
-    const response = await fetch(`${API_URL}/students/${selectedStudent.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(convertedData)
-    });
-
-    if (response.ok) {
-      await loadStudents();
-      const updated = students.find(s => s.id === selectedStudent.id);
-      setSelectedStudent(updated);
-      setIsEditingStudent(false);
-    }
-  } catch (error) {
-    if (error.message !== 'Invalid dates') {
-      console.error('Error updating student:', error);
-    }
-  }
-};
+  };
 
   const handleCloseDetail = () => {
     setSelectedStudent(null);
@@ -564,6 +567,16 @@ const handleSaveEdit = async () => {
             const isExpired = daysLeft !== null && daysLeft < 0;
             const isExpiringSoon = daysLeft !== null && daysLeft >= 0 && daysLeft <= 7;
 
+            // Инициалы: если есть имя и фамилия, показываем обе буквы, иначе только имя
+            const initials = student.lastName 
+              ? `${student.firstName?.[0] || ''}${student.lastName[0]}`
+              : student.firstName?.[0] || '?';
+
+            // Отображение имени: если есть фамилия, показываем полностью, иначе только имя
+            const displayName = student.lastName 
+              ? `${student.firstName} ${student.lastName}`
+              : student.firstName || 'Без имени';
+
             return (
               <div 
                 key={student.id} 
@@ -571,11 +584,11 @@ const handleSaveEdit = async () => {
                 onClick={() => handleViewStudent(student)}
               >
                 <div className="student-avatar">
-                  {student.firstName?.[0]}{student.lastName?.[0]}
+                  {initials}
                 </div>
                 
                 <div className="student-info">
-                  <h3>{student.firstName} {student.lastName}</h3>
+                  <h3>{displayName}</h3>
                   <p className="student-username">@{student.telegramUsername || 'no username'}</p>
                   
                   <div className="student-meta">
@@ -694,10 +707,10 @@ const handleSaveEdit = async () => {
                         onClick={() => !user.isAssigned && handleSelectBotUser(user)}
                       >
                         <div className="bot-user-avatar">
-                          {user.firstName?.[0]}{user.lastName?.[0]}
+                          {user.firstName?.[0]}{user.lastName?.[0] || ''}
                         </div>
                         <div className="bot-user-info">
-                          <h4>{user.firstName} {user.lastName}</h4>
+                          <h4>{user.firstName} {user.lastName || ''}</h4>
                           <p>@{user.telegramUsername || 'no username'} • ID: {user.telegramId}</p>
                           <div className="bot-user-meta">
                             <span>📅 {new Date(user.firstInteractionAt).toLocaleDateString('ru-RU')}</span>
@@ -739,11 +752,12 @@ const handleSaveEdit = async () => {
                   </div>
                   <div className="form-row">
                     <div className="form-group">
-                      <label>Имя</label>
+                      <label>Имя *</label>
                       <input
                         type="text"
                         value={formData.firstName}
                         onChange={(e) => setFormData({...formData, firstName: e.target.value})}
+                        required
                       />
                     </div>
                     <div className="form-group">
@@ -752,6 +766,7 @@ const handleSaveEdit = async () => {
                         type="text"
                         value={formData.lastName}
                         onChange={(e) => setFormData({...formData, lastName: e.target.value})}
+                        placeholder="Не обязательно"
                       />
                     </div>
                   </div>
@@ -827,176 +842,178 @@ const handleSaveEdit = async () => {
           </div>
         </div>
       )}
-     {/* МОДАЛКА ДЕТАЛЬНОГО ПРОСМОТРА/РЕДАКТИРОВАНИЯ СТУДЕНТА */}
-{showDetailModal && selectedStudent && (
-  <div className="modal-overlay" onClick={handleCloseDetail}>
-    <div className="modal-content large" onClick={(e) => e.stopPropagation()}>
-      <div className="modal-header">
-        <h2>👨‍🎓 {selectedStudent.firstName} {selectedStudent.lastName}</h2>
-        <button className="modal-close" onClick={handleCloseDetail}>✕</button>
-      </div>
 
-      {!isEditingStudent ? (
-        /* РЕЖИМ ПРОСМОТРА */
-        <div className="student-detail-content">
-          <div className="detail-section">
-            <h3>📱 Контактные данные</h3>
-            <p><strong>Telegram ID:</strong> {selectedStudent.telegramId || 'Не указан'}</p>
-            <p><strong>Username:</strong> @{selectedStudent.telegramUsername || 'не указан'}</p>
-            <p><strong>Имя:</strong> {selectedStudent.firstName}</p>
-            <p><strong>Фамилия:</strong> {selectedStudent.lastName}</p>
-            <p><strong>Статус:</strong> 
-              <span className={`status-badge ${selectedStudent.isActive ? 'active' : 'inactive'}`}>
-                {selectedStudent.isActive ? '✓ Активен' : '✕ Неактивен'}
-              </span>
-            </p>
-          </div>
+      {/* МОДАЛКА ДЕТАЛЬНОГО ПРОСМОТРА/РЕДАКТИРОВАНИЯ СТУДЕНТА */}
+      {showDetailModal && selectedStudent && (
+        <div className="modal-overlay" onClick={handleCloseDetail}>
+          <div className="modal-content large" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>👨‍🎓 {selectedStudent.firstName} {selectedStudent.lastName || ''}</h2>
+              <button className="modal-close" onClick={handleCloseDetail}>✕</button>
+            </div>
 
-          <div className="detail-section">
-            <h3>📚 Предметы ({selectedStudent.subjects?.length || 0})</h3>
-            {selectedStudent.subjects?.length > 0 ? (
-              <div className="subjects-list">
-                {selectedStudent.subjects.map(subject => (
-                  <div key={subject.id} className="subject-detail-item">
-                    <div className="subject-info">
-                      <span className="subject-name">{subject.icon} {subject.name}</span>
-                      <div className="subject-dates-info">
-                        <span>📅 С: {subject.UserSubject?.accessStartDate ? new Date(subject.UserSubject.accessStartDate).toLocaleDateString('ru-RU') : '—'}</span>
-                        <span>⏰ До: {subject.UserSubject?.accessEndDate ? new Date(subject.UserSubject.accessEndDate).toLocaleDateString('ru-RU') : '—'}</span>
-                      </div>
+            {!isEditingStudent ? (
+              /* РЕЖИМ ПРОСМОТРА */
+              <div className="student-detail-content">
+                <div className="detail-section">
+                  <h3>📱 Контактные данные</h3>
+                  <p><strong>Telegram ID:</strong> {selectedStudent.telegramId || 'Не указан'}</p>
+                  <p><strong>Username:</strong> @{selectedStudent.telegramUsername || 'не указан'}</p>
+                  <p><strong>Имя:</strong> {selectedStudent.firstName}</p>
+                  <p><strong>Фамилия:</strong> {selectedStudent.lastName || 'Не указана'}</p>
+                  <p><strong>Статус:</strong> 
+                    <span className={`status-badge ${selectedStudent.isActive ? 'active' : 'inactive'}`}>
+                      {selectedStudent.isActive ? '✓ Активен' : '✕ Неактивен'}
+                    </span>
+                  </p>
+                </div>
+
+                <div className="detail-section">
+                  <h3>📚 Предметы ({selectedStudent.subjects?.length || 0})</h3>
+                  {selectedStudent.subjects?.length > 0 ? (
+                    <div className="subjects-list">
+                      {selectedStudent.subjects.map(subject => (
+                        <div key={subject.id} className="subject-detail-item">
+                          <div className="subject-info">
+                            <span className="subject-name">{subject.icon} {subject.name}</span>
+                            <div className="subject-dates-info">
+                              <span>📅 С: {subject.UserSubject?.accessStartDate ? new Date(subject.UserSubject.accessStartDate).toLocaleDateString('ru-RU') : '—'}</span>
+                              <span>⏰ До: {subject.UserSubject?.accessEndDate ? new Date(subject.UserSubject.accessEndDate).toLocaleDateString('ru-RU') : '—'}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  </div>
-                ))}
+                  ) : (
+                    <p className="empty-message">Предметы не назначены</p>
+                  )}
+                </div>
+
+                <div className="detail-actions">
+                  <button className="btn-primary" onClick={handleStartEdit}>
+                    ✏️ Редактировать
+                  </button>
+                  <button 
+                    className="btn-danger"
+                    onClick={() => {
+                      handleDeleteStudent(selectedStudent.id);
+                      handleCloseDetail();
+                    }}
+                  >
+                    🗑️ Удалить ученика
+                  </button>
+                  <button className="btn-secondary" onClick={handleCloseDetail}>
+                    Закрыть
+                  </button>
+                </div>
               </div>
             ) : (
-              <p className="empty-message">Предметы не назначены</p>
-            )}
-          </div>
-
-          <div className="detail-actions">
-            <button className="btn-primary" onClick={handleStartEdit}>
-              ✏️ Редактировать
-            </button>
-            <button 
-              className="btn-danger"
-              onClick={() => {
-                handleDeleteStudent(selectedStudent.id);
-                handleCloseDetail();
-              }}
-            >
-              🗑️ Удалить ученика
-            </button>
-            <button className="btn-secondary" onClick={handleCloseDetail}>
-              Закрыть
-            </button>
-          </div>
-        </div>
-      ) : (
-        /* РЕЖИМ РЕДАКТИРОВАНИЯ */
-        <div className="student-edit-content">
-          <div className="form-section">
-            <h3>👤 Личные данные</h3>
-            <div className="form-row">
-              <div className="form-group">
-                <label>Имя</label>
-                <input
-                  type="text"
-                  value={editFormData.firstName}
-                  onChange={(e) => setEditFormData({...editFormData, firstName: e.target.value})}
-                />
-              </div>
-              <div className="form-group">
-                <label>Фамилия</label>
-                <input
-                  type="text"
-                  value={editFormData.lastName}
-                  onChange={(e) => setEditFormData({...editFormData, lastName: e.target.value})}
-                />
-              </div>
-            </div>
-            <div className="form-row">
-              <div className="form-group">
-                <label>Telegram ID</label>
-                <input
-                  type="number"
-                  value={editFormData.telegramId || ''}
-                  onChange={(e) => setEditFormData({...editFormData, telegramId: e.target.value})}
-                />
-              </div>
-              <div className="form-group">
-                <label>Username</label>
-                <input
-                  type="text"
-                  placeholder="@username"
-                  value={editFormData.telegramUsername}
-                  onChange={(e) => setEditFormData({...editFormData, telegramUsername: e.target.value})}
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="form-section">
-            <h3>📚 Предметы с индивидуальными сроками</h3>
-            <div className="subjects-with-dates">
-              {subjects.map(subject => {
-                const isSelected = editFormData.subjectIds.includes(subject.id);
-                const subjectDates = editFormData.subjectAccessDates[subject.id] || {};
-                
-                return (
-                  <div key={subject.id} className={`subject-item ${isSelected ? 'selected' : ''}`}>
-                    <label className="subject-checkbox-label">
+              /* РЕЖИМ РЕДАКТИРОВАНИЯ */
+              <div className="student-edit-content">
+                <div className="form-section">
+                  <h3>👤 Личные данные</h3>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Имя *</label>
                       <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => handleEditSubjectToggle(subject.id)}
+                        type="text"
+                        value={editFormData.firstName}
+                        onChange={(e) => setEditFormData({...editFormData, firstName: e.target.value})}
+                        required
                       />
-                      <span className="subject-name">{subject.icon} {subject.name}</span>
-                    </label>
-
-                    {isSelected && (
-                      <div className="subject-dates">
-                        <div className="date-input-group">
-                          <label>Начало доступа *</label>
-                          <input
-                            type="text"
-                            placeholder="01.01.2025"
-                            value={subjectDates.startDate || ''}
-                            onChange={(e) => handleEditSubjectDateChange(subject.id, 'startDate', e.target.value)}
-                            className="date-text-input"
-                          />
-                        </div>
-                        <div className="date-input-group">
-                          <label>Окончание доступа *</label>
-                          <input
-                            type="text"
-                            placeholder="31.12.2025"
-                            value={subjectDates.endDate || ''}
-                            onChange={(e) => handleEditSubjectDateChange(subject.id, 'endDate', e.target.value)}
-                            className="date-text-input"
-                          />
-                        </div>
-                      </div>
-                    )}
+                    </div>
+                    <div className="form-group">
+                      <label>Фамилия</label>
+                      <input
+                        type="text"
+                        value={editFormData.lastName}
+                        onChange={(e) => setEditFormData({...editFormData, lastName: e.target.value})}
+                        placeholder="Не обязательно"
+                      />
+                    </div>
                   </div>
-                );
-              })}
-            </div>
-          </div>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Telegram ID</label>
+                      <input
+                        type="number"
+                        value={editFormData.telegramId || ''}
+                        onChange={(e) => setEditFormData({...editFormData, telegramId: e.target.value})}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Username</label>
+                      <input
+                        type="text"
+                        placeholder="@username"
+                        value={editFormData.telegramUsername}
+                        onChange={(e) => setEditFormData({...editFormData, telegramUsername: e.target.value})}
+                      />
+                    </div>
+                  </div>
+                </div>
 
-          <div className="detail-actions">
-            <button className="btn-primary" onClick={handleSaveEdit}>
-              💾 Сохранить
-            </button>
-            <button className="btn-secondary" onClick={handleCancelEdit}>
-              Отмена
-            </button>
+                <div className="form-section">
+                  <h3>📚 Предметы с индивидуальными сроками</h3>
+                  <div className="subjects-with-dates">
+                    {subjects.map(subject => {
+                      const isSelected = editFormData.subjectIds.includes(subject.id);
+                      const subjectDates = editFormData.subjectAccessDates[subject.id] || {};
+                      
+                      return (
+                        <div key={subject.id} className={`subject-item ${isSelected ? 'selected' : ''}`}>
+                          <label className="subject-checkbox-label">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => handleEditSubjectToggle(subject.id)}
+                            />
+                            <span className="subject-name">{subject.icon} {subject.name}</span>
+                          </label>
+
+                          {isSelected && (
+                            <div className="subject-dates">
+                              <div className="date-input-group">
+                                <label>Начало доступа *</label>
+                                <input
+                                  type="text"
+                                  placeholder="01.01.2025"
+                                  value={subjectDates.startDate || ''}
+                                  onChange={(e) => handleEditSubjectDateChange(subject.id, 'startDate', e.target.value)}
+                                  className="date-text-input"
+                                />
+                              </div>
+                              <div className="date-input-group">
+                                <label>Окончание доступа *</label>
+                                <input
+                                  type="text"
+                                  placeholder="31.12.2025"
+                                  value={subjectDates.endDate || ''}
+                                  onChange={(e) => handleEditSubjectDateChange(subject.id, 'endDate', e.target.value)}
+                                  className="date-text-input"
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="detail-actions">
+                  <button className="btn-primary" onClick={handleSaveEdit}>
+                    💾 Сохранить
+                  </button>
+                  <button className="btn-secondary" onClick={handleCancelEdit}>
+                    Отмена
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
-    </div>
-  </div>
-)}
-      
     </div>
   );
 }

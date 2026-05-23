@@ -45,17 +45,7 @@ function StudentAppContent({ selectedStudent, onLogout }) {
 
   return (
     <div className="student-app">
-      <header className="header">
-        <div className="logo">
-          <span className="logo-ed">ED</span>
-          <span className="logo-me">me</span>
-        </div>
-        <div className="user-info">
-          <div className="user-avatar" onClick={onLogout}>
-            {selectedStudent.firstName[0]}{selectedStudent.lastName[0]}
-          </div>
-        </div>
-      </header>
+      {/* Header удалён - теперь каждая страница показывает свой заголовок */}
 
       <main className="content">
         {ActiveComponent && <ActiveComponent studentId={selectedStudent.id} />}

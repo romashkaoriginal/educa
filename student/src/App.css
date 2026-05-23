@@ -1,4 +1,3 @@
-
 * 
 
 {
@@ -7,7 +6,8 @@
   box-sizing: border-box;
 }
 html, body {
-  overflow: hidden;
+  overflow-x: hidden; /* Убрать горизонтальный скролл */
+  overflow-y: auto;
   position: fixed;
   width: 100%;
   height: 100%;
@@ -17,8 +17,10 @@ html, body {
 
 #root {
   width: 100%;
+  max-width: 100vw; /* Не шире экрана */
   height: 100%;
-  overflow: auto;
+  overflow-x: hidden; /* Убрать горизонтальный скролл */
+  overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 }
 body {

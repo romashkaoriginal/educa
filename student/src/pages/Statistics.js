@@ -10,31 +10,6 @@ function Statistics({ studentId }) {
   
   const [activeTab, setActiveTab] = useState('practice');
 
-  // Статистика викторин
-  const [quizStats, setQuizStats] = useState([]);
-  const [quizSummary, setQuizSummary] = useState({ totalQuizzes: 0, totalPoints: 0, averageScore: 0 });
-  const [loadingQuiz, setLoadingQuiz] = useState(false);
-
-  useEffect(() => {
-    if (activeTab === 'quiz') {
-      fetchQuizStats();
-    }
-  }, [activeTab, studentId]);
-
-  const fetchQuizStats = async () => {
-    setLoadingQuiz(true);
-    try {
-      const response = await fetch(`${API_URL}/quiz/student/${studentId}/stats`);
-      const data = await response.json();
-      setQuizStats(data.quizzes || []);
-      setQuizSummary(data.summary || { totalQuizzes: 0, totalPoints: 0, averageScore: 0 });
-    } catch (error) {
-      console.error('Error fetching quiz stats:', error);
-    } finally {
-      setLoadingQuiz(false);
-    }
-  };
-
   const getHomeworkStatus = (homework) => {
     const now = new Date();
     const openDate = new Date(homework.openDate);
@@ -88,12 +63,6 @@ function Statistics({ studentId }) {
           onClick={() => setActiveTab('homework')}
         >
           📝 Домашка
-        </button>
-        <button
-          className={`stats-tab ${activeTab === 'quiz' ? 'active' : ''}`}
-          onClick={() => setActiveTab('quiz')}
-        >
-          🎯 Викторины
         </button>
       </div>
 
@@ -379,92 +348,6 @@ function Statistics({ studentId }) {
                   })}
                 </div>
               </div>
-            </>
-          )}
-        </div>
-      )}
-
-      {/* ВКЛАДКА: ВИКТОРИНЫ */}
-      {activeTab === 'quiz' && (
-        <div className="stats-content">
-          {loadingQuiz ? (
-            <div className="loading-state">
-              <div className="spinner"></div>
-              <p>Загрузка статистики викторин...</p>
-            </div>
-          ) : (
-            <>
-              {/* Общая статистика */}
-              <div className="stats-summary">
-                <div className="stat-card quiz-card">
-                  <div className="stat-icon">🎮</div>
-                  <div className="stat-info">
-                    <div className="stat-label">Пройдено викторин</div>
-                    <div className="stat-value">{quizSummary.totalQuizzes}</div>
-                  </div>
-                </div>
-                <div className="stat-card quiz-card">
-                  <div className="stat-icon">⭐</div>
-                  <div className="stat-info">
-                    <div className="stat-label">Всего баллов</div>
-                    <div className="stat-value">{parseFloat(quizSummary.totalPoints).toFixed(1)}</div>
-                  </div>
-                </div>
-                <div className="stat-card quiz-card">
-                  <div className="stat-icon">📊</div>
-                  <div className="stat-info">
-                    <div className="stat-label">Средний балл</div>
-                    <div className="stat-value">{parseFloat(quizSummary.averageScore).toFixed(1)}</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Список викторин */}
-              {quizStats.length === 0 ? (
-                <div className="empty-state">
-                  <div className="empty-icon">🎯</div>
-                  <p>Вы ещё не проходили викторины</p>
-                  <p className="empty-hint">Викторины проводятся преподавателем во время уроков</p>
-                </div>
-              ) : (
-                <div className="stats-block">
-                  <h3>📋 История викторин</h3>
-                  <div className="quiz-stats-list">
-                    {quizStats.map((quiz) => (
-                      <div key={quiz.quizId} className="quiz-stat-card">
-                        <div className="quiz-stat-header">
-                          <div className="quiz-stat-subject">
-                            <span className="subject-icon-big">{quiz.subjectIcon}</span>
-                            <div>
-                              <h4>{quiz.quizTitle}</h4>
-                              <span className="subject-name">{quiz.subjectName}</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="quiz-stat-details">
-                          <div className="detail-row">
-                            <span className="detail-label">Баллы:</span>
-                            <span className="detail-value score">{parseFloat(quiz.score || 0).toFixed(1)}</span>
-                          </div>
-                          <div className="detail-row">
-                            <span className="detail-label">Дата:</span>
-                            <span className="detail-value">
-                              {new Date(quiz.participationDate).toLocaleDateString('ru-RU', { 
-                                day: 'numeric', 
-                                month: 'long', 
-                                year: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </>
           )}
         </div>

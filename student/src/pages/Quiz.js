@@ -30,6 +30,7 @@ function Quiz({ studentId }) {
   const [myScore, setMyScore] = useState(0);
 
   const questionStartTime = useRef(null);
+  const codeInputRef = useRef(null);
 
   // Очистка сокета
   useEffect(() => {
@@ -368,6 +369,7 @@ function Quiz({ studentId }) {
 
         <div className="code-input-container">
           <input
+            ref={codeInputRef}
             type="text"
             className="code-input"
             placeholder="XXXXXX"
@@ -378,7 +380,6 @@ function Quiz({ studentId }) {
             }}
             maxLength={10}
             onKeyDown={(e) => e.key === 'Enter' && joinQuiz()}
-            autoFocus
           />
         </div>
 
@@ -391,10 +392,6 @@ function Quiz({ studentId }) {
         >
           {loading ? 'Подключение...' : '🚀 Присоединиться'}
         </button>
-
-        <div className="quiz-hint">
-          💡 Код состоит из 6 символов и выдаётся преподавателем
-        </div>
       </div>
     </div>
   );

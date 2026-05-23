@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './Homework.css';
 import { useData } from './DataContext';
 
@@ -6,8 +6,9 @@ const API_URL = 'https://educa-production-a98e.up.railway.app/api';
 
 function StudentHomework({ studentId }) {
   // Используем контекст
-  const { homeworks, refreshAfterHomework, loading: contextLoading } = useData();
+  const { homeworks, subjects, refreshAfterHomework, loading: contextLoading } = useData();
   
+  const [selectedSubject, setSelectedSubject] = useState(null);
   const [selectedHomework, setSelectedHomework] = useState(null);
   const [questions, setQuestions] = useState([]);
   const [answers, setAnswers] = useState({});
@@ -15,6 +16,17 @@ function StudentHomework({ studentId }) {
   const [showResult, setShowResult] = useState(false);
   const [result, setResult] = useState(null);
   const [startTime, setStartTime] = useState(null);
+
+  // Автоматический выбор предмета если он один
+  useEffect(() => {
+    if (subjects.length === 1 && !selectedSubject) {
+      setSelectedSubject(subjects[0]);
+    }
+  }, [subjects, selectedSubject]);
+
+  const backToSubjects = () => {
+    setSelectedSubject(null);
+  };
 
   const startHomework = async (homework) => {
     try {
@@ -75,7 +87,6 @@ function StudentHomework({ studentId }) {
     setAnswers({});
     setShowResult(false);
     setResult(null);
-    // Обновляем через контекст
     refreshAfterHomework();
   };
 
@@ -108,17 +119,15 @@ function StudentHomework({ studentId }) {
                   className={`option-btn ${selected.includes(optIndex) ? 'selected' : ''}`}
                   onClick={() => {
                     const current = answers[index] || [];
-                    const newAnswer = current.includes(optIndex)
+                    const newAnswers = current.includes(optIndex)
                       ? current.filter(i => i !== optIndex)
                       : [...current, optIndex];
-                    handleAnswer(index, newAnswer);
+                    handleAnswer(index, newAnswers);
                   }}
                 >
-                  <input 
-                    type="checkbox" 
-                    checked={selected.includes(optIndex)} 
-                    readOnly 
-                  />
+                  <span className="option-letter">
+                    {selected.includes(optIndex) ? '☑' : '☐'}
+                  </span>
                   <span className="option-text">{option}</span>
                 </button>
               );
@@ -126,52 +135,54 @@ function StudentHomework({ studentId }) {
           </div>
         );
 
-      case 'short_answer':
+      case 'text_input':
         return (
-          <div className="short-answer-input">
-            <input
-              type="text"
-              placeholder="Введите ответ"
+          <div className="text-input-container">
+            <textarea
+              className="text-input"
               value={answers[index] || ''}
               onChange={(e) => handleAnswer(index, e.target.value)}
+              placeholder="Введите ваш ответ..."
+              rows={4}
             />
           </div>
         );
 
-      case 'numeric':
+      case 'number_input':
         return (
-          <div className="numeric-input">
+          <div className="number-input-container">
             <input
               type="number"
-              step="any"
-              placeholder="Введите число"
+              className="number-input"
               value={answers[index] || ''}
-              onChange={(e) => handleAnswer(index, parseFloat(e.target.value))}
+              onChange={(e) => handleAnswer(index, e.target.value)}
+              placeholder="Введите число"
             />
           </div>
         );
 
       case 'matching':
-        const pairs = answers[index] || question.options.map(p => ({ ...p, right: '' }));
-        const shuffledRights = question.options.map(p => p.right).sort(() => Math.random() - 0.5);
-        
         return (
           <div className="matching-container">
-            {pairs.map((pair, pairIndex) => (
-              <div key={pairIndex} className="matching-pair">
-                <div className="matching-left">{pair.left}</div>
+            {question.leftColumn.map((leftItem, leftIndex) => (
+              <div key={leftIndex} className="matching-row">
+                <div className="matching-left">{leftItem}</div>
                 <select
                   className="matching-select"
-                  value={pair.right}
+                  value={(answers[index] || {})[leftIndex] || ''}
                   onChange={(e) => {
-                    const newPairs = [...pairs];
-                    newPairs[pairIndex].right = e.target.value;
-                    handleAnswer(index, newPairs);
+                    const current = answers[index] || {};
+                    handleAnswer(index, {
+                      ...current,
+                      [leftIndex]: e.target.value
+                    });
                   }}
                 >
-                  <option value="">Выберите...</option>
-                  {shuffledRights.map((right, idx) => (
-                    <option key={idx} value={right}>{right}</option>
+                  <option value="">Выберите соответствие</option>
+                  {question.rightColumn.map((rightItem, rightIndex) => (
+                    <option key={rightIndex} value={rightIndex}>
+                      {rightItem}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -179,36 +190,54 @@ function StudentHomework({ studentId }) {
           </div>
         );
 
+      case 'true_false':
+        return (
+          <div className="true-false-options">
+            <button
+              className={`tf-btn ${answers[index] === true ? 'selected' : ''}`}
+              onClick={() => handleAnswer(index, true)}
+            >
+              ✓ Правда
+            </button>
+            <button
+              className={`tf-btn ${answers[index] === false ? 'selected' : ''}`}
+              onClick={() => handleAnswer(index, false)}
+            >
+              ✗ Ложь
+            </button>
+          </div>
+        );
+
       case 'ordering':
-        const items = answers[index] || [...question.correctAnswer].sort(() => Math.random() - 0.5);
-        
+        const currentOrder = answers[index] || question.items.map((_, i) => i);
         return (
           <div className="ordering-container">
-            <p className="ordering-hint">Перетащите элементы в правильном порядке:</p>
-            {items.map((item, itemIndex) => (
-              <div key={itemIndex} className="ordering-item">
-                <span className="item-number">{itemIndex + 1}</span>
-                <span className="item-text">{item}</span>
-                <div className="item-controls">
-                  {itemIndex > 0 && (
+            {currentOrder.map((itemIndex, position) => (
+              <div key={position} className="ordering-item">
+                <span className="order-number">{position + 1}</span>
+                <span className="order-text">{question.items[itemIndex]}</span>
+                <div className="order-controls">
+                  {position > 0 && (
                     <button
+                      className="order-btn"
                       onClick={() => {
-                        const newItems = [...items];
-                        [newItems[itemIndex], newItems[itemIndex - 1]] = 
-                        [newItems[itemIndex - 1], newItems[itemIndex]];
-                        handleAnswer(index, newItems);
+                        const newOrder = [...currentOrder];
+                        [newOrder[position], newOrder[position - 1]] = 
+                        [newOrder[position - 1], newOrder[position]];
+                        handleAnswer(index, newOrder);
                       }}
                     >
                       ↑
                     </button>
                   )}
-                  {itemIndex < items.length - 1 && (
+                  {position < currentOrder.length - 1 && (
                     <button
+                      className="order-btn"
                       onClick={() => {
-                        const newItems = [...items];
-                        [newItems[itemIndex], newItems[itemIndex + 1]] = 
-                        [newItems[itemIndex + 1], newItems[itemIndex]];
-                        handleAnswer(index, newItems);
+                        const newOrder = [...currentOrder];
+                        [newOrder[position], newOrder[position + 1]] = 
+                        [newOrder[position + 1], newOrder[position]];
+                        handleAnswer(index, newOrder);
                       }}
                     >
                       ↓
@@ -220,51 +249,27 @@ function StudentHomework({ studentId }) {
           </div>
         );
 
-      case 'fill_blanks':
-        const blanksCount = (question.questionText.match(/___/g) || []).length;
-        const blankAnswers = answers[index] || Array(blanksCount).fill('');
-        const parts = question.questionText.split('___');
-        
+      case 'fill_in_blank':
         return (
-          <div className="fill-blanks-container">
-            <div className="blanks-text">
-              {parts.map((part, partIndex) => (
-                <React.Fragment key={partIndex}>
-                  <span>{part}</span>
-                  {partIndex < parts.length - 1 && (
-                    <input
-                      type="text"
-                      className="blank-input"
-                      value={blankAnswers[partIndex] || ''}
-                      onChange={(e) => {
-                        const newBlanks = [...blankAnswers];
-                        newBlanks[partIndex] = e.target.value;
-                        handleAnswer(index, newBlanks);
-                      }}
-                      placeholder={`Пропуск ${partIndex + 1}`}
-                    />
-                  )}
-                </React.Fragment>
-              ))}
-            </div>
-          </div>
-        );
-
-      case 'true_false':
-        return (
-          <div className="true-false-options">
-            <button
-              className={`tf-btn ${answers[index] === true ? 'selected' : ''}`}
-              onClick={() => handleAnswer(index, true)}
-            >
-              ✓ Верно
-            </button>
-            <button
-              className={`tf-btn ${answers[index] === false ? 'selected' : ''}`}
-              onClick={() => handleAnswer(index, false)}
-            >
-              ✗ Неверно
-            </button>
+          <div className="fill-blank-container">
+            <div className="blank-text">{question.textWithBlanks}</div>
+            {question.blanks.map((blank, blankIndex) => (
+              <div key={blankIndex} className="blank-input-group">
+                <label>Пропуск {blankIndex + 1}:</label>
+                <input
+                  type="text"
+                  className="blank-input"
+                  value={(answers[index] || [])[blankIndex] || ''}
+                  onChange={(e) => {
+                    const current = answers[index] || [];
+                    const newAnswers = [...current];
+                    newAnswers[blankIndex] = e.target.value;
+                    handleAnswer(index, newAnswers);
+                  }}
+                  placeholder={`Введите ответ для пропуска ${blankIndex + 1}`}
+                />
+              </div>
+            ))}
           </div>
         );
 
@@ -273,142 +278,180 @@ function StudentHomework({ studentId }) {
     }
   };
 
+  // ========== ЭКРАН ПРОХОЖДЕНИЯ ДОМАШКИ ==========
+  if (selectedHomework && !showResult) {
+    return (
+      <div className="homework-mode">
+        <div className="homework-header">
+          <button className="back-button" onClick={closeHomework}>
+            ← Назад к списку
+          </button>
+          <h2>{selectedHomework.title}</h2>
+          <p>{selectedHomework.subject.name}</p>
+        </div>
+
+        <div className="questions-container">
+          {questions.map((question, index) => (
+            <div key={index} className="question-card">
+              <div className="question-number">
+                Вопрос {index + 1} из {questions.length}
+                <span className="question-points">({question.points} баллов)</span>
+              </div>
+              <div className="question-text">{question.questionText}</div>
+              {renderQuestion(question, index)}
+            </div>
+          ))}
+        </div>
+
+        <div className="submit-section">
+          <button
+            className="submit-btn"
+            onClick={submitHomework}
+            disabled={Object.keys(answers).length === 0}
+          >
+            Отправить домашку
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ========== ЭКРАН РЕЗУЛЬТАТА ==========
+  if (showResult && result) {
+    const percentage = Math.round((result.totalScore / result.maxScore) * 100);
+    let emoji = '🎉';
+    if (percentage >= 90) emoji = '🏆';
+    else if (percentage >= 70) emoji = '🎉';
+    else if (percentage >= 50) emoji = '👍';
+    else emoji = '📚';
+
+    return (
+      <div className="homework-result">
+        <div className="result-card">
+          <div className="result-emoji">{emoji}</div>
+          <h2>Домашка сдана!</h2>
+          <div className="result-score">
+            {result.totalScore}/{result.maxScore}
+          </div>
+          <div className="result-percentage">{percentage}%</div>
+          <div className="result-details">
+            <div className="detail-item">
+              <span className="detail-label">Правильных ответов:</span>
+              <span className="detail-value">{result.correctAnswers}/{questions.length}</span>
+            </div>
+            <div className="detail-item">
+              <span className="detail-label">Время выполнения:</span>
+              <span className="detail-value">{Math.floor(result.timeSpent / 60)} мин</span>
+            </div>
+            {result.attemptsUsed && result.maxAttempts && (
+              <div className="detail-item">
+                <span className="detail-label">Попытка:</span>
+                <span className="detail-value">{result.attemptsUsed}/{result.maxAttempts}</span>
+              </div>
+            )}
+          </div>
+          <button className="result-button" onClick={closeHomework}>
+            Вернуться к списку
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (contextLoading.homework && homeworks.length === 0) {
     return (
       <div className="section">
         <h1 className="section-title">Домашние задания</h1>
-        <p style={{ textAlign: 'center', color: '#6b7280', padding: '40px' }}>
+        <p style={{ textAlign: 'center', padding: '40px', color: '#6b7280' }}>
           Загрузка...
         </p>
       </div>
     );
   }
 
-  if (showResult && result) {
+  // ========== ЭКРАН ВЫБОРА ПРЕДМЕТА (если предметов несколько) ==========
+  if (!selectedSubject && subjects.length > 1) {
     return (
-      <div className="section homework-result">
-        <div className="result-header">
-          <h1>Результат</h1>
-          <p className="result-homework-title">{selectedHomework.title}</p>
-        </div>
+      <div className="section">
+        <h1 className="section-title">📝 Домашние задания</h1>
+        <p style={{ marginBottom: '16px', color: '#6b7280', fontSize: '14px' }}>
+          Выберите предмет:
+        </p>
 
-        <div className="result-score-display">
-          <div className="score-circle">
-            <div className="score-value">{result.percentage}%</div>
-            <div className="score-label">
-              {result.totalScore} из {result.maxScore} баллов
-            </div>
-          </div>
-        </div>
+        <div className="subjects-grid">
+          {subjects.map(subject => {
+            const subjectHomeworks = homeworks.filter(hw => hw.subjectId === subject.id);
+            // ИСПРАВЛЕНО: считаем несделанными только те, где действительно нет результата
+            const unfinishedCount = subjectHomeworks.filter(hw => 
+              !hw.stats || hw.stats.bestScore === 0
+            ).length;
 
-        <div className="result-message">
-          {result.percentage >= 90 && <p className="excellent">🎉 Отлично! Превосходная работа!</p>}
-          {result.percentage >= 70 && result.percentage < 90 && <p className="good">👍 Хорошо! Продолжай в том же духе!</p>}
-          {result.percentage >= 50 && result.percentage < 70 && <p className="average">📖 Неплохо, но есть куда расти!</p>}
-          {result.percentage < 50 && <p className="needs-work">💪 Стоит повторить материал и попробовать снова!</p>}
-        </div>
-
-        <div className="result-actions">
-          {selectedHomework.maxAttempts && selectedHomework.stats && 
-           selectedHomework.stats.attempts >= selectedHomework.maxAttempts ? (
-            <p className="attempts-exhausted">Вы использовали все попытки</p>
-          ) : (
-            <button className="primary-button" onClick={() => startHomework(selectedHomework)}>
-              Попробовать еще раз
-            </button>
-          )}
-          <button className="secondary-button" onClick={closeHomework}>
-            К списку домашек
-          </button>
+            return (
+              <button
+                key={subject.id}
+                className="subject-card"
+                onClick={() => setSelectedSubject(subject)}
+              >
+                <span className="subject-icon-big">{subject.icon}</span>
+                <h3>{subject.name}</h3>
+                <p>{subjectHomeworks.length} заданий</p>
+                {unfinishedCount > 0 && (
+                  <span className="badge-warning">
+                    ❗ {unfinishedCount}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
       </div>
     );
   }
 
-  if (selectedHomework && questions.length > 0) {
-    const currentQuestion = questions[currentQuestionIndex];
-    const progress = ((currentQuestionIndex + 1) / questions.length) * 100;
-    const isLastQuestion = currentQuestionIndex === questions.length - 1;
-    const canProceed = answers[currentQuestionIndex] !== undefined;
-
-    return (
-      <div className="section homework-mode">
-        <div className="homework-header">
-          <button className="back-button" onClick={closeHomework}>
-            ← Назад
-          </button>
-          <div className="homework-info">
-            <h2>{selectedHomework.title}</h2>
-            <p>Вопрос {currentQuestionIndex + 1} из {questions.length}</p>
-          </div>
-        </div>
-
-        <div className="progress-bar">
-          <div className="progress-fill" style={{ width: `${progress}%` }}></div>
-        </div>
-
-        <div className="question-container">
-          <div className="question-header">
-            <span className="question-number">Вопрос {currentQuestionIndex + 1}</span>
-            <span className="question-points">{currentQuestion.points} баллов</span>
-          </div>
-
-          <h3 className="question-text">{currentQuestion.questionText}</h3>
-
-          {renderQuestion(currentQuestion, currentQuestionIndex)}
-
-          <div className="navigation-buttons">
-            {currentQuestionIndex > 0 && (
-              <button
-                className="secondary-button"
-                onClick={() => setCurrentQuestionIndex(currentQuestionIndex - 1)}
-              >
-                ← Назад
-              </button>
-            )}
-            {!isLastQuestion ? (
-              <button
-                className="primary-button"
-                disabled={!canProceed}
-                onClick={() => setCurrentQuestionIndex(currentQuestionIndex + 1)}
-              >
-                Далее →
-              </button>
-            ) : (
-              <button
-                className="primary-button submit"
-                disabled={!canProceed}
-                onClick={submitHomework}
-              >
-                Отправить домашку
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // ========== СПИСОК ДОМАШЕК ДЛЯ ВЫБРАННОГО ПРЕДМЕТА ==========
+  const filteredHomeworks = selectedSubject 
+    ? homeworks.filter(hw => hw.subjectId === selectedSubject.id)
+    : homeworks;
 
   return (
     <div className="section">
-      <h1 className="section-title">Домашние задания</h1>
-      
-      <p style={{ marginBottom: '20px', color: '#6b7280', fontSize: '14px' }}>
+      {/* Page Header */}
+      <div className={`page-header ${subjects.length === 1 ? 'single-subject' : ''}`}>
+        {subjects.length > 1 && selectedSubject && (
+          <button className="back-button" onClick={backToSubjects}>
+            ← Назад
+          </button>
+        )}
+        <div className="page-header-title">
+          <span className="page-header-icon">{selectedSubject?.icon || '📝'}</span>
+          <span className="page-header-text">
+            {selectedSubject ? selectedSubject.name : 'Домашка'}
+          </span>
+        </div>
+      </div>
+
+      <p style={{ marginBottom: '16px', color: '#6b7280', fontSize: '14px' }}>
         📝 Выполняйте домашние задания в указанные сроки
       </p>
 
-      {homeworks.length === 0 ? (
+      {filteredHomeworks.length === 0 ? (
         <div className="empty-state">
           <div className="empty-icon">📚</div>
           <p className="empty-text">Пока нет доступных домашних заданий</p>
         </div>
       ) : (
         <div className="homeworks-grid">
-          {homeworks.map(homework => {
+          {filteredHomeworks.map(homework => {
             const now = new Date();
             const closeDate = new Date(homework.closeDate);
             const hoursLeft = Math.floor((closeDate - now) / (1000 * 60 * 60));
             const maxScore = homework.questions.reduce((sum, q) => sum + q.points, 0);
+            
+            // ИСПРАВЛЕНО: проверяем реальный статус выполнения
+            const isCompleted = homework.stats && homework.stats.bestScore > 0;
+            const hasAttemptsLeft = homework.maxAttempts && homework.stats 
+              ? homework.stats.attemptsUsed < homework.maxAttempts 
+              : true;
 
             return (
               <div key={homework.id} className="homework-card">
@@ -424,6 +467,17 @@ function StudentHomework({ studentId }) {
                   <p className="card-description">{homework.description}</p>
                 )}
 
+                {/* ИСПРАВЛЕНО: статус выполнения */}
+                <div className="homework-status">
+                  {!isCompleted ? (
+                    <span className="badge-warning">❗ Требуется выполнить</span>
+                  ) : hasAttemptsLeft ? (
+                    <span className="badge-info">🔄 Можно улучшить результат</span>
+                  ) : (
+                    <span className="badge-success">✅ Выполнено</span>
+                  )}
+                </div>
+
                 <div className="card-info">
                   <div className="info-item">
                     <span className="info-icon">📚</span>
@@ -436,12 +490,17 @@ function StudentHomework({ studentId }) {
                   {homework.maxAttempts && (
                     <div className="info-item">
                       <span className="info-icon">🔄</span>
-                      <span>До {homework.maxAttempts} попыток</span>
+                      <span>
+                        {homework.stats 
+                          ? `Попыток: ${homework.stats.attemptsUsed}/${homework.maxAttempts}`
+                          : `До ${homework.maxAttempts} попыток`
+                        }
+                      </span>
                     </div>
                   )}
                 </div>
 
-                {homework.stats && (
+                {homework.stats && homework.stats.bestScore > 0 && (
                   <div className="homework-stats">
                     <div className="stats-header">
                       <span>Ваш лучший результат:</span>
@@ -449,49 +508,38 @@ function StudentHomework({ studentId }) {
                         {homework.stats.bestScore}/{homework.stats.maxScore}
                       </span>
                     </div>
-                    <div className="stats-bar">
-                      <div 
-                        className="stats-fill"
-                        style={{ 
-                          width: `${(homework.stats.bestScore / homework.stats.maxScore) * 100}%` 
+                    <div className="progress-bar">
+                      <div
+                        className="progress-fill"
+                        style={{
+                          width: `${(homework.stats.bestScore / homework.stats.maxScore) * 100}%`
                         }}
                       ></div>
                     </div>
-                    <p className="attempts-count">
-                      Попыток использовано: {homework.stats.attempts}
-                      {homework.maxAttempts && ` из ${homework.maxAttempts}`}
-                    </p>
                   </div>
                 )}
 
-                <div className="deadline-info">
-                  {hoursLeft > 24 ? (
-                    <span className="deadline-ok">
-                      ⏰ До сдачи: {Math.floor(hoursLeft / 24)} дн.
-                    </span>
-                  ) : hoursLeft > 0 ? (
-                    <span className="deadline-warning">
-                      ⏰ До сдачи: {hoursLeft} ч.
+                <div className="card-deadline">
+                  {hoursLeft > 0 ? (
+                    <span className="deadline-active">
+                      ⏰ Осталось {hoursLeft > 24 ? Math.floor(hoursLeft / 24) + ' дней' : hoursLeft + ' часов'}
                     </span>
                   ) : (
-                    <span className="deadline-urgent">
-                      ⏰ Срок истекает!
-                    </span>
+                    <span className="deadline-expired">⏰ Срок истёк</span>
                   )}
                 </div>
 
                 <button
-                  className="primary-button"
+                  className="start-btn"
                   onClick={() => startHomework(homework)}
-                  disabled={
-                    homework.maxAttempts && 
-                    homework.stats && 
-                    homework.stats.attempts >= homework.maxAttempts
-                  }
+                  disabled={hoursLeft <= 0 || (!hasAttemptsLeft && isCompleted)}
                 >
-                  {homework.stats 
-                    ? 'Пройти заново' 
-                    : 'Начать выполнение'}
+                  {!isCompleted 
+                    ? 'Начать выполнение'
+                    : hasAttemptsLeft 
+                      ? 'Улучшить результат'
+                      : 'Попытки исчерпаны'
+                  }
                 </button>
               </div>
             );
