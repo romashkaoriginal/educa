@@ -331,8 +331,8 @@ router.post('/submit', async (req, res) => {
     // Create submission using raw SQL (bypass Sequelize constraint cache)
     const insertResult = await sequelize.query(`
       INSERT INTO homework_submissions 
-      ("homeworkId", "userId", "attemptNumber", "totalScore", "maxScore", "submittedAt", "timeSpent", "status", "createdAt", "updatedAt")
-      VALUES (:homeworkId, :userId, :attemptNumber, :totalScore, :maxScore, NOW(), :timeSpent, 'submitted', NOW(), NOW())
+      ("homeworkId", "userId", "attemptNumber", "totalScore", "maxScore", "submittedAt", "timeSpent", "status")
+      VALUES (:homeworkId, :userId, :attemptNumber, :totalScore, :maxScore, NOW(), :timeSpent, 'submitted')
       RETURNING *
     `, {
       replacements: {
