@@ -329,10 +329,10 @@ router.post('/submit', async (req, res) => {
     });
 
     // Create submission using raw SQL (bypass Sequelize constraint cache)
-    const [results] = await sequelize.query(`
+    const insertResult = await sequelize.query(`
       INSERT INTO homework_submissions 
-      ("homeworkId", "userId", "attemptNumber", "totalScore", "maxScore", "submittedAt", "timeSpent", "status")
-      VALUES (:homeworkId, :userId, :attemptNumber, :totalScore, :maxScore, NOW(), :timeSpent, 'submitted')
+      ("homeworkId", "userId", "attemptNumber", "totalScore", "maxScore", "submittedAt", "timeSpent", "status", "createdAt", "updatedAt")
+      VALUES (:homeworkId, :userId, :attemptNumber, :totalScore, :maxScore, NOW(), :timeSpent, 'submitted', NOW(), NOW())
       RETURNING *
     `, {
       replacements: {
@@ -342,11 +342,15 @@ router.post('/submit', async (req, res) => {
         totalScore,
         maxScore,
         timeSpent
-      },
-      type: sequelize.QueryTypes.SELECT
+      }
     });
 
-    const submission = results[0];
+    const submission = insertResult[0][0];
+
+    if (!submission || !submission.id) {
+      console.error('Failed to create submission:', insertResult);
+      return res.status(500).json({ message: 'Failed to create submission' });
+    }
 
     // Create answers
     const answerPromises = gradedAnswers.map(ans =>
@@ -365,6 +369,10 @@ router.post('/submit', async (req, res) => {
       submissionId: submission.id,
       totalScore,
       maxScore,
+      correctAnswers: gradedAnswers.filter(a => a.isCorrect).length,
+      timeSpent,
+      attemptsUsed: submissionCount + 1,
+      maxAttempts: homework.maxAttempts,
       percentage: Math.round((totalScore / maxScore) * 100)
     });
   } catch (error) {

@@ -13,7 +13,6 @@
   overflow: hidden;
 }
 
-/* Декоративный блик */
 .page-header::before {
   content: '';
   position: absolute;
@@ -21,20 +20,8 @@
   right: -10%;
   width: 200px;
   height: 200px;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.15) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(255,255,255,0.15) 0%, transparent 70%);
   pointer-events: none;
-}
-
-/* Декоративная нижняя полоса */
-.page-header::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: linear-gradient(90deg, transparent 0%, #F59E0B 50%, transparent 100%);
-  opacity: 0.6;
 }
 
 .page-header .back-button {
@@ -46,24 +33,9 @@
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.25s ease;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  white-space: nowrap;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
   position: relative;
   z-index: 1;
-}
-
-.page-header .back-button:hover {
-  background: rgba(255, 255, 255, 0.28);
-  transform: translateX(-2px);
-}
-
-.page-header .back-button:active {
-  transform: scale(0.95);
+  white-space: nowrap;
 }
 
 .page-header-title {
@@ -77,62 +49,28 @@
   overflow: hidden;
   position: relative;
   z-index: 1;
-  letter-spacing: -0.3px;
 }
 
 .page-header-icon {
   font-size: 26px;
   flex-shrink: 0;
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.15));
 }
 
 .page-header-text {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
 }
 
-/* Для экрана с одним предметом - header по центру */
 .page-header.single-subject {
   justify-content: center;
 }
-
-.page-header.single-subject .page-header-title {
-  flex: none;
-}
-
-/* ========== BADGE для непройденной домашки ========== */
-
-.badge-warning {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  background: linear-gradient(135deg, #ef4444 0%, #f87171 100%);
-  color: #ffffff;
-  padding: 4px 9px;
-  border-radius: 12px;
-  font-size: 11px;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  box-shadow: 0 3px 8px rgba(239, 68, 68, 0.35);
-  animation: pulse 2s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.05); }
-}
-
-/* ========== SECTION С PADDING ========== */
 
 .section {
   padding: 0 16px 16px 16px;
 }
 
-/* ========== Subject Selection Grid ========== */
+/* ========== СПИСОК ДОМАШЕК ========== */
 
 .subjects-grid {
   display: grid;
@@ -159,7 +97,6 @@
 .subject-card:hover {
   border-color: #3B82F6;
   transform: translateY(-3px);
-  box-shadow: 0 6px 16px rgba(30, 64, 175, 0.15);
 }
 
 .subject-icon-big {
@@ -179,7 +116,24 @@
   margin: 0;
 }
 
-/* ========== Homework List ========== */
+.badge-warning {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: linear-gradient(135deg, #ef4444 0%, #f87171 100%);
+  color: #ffffff;
+  padding: 4px 9px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  box-shadow: 0 3px 8px rgba(239, 68, 68, 0.35);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
 
 .homeworks-grid {
   display: flex;
@@ -194,13 +148,6 @@
   border-radius: 16px;
   padding: 16px;
   transition: all 0.3s ease;
-  cursor: pointer;
-}
-
-.homework-card:hover {
-  border-color: #3B82F6;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(30, 64, 175, 0.12);
 }
 
 .card-header {
@@ -232,6 +179,28 @@
   color: #4b5563;
   margin-bottom: 12px;
   line-height: 1.5;
+}
+
+.homework-status {
+  margin-bottom: 10px;
+}
+
+.badge-info {
+  background: #dbeafe;
+  color: #1e40af;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.badge-success {
+  background: #d1fae5;
+  color: #065f46;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .card-info {
@@ -282,7 +251,6 @@
 .progress-fill {
   height: 100%;
   background: linear-gradient(90deg, #10b981 0%, #34d399 100%);
-  transition: width 0.3s ease;
 }
 
 .card-deadline {
@@ -311,13 +279,7 @@
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;
-  transition: all 0.2s ease;
   box-shadow: 0 3px 8px rgba(245, 158, 11, 0.3);
-}
-
-.start-btn:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 5px 12px rgba(245, 158, 11, 0.4);
 }
 
 .start-btn:disabled {
@@ -326,20 +288,26 @@
   box-shadow: none;
 }
 
-/* Homework Mode (прохождение) */
+/* ========== ПОШАГОВОЕ ПРОХОЖДЕНИЕ ДОМАШКИ ========== */
+
 .homework-mode {
-  background: #f9fafb;
   min-height: 100vh;
+  background: #f9fafb;
+  display: flex;
+  flex-direction: column;
 }
 
 .homework-header {
   background: linear-gradient(135deg, #1E40AF 0%, #3B82F6 100%);
   padding: 14px 18px;
-  margin: 12px 12px 16px 12px;
+  margin: 12px 12px 0 12px;
   border-radius: 16px;
   box-shadow: 0 8px 24px rgba(30, 64, 175, 0.25);
   position: relative;
   overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .homework-header::before {
@@ -349,7 +317,7 @@
   right: -10%;
   width: 200px;
   height: 200px;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.15) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(255,255,255,0.15) 0%, transparent 70%);
   pointer-events: none;
 }
 
@@ -362,95 +330,130 @@
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.25s ease;
-  margin-bottom: 10px;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  backdrop-filter: blur(10px);
+  white-space: nowrap;
   position: relative;
   z-index: 1;
+  flex-shrink: 0;
 }
 
-.homework-header .back-button:hover {
-  background: rgba(255, 255, 255, 0.28);
+.homework-header-info {
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
+  flex: 1;
 }
 
-.homework-header h2 {
+.homework-header-info h2 {
   color: #ffffff;
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 800;
-  margin: 0 0 4px 0;
-  position: relative;
-  z-index: 1;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  margin: 0 0 2px 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.homework-header p {
-  color: rgba(255, 255, 255, 0.9);
-  font-size: 13px;
+.homework-header-info p {
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 12px;
   margin: 0;
-  position: relative;
-  z-index: 1;
 }
 
-.questions-container {
-  padding: 0 16px;
+/* Progress bar */
+.hw-progress-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 16px 0;
+}
+
+.hw-progress-bar {
+  flex: 1;
+  height: 8px;
+  background: #e5e7eb;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.hw-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #1E40AF 0%, #3B82F6 100%);
+  border-radius: 4px;
+  transition: width 0.4s ease;
+}
+
+.hw-progress-text {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1E40AF;
+  white-space: nowrap;
+}
+
+/* Question Container - на весь экран */
+.question-container {
+  padding: 16px;
+  flex: 1;
 }
 
 .question-card {
   background: #ffffff;
-  border-radius: 14px;
-  padding: 16px;
-  margin-bottom: 12px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  border: 1px solid #e5e7eb;
 }
 
-.question-number {
-  font-size: 13px;
-  color: #6b7280;
-  margin-bottom: 8px;
+.question-meta {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-bottom: 12px;
+}
+
+.question-num {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1E40AF;
 }
 
 .question-points {
   background: #fef3c7;
   color: #92400e;
-  padding: 2px 8px;
-  border-radius: 6px;
+  padding: 4px 10px;
+  border-radius: 8px;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .question-text {
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 600;
   color: #1f2937;
-  margin-bottom: 12px;
   line-height: 1.5;
+  margin-bottom: 20px;
 }
 
-/* Question types */
+/* ========== ТИПЫ ВОПРОСОВ - ЭРГОНОМИЧНЫЕ ========== */
+
+/* Варианты ответов (single/multiple choice) */
 .question-options {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .option-btn {
   background: #ffffff;
   border: 2px solid #e5e7eb;
-  border-radius: 10px;
-  padding: 12px;
+  border-radius: 12px;
+  padding: 16px;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   cursor: pointer;
   transition: all 0.2s ease;
   text-align: left;
-  font-size: 14px;
+  font-size: 15px;
   width: 100%;
 }
 
@@ -465,16 +468,16 @@
 }
 
 .option-letter {
-  width: 26px;
-  height: 26px;
-  border-radius: 6px;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
   background: #f3f4f6;
   color: #6b7280;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 700;
-  font-size: 13px;
+  font-size: 15px;
   flex-shrink: 0;
 }
 
@@ -486,35 +489,46 @@
 .option-text {
   flex: 1;
   color: #1f2937;
+  line-height: 1.4;
 }
 
-.text-input, .number-input, .blank-input {
+/* Текстовый ввод */
+.text-input-container, 
+.number-input-container {
   width: 100%;
-  padding: 10px 14px;
+}
+
+.text-input,
+.number-input {
+  width: 100%;
+  padding: 14px 16px;
   border: 2px solid #e5e7eb;
-  border-radius: 10px;
-  font-size: 14px;
+  border-radius: 12px;
+  font-size: 16px;
+  font-family: inherit;
   transition: border-color 0.2s ease;
 }
 
-.text-input:focus, .number-input:focus, .blank-input:focus {
+.text-input:focus,
+.number-input:focus {
   outline: none;
   border-color: #3B82F6;
 }
 
+/* True/False */
 .true-false-options {
   display: flex;
-  gap: 10px;
+  gap: 12px;
 }
 
 .tf-btn {
   flex: 1;
   background: #ffffff;
   border: 2px solid #e5e7eb;
-  border-radius: 10px;
-  padding: 12px;
-  font-size: 14px;
-  font-weight: 600;
+  border-radius: 12px;
+  padding: 18px;
+  font-size: 16px;
+  font-weight: 700;
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -529,42 +543,240 @@
   color: #1E40AF;
 }
 
-.submit-section {
-  padding: 16px;
+/* MATCHING - соединения - КРУПНЫЕ ЭЛЕМЕНТЫ */
+.matching-container {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
-.submit-btn {
+.matching-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: #f9fafb;
+  padding: 14px;
+  border-radius: 12px;
+  border: 2px solid #e5e7eb;
+}
+
+.matching-left {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1f2937;
+  padding: 4px 0;
+}
+
+.matching-select {
   width: 100%;
-  background: linear-gradient(135deg, #10b981 0%, #34d399 100%);
+  padding: 12px 14px;
+  border: 2px solid #d1d5db;
+  border-radius: 10px;
+  font-size: 15px;
+  background: #ffffff;
+  font-family: inherit;
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  padding-right: 36px;
+}
+
+.matching-select:focus {
+  outline: none;
+  border-color: #3B82F6;
+}
+
+/* ORDERING - порядок - КРУПНЫЕ ЭЛЕМЕНТЫ */
+.ordering-container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ordering-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #ffffff;
+  border: 2px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 14px;
+  transition: all 0.2s ease;
+}
+
+.ordering-item:hover {
+  border-color: #3B82F6;
+}
+
+.order-number {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #1E40AF 0%, #3B82F6 100%);
   color: #ffffff;
-  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.order-text {
+  flex: 1;
+  font-size: 15px;
+  color: #1f2937;
+  line-height: 1.4;
+}
+
+.order-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.order-btn {
+  width: 36px;
+  height: 32px;
+  background: #f3f4f6;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #1f2937;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.order-btn:hover {
+  background: #3B82F6;
+  color: #ffffff;
+  border-color: #3B82F6;
+}
+
+/* FILL IN BLANK */
+.fill-blank-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.blank-text {
+  font-size: 16px;
+  color: #1f2937;
+  line-height: 1.6;
+  padding: 12px;
+  background: #f9fafb;
+  border-radius: 10px;
+}
+
+.blank-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.blank-input-group label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.blank-input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 2px solid #e5e7eb;
+  border-radius: 10px;
+  font-size: 15px;
+}
+
+.blank-input:focus {
+  outline: none;
+  border-color: #3B82F6;
+}
+
+/* ========== НАВИГАЦИЯ ========== */
+
+.hw-navigation {
+  display: flex;
+  gap: 10px;
+  padding: 0 16px 12px;
+}
+
+.hw-nav-btn {
   padding: 14px;
   border-radius: 12px;
   font-size: 15px;
   font-weight: 700;
   cursor: pointer;
+  border: none;
   transition: all 0.2s ease;
-  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
 }
 
-.submit-btn:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4);
+.hw-nav-btn.secondary {
+  background: #f3f4f6;
+  color: #374151;
+  flex: 0.5;
 }
 
-.submit-btn:disabled {
-  background: #d1d5db;
+.hw-nav-btn.secondary:disabled {
+  opacity: 0.4;
   cursor: not-allowed;
-  box-shadow: none;
 }
 
-/* Homework Result */
+.hw-nav-btn.primary {
+  background: linear-gradient(135deg, #1E40AF 0%, #3B82F6 100%);
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(30, 64, 175, 0.3);
+  flex: 1;
+}
+
+.hw-nav-btn.primary:disabled {
+  background: #d1d5db;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+/* Точки внизу */
+.hw-dots {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 16px 16px;
+  flex-wrap: wrap;
+}
+
+.hw-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: none;
+  background: #e5e7eb;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  padding: 0;
+}
+
+.hw-dot.answered {
+  background: #93c5fd;
+}
+
+.hw-dot.active {
+  background: #1E40AF;
+  transform: scale(1.4);
+}
+
+/* ========== РЕЗУЛЬТАТ ========== */
+
 .homework-result {
   padding: 30px 16px;
   text-align: center;
 }
 
-.homework-result .result-card {
+.result-card {
   max-width: 500px;
   margin: 0 auto;
   background: #ffffff;
@@ -653,7 +865,6 @@
 .empty-text {
   font-size: 15px;
   color: #6b7280;
-  line-height: 1.5;
 }
 
 /* Responsive */
@@ -661,28 +872,8 @@
   .page-header,
   .homework-header {
     padding: 12px 14px;
-    margin: 10px 10px 14px 10px;
-    border-radius: 14px;
+    margin: 10px 10px 0 10px;
   }
-
-  .page-header-title {
-    font-size: 16px;
-  }
-
-  .page-header-icon {
-    font-size: 22px;
-  }
-
-  .page-header .back-button {
-    padding: 6px 10px;
-    font-size: 12px;
-  }
-
-  .subjects-grid {
-    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
-    gap: 10px;
-  }
-  
   .section {
     padding: 0 12px 12px 12px;
   }
