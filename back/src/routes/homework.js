@@ -548,6 +548,14 @@ router.get('/student/:studentId/stats', async (req, res) => {
       }
     });
 
+    // Get all answers for these submissions to count correct ones
+    const submissionIds = submissions.map(s => s.id);
+    const allAnswers = submissionIds.length > 0
+      ? await HomeworkAnswer.findAll({
+          where: { submissionId: { [Op.in]: submissionIds } }
+        })
+      : [];
+
     // Calculate stats for each homework
     const homeworksWithStats = homeworks.map(hw => {
       const hwSubmissions = submissions.filter(s => s.homeworkId === hw.id);
@@ -557,10 +565,22 @@ router.get('/student/:studentId/stats', async (req, res) => {
           )
         : null;
 
+      // Считаем правильные ответы для лучшей попытки
+      let bestSubmissionWithCorrect = null;
+      if (bestSubmission) {
+        const answersForBest = allAnswers.filter(a => a.submissionId === bestSubmission.id);
+        const correctAnswers = answersForBest.filter(a => a.isCorrect).length;
+        bestSubmissionWithCorrect = {
+          ...bestSubmission.toJSON(),
+          correctAnswers,
+          totalAnswers: answersForBest.length
+        };
+      }
+
       return {
         ...hw.toJSON(),
         submissionCount: hwSubmissions.length,
-        bestSubmission
+        bestSubmission: bestSubmissionWithCorrect
       };
     });
 

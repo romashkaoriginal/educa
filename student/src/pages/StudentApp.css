@@ -159,7 +159,7 @@
 
 /* Button */
 .primary-button {
-  background: linear-gradient(135deg, #F59E0B 0%, #FBBF24 100%);
+  background: #3b82f6;
   color: #ffffff;
   border: none;
   padding: 14px 24px;
@@ -168,14 +168,15 @@
   font-size: 16px;
   cursor: pointer;
   transition: all 0.3s ease;
-  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+  box-shadow: none;
   width: 100%;
   margin-top: 12px;
 }
 
 .primary-button:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(245, 158, 11, 0.4);
+  background: #2563eb;
+  box-shadow: none;
 }
 
 .primary-button:active {

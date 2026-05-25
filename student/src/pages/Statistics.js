@@ -1,42 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import './Statistics.css';
 import { useData } from './DataContext';
 
-const API_URL = 'https://educa-production-a98e.up.railway.app/api';
-
 function Statistics({ studentId }) {
-  // Используем контекст
   const { practiceStats: stats, homeworkStats, loading: contextLoading } = useData();
-  
   const [activeTab, setActiveTab] = useState('practice');
-
-  const getHomeworkStatus = (homework) => {
-    const now = new Date();
-    const openDate = new Date(homework.openDate);
-    const closeDate = new Date(homework.closeDate);
-
-    if (now < openDate) return 'upcoming';
-    if (now > closeDate) return 'expired';
-    return 'active';
-  };
-
-  const getStatusLabel = (status) => {
-    switch (status) {
-      case 'upcoming': return '🕐 Скоро';
-      case 'active': return '✅ Активна';
-      case 'expired': return '⏰ Просрочена';
-      default: return '';
-    }
-  };
-
-  const getStatusClass = (status) => {
-    switch (status) {
-      case 'upcoming': return 'status-upcoming';
-      case 'active': return 'status-active';
-      case 'expired': return 'status-expired';
-      default: return '';
-    }
-  };
 
   if ((contextLoading.practiceStats || contextLoading.homeworkStats) && !stats && !homeworkStats) {
     return (
@@ -45,6 +13,56 @@ function Statistics({ studentId }) {
         <p style={{ textAlign: 'center', padding: '40px' }}>Загрузка...</p>
       </div>
     );
+  }
+
+  // Группируем topicStats по предметам для практики
+  const practiceBySubject = {};
+  if (stats?.topicStats) {
+    stats.topicStats.forEach(topic => {
+      const subjectName = topic.topic?.subject?.name || 'Без предмета';
+      const subjectIcon = topic.topic?.subject?.icon || '📖';
+      if (!practiceBySubject[subjectName]) {
+        practiceBySubject[subjectName] = { icon: subjectIcon, topics: [] };
+      }
+      practiceBySubject[subjectName].topics.push({
+        name: topic.topic?.name || 'Без названия',
+        icon: topic.topic?.icon || '📝',
+        total: topic.total || 0,
+        correct: topic.correct || 0,
+        percent: topic.successRate || 0,
+      });
+    });
+  }
+
+  // Группируем домашки по предметам
+  const homeworkBySubject = {};
+  if (homeworkStats?.homeworks) {
+    homeworkStats.homeworks.forEach(hw => {
+      const subjectName = hw.subject?.name || 'Без предмета';
+      const subjectIcon = hw.subject?.icon || '📖';
+      if (!homeworkBySubject[subjectName]) {
+        homeworkBySubject[subjectName] = { 
+          icon: subjectIcon, 
+          total: 0, 
+          completed: 0,
+          totalScore: 0,
+          maxScore: 0,
+          correctAnswers: 0,
+          totalQuestions: 0,
+        };
+      }
+      homeworkBySubject[subjectName].total += 1;
+      // Считаем все вопросы во всех ДЗ по предмету
+      const questionsInHw = (hw.questions || []).length;
+      homeworkBySubject[subjectName].totalQuestions += questionsInHw;
+      
+      if (hw.bestSubmission) {
+        homeworkBySubject[subjectName].completed += 1;
+        homeworkBySubject[subjectName].totalScore += hw.bestSubmission.totalScore || 0;
+        homeworkBySubject[subjectName].maxScore += hw.bestSubmission.maxScore || 0;
+        homeworkBySubject[subjectName].correctAnswers += hw.bestSubmission.correctAnswers || 0;
+      }
+    });
   }
 
   return (
@@ -66,289 +84,79 @@ function Statistics({ studentId }) {
         </button>
       </div>
 
-      {/* ВКЛАДКА: ПРАКТИКА */}
-      {activeTab === 'practice' && stats && (
+      {/* ===== ПРАКТИКА ===== */}
+      {activeTab === 'practice' && (
         <div className="stats-content">
-          {stats.stats.total === 0 ? (
+          {Object.keys(practiceBySubject).length === 0 ? (
             <div className="empty-state">
               <div className="empty-icon">📚</div>
               <p>Вы ещё не решали задания.</p>
               <p>Перейдите в раздел Практика!</p>
             </div>
           ) : (
-            <>
-              <div className="stats-summary">
-                <div className="stat-card">
-                  <div className="stat-icon">📝</div>
-                  <div className="stat-info">
-                    <div className="stat-label">Решено</div>
-                    <div className="stat-value">{stats.stats.total}</div>
-                  </div>
-                </div>
-
-                <div className="stat-card success">
-                  <div className="stat-icon">✅</div>
-                  <div className="stat-info">
-                    <div className="stat-label">Правильно</div>
-                    <div className="stat-value">{stats.stats.correct}</div>
-                  </div>
-                </div>
-
-                <div className="stat-card error">
-                  <div className="stat-icon">❌</div>
-                  <div className="stat-info">
-                    <div className="stat-label">Ошибок</div>
-                    <div className="stat-value">{stats.stats.incorrect}</div>
-                  </div>
-                </div>
-
-                <div className="stat-card">
-                  <div className="stat-icon">📈</div>
-                  <div className="stat-info">
-                    <div className="stat-label">Успешность</div>
-                    <div className="stat-value">{stats.stats.successRate}%</div>
-                  </div>
-                </div>
-              </div>
-
-              {stats.subjectStats && stats.subjectStats.length > 0 && (
-                <div className="stats-block">
-                  <h3>📚 По предметам</h3>
-                  <div className="subjects-list">
-                    {stats.subjectStats.map((subj, idx) => {
-                      const total = subj.total || 0;
-                      const correct = subj.correct || 0;
-                      const percent = subj.successRate || 0;
-                      return (
-                        <div key={idx} className="subject-stat-row">
-                          <div className="subject-info">
-                            <span className="subject-icon">{subj.subject?.icon || '📖'}</span>
-                            <span className="subject-name">{subj.subject?.name}</span>
-                          </div>
-                          <div className="subject-numbers">
-                            <span className="count">{correct}/{total}</span>
-                            <div className="progress-bar">
-                              <div className="progress-fill" style={{ width: `${percent}%` }}></div>
-                            </div>
-                            <span className={`percent ${percent >= 70 ? 'good' : percent >= 50 ? 'medium' : 'low'}`}>
-                              {percent}%
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {stats.topicStats && stats.topicStats.length > 0 && (
-                <div className="stats-block">
-                  <h3>📑 По подразделам</h3>
-                  <div className="topics-list">
-                    {stats.topicStats.map((topic, idx) => {
-                      const total = topic.total || 0;
-                      const correct = topic.correct || 0;
-                      const percent = topic.successRate || 0;
-                      return (
-                        <div key={idx} className="topic-stat-row">
-                          <div className="topic-info">
-                            <span className="topic-icon">{topic.topic?.icon || '📝'}</span>
-                            <div>
-                              <div className="topic-name">{topic.topic?.name}</div>
-                              <div className="topic-subject">{topic.topic?.subject?.name}</div>
-                            </div>
-                          </div>
-                          <div className="topic-numbers">
-                            <span className="count">{correct}/{total}</span>
-                            <span className={`percent ${percent >= 70 ? 'good' : percent >= 50 ? 'medium' : 'low'}`}>
-                              {percent}%
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {stats.recentAttempts && stats.recentAttempts.length > 0 && (
-                <div className="stats-block">
-                  <h3>🕐 Последние решения</h3>
-                  <div className="recent-list">
-                    {stats.recentAttempts.map((att, idx) => (
-                      <div key={idx} className={`recent-item ${att.isCorrect ? 'correct' : 'incorrect'}`}>
-                        <div className="recent-icon">{att.isCorrect ? '✅' : '❌'}</div>
-                        <div className="recent-info">
-                          <div className="recent-question">
-                            {att.question?.questionText?.substring(0, 70)}
-                            {att.question?.questionText?.length > 70 ? '...' : ''}
-                          </div>
-                          <div className="recent-meta">
-                            {att.subject?.icon} {att.subject?.name} • {att.topic?.name}
-                          </div>
-                        </div>
-                        <div className="recent-date">
-                          {new Date(att.createdAt).toLocaleDateString('ru-RU')}
+            Object.entries(practiceBySubject).map(([subjectName, data]) => (
+              <div key={subjectName} className="stats-block">
+                <h3>{data.icon} {subjectName}</h3>
+                <div className="topics-list">
+                  {data.topics.map((topic, idx) => (
+                    <div key={idx} className="topic-stat-row">
+                      <div className="topic-info">
+                        <span className="topic-icon">{topic.icon}</span>
+                        <div>
+                          <div className="topic-name">{topic.name}</div>
                         </div>
                       </div>
-                    ))}
-                  </div>
+                      <div className="topic-numbers">
+                        <span className="count">{topic.correct}/{topic.total}</span>
+                        <span className={`percent ${topic.percent >= 70 ? 'good' : topic.percent >= 50 ? 'medium' : 'low'}`}>
+                          {topic.percent}%
+                        </span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              )}
-            </>
+              </div>
+            ))
           )}
         </div>
       )}
 
-      {/* ВКЛАДКА: ДОМАШКА */}
+      {/* ===== ДОМАШКА ===== */}
       {activeTab === 'homework' && (
         <div className="stats-content">
-          {!homeworkStats || homeworkStats.homeworks?.length === 0 ? (
+          {Object.keys(homeworkBySubject).length === 0 ? (
             <div className="empty-state">
               <div className="empty-icon">📝</div>
               <p>У вас пока нет домашних заданий.</p>
-              <p>Они появятся, когда преподаватель их создаст!</p>
             </div>
           ) : (
-            <>
-              <div className="stats-summary">
-                <div className="stat-card">
-                  <div className="stat-icon">📚</div>
-                  <div className="stat-info">
-                    <div className="stat-label">Всего</div>
-                    <div className="stat-value">{homeworkStats.total || 0}</div>
-                  </div>
-                </div>
-
-                <div className="stat-card success">
-                  <div className="stat-icon">✅</div>
-                  <div className="stat-info">
-                    <div className="stat-label">Выполнено</div>
-                    <div className="stat-value">{homeworkStats.completed || 0}</div>
-                  </div>
-                </div>
-
-                <div className="stat-card">
-                  <div className="stat-icon">⏳</div>
-                  <div className="stat-info">
-                    <div className="stat-label">Активных</div>
-                    <div className="stat-value">{homeworkStats.active || 0}</div>
-                  </div>
-                </div>
-
-                <div className="stat-card">
-                  <div className="stat-icon">📈</div>
-                  <div className="stat-info">
-                    <div className="stat-label">Ср. балл</div>
-                    <div className="stat-value">{homeworkStats.avgScore || 0}%</div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="stats-block">
-                <h3>📝 Домашние задания</h3>
-                <div className="homework-stats-list">
-                  {homeworkStats.homeworks.map((hw) => {
-                    const status = getHomeworkStatus(hw);
-                    const submission = hw.bestSubmission;
-                    const percentage = submission 
-                      ? Math.round((submission.totalScore / submission.maxScore) * 100)
-                      : 0;
-
-                    return (
-                      <div key={hw.id} className="homework-stat-card">
-                        <div className="hw-stat-header">
-                          <div className="hw-stat-title-block">
-                            <span className="hw-stat-icon">{hw.subject?.icon || '📖'}</span>
-                            <div>
-                              <div className="hw-stat-title">{hw.title}</div>
-                              <div className="hw-stat-subject">{hw.subject?.name}</div>
-                            </div>
-                          </div>
-                          <span className={`hw-status-badge ${getStatusClass(status)}`}>
-                            {getStatusLabel(status)}
-                          </span>
-                        </div>
-
-                        {submission ? (
-                          <div className="hw-stat-result">
-                            <div className="hw-stat-score">
-                              <span className="hw-score-label">Лучший результат:</span>
-                              <span className="hw-score-value">
-                                {submission.totalScore}/{submission.maxScore} ({percentage}%)
-                              </span>
-                            </div>
-                            <div className="progress-bar">
-                              <div 
-                                className="progress-fill" 
-                                style={{ 
-                                  width: `${percentage}%`,
-                                  background: percentage >= 70 
-                                    ? 'linear-gradient(90deg, #10b981 0%, #34d399 100%)' 
-                                    : percentage >= 50 
-                                    ? 'linear-gradient(90deg, #f59e0b 0%, #fbbf24 100%)' 
-                                    : 'linear-gradient(90deg, #ef4444 0%, #f87171 100%)'
-                                }}
-                              ></div>
-                            </div>
-                            <div className="hw-stat-attempts">
-                              Попыток: {hw.submissionCount || 1}
-                              {hw.maxAttempts && ` из ${hw.maxAttempts}`}
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="hw-stat-not-completed">
-                            <span className="not-completed-icon">📋</span>
-                            <span>Не выполнено</span>
-                          </div>
-                        )}
-
-                        <div className="hw-stat-dates">
-                          <div className="hw-date-item">
-                            <span className="hw-date-label">📅 Открыто:</span>
-                            <span className="hw-date-value">
-                              {new Date(hw.openDate).toLocaleString('ru-RU', {
-                                day: '2-digit',
-                                month: '2-digit',
-                                year: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })}
-                            </span>
-                          </div>
-                          <div className="hw-date-item">
-                            <span className="hw-date-label">⏰ Дедлайн:</span>
-                            <span className={`hw-date-value ${status === 'expired' ? 'expired' : ''}`}>
-                              {new Date(hw.closeDate).toLocaleString('ru-RU', {
-                                day: '2-digit',
-                                month: '2-digit',
-                                year: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })}
-                            </span>
-                          </div>
-                          {submission && (
-                            <div className="hw-date-item">
-                              <span className="hw-date-label">✅ Выполнено:</span>
-                              <span className="hw-date-value">
-                                {new Date(submission.submittedAt).toLocaleString('ru-RU', {
-                                  day: '2-digit',
-                                  month: '2-digit',
-                                  year: 'numeric',
-                                  hour: '2-digit',
-                                  minute: '2-digit'
-                                })}
-                              </span>
-                            </div>
-                          )}
-                        </div>
+            <div className="stats-block">
+              <h3>📝 По предметам</h3>
+              <div className="subjects-list">
+                {Object.entries(homeworkBySubject).map(([subjectName, data]) => {
+                  const scorePercent = data.maxScore > 0 
+                    ? Math.round((data.totalScore / data.maxScore) * 100) 
+                    : 0;
+                  return (
+                    <div key={subjectName} className="subject-stat-row">
+                      <div className="subject-info">
+                        <span className="subject-icon">{data.icon}</span>
+                        <span className="subject-name">{subjectName}</span>
                       </div>
-                    );
-                  })}
-                </div>
+                      <div className="subject-numbers">
+                        <span className="count">{data.correctAnswers}/{data.totalQuestions}</span>
+                        <div className="progress-bar">
+                          <div className="progress-fill" style={{ width: `${scorePercent}%` }}></div>
+                        </div>
+                        <span className={`percent ${scorePercent >= 70 ? 'good' : scorePercent >= 50 ? 'medium' : 'low'}`}>
+                          {scorePercent}%
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            </>
+            </div>
           )}
         </div>
       )}
