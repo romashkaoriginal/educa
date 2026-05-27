@@ -60,7 +60,11 @@ function Statistics({ studentId }) {
         homeworkBySubject[subjectName].completed += 1;
         homeworkBySubject[subjectName].totalScore += hw.bestSubmission.totalScore || 0;
         homeworkBySubject[subjectName].maxScore += hw.bestSubmission.maxScore || 0;
-        homeworkBySubject[subjectName].correctAnswers += hw.bestSubmission.correctAnswers || 0;
+        // Фоллбэк: если correctAnswers нет в ответе, считаем по проценту от вопросов
+        const correct = hw.bestSubmission.correctAnswers !== undefined
+          ? hw.bestSubmission.correctAnswers
+          : Math.round((hw.bestSubmission.totalScore / hw.bestSubmission.maxScore) * questionsInHw);
+        homeworkBySubject[subjectName].correctAnswers += correct;
       }
     });
   }
