@@ -260,12 +260,12 @@ function startBot() {
 
       if (isCorrect) {
         session.score++;
-        await bot.sendMessage(chatId, `✅ <b>Правильно!</b>`, { parse_mode: 'HTML' });
+        await bot.sendMessage(chatId, `✅ <b>Правильно!</b>${q.explanation ? `\n\n💡 ${q.explanation}` : ''}`, { parse_mode: 'HTML' });
       } else {
         const correctLetter = String.fromCharCode(65 + q.correctAnswer);
         await bot.sendMessage(
           chatId,
-          `❌ <b>Неправильно.</b>\n\nПравильный ответ: <b>${correctLetter}. ${q.options[q.correctAnswer]}</b>`,
+          `❌ <b>Неправильно.</b>\n\nПравильный ответ: <b>${correctLetter}. ${q.options[q.correctAnswer]}</b>${q.explanation ? `\n\n💡 ${q.explanation}` : ''}`,
           { parse_mode: 'HTML' }
         );
       }

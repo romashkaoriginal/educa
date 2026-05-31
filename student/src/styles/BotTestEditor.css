@@ -339,3 +339,14 @@
   padding: 16px 24px;
   border-top: 1px solid #e5e7eb;
 }
+
+.bte-explanation {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: #fffbeb;
+  border-left: 3px solid #f59e0b;
+  border-radius: 0 8px 8px 0;
+  font-size: 13px;
+  color: #92400e;
+  line-height: 1.5;
+}

@@ -8,7 +8,8 @@ const BotTest = sequelize.define('BotTest', {
   options: { type: DataTypes.JSONB, allowNull: false }, // ['вариант A', 'вариант B', ...]
   correctAnswer: { type: DataTypes.INTEGER, allowNull: false }, // индекс правильного ответа
   order: { type: DataTypes.INTEGER, defaultValue: 0 },
-  isActive: { type: DataTypes.BOOLEAN, defaultValue: true }
+  isActive: { type: DataTypes.BOOLEAN, defaultValue: true },
+  explanation: { type: DataTypes.TEXT, allowNull: true } // необязательное объяснение
 }, {
   tableName: 'bot_tests',
   timestamps: true

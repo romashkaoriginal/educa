@@ -16,6 +16,7 @@ function BotTestEditor({ subjects }) {
     questionText: '',
     options: ['', '', '', ''],
     correctAnswer: 0,
+    explanation: '',
     order: 0
   });
 
@@ -36,6 +37,7 @@ function BotTestEditor({ subjects }) {
     questionText: '',
     options: ['', '', '', ''],
     correctAnswer: 0,
+    explanation: '',
     order: 0
   });
 
@@ -52,6 +54,7 @@ function BotTestEditor({ subjects }) {
       questionText: q.questionText,
       options: [...q.options],
       correctAnswer: q.correctAnswer,
+      explanation: q.explanation || '',
       order: q.order || 0
     });
     setShowModal(true);
@@ -67,6 +70,7 @@ function BotTestEditor({ subjects }) {
       questionText: form.questionText.trim(),
       options: form.options.map(o => o.trim()),
       correctAnswer: form.correctAnswer,
+      explanation: form.explanation.trim() || null,
       order: parseInt(form.order) || 0
     };
 
@@ -114,7 +118,6 @@ function BotTestEditor({ subjects }) {
     });
   };
 
-  // Группируем по предметам
   const bySubject = {};
   questions.forEach(q => {
     const sId = q.subjectId;
@@ -173,7 +176,6 @@ function BotTestEditor({ subjects }) {
                 const isExpanded = expandedIds.has(q.id);
                 return (
                   <div key={q.id} className={`bte-question-card ${!q.isActive ? 'inactive' : ''}`}>
-                    {/* Шапка */}
                     <div className="bte-q-header" onClick={() => toggleExpand(q.id)}>
                       <div className="bte-q-header-left">
                         <span className="bte-expand-icon">{isExpanded ? '▼' : '▶'}</span>
@@ -192,7 +194,6 @@ function BotTestEditor({ subjects }) {
                       </div>
                     </div>
 
-                    {/* Тело */}
                     {isExpanded && (
                       <div className="bte-q-body">
                         <p className="bte-q-text">{q.questionText}</p>
@@ -205,6 +206,11 @@ function BotTestEditor({ subjects }) {
                             </div>
                           ))}
                         </div>
+                        {q.explanation && (
+                          <div className="bte-explanation">
+                            💡 {q.explanation}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -225,7 +231,6 @@ function BotTestEditor({ subjects }) {
             </div>
 
             <div className="bte-modal-body">
-              {/* Предмет */}
               <div className="bte-form-group">
                 <label>Предмет *</label>
                 <select value={form.subjectId} onChange={e => setForm({...form, subjectId: e.target.value})}>
@@ -236,7 +241,6 @@ function BotTestEditor({ subjects }) {
                 </select>
               </div>
 
-              {/* Текст вопроса */}
               <div className="bte-form-group">
                 <label>Текст вопроса *</label>
                 <textarea
@@ -247,7 +251,6 @@ function BotTestEditor({ subjects }) {
                 />
               </div>
 
-              {/* Варианты ответов */}
               <div className="bte-form-group">
                 <label>Варианты ответа * <span style={{fontWeight:400,color:'#9ca3af',fontSize:12}}>(отметьте правильный)</span></label>
                 {form.options.map((opt, i) => (
@@ -283,7 +286,16 @@ function BotTestEditor({ subjects }) {
                 )}
               </div>
 
-              {/* Порядок */}
+              <div className="bte-form-group">
+                <label>Объяснение <span style={{fontWeight:400,color:'#9ca3af',fontSize:12}}>(необязательно — показывается после ответа)</span></label>
+                <textarea
+                  rows={2}
+                  placeholder="Почему этот ответ правильный..."
+                  value={form.explanation}
+                  onChange={e => setForm({...form, explanation: e.target.value})}
+                />
+              </div>
+
               <div className="bte-form-group">
                 <label>Порядок <span style={{fontWeight:400,color:'#9ca3af',fontSize:12}}>(меньше = раньше)</span></label>
                 <input
