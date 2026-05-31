@@ -328,7 +328,11 @@ function startBot() {
     }
   });
 
-  bot.on('polling_error', (error) => console.error('❌ Polling error:', error));
+  bot.on('polling_error', (error) => {
+    // ECONNRESET и EFATAL - временные сетевые ошибки, бот переподключится сам
+    if (error.code === 'EFATAL' || error.code === 'ECONNRESET') return;
+    console.error('❌ Polling error:', error.message);
+  });
   bot.on('error', (error) => console.error('❌ Bot error:', error));
 }
 
