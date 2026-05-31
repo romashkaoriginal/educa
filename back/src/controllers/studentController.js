@@ -1,4 +1,4 @@
-const { User, Subject, UserSubject } = require('../models');
+const { User, Subject, UserSubject, HomeworkSubmission, HomeworkAnswer, PracticeAttempt, BotUser } = require('../models');
 const { Op } = require('sequelize');
 
 // Получить всех студентов
@@ -66,7 +66,7 @@ exports.createStudent = async (req, res) => {
       telegramId: telegramId || null,
       telegramUsername: telegramUsername || null,
       firstName,
-      lastName: lastName || null, // ИСПРАВЛЕНО: если фамилия пустая, сохраняем null
+      lastName: lastName || null,
       role: 'student',
       isActive: true
     });
@@ -74,13 +74,11 @@ exports.createStudent = async (req, res) => {
     // Привязываем предметы с индивидуальными датами доступа
     if (subjectIds && subjectIds.length > 0) {
       for (const subjectId of subjectIds) {
-        // Берём индивидуальные даты для предмета, если есть
         const subjectAccess = subjectAccessDates?.[subjectId] || {};
         
         let startDate = subjectAccess.startDate || null;
         let endDate = subjectAccess.endDate || null;
         
-        // Валидация: если пустая строка или 'Invalid date' - ставим null
         if (startDate === '' || startDate === 'Invalid date') startDate = null;
         if (endDate === '' || endDate === 'Invalid date') endDate = null;
         
@@ -106,7 +104,6 @@ exports.createStudent = async (req, res) => {
     });
 
     // ВАЖНО: Обновляем BotUser если такой есть
-    const { BotUser } = require('../models');
     const botUser = await BotUser.findOne({ where: { telegramId } });
     if (botUser) {
       botUser.isAssigned = true;
@@ -150,7 +147,6 @@ exports.updateStudent = async (req, res) => {
     if (telegramId !== undefined) student.telegramId = telegramId || null;
     if (telegramUsername !== undefined) student.telegramUsername = telegramUsername || null;
     if (firstName !== undefined) student.firstName = firstName;
-    // ИСПРАВЛЕНО: разрешаем устанавливать пустую фамилию
     if (lastName !== undefined) student.lastName = lastName || null;
     if (typeof isActive === 'boolean') student.isActive = isActive;
 
@@ -183,7 +179,6 @@ exports.updateStudent = async (req, res) => {
 
     // Обновляем BotUser если нужно
     if (telegramId) {
-      const { BotUser } = require('../models');
       const botUser = await BotUser.findOne({ where: { telegramId } });
       if (botUser && !botUser.isAssigned) {
         botUser.isAssigned = true;
@@ -274,14 +269,12 @@ exports.updateStudentAccess = async (req, res) => {
       return res.status(404).json({ message: 'Student not found' });
     }
 
-    // Обновляем даты доступа
     if (accessStartDate !== undefined) student.accessStartDate = accessStartDate;
     if (accessEndDate !== undefined) student.accessEndDate = accessEndDate;
     if (typeof isActive === 'boolean') student.isActive = isActive;
 
     await student.save();
 
-    // Получаем обновлённого студента с предметами
     const updatedStudent = await User.findByPk(studentId, {
       include: [{
         model: Subject,
@@ -306,15 +299,13 @@ exports.updateStudentAccess = async (req, res) => {
 exports.extendStudentAccess = async (req, res) => {
   try {
     const { studentId } = req.params;
-    const { days } = req.body; // Количество дней для продления
+    const { days } = req.body;
 
     const student = await User.findByPk(studentId);
     if (!student || student.role !== 'student') {
       return res.status(404).json({ message: 'Student not found' });
     }
 
-    // Если есть дата окончания - продлеваем от неё
-    // Если нет - ставим от текущей даты
     const baseDate = student.accessEndDate 
       ? new Date(student.accessEndDate) 
       : new Date();
@@ -337,7 +328,7 @@ exports.extendStudentAccess = async (req, res) => {
   }
 };
 
-// Удалить студента
+// Удалить студента каскадно
 exports.deleteStudent = async (req, res) => {
   try {
     const { studentId } = req.params;
@@ -347,21 +338,37 @@ exports.deleteStudent = async (req, res) => {
       return res.status(404).json({ message: 'Student not found' });
     }
 
-    const telegramId = student.telegramId;
+    // 1. Находим все submissions чтобы удалить их ответы
+    const submissions = await HomeworkSubmission.findAll({
+      where: { userId: studentId },
+      attributes: ['id']
+    });
+    const submissionIds = submissions.map(s => s.id);
 
-    // Удаляем студента
-    await student.destroy();
-
-    // ВАЖНО: Обновляем BotUser если есть
-    if (telegramId) {
-      const { BotUser } = require('../models');
-      const botUser = await BotUser.findOne({ where: { telegramId } });
-      if (botUser) {
-        botUser.isAssigned = false;
-        botUser.userId = null;
-        await botUser.save();
-      }
+    // 2. Удаляем HomeworkAnswer
+    if (submissionIds.length > 0) {
+      await HomeworkAnswer.destroy({ where: { submissionId: submissionIds } });
     }
+
+    // 3. Удаляем HomeworkSubmission
+    await HomeworkSubmission.destroy({ where: { userId: studentId } });
+
+    // 4. Удаляем PracticeAttempt
+    await PracticeAttempt.destroy({ where: { studentId } });
+
+    // 5. Удаляем UserSubject
+    await UserSubject.destroy({ where: { userId: studentId } });
+
+    // 6. Снимаем привязку BotUser (не удаляем, чтобы пользователь остался в истории)
+    const botUser = await BotUser.findOne({ where: { userId: studentId } });
+    if (botUser) {
+      botUser.isAssigned = false;
+      botUser.userId = null;
+      await botUser.save();
+    }
+
+    // 7. Удаляем студента
+    await student.destroy();
 
     res.json({ message: 'Student deleted successfully' });
   } catch (error) {
@@ -386,7 +393,6 @@ exports.assignUserAsStudent = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Меняем роль на студента
     user.role = 'student';
     user.isActive = true;
     user.accessStartDate = accessStartDate || new Date();
@@ -394,9 +400,7 @@ exports.assignUserAsStudent = async (req, res) => {
 
     await user.save();
 
-    // Привязываем предметы
     if (subjectIds && subjectIds.length > 0) {
-      // Удаляем старые связи если были
       await UserSubject.destroy({ where: { userId: user.id } });
 
       for (const subjectId of subjectIds) {
@@ -412,7 +416,6 @@ exports.assignUserAsStudent = async (req, res) => {
       }
     }
 
-    // Получаем обновлённого пользователя
     const updatedUser = await User.findByPk(user.id, {
       include: [{
         model: Subject,
