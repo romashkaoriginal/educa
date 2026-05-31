@@ -1,4 +1,4 @@
-const { User, Subject, UserSubject, HomeworkSubmission, HomeworkAnswer, PracticeAttempt, BotUser } = require('../models');
+const { User, Subject, UserSubject, HomeworkSubmission, HomeworkAnswer, PracticeAttempt, BotUser, QuizAnswer, QuizParticipant } = require('../models');
 const { Op } = require('sequelize');
 
 // Получить всех студентов
@@ -356,10 +356,14 @@ exports.deleteStudent = async (req, res) => {
     // 4. Удаляем PracticeAttempt
     await PracticeAttempt.destroy({ where: { studentId } });
 
-    // 5. Удаляем UserSubject
+    // 5. Удаляем QuizAnswer и QuizParticipant
+    await QuizAnswer.destroy({ where: { userId: studentId } });
+    await QuizParticipant.destroy({ where: { userId: studentId } });
+
+    // 6. Удаляем UserSubject
     await UserSubject.destroy({ where: { userId: studentId } });
 
-    // 6. Снимаем привязку BotUser (не удаляем, чтобы пользователь остался в истории)
+    // 7. Снимаем привязку BotUser
     const botUser = await BotUser.findOne({ where: { userId: studentId } });
     if (botUser) {
       botUser.isAssigned = false;
@@ -367,7 +371,7 @@ exports.deleteStudent = async (req, res) => {
       await botUser.save();
     }
 
-    // 7. Удаляем студента
+    // 8. Удаляем студента
     await student.destroy();
 
     res.json({ message: 'Student deleted successfully' });
