@@ -2,6 +2,7 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
+const compression = require('compression');
 require('dotenv').config();
 
 const { syncDatabase } = require('./models');
@@ -38,6 +39,9 @@ const io = new Server(server, {
   }
 });
 
+// Сжатие gzip — уменьшает размер ответов в 3-5 раз
+app.use(compression());
+
 app.use(cors({
   origin: [
     'https://educa-student.vercel.app',
@@ -47,6 +51,14 @@ app.use(cors({
   credentials: true
 }));
 app.use(express.json());
+
+// Кэширование статичных данных (предметы меняются редко)
+app.use('/api/subjects', (req, res, next) => {
+  if (req.method === 'GET') {
+    res.set('Cache-Control', 'public, max-age=60'); // 60 секунд
+  }
+  next();
+});
 
 app.use('/api/auth', authRoutes);
 app.use('/api/subjects', subjectRoutes);
@@ -67,6 +79,15 @@ app.get('/', (req, res) => {
   res.json({ message: 'Educa Backend API + Telegram Bot + WebSocket' });
 });
 
+// Keepalive — не даём Railway засыпать
+const SELF_URL = process.env.RAILWAY_STATIC_URL
+  ? `https://${process.env.RAILWAY_STATIC_URL}`
+  : `http://localhost:${PORT}`;
+
+setInterval(() => {
+  fetch(SELF_URL).catch(() => {});
+}, 4 * 60 * 1000); // каждые 4 минуты
+
 const startServer = async () => {
   const sequelize = require('./config/database');
 
@@ -76,6 +97,7 @@ const startServer = async () => {
   server.listen(PORT, () => {
     console.log(`🚀 Server running on http://localhost:${PORT}`);
     console.log(`🔌 WebSocket ready for quizzes`);
+    console.log(`📦 Compression enabled`);
     startBot();
   });
 };
