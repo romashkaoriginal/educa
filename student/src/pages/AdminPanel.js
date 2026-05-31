@@ -7,6 +7,7 @@ import Homework from '../components/admin/Homework';
 import Statistics from '../components/admin/Statistics';
 import Quiz from '../components/admin/Quiz';
 import Notifications from '../components/admin/Notifications';
+import BotTestEditor from '../components/admin/BotTestEditor';
 
 const API_URL = 'https://educa-production-a98e.up.railway.app/api';
 
@@ -68,6 +69,7 @@ function AdminPanel() {
     { id: 'homework', name: 'Дом. задание', icon: '📝' },
     { id: 'statistics', name: 'Статистика', icon: '📊' },
     { id: 'notifications', name: 'Уведомления', icon: '📣' },
+    { id: 'bottest', name: 'Тест бота', icon: '🤖' },
   ];
 
   return (
@@ -100,6 +102,7 @@ function AdminPanel() {
         {activeSection === 'homework' && <Homework subjects={subjects} currentUserId={currentUser?.id} />}
         {activeSection === 'statistics' && <Statistics />}
         {activeSection === 'notifications' && <Notifications subjects={subjects} currentUser={currentUser} />}
+        {activeSection === 'bottest' && <BotTestEditor subjects={subjects} />}
         {activeSection === 'quiz' && (
           <Quiz subjects={subjects} currentUserId={currentUser?.id} />
         )}
