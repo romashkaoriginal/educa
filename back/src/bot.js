@@ -143,8 +143,17 @@ function startBot() {
 
     if (systemUser) {
       if (!systemUser.isActive) {
+        // Убираем кнопку меню
+        await bot.setChatMenuButton(chatId, { type: 'default' });
         return bot.sendMessage(chatId, `❌ Ваш аккаунт деактивирован.\n\nОбратитесь к администратору.`);
       }
+
+      // Показываем кнопку меню с апкой
+      await bot.setChatMenuButton(chatId, {
+        type: 'web_app',
+        text: '📚 Открыть приложение',
+        web_app: { url: webAppUrl }
+      });
 
       const roleEmoji = { admin: '👨‍💼', teacher: '👨‍🏫', manager: '📊', student: '👨‍🎓' };
       const roleNames = { admin: 'Администратор', teacher: 'Преподаватель', manager: 'Менеджер', student: 'Ученик' };
@@ -160,7 +169,8 @@ function startBot() {
       );
     }
 
-    // Неавторизованный — предлагаем тест
+    // Неавторизованный — убираем кнопку меню
+    await bot.setChatMenuButton(chatId, { type: 'default' });
     await showSubjectPicker(chatId, firstName);
   });
 
