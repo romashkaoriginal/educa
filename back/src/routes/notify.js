@@ -3,10 +3,8 @@ const router = express.Router();
 const { User, Subject, UserSubject, HomeworkSubmission, Homework, NotificationLog } = require('../models');
 const { getBot } = require('../bot');
 const { Op } = require('sequelize');
-const sequelize = require('../config/database');
 
-// ===== GET /api/notify/preview =====
-// Возвращает список учеников по фильтрам (для превью получателей)
+// POST /api/notify/preview
 router.post('/preview', async (req, res) => {
   try {
     const students = await getFilteredStudents(req.body);
@@ -20,9 +18,9 @@ router.post('/preview', async (req, res) => {
   }
 });
 
-// ===== POST /api/notify/send =====
+// POST /api/notify/send
 router.post('/send', async (req, res) => {
-  const { filters, text, sentBy, sentByName } = req.body;
+  const { filters, studentId, text, sentBy, sentByName, sentByRole } = req.body;
 
   if (!text || !text.trim()) {
     return res.status(400).json({ message: 'Введите текст сообщения' });
@@ -34,10 +32,20 @@ router.post('/send', async (req, res) => {
   }
 
   try {
-    const students = await getFilteredStudents(filters || {});
+    let students;
+
+    // Одиночная отправка конкретному ученику
+    if (studentId) {
+      const student = await User.findByPk(studentId, {
+        attributes: ['id', 'telegramId', 'firstName', 'lastName']
+      });
+      students = student ? [student] : [];
+    } else {
+      students = await getFilteredStudents(filters || {});
+    }
 
     if (students.length === 0) {
-      return res.status(400).json({ message: 'Нет получателей по выбранным фильтрам' });
+      return res.status(400).json({ message: 'Нет получателей' });
     }
 
     const results = { sent: [], failed: [] };
@@ -55,16 +63,20 @@ router.post('/send', async (req, res) => {
       }
     }
 
-    // Сохраняем в историю
+    // Сохраняем лог
     await NotificationLog.create({
       sentBy: sentBy || 0,
       sentByName: sentByName || 'Администратор',
+      sentByRole: sentByRole || 'admin',
       text: text.trim(),
-      filters: filters || {},
+      filters: studentId ? { studentId } : (filters || {}),
       recipientCount: students.length,
       successCount: results.sent.length,
       failedCount: results.failed.length,
-      recipients: [...results.sent.map(s => ({ ...s, status: 'sent' })), ...results.failed.map(s => ({ ...s, status: 'failed' }))]
+      recipients: [
+        ...results.sent.map(s => ({ ...s, status: 'sent' })),
+        ...results.failed.map(s => ({ ...s, status: 'failed' }))
+      ]
     });
 
     res.json({
@@ -77,7 +89,7 @@ router.post('/send', async (req, res) => {
   }
 });
 
-// ===== GET /api/notify/history =====
+// GET /api/notify/history
 router.get('/history', async (req, res) => {
   try {
     const logs = await NotificationLog.findAll({
@@ -91,11 +103,10 @@ router.get('/history', async (req, res) => {
   }
 });
 
-// ===== HELPER: фильтрация студентов =====
+// ===== HELPER =====
 async function getFilteredStudents(filters) {
   const { subjectIds, accessDays, homeworkPercent } = filters;
 
-  // 1. Базовый запрос всех студентов с предметами
   let students = await User.findAll({
     where: { role: 'student', isActive: true },
     include: [{
@@ -106,25 +117,28 @@ async function getFilteredStudents(filters) {
     attributes: ['id', 'telegramId', 'firstName', 'lastName']
   });
 
-  // 2. Фильтр по предметам
+  // Фильтр по предметам
   if (subjectIds && subjectIds.length > 0) {
     students = students.filter(s =>
       s.subjects?.some(sub => subjectIds.includes(sub.id))
     );
   }
 
-  // 3. Фильтр по дням до окончания доступа
+  // Фильтр по дням доступа
   if (accessDays !== undefined && accessDays !== null && accessDays !== 'all') {
     const now = new Date();
     students = students.filter(s => {
-      // Берём минимальную дату окончания среди предметов
       const ends = s.subjects
         ?.map(sub => sub.UserSubject?.accessEndDate)
         .filter(Boolean)
         .map(d => new Date(d));
 
-      if (!ends || ends.length === 0) return false;
+      if (accessDays === 'active') {
+        // Есть хотя бы один активный предмет
+        return ends && ends.some(d => d > now);
+      }
 
+      if (!ends || ends.length === 0) return false;
       const minEnd = new Date(Math.min(...ends));
       const days = Math.ceil((minEnd - now) / (1000 * 60 * 60 * 24));
 
@@ -136,21 +150,18 @@ async function getFilteredStudents(filters) {
     });
   }
 
-  // 4. Фильтр по проценту выполнения домашки
+  // Фильтр по % домашки — "any percent" НЕ включает тех кто не начинал
   if (homeworkPercent !== undefined && homeworkPercent !== null && homeworkPercent !== 'all') {
     const studentIds = students.map(s => s.id);
 
-    // Для каждого студента считаем средний процент по лучшим попыткам
     const submissions = await HomeworkSubmission.findAll({
       where: { userId: { [Op.in]: studentIds } },
       attributes: ['userId', 'homeworkId', 'totalScore', 'maxScore'],
       order: [['totalScore', 'DESC']]
     });
 
-    // Для каждого студента берём лучший результат по каждой домашке
     const studentPercents = {};
     submissions.forEach(sub => {
-      const key = `${sub.userId}_${sub.homeworkId}`;
       if (!studentPercents[sub.userId]) studentPercents[sub.userId] = {};
       if (!studentPercents[sub.userId][sub.homeworkId]) {
         const pct = sub.maxScore > 0 ? (sub.totalScore / sub.maxScore) * 100 : 0;
@@ -158,23 +169,24 @@ async function getFilteredStudents(filters) {
       }
     });
 
-    // Считаем средний % по всем домашкам
     const avgPercent = (userId) => {
       const hws = studentPercents[userId];
-      if (!hws) return null; // не сдавал вообще
+      if (!hws) return null;
       const vals = Object.values(hws);
       return vals.reduce((a, b) => a + b, 0) / vals.length;
     };
 
     students = students.filter(s => {
       const avg = avgPercent(s.id);
-
       if (homeworkPercent === 'none') return avg === null;
+      // Для всех остальных фильтров — только те кто хоть что-то сдавал
       if (avg === null) return false;
       if (homeworkPercent === 'lt30') return avg < 30;
       if (homeworkPercent === 'lt50') return avg < 50;
       if (homeworkPercent === 'gt80') return avg > 80;
       if (homeworkPercent === 'full') return avg >= 100;
+      // 'any' = сдавал хоть что-то
+      if (homeworkPercent === 'any') return avg !== null;
       return true;
     });
   }

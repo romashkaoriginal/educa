@@ -5,6 +5,7 @@ const API_URL = 'https://educa-production-a98e.up.railway.app/api';
 
 const ACCESS_DAYS_OPTIONS = [
   { value: 'all', label: 'Любой срок' },
+  { value: 'active', label: '✅ Активный доступ' },
   { value: 'expired', label: '❌ Уже истёк' },
   { value: 1, label: '⚡ Истекает через 1 день' },
   { value: 3, label: '🔔 Истекает через 3 дня' },
@@ -12,13 +13,20 @@ const ACCESS_DAYS_OPTIONS = [
 ];
 
 const HOMEWORK_PERCENT_OPTIONS = [
-  { value: 'all', label: 'Любой процент' },
-  { value: 'none', label: '📋 Не начали домашку' },
+  { value: 'all', label: 'Без фильтра (все ученики)' },
+  { value: 'any', label: '📋 Хоть что-то сдавали' },
+  { value: 'none', label: '🚫 Не начали домашку' },
   { value: 'lt30', label: '📉 Выполнили меньше 30%' },
   { value: 'lt50', label: '📊 Выполнили меньше 50%' },
   { value: 'gt80', label: '📈 Выполнили больше 80%' },
   { value: 'full', label: '✅ Выполнили на 100%' },
 ];
+
+const ROLE_LABELS = {
+  admin: '👨‍💼 Администратор',
+  teacher: '👨‍🏫 Преподаватель',
+  manager: '📊 Менеджер',
+};
 
 function Notifications({ subjects, currentUser }) {
   const [tab, setTab] = useState('send'); // 'send' | 'history'
@@ -27,6 +35,13 @@ function Notifications({ subjects, currentUser }) {
   const [selectedSubjectIds, setSelectedSubjectIds] = useState([]);
   const [accessDays, setAccessDays] = useState('all');
   const [homeworkPercent, setHomeworkPercent] = useState('all');
+
+  // ===== Одиночная отправка =====
+  const [allStudents, setAllStudents] = useState([]);
+  const [studentSearch, setStudentSearch] = useState('');
+  const [singleStudent, setSingleStudent] = useState(null); // выбранный ученик
+  const [showStudentPicker, setShowStudentPicker] = useState(false);
+  const [sendMode, setSendMode] = useState('filter'); // 'filter' | 'single'
 
   // ===== Превью получателей =====
   const [recipients, setRecipients] = useState([]);
@@ -71,7 +86,20 @@ function Notifications({ subjects, currentUser }) {
 
   useEffect(() => {
     loadPreview();
-  }, [loadPreview]);
+    loadAllStudents();
+  }, []);
+
+  useEffect(() => {
+    if (sendMode === 'filter') loadPreview();
+  }, [loadPreview, sendMode]);
+
+  const loadAllStudents = async () => {
+    try {
+      const res = await fetch(`${API_URL}/students`);
+      const data = await res.json();
+      setAllStudents(data.students || []);
+    } catch (e) { console.error(e); }
+  };
 
   const loadHistory = async () => {
     setHistoryLoading(true);
@@ -97,19 +125,27 @@ function Notifications({ subjects, currentUser }) {
     setSending(true);
     setShowConfirm(false);
     try {
+      const body = {
+        text: messageText,
+        sentBy: currentUser?.id || 0,
+        sentByName: currentUser ? `${currentUser.firstName} ${currentUser.lastName || ''}`.trim() : 'Администратор',
+        sentByRole: currentUser?.role || 'admin',
+      };
+
+      if (sendMode === 'single' && singleStudent) {
+        body.studentId = singleStudent.id;
+      } else {
+        body.filters = {
+          subjectIds: selectedSubjectIds.length > 0 ? selectedSubjectIds : undefined,
+          accessDays: accessDays !== 'all' ? accessDays : undefined,
+          homeworkPercent: homeworkPercent !== 'all' ? homeworkPercent : undefined
+        };
+      }
+
       const res = await fetch(`${API_URL}/notify/send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          filters: {
-            subjectIds: selectedSubjectIds.length > 0 ? selectedSubjectIds : undefined,
-            accessDays: accessDays !== 'all' ? accessDays : undefined,
-            homeworkPercent: homeworkPercent !== 'all' ? homeworkPercent : undefined
-          },
-          text: messageText,
-          sentBy: currentUser?.id || 0,
-          sentByName: currentUser ? `${currentUser.firstName} ${currentUser.lastName || ''}`.trim() : 'Администратор'
-        })
+        body: JSON.stringify(body)
       });
       const data = await res.json();
       setSendResult(data);
@@ -127,6 +163,7 @@ function Notifications({ subjects, currentUser }) {
   };
 
   const filtersLabel = () => {
+    if (sendMode === 'single') return singleStudent ? `${singleStudent.firstName} ${singleStudent.lastName || ''}` : 'Не выбран';
     const parts = [];
     if (selectedSubjectIds.length > 0) {
       const names = selectedSubjectIds.map(id => subjects.find(s => s.id === id)?.name).filter(Boolean);
@@ -136,6 +173,19 @@ function Notifications({ subjects, currentUser }) {
     if (homeworkPercent !== 'all') parts.push(HOMEWORK_PERCENT_OPTIONS.find(o => o.value === homeworkPercent)?.label);
     return parts.length > 0 ? parts.join(' · ') : 'Все ученики';
   };
+
+  const canSend = sendMode === 'single'
+    ? !!singleStudent && !!messageText.trim()
+    : recipients.length > 0 && !!messageText.trim();
+
+  const recipientCount = sendMode === 'single' ? (singleStudent ? 1 : 0) : recipients.length;
+
+  const filteredStudentList = allStudents.filter(s => {
+    const q = studentSearch.toLowerCase();
+    return s.firstName?.toLowerCase().includes(q) ||
+      s.lastName?.toLowerCase().includes(q) ||
+      s.telegramUsername?.toLowerCase().includes(q);
+  });
 
   return (
     <div className="notifications-section">
@@ -152,9 +202,44 @@ function Notifications({ subjects, currentUser }) {
       {/* ===== ВКЛАДКА ОТПРАВКИ ===== */}
       {tab === 'send' && !sendResult && (
         <div className="notif-layout">
-          {/* Левая колонка: фильтры */}
+          {/* Левая колонка: режим + фильтры */}
           <div className="notif-filters-panel">
-            <h3 className="filters-title">🎯 Фильтры получателей</h3>
+            {/* Переключатель режима */}
+            <div className="send-mode-switch">
+              <button
+                className={`mode-btn ${sendMode === 'filter' ? 'active' : ''}`}
+                onClick={() => setSendMode('filter')}
+              >🎯 По фильтрам</button>
+              <button
+                className={`mode-btn ${sendMode === 'single' ? 'active' : ''}`}
+                onClick={() => setSendMode('single')}
+              >👤 Одному ученику</button>
+            </div>
+
+            {/* Одиночная отправка */}
+            {sendMode === 'single' && (
+              <div className="single-student-picker">
+                {singleStudent ? (
+                  <div className="single-selected">
+                    <div className="single-avatar">{singleStudent.firstName?.[0]}{singleStudent.lastName?.[0]}</div>
+                    <div className="single-info">
+                      <div className="single-name">{singleStudent.firstName} {singleStudent.lastName || ''}</div>
+                      <div className="single-username">@{singleStudent.telegramUsername || 'нет username'}</div>
+                    </div>
+                    <button className="single-clear" onClick={() => setSingleStudent(null)}>✕</button>
+                  </div>
+                ) : (
+                  <button className="pick-student-btn" onClick={() => setShowStudentPicker(true)}>
+                    👤 Выбрать ученика
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Фильтры (только в режиме filter) */}
+            {sendMode === 'filter' && (
+              <>
+                <h3 className="filters-title">🎯 Фильтры получателей</h3>
 
             {/* По предметам */}
             <div className="filter-section">
@@ -208,6 +293,8 @@ function Notifications({ subjects, currentUser }) {
                 ))}
               </select>
             </div>
+            </>
+            )}
           </div>
 
           {/* Правая колонка: получатели + текст */}
@@ -216,12 +303,12 @@ function Notifications({ subjects, currentUser }) {
             <div className="recipients-preview">
               <div className="recipients-header">
                 <span className="recipients-title">👥 Получатели</span>
-                <span className={`recipients-count ${recipients.length === 0 ? 'zero' : ''}`}>
-                  {previewLoading ? '...' : recipients.length}
+                <span className={`recipients-count ${recipientCount === 0 ? 'zero' : ''}`}>
+                  {previewLoading && sendMode === 'filter' ? '...' : recipientCount}
                 </span>
               </div>
               <div className="filters-applied">{filtersLabel()}</div>
-              {!previewLoading && recipients.length > 0 && (
+              {sendMode === 'filter' && !previewLoading && recipients.length > 0 && (
                 <div className="recipients-chips">
                   {recipients.slice(0, 6).map(r => (
                     <span key={r.id} className="recipient-chip">
@@ -234,8 +321,11 @@ function Notifications({ subjects, currentUser }) {
                   )}
                 </div>
               )}
-              {!previewLoading && recipients.length === 0 && (
+              {sendMode === 'filter' && !previewLoading && recipients.length === 0 && (
                 <div className="no-recipients">Нет учеников по выбранным фильтрам</div>
+              )}
+              {sendMode === 'single' && !singleStudent && (
+                <div className="no-recipients">Выберите ученика в левой панели</div>
               )}
             </div>
 
@@ -267,9 +357,9 @@ function Notifications({ subjects, currentUser }) {
             <button
               className="send-btn"
               onClick={() => setShowConfirm(true)}
-              disabled={recipients.length === 0 || !messageText.trim() || sending}
+              disabled={!canSend || sending}
             >
-              {sending ? '⏳ Отправка...' : `✉️ Отправить (${recipients.length} уч.)`}
+              {sending ? '⏳ Отправка...' : `✉️ Отправить (${recipientCount} уч.)`}
             </button>
           </div>
         </div>
@@ -321,6 +411,7 @@ function Notifications({ subjects, currentUser }) {
                     <div>
                       <div className="history-meta">
                         <span className="history-sender">👤 {log.sentByName}</span>
+                        <span className="history-role">{ROLE_LABELS[log.sentByRole] || log.sentByRole || '👨‍💼 Администратор'}</span>
                         <span className="history-date">{new Date(log.createdAt).toLocaleString('ru-RU', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}</span>
                       </div>
                       <div className="history-preview-text">
@@ -342,8 +433,11 @@ function Notifications({ subjects, currentUser }) {
                       <div className="history-filters">
                         <strong>Фильтры:</strong>
                         {log.filters.subjectIds?.length > 0 && (
-                          <span>📚 Предметы: {log.filters.subjectIds.join(', ')}</span>
-                        )}
+                        <span>📚 {log.filters.subjectIds.map(id => {
+                          const subj = subjects.find(s => s.id === id || s.id === parseInt(id));
+                          return subj ? `${subj.icon} ${subj.name}` : `#${id}`;
+                        }).join(', ')}</span>
+                      )}
                         {log.filters.accessDays && (
                           <span>⏰ {ACCESS_DAYS_OPTIONS.find(o => o.value == log.filters.accessDays)?.label}</span>
                         )}
@@ -393,6 +487,46 @@ function Notifications({ subjects, currentUser }) {
               <button className="btn-danger-confirm" onClick={handleSend}>
                 ✉️ Да, отправить {recipients.length} сообщений
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ===== ПИКЕР УЧЕНИКА ===== */}
+      {showStudentPicker && (
+        <div className="modal-overlay" onClick={() => setShowStudentPicker(false)}>
+          <div className="modal-content student-picker-modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>👤 Выбрать ученика</h2>
+              <button className="modal-close" onClick={() => setShowStudentPicker(false)}>✕</button>
+            </div>
+            <div style={{padding: '12px 20px'}}>
+              <input
+                type="text"
+                className="compose-textarea"
+                style={{minHeight:'unset', resize:'none', padding:'10px 14px'}}
+                placeholder="🔍 Поиск по имени или username..."
+                value={studentSearch}
+                onChange={e => setStudentSearch(e.target.value)}
+                autoFocus
+              />
+            </div>
+            <div className="student-picker-list">
+              {filteredStudentList.map(s => (
+                <div
+                  key={s.id}
+                  className="picker-student-row"
+                  onClick={() => { setSingleStudent(s); setShowStudentPicker(false); setStudentSearch(''); }}
+                >
+                  <div className="notify-avatar">{s.firstName?.[0]}{s.lastName?.[0]}</div>
+                  <div className="notify-info">
+                    <div className="notify-name">{s.firstName} {s.lastName || ''}</div>
+                    <div className="notify-meta">@{s.telegramUsername || 'нет username'}{!s.telegramId && ' ⚠️ нет TG ID'}</div>
+                  </div>
+                </div>
+              ))}
+              {filteredStudentList.length === 0 && (
+                <div className="no-recipients" style={{padding: 20}}>Ничего не найдено</div>
+              )}
             </div>
           </div>
         </div>

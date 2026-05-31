@@ -399,3 +399,115 @@
   .result-columns { grid-template-columns: 1fr; }
   .notif-filters-panel { position: static; }
 }
+
+/* ===== ПЕРЕКЛЮЧАТЕЛЬ РЕЖИМА ===== */
+.send-mode-switch {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.mode-btn {
+  flex: 1;
+  padding: 8px 10px;
+  border: 2px solid #e5e7eb;
+  border-radius: 10px;
+  background: white;
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.mode-btn:hover { border-color: #93c5fd; color: #1d4ed8; }
+.mode-btn.active { border-color: #3B82F6; background: #eff6ff; color: #1d4ed8; }
+
+/* ===== ОДИНОЧНАЯ ОТПРАВКА ===== */
+.single-student-picker { margin-bottom: 16px; }
+
+.pick-student-btn {
+  width: 100%;
+  padding: 12px;
+  border: 2px dashed #d1d5db;
+  border-radius: 10px;
+  background: white;
+  font-size: 14px;
+  font-weight: 600;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.pick-student-btn:hover { border-color: #3B82F6; color: #1d4ed8; background: #f0f9ff; }
+
+.single-selected {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  background: #eff6ff;
+  border: 2px solid #3B82F6;
+  border-radius: 10px;
+}
+
+.single-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #3B82F6, #6366f1);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.single-info { flex: 1; min-width: 0; }
+.single-name { font-size: 14px; font-weight: 700; color: #1f2937; }
+.single-username { font-size: 12px; color: #6b7280; }
+
+.single-clear {
+  background: none;
+  border: none;
+  font-size: 16px;
+  color: #9ca3af;
+  cursor: pointer;
+  padding: 4px;
+  line-height: 1;
+}
+
+.single-clear:hover { color: #ef4444; }
+
+/* ===== ПИКЕР УЧЕНИКА ===== */
+.student-picker-modal { max-width: 420px; }
+
+.student-picker-list {
+  max-height: 400px;
+  overflow-y: auto;
+  padding: 0 8px 12px;
+}
+
+.picker-student-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.picker-student-row:hover { background: #f0f9ff; }
+
+/* Роль в истории */
+.history-role {
+  font-size: 11px;
+  background: #f3f4f6;
+  color: #6b7280;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-weight: 500;
+}
