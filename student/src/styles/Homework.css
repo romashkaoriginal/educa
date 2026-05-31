@@ -668,3 +668,128 @@
   color: #6b7280;
   font-size: 16px;
 }
+/* ===== НАВИГАЦИЯ: ПРЕДМЕТЫ → МЕСЯЦЫ → ДОМАШКИ ===== */
+
+.hw-breadcrumbs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 20px;
+  font-size: 14px;
+}
+
+.hw-breadcrumbs button {
+  background: none;
+  border: none;
+  color: #3B82F6;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 14px;
+  transition: background 0.2s;
+}
+
+.hw-breadcrumbs button:hover {
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.hw-breadcrumbs span {
+  color: #9ca3af;
+}
+
+.hw-bc-current {
+  color: #1f2937 !important;
+  font-weight: 600;
+}
+
+/* Сетка предметов */
+.hw-subjects-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.hw-subject-card {
+  background: white;
+  border: 2px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+.hw-subject-card:hover {
+  border-color: #3B82F6;
+  transform: translateY(-3px);
+  box-shadow: 0 6px 16px rgba(30,64,175,0.15);
+}
+
+.hw-subject-icon {
+  font-size: 44px;
+  margin-bottom: 12px;
+}
+
+.hw-subject-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1f2937;
+  margin-bottom: 6px;
+}
+
+.hw-subject-count {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+/* Сетка месяцев */
+.hw-months-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.hw-month-card {
+  background: white;
+  border: 2px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+}
+
+.hw-month-card:hover {
+  border-color: #3B82F6;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(30,64,175,0.12);
+}
+
+.hw-month-icon {
+  font-size: 32px;
+  margin-bottom: 8px;
+}
+
+.hw-month-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.hw-month-year {
+  font-size: 13px;
+  color: #6b7280;
+  margin-bottom: 6px;
+}
+
+.hw-month-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: #3B82F6;
+  background: #eff6ff;
+  padding: 3px 10px;
+  border-radius: 10px;
+  display: inline-block;
+}

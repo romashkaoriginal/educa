@@ -9,6 +9,7 @@ function Practice() {
   const [topics, setTopics] = useState([]);
   const [selectedTopic, setSelectedTopic] = useState(null);
   const [questions, setQuestions] = useState([]);
+  const [expandedQuestions, setExpandedQuestions] = useState(new Set());
   
   const [showTopicModal, setShowTopicModal] = useState(false);
   const [showQuestionModal, setShowQuestionModal] = useState(false);
@@ -71,10 +72,23 @@ function Practice() {
       const response = await fetch(`${API_URL}/practice/questions/${selectedTopic.id}`);
       const data = await response.json();
       setQuestions(data.questions || []);
+      setExpandedQuestions(new Set()); // при загрузке все свёрнуты
     } catch (error) {
       console.error('Error loading questions:', error);
     }
   };
+
+  const toggleQuestion = (id) => {
+    setExpandedQuestions(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const expandAll = () => setExpandedQuestions(new Set(questions.map(q => q.id)));
+  const collapseAll = () => setExpandedQuestions(new Set());
 
   const resetTopicForm = () => {
     setTopicForm({
@@ -437,7 +451,7 @@ function Practice() {
       <div className="section-header">
         <div>
           <h2 className="section-title">Вопросы</h2>
-          <p className="section-description">{selectedTopic.name}</p>
+          <p className="section-description">{selectedTopic.name} · {questions.length} вопросов</p>
         </div>
         <button 
           className="btn-primary"
@@ -451,68 +465,105 @@ function Practice() {
         </button>
       </div>
 
-      <div className="questions-list">
-        {questions.map((question, index) => (
-          <div 
-            key={question.id} 
-            className={`question-card ${!question.isActive ? 'inactive' : ''}`}
-          >
-            <div className="question-header">
-              <div className="question-number">Вопрос #{index + 1}</div>
-              <div className="question-actions">
-                {question.difficulty && (
-                  <span className={`difficulty-badge ${question.difficulty}`}>
-                    {question.difficulty === 'easy' && '🟢 Легкий'}
-                    {question.difficulty === 'medium' && '🟡 Средний'}
-                    {question.difficulty === 'hard' && '🔴 Сложный'}
-                  </span>
-                )}
-                <button
-                  className="btn-icon"
-                  onClick={() => handleToggleQuestion(question.id, question.isActive)}
-                  title={question.isActive ? 'Деактивировать' : 'Активировать'}
-                >
-                  {question.isActive ? '👁️' : '🚫'}
-                </button>
-                <button
-                  className="btn-icon"
-                  onClick={() => handleEditQuestion(question)}
-                  title="Редактировать"
-                >
-                  ✏️
-                </button>
-                <button
-                  className="btn-icon danger"
-                  onClick={() => handleDeleteQuestion(question.id)}
-                  title="Удалить"
-                >
-                  🗑️
-                </button>
-              </div>
-            </div>
-
-            <div className="question-text">{question.questionText}</div>
-
-            <div className="question-options">
-              {question.options.map((option, idx) => (
-                <div 
-                  key={idx} 
-                  className={`option ${idx === question.correctAnswer ? 'correct' : ''}`}
-                >
-                  <span className="option-letter">{String.fromCharCode(65 + idx)}</span>
-                  <span className="option-text">{option}</span>
-                  {idx === question.correctAnswer && <span className="correct-mark">✓</span>}
-                </div>
-              ))}
-            </div>
-
-            {question.explanation && (
-              <div className="question-explanation">
-                <strong>💡 Объяснение:</strong> {question.explanation}
-              </div>
-            )}
+      {/* Панель развернуть/свернуть */}
+      {questions.length > 0 && (
+        <div className="questions-expand-bar">
+          <span className="questions-expand-hint">
+            {expandedQuestions.size === 0
+              ? 'Все вопросы свёрнуты'
+              : `Развёрнуто: ${expandedQuestions.size} из ${questions.length}`}
+          </span>
+          <div className="questions-expand-btns">
+            <button className="btn-expand" onClick={expandAll}>Развернуть все</button>
+            <button className="btn-expand" onClick={collapseAll}>Свернуть все</button>
           </div>
-        ))}
+        </div>
+      )}
+
+      <div className="questions-list">
+        {questions.map((question, index) => {
+          const isExpanded = expandedQuestions.has(question.id);
+          return (
+            <div 
+              key={question.id} 
+              className={`question-card ${!question.isActive ? 'inactive' : ''}`}
+            >
+              {/* Шапка — всегда видна, клик разворачивает */}
+              <div
+                className="question-header"
+                onClick={() => toggleQuestion(question.id)}
+                style={{ cursor: 'pointer' }}
+              >
+                <div className="question-header-left">
+                  <span className="question-expand-icon">{isExpanded ? '▼' : '▶'}</span>
+                  <span className="question-number">#{index + 1}</span>
+                  <span className="question-preview">
+                    {question.questionText.length > 70
+                      ? question.questionText.slice(0, 70) + '...'
+                      : question.questionText}
+                  </span>
+                  {!question.isActive && <span className="inactive-badge">скрыт</span>}
+                </div>
+                <div className="question-actions" onClick={e => e.stopPropagation()}>
+                  {question.difficulty && (
+                    <span className={`difficulty-badge ${question.difficulty}`}>
+                      {question.difficulty === 'easy' && '🟢 Легкий'}
+                      {question.difficulty === 'medium' && '🟡 Средний'}
+                      {question.difficulty === 'hard' && '🔴 Сложный'}
+                    </span>
+                  )}
+                  <button
+                    className="btn-icon"
+                    onClick={() => handleToggleQuestion(question.id, question.isActive)}
+                    title={question.isActive ? 'Деактивировать' : 'Активировать'}
+                  >
+                    {question.isActive ? '👁️' : '🚫'}
+                  </button>
+                  <button
+                    className="btn-icon"
+                    onClick={() => handleEditQuestion(question)}
+                    title="Редактировать"
+                  >
+                    ✏️
+                  </button>
+                  <button
+                    className="btn-icon danger"
+                    onClick={() => handleDeleteQuestion(question.id)}
+                    title="Удалить"
+                  >
+                    🗑️
+                  </button>
+                </div>
+              </div>
+
+              {/* Тело — только если развёрнут */}
+              {isExpanded && (
+                <div className="question-body">
+                  <div className="question-text">{question.questionText}</div>
+
+                  <div className="question-options">
+                    {question.options.map((option, idx) => (
+                      <div 
+                        key={idx} 
+                        className={`option ${idx === question.correctAnswer ? 'correct' : ''}`}
+                      >
+                        <span className="option-letter">{String.fromCharCode(65 + idx)}</span>
+                        <span className="option-text">{option}</span>
+                        {idx === question.correctAnswer && <span className="correct-mark">✓</span>}
+                      </div>
+                    ))}
+                  </div>
+
+                  {question.explanation && (
+                    <div className="question-explanation">
+                      <strong>💡 Объяснение:</strong> {question.explanation}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {/* QUESTION MODAL */}

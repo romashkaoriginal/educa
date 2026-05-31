@@ -1,0 +1,401 @@
+/* ========== NOTIFICATIONS v2 ========== */
+
+.notifications-section { animation: fadeIn 0.3s ease; }
+
+/* Вкладки */
+.notif-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+  border-bottom: 2px solid #e5e7eb;
+  padding-bottom: 0;
+}
+
+.notif-tab {
+  padding: 10px 20px;
+  border: none;
+  background: none;
+  font-size: 14px;
+  font-weight: 600;
+  color: #6b7280;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+  transition: all 0.2s;
+}
+
+.notif-tab:hover { color: #3B82F6; }
+.notif-tab.active { color: #3B82F6; border-bottom-color: #3B82F6; }
+
+/* Основной layout */
+.notif-layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+/* ===== ПАНЕЛЬ ФИЛЬТРОВ ===== */
+.notif-filters-panel {
+  background: white;
+  border: 2px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 20px;
+  position: sticky;
+  top: 0;
+}
+
+.filters-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0 0 16px 0;
+}
+
+.filter-section {
+  margin-bottom: 20px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.filter-section:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+
+.filter-section-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 10px;
+}
+
+.subjects-checkboxes { display: flex; flex-direction: column; gap: 6px; }
+
+.subject-check-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: #374151;
+  transition: all 0.15s;
+  user-select: none;
+}
+
+.subject-check-item:hover { border-color: #93c5fd; background: #f0f9ff; }
+.subject-check-item.checked { border-color: #3B82F6; background: #eff6ff; color: #1d4ed8; }
+.subject-check-item input { width: 16px; height: 16px; cursor: pointer; }
+
+.clear-filter-btn {
+  background: none;
+  border: none;
+  color: #ef4444;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.filter-select-full {
+  width: 100%;
+  padding: 10px 12px;
+  border: 2px solid #e5e7eb;
+  border-radius: 10px;
+  font-size: 13px;
+  cursor: pointer;
+  background: white;
+  transition: border-color 0.2s;
+}
+
+.filter-select-full:focus { outline: none; border-color: #3B82F6; }
+
+/* ===== COMPOSE ===== */
+.notif-compose { display: flex; flex-direction: column; gap: 16px; }
+
+/* Превью получателей */
+.recipients-preview {
+  background: white;
+  border: 2px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 16px;
+}
+
+.recipients-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.recipients-title { font-size: 14px; font-weight: 700; color: #374151; }
+
+.recipients-count {
+  font-size: 28px;
+  font-weight: 900;
+  color: #3B82F6;
+  line-height: 1;
+}
+
+.recipients-count.zero { color: #9ca3af; }
+
+.filters-applied {
+  font-size: 12px;
+  color: #6b7280;
+  margin-bottom: 10px;
+  font-style: italic;
+}
+
+.recipients-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+
+.recipient-chip {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.recipient-chip.more { background: #f3f4f6; border-color: #d1d5db; color: #6b7280; }
+.recipient-chip.error { background: #fee2e2; border-color: #fca5a5; color: #991b1b; }
+
+.no-recipients { font-size: 13px; color: #9ca3af; text-align: center; padding: 8px 0; }
+
+/* Текст */
+.compose-section { }
+.compose-label { display: block; font-size: 13px; font-weight: 700; color: #374151; margin-bottom: 8px; }
+
+.compose-textarea {
+  width: 100%;
+  padding: 12px 14px;
+  border: 2px solid #e5e7eb;
+  border-radius: 12px;
+  font-size: 14px;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 140px;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+}
+
+.compose-textarea:focus { outline: none; border-color: #3B82F6; }
+.char-count { font-size: 11px; color: #9ca3af; text-align: right; margin-top: 4px; }
+
+/* Telegram превью */
+.tg-preview { }
+.tg-preview-label { font-size: 12px; font-weight: 600; color: #6b7280; margin-bottom: 8px; }
+
+.tg-bubble {
+  background: #eff6ff;
+  border: 1px solid #bae6fd;
+  border-radius: 12px 12px 12px 4px;
+  padding: 12px 16px;
+  max-width: 380px;
+}
+
+.tg-bubble-text {
+  font-size: 14px;
+  color: #1f2937;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+/* Кнопка отправить */
+.send-btn {
+  background: linear-gradient(135deg, #1E40AF 0%, #3B82F6 100%);
+  color: white;
+  border: none;
+  padding: 14px 28px;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 15px;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 4px 12px rgba(30, 64, 175, 0.3);
+  width: 100%;
+}
+
+.send-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(30, 64, 175, 0.4); }
+.send-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+/* ===== РЕЗУЛЬТАТ ===== */
+.send-result-screen { display: flex; flex-direction: column; gap: 20px; }
+
+.result-banner {
+  padding: 16px 20px;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 16px;
+  text-align: center;
+}
+
+.result-banner.success { background: #d1fae5; color: #065f46; }
+.result-banner.partial { background: #fef3c7; color: #92400e; }
+
+.result-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.result-col { }
+.result-col-title { font-size: 14px; font-weight: 700; color: #374151; margin-bottom: 10px; }
+
+.result-row-item {
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.result-row-item.success { background: #d1fae5; color: #065f46; }
+.result-row-item.error { background: #fee2e2; color: #991b1b; }
+.result-row-item.error span { font-size: 11px; opacity: 0.8; }
+
+/* ===== ИСТОРИЯ ===== */
+.history-section { display: flex; flex-direction: column; gap: 10px; }
+
+.history-card {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 16px;
+  cursor: pointer;
+  gap: 12px;
+  transition: background 0.15s;
+}
+
+.history-header:hover { background: #f9fafb; }
+
+.history-left { display: flex; align-items: flex-start; gap: 10px; flex: 1; min-width: 0; }
+.history-expand { font-size: 11px; color: #9ca3af; flex-shrink: 0; margin-top: 3px; }
+
+.history-meta { display: flex; gap: 12px; align-items: center; margin-bottom: 4px; flex-wrap: wrap; }
+.history-sender { font-size: 13px; font-weight: 700; color: #1f2937; }
+.history-date { font-size: 12px; color: #6b7280; }
+.history-preview-text { font-size: 13px; color: #6b7280; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 400px; }
+
+.history-stats { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+
+.h-stat {
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.h-stat.success { background: #d1fae5; color: #065f46; }
+.h-stat.error { background: #fee2e2; color: #991b1b; }
+.h-stat.total { background: #f3f4f6; color: #374151; }
+
+.history-body {
+  padding: 14px 16px;
+  border-top: 1px solid #e5e7eb;
+  background: #f9fafb;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.history-filters { display: flex; gap: 10px; flex-wrap: wrap; font-size: 13px; color: #6b7280; align-items: center; }
+.history-filters strong { color: #374151; }
+.history-filters span { background: white; border: 1px solid #e5e7eb; padding: 3px 10px; border-radius: 8px; }
+
+.history-full-text {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 14px;
+  color: #1f2937;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.history-recipients strong { font-size: 13px; color: #374151; }
+
+/* ===== МОДАЛКА ПОДТВЕРЖДЕНИЯ ===== */
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.confirm-modal {
+  background: white;
+  border-radius: 20px;
+  padding: 32px 28px;
+  width: 100%;
+  max-width: 460px;
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+}
+
+.confirm-icon { font-size: 48px; margin-bottom: 12px; }
+.confirm-modal h3 { font-size: 20px; font-weight: 800; color: #1f2937; margin: 0 0 12px 0; }
+.confirm-modal p { font-size: 15px; color: #374151; margin: 0 0 16px 0; }
+
+.confirm-preview {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 14px;
+  text-align: left;
+}
+
+.confirm-filters { font-size: 12px; color: #6b7280; margin-bottom: 8px; }
+.confirm-text { font-size: 13px; color: #374151; font-style: italic; }
+
+.confirm-actions { display: flex; gap: 12px; justify-content: center; margin-top: 20px; }
+
+.btn-secondary {
+  background: #f3f4f6;
+  color: #374151;
+  border: 1px solid #d1d5db;
+  padding: 12px 24px;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-secondary:hover { background: #e5e7eb; }
+
+.btn-danger-confirm {
+  background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+}
+
+.btn-danger-confirm:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(220, 38, 38, 0.4); }
+
+/* Empty */
+.empty-state { text-align: center; padding: 50px 20px; }
+.empty-icon { font-size: 48px; margin-bottom: 12px; opacity: 0.4; }
+
+@media (max-width: 768px) {
+  .notif-layout { grid-template-columns: 1fr; }
+  .result-columns { grid-template-columns: 1fr; }
+  .notif-filters-panel { position: static; }
+}

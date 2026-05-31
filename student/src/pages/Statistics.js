@@ -1,10 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './Statistics.css';
 import { useData } from './DataContext';
 
 function Statistics({ studentId }) {
-  const { practiceStats: stats, homeworkStats, loading: contextLoading } = useData();
+  const { practiceStats: stats, homeworkStats, loading: contextLoading, loadHomeworkStats, loadPracticeStats } = useData();
   const [activeTab, setActiveTab] = useState('practice');
+
+  // Обновляем данные при открытии раздела
+  useEffect(() => {
+    loadPracticeStats(true);
+    loadHomeworkStats(true);
+  }, []);
 
   if ((contextLoading.practiceStats || contextLoading.homeworkStats) && !stats && !homeworkStats) {
     return (

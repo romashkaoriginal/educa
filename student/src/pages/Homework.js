@@ -16,7 +16,6 @@ function StudentHomework({ studentId }) {
   const [result, setResult] = useState(null);
   const [startTime, setStartTime] = useState(null);
 
-  // Drag-and-drop состояние
   const [drag, setDrag] = useState({
     active: false,
     questionIndex: null,
@@ -29,6 +28,7 @@ function StudentHomework({ studentId }) {
 
   const orderingListRefs = useRef({});
   const initialOrderRef = useRef({});
+
   // Автовыбор предмета
   useEffect(() => {
     if (subjects.length === 1 && !selectedSubject) {
@@ -36,23 +36,18 @@ function StudentHomework({ studentId }) {
     }
   }, [subjects, selectedSubject]);
 
-  // Блокировка Telegram WebApp во время прохождения
- useEffect(() => {
-  const shouldBlock = (selectedHomework && !showResult) || (showResult && result);
-  if (shouldBlock) {
-    if (window.Telegram?.WebApp) {
-      window.Telegram.WebApp.expand();
-      window.Telegram.WebApp.disableVerticalSwipes?.();
-      window.Telegram.WebApp.enableClosingConfirmation?.();
-    }
-    return () => {
+  // Блокируем свайп ТОЛЬКО когда идёт прохождение (не на экране результата)
+  // Разблокируем только при closeHomework — не в cleanup
+  useEffect(() => {
+    if (selectedHomework && !showResult) {
       if (window.Telegram?.WebApp) {
-        window.Telegram.WebApp.enableVerticalSwipes?.();
-        window.Telegram.WebApp.disableClosingConfirmation?.();
+        window.Telegram.WebApp.expand();
+        window.Telegram.WebApp.disableVerticalSwipes?.();
+        window.Telegram.WebApp.enableClosingConfirmation?.();
       }
-    };
-  }
-}, [selectedHomework, showResult, result]);
+    }
+    // НЕ возвращаем cleanup — разблокируем вручную в closeHomework
+  }, [selectedHomework, showResult]);
 
   const backToSubjects = () => setSelectedSubject(null);
 
@@ -65,8 +60,7 @@ function StudentHomework({ studentId }) {
         return;
       }
       setSelectedHomework(data.homework);
-      const qs = data.homework.questions || [];
-      setQuestions(qs);
+      setQuestions(data.homework.questions || []);
       initialOrderRef.current = {};
       setCurrentQuestionIndex(0);
       setShowResult(false);
@@ -81,7 +75,22 @@ function StudentHomework({ studentId }) {
     setAnswers(prev => ({ ...prev, [questionIndex]: answer }));
   };
 
-  // Начало перетаскивания
+  // Разблокируем Telegram и возвращаемся к списку
+  const closeHomework = () => {
+    // Разблокируем свайп только здесь
+    if (window.Telegram?.WebApp) {
+      window.Telegram.WebApp.enableVerticalSwipes?.();
+      window.Telegram.WebApp.disableClosingConfirmation?.();
+    }
+    setSelectedHomework(null);
+    setQuestions([]);
+    setAnswers({});
+    setShowResult(false);
+    setResult(null);
+    refreshAfterHomework();
+  };
+
+  // Drag-and-drop
   const handlePointerDown = useCallback((e, questionIndex, itemIndex, items) => {
     e.preventDefault();
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
@@ -96,7 +105,6 @@ function StudentHomework({ studentId }) {
     });
   }, []);
 
-  // Перемещение пальца / мыши
   const handlePointerMove = useCallback((e) => {
     if (!drag.active) return;
     e.preventDefault();
@@ -110,7 +118,6 @@ function StudentHomework({ studentId }) {
     }
     const offsetY = clientY - drag.startY;
 
-    // Находим элемент под курсором/пальцем
     const elementUnder = document.elementFromPoint(clientX, clientY);
     if (elementUnder) {
       const orderItem = elementUnder.closest('.ordering-item');
@@ -125,16 +132,13 @@ function StudentHomework({ studentId }) {
         }
       }
     }
-    // Если не нашли, просто обновляем смещение
     setDrag(prev => ({ ...prev, offsetY }));
   }, [drag.active, drag.startY, drag.overIndex]);
 
-  // Завершение перетаскивания – обмен элементов местами
   const handlePointerUp = useCallback(() => {
     if (!drag.active) return;
     const { questionIndex, fromIndex, overIndex, items } = drag;
     if (fromIndex !== overIndex && overIndex !== null) {
-      // swap двух элементов
       const newItems = [...items];
       [newItems[fromIndex], newItems[overIndex]] = [newItems[overIndex], newItems[fromIndex]];
       handleAnswer(questionIndex, newItems);
@@ -150,7 +154,6 @@ function StudentHomework({ studentId }) {
     });
   }, [drag.active, drag.fromIndex, drag.overIndex, drag.items, drag.questionIndex]);
 
-  // Глобальные слушатели
   useEffect(() => {
     if (!drag.active) return;
     const onMove = (e) => handlePointerMove(e);
@@ -191,16 +194,6 @@ function StudentHomework({ studentId }) {
     }
   };
 
-  const closeHomework = () => {
-    setSelectedHomework(null);
-    setQuestions([]);
-    setAnswers({});
-    setShowResult(false);
-    setResult(null);
-    refreshAfterHomework();
-  };
-
-  // Рендер вопроса
   const renderQuestion = (question, index) => {
     switch (question.questionType) {
       case 'single_choice': {
@@ -304,17 +297,14 @@ function StudentHomework({ studentId }) {
 
       case 'ordering': {
         if (!answers[index] && !initialOrderRef.current[index]) {
-  initialOrderRef.current[index] = [...(question.correctAnswer || [])].sort(() => Math.random() - 0.5);
-}
-const items = answers[index] || initialOrderRef.current[index] || question.correctAnswer || [];
-
+          initialOrderRef.current[index] = [...(question.correctAnswer || [])].sort(() => Math.random() - 0.5);
+        }
+        const items = answers[index] || initialOrderRef.current[index] || question.correctAnswer || [];
         const isActiveDrag = drag.active && drag.questionIndex === index;
 
         return (
           <div className="ordering-container">
-            <p className="ordering-hint">
-              Зажмите элемент и перетащите, чтобы изменить порядок:
-            </p>
+            <p className="ordering-hint">Зажмите элемент и перетащите, чтобы изменить порядок:</p>
             <div
               className="ordering-list"
               ref={(el) => (orderingListRefs.current[index] = el)}
@@ -322,26 +312,17 @@ const items = answers[index] || initialOrderRef.current[index] || question.corre
             >
               {items.map((item, itemIndex) => {
                 const isDragging = isActiveDrag && drag.fromIndex === itemIndex;
+                const isOver = isActiveDrag && drag.overIndex === itemIndex && drag.fromIndex !== itemIndex;
                 const style = isDragging
-                  ? {
-                      transform: `translateY(${drag.offsetY}px)`,
-                      zIndex: 100,
-                      opacity: 0.8,
-                      pointerEvents: 'none',   // ← отключаем указатель для перетаскиваемого элемента
-                    }
+                  ? { transform: `translateY(${drag.offsetY}px)`, zIndex: 100, opacity: 0.8, pointerEvents: 'none' }
                   : {};
-                const isOver =
-                  isActiveDrag && drag.overIndex === itemIndex && drag.fromIndex !== itemIndex;
-
                 return (
                   <div
                     key={`${item}-${itemIndex}`}
                     className={`ordering-item${isDragging ? ' dragging' : ''}${isOver ? ' drag-over' : ''}`}
                     style={style}
                     data-index={itemIndex}
-                    onPointerDown={(e) =>
-                      handlePointerDown(e, index, itemIndex, items)
-                    }
+                    onPointerDown={(e) => handlePointerDown(e, index, itemIndex, items)}
                   >
                     <span className="drag-handle">☰</span>
                     <span className="item-number">{itemIndex + 1}</span>
@@ -357,8 +338,7 @@ const items = answers[index] || initialOrderRef.current[index] || question.corre
       case 'fill_blanks':
       case 'fill_in_blank': {
         const text = question.questionText || '';
-        const blanksCount = (text.match(/___/g) || []).length ||
-                           question.options?.blanks?.length || 1;
+        const blanksCount = (text.match(/___/g) || []).length || question.options?.blanks?.length || 1;
         const blankAnswers = answers[index] || Array(blanksCount).fill('');
         const parts = text.split('___');
         return (
@@ -390,16 +370,10 @@ const items = answers[index] || initialOrderRef.current[index] || question.corre
       case 'true_false':
         return (
           <div className="true-false-options">
-            <button
-              className={`tf-btn ${answers[index] === true ? 'selected' : ''}`}
-              onClick={() => handleAnswer(index, true)}
-            >
+            <button className={`tf-btn ${answers[index] === true ? 'selected' : ''}`} onClick={() => handleAnswer(index, true)}>
               ✓ Верно
             </button>
-            <button
-              className={`tf-btn ${answers[index] === false ? 'selected' : ''}`}
-              onClick={() => handleAnswer(index, false)}
-            >
+            <button className={`tf-btn ${answers[index] === false ? 'selected' : ''}`} onClick={() => handleAnswer(index, false)}>
               ✗ Неверно
             </button>
           </div>
@@ -411,6 +385,7 @@ const items = answers[index] || initialOrderRef.current[index] || question.corre
   };
 
   // --- RENDER ---
+
   if (contextLoading.homework && homeworks.length === 0) {
     return (
       <div className="section">
@@ -420,8 +395,301 @@ const items = answers[index] || initialOrderRef.current[index] || question.corre
     );
   }
 
+  // ЭКРАН РЕЗУЛЬТАТА
   if (showResult && result) {
     const percentage = result.percentage || Math.round((result.totalScore / result.maxScore) * 100);
+
+    // Проверяем правильность ответа локально (те же правила что на бэкенде)
+    const checkAnswerLocal = (question, userAnswer) => {
+      const correct = question.correctAnswer;
+      switch (question.questionType) {
+        case 'single_choice': return userAnswer === correct;
+        case 'true_false': return userAnswer === correct;
+        case 'multiple_choice': {
+          if (!Array.isArray(userAnswer) || !Array.isArray(correct)) return false;
+          if (userAnswer.length !== correct.length) return false;
+          return [...userAnswer].sort().every((v, i) => v === [...correct].sort()[i]);
+        }
+        case 'short_answer':
+        case 'text_input': {
+          if (!userAnswer) return false;
+          const norm = userAnswer.toString().toLowerCase().trim();
+          return Array.isArray(correct)
+            ? correct.some(a => a.toLowerCase().trim() === norm)
+            : correct?.toLowerCase?.().trim() === norm;
+        }
+        case 'numeric':
+        case 'number_input': {
+          if (typeof userAnswer !== 'number') return false;
+          const tol = correct?.tolerance || 0;
+          return Math.abs(userAnswer - (correct?.value ?? correct)) <= tol;
+        }
+        case 'matching': {
+          if (!Array.isArray(userAnswer)) return false;
+          return userAnswer.every((pair, i) => {
+            const cp = correct[i];
+            return cp && pair.left === cp.left && pair.right === cp.right;
+          });
+        }
+        case 'ordering': {
+          if (!Array.isArray(userAnswer)) return false;
+          return userAnswer.every((item, i) => item === correct[i]);
+        }
+        case 'fill_blanks':
+        case 'fill_in_blank': {
+          if (!Array.isArray(userAnswer)) return false;
+          return userAnswer.every((ans, i) => {
+            const norm = ans?.toLowerCase?.().trim() || '';
+            return Array.isArray(correct[i])
+              ? correct[i].some(a => a.toLowerCase().trim() === norm)
+              : correct[i]?.toLowerCase?.().trim() === norm;
+          });
+        }
+        default: return false;
+      }
+    };
+
+    const renderAnswerReview = (question, index) => {
+      const userAnswer = answers[index];
+      const correct = question.correctAnswer;
+      const isOk = checkAnswerLocal(question, userAnswer);
+
+      switch (question.questionType) {
+        case 'single_choice': {
+          const options = question.options || [];
+          return (
+            <div className="result-answers">
+              {options.map((option, oIndex) => {
+                const isUser = userAnswer === oIndex;
+                const isCorrectOpt = oIndex === correct;
+                // Показываем только правильный и неправильно выбранный
+                if (!isCorrectOpt && !isUser) return null;
+                return (
+                  <div key={oIndex} className={`result-answer ${isCorrectOpt ? 'correct-answer' : 'wrong-answer'}`}>
+                    <span className="answer-letter">{String.fromCharCode(65 + oIndex)}</span>
+                    <span className="answer-text">{option}</span>
+                    <span className={isCorrectOpt ? 'correct-mark' : 'wrong-mark'}>{isCorrectOpt ? '✓' : '✗'}</span>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        }
+
+        case 'multiple_choice': {
+          const options = question.options || [];
+          const userArr = userAnswer || [];
+          const correctArr = correct || [];
+          return (
+            <div className="result-answers">
+              {options.map((option, oIndex) => {
+                const isUser = userArr.includes(oIndex);
+                const isCorrectOpt = correctArr.includes(oIndex);
+                if (!isCorrectOpt && !isUser) return null;
+                return (
+                  <div key={oIndex} className={`result-answer ${isCorrectOpt ? 'correct-answer' : 'wrong-answer'}`}>
+                    <span className="answer-letter">{isUser ? '☑' : '☐'}</span>
+                    <span className="answer-text">{option}</span>
+                    <span className={isCorrectOpt ? 'correct-mark' : 'wrong-mark'}>{isCorrectOpt ? '✓' : '✗'}</span>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        }
+
+        case 'true_false': {
+          const userLabel = userAnswer === true ? '✓ Верно' : userAnswer === false ? '✗ Неверно' : '—';
+          const correctLabel = correct === true ? '✓ Верно' : '✗ Неверно';
+          return (
+            <div className="result-answers">
+              {isOk ? (
+                <div className="result-answer correct-answer">
+                  <span className="answer-text">Ваш ответ: <strong>{userLabel}</strong></span>
+                  <span className="correct-mark">✓</span>
+                </div>
+              ) : (
+                <>
+                  <div className="result-answer wrong-answer">
+                    <span className="answer-text">Ваш ответ: <strong>{userLabel}</strong></span>
+                    <span className="wrong-mark">✗</span>
+                  </div>
+                  <div className="result-answer correct-answer">
+                    <span className="answer-text">Правильно: <strong>{correctLabel}</strong></span>
+                    <span className="correct-mark">✓</span>
+                  </div>
+                </>
+              )}
+            </div>
+          );
+        }
+
+        case 'short_answer':
+        case 'text_input': {
+          const correctDisplay = Array.isArray(correct) ? correct[0] : correct;
+          return (
+            <div className="result-answers">
+              {isOk ? (
+                <div className="result-answer correct-answer">
+                  <span className="answer-text">Ваш ответ: <strong>{userAnswer || '—'}</strong></span>
+                  <span className="correct-mark">✓</span>
+                </div>
+              ) : (
+                <>
+                  <div className="result-answer wrong-answer">
+                    <span className="answer-text">Ваш ответ: <strong>{userAnswer || '—'}</strong></span>
+                    <span className="wrong-mark">✗</span>
+                  </div>
+                  <div className="result-answer correct-answer">
+                    <span className="answer-text">Правильно: <strong>{Array.isArray(correct) ? correct.join(' / ') : correct}</strong></span>
+                    <span className="correct-mark">✓</span>
+                  </div>
+                </>
+              )}
+            </div>
+          );
+        }
+
+        case 'numeric':
+        case 'number_input': {
+          const correctVal = correct?.value ?? correct;
+          const tol = correct?.tolerance;
+          return (
+            <div className="result-answers">
+              {isOk ? (
+                <div className="result-answer correct-answer">
+                  <span className="answer-text">Ваш ответ: <strong>{userAnswer ?? '—'}</strong></span>
+                  <span className="correct-mark">✓</span>
+                </div>
+              ) : (
+                <>
+                  <div className="result-answer wrong-answer">
+                    <span className="answer-text">Ваш ответ: <strong>{userAnswer ?? '—'}</strong></span>
+                    <span className="wrong-mark">✗</span>
+                  </div>
+                  <div className="result-answer correct-answer">
+                    <span className="answer-text">Правильно: <strong>{correctVal}</strong>{tol ? ` ±${tol}` : ''}</span>
+                    <span className="correct-mark">✓</span>
+                  </div>
+                </>
+              )}
+            </div>
+          );
+        }
+
+        case 'matching': {
+          const pairs = correct || [];
+          const userPairs = userAnswer || [];
+          return (
+            <div className="result-answers">
+              {pairs.map((pair, pi) => {
+                const userPair = userPairs[pi] || {};
+                const ok = userPair.right === pair.right;
+                return (
+                  <div key={pi} className={`result-answer ${ok ? 'correct-answer' : 'wrong-answer'}`}>
+                    <span className="answer-text" style={{flex:1}}>
+                      <strong>{pair.left}</strong>
+                      {ok
+                        ? <> → {pair.right}</>
+                        : <> → <span style={{color:'#ef4444', textDecoration:'line-through'}}>{userPair.right || '—'}</span> → <span style={{color:'#10b981'}}>{pair.right}</span></>
+                      }
+                    </span>
+                    <span className={ok ? 'correct-mark' : 'wrong-mark'}>{ok ? '✓' : '✗'}</span>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        }
+
+        case 'ordering': {
+          const correctOrder = correct || [];
+          const userOrder = userAnswer || [];
+          return (
+            <div className="result-answers">
+              {isOk ? (
+                <div className="result-answer correct-answer">
+                  <span className="answer-text">Порядок верный: <strong>{userOrder.join(' → ')}</strong></span>
+                  <span className="correct-mark">✓</span>
+                </div>
+              ) : (
+                <>
+                  <div className="result-answer wrong-answer">
+                    <span className="answer-text">Ваш порядок: <strong>{userOrder.join(' → ')}</strong></span>
+                    <span className="wrong-mark">✗</span>
+                  </div>
+                  <div className="result-answer correct-answer">
+                    <span className="answer-text">Правильно: <strong>{correctOrder.join(' → ')}</strong></span>
+                    <span className="correct-mark">✓</span>
+                  </div>
+                </>
+              )}
+            </div>
+          );
+        }
+
+        case 'fill_blanks':
+        case 'fill_in_blank': {
+          const text = question.questionText || '';
+          const parts = text.split('___');
+          const userBlanks = userAnswer || [];
+          const correctBlanks = correct || [];
+          return (
+            <div className="result-answers">
+              {parts.length > 1 ? (
+                parts.map((part, pi) => {
+                  if (pi >= parts.length - 1) return null;
+                  const userBlank = userBlanks[pi] || '—';
+                  const correctBlankArr = correctBlanks[pi];
+                  const correctBlank = Array.isArray(correctBlankArr) ? correctBlankArr[0] : correctBlankArr;
+                  const norm = (userBlanks[pi] || '').toLowerCase().trim();
+                  const blankOk = Array.isArray(correctBlankArr)
+                    ? correctBlankArr.some(a => a.toLowerCase().trim() === norm)
+                    : correctBlank?.toLowerCase?.().trim() === norm;
+                  return blankOk ? (
+                    <div key={pi} className="result-answer correct-answer">
+                      <span className="answer-text">Пропуск {pi + 1}: <strong>{userBlank}</strong></span>
+                      <span className="correct-mark">✓</span>
+                    </div>
+                  ) : (
+                    <div key={pi} className="result-answer wrong-answer">
+                      <span className="answer-text">
+                        Пропуск {pi + 1}: <span style={{color:'#ef4444', textDecoration:'line-through'}}>{userBlank}</span>
+                        {' → '}<span style={{color:'#10b981'}}>{Array.isArray(correctBlankArr) ? correctBlankArr.join(' / ') : correctBlank}</span>
+                      </span>
+                      <span className="wrong-mark">✗</span>
+                    </div>
+                  );
+                })
+              ) : (
+                // Если в тексте нет ___, показываем просто ваш/правильный
+                isOk ? (
+                  <div className="result-answer correct-answer">
+                    <span className="answer-text">Ваш ответ: <strong>{userBlanks.join(', ') || '—'}</strong></span>
+                    <span className="correct-mark">✓</span>
+                  </div>
+                ) : (
+                  <>
+                    <div className="result-answer wrong-answer">
+                      <span className="answer-text">Ваш ответ: <strong>{userBlanks.join(', ') || '—'}</strong></span>
+                      <span className="wrong-mark">✗</span>
+                    </div>
+                    <div className="result-answer correct-answer">
+                      <span className="answer-text">Правильно: <strong>{Array.isArray(correctBlanks[0]) ? correctBlanks[0].join(' / ') : correctBlanks[0]}</strong></span>
+                      <span className="correct-mark">✓</span>
+                    </div>
+                  </>
+                )
+              )}
+            </div>
+          );
+        }
+
+        default:
+          return null;
+      }
+    };
+
     return (
       <div className="section homework-result">
         <div className="result-header">
@@ -440,6 +708,25 @@ const items = answers[index] || initialOrderRef.current[index] || question.corre
           {percentage >= 50 && percentage < 70 && <p className="average">📖 Неплохо, но есть куда расти!</p>}
           {percentage < 50 && <p className="needs-work">💪 Стоит повторить материал и попробовать снова!</p>}
         </div>
+
+        {/* Разбор ответов */}
+        <div className="result-details">
+          <h3>Разбор ответов</h3>
+          {questions.map((question, qIndex) => {
+            const isCorrect = checkAnswerLocal(question, answers[qIndex]);
+            return (
+              <div key={question.id} className={`result-question ${isCorrect ? 'correct' : 'incorrect'}`}>
+                <div className="result-question-header">
+                  <span className="result-question-number">Вопрос {qIndex + 1}</span>
+                  <span className="hw-q-points">{question.points} б.</span>
+                </div>
+                <p className="result-question-text">{question.questionText}</p>
+                {renderAnswerReview(question, qIndex)}
+              </div>
+            );
+          })}
+        </div>
+
         <div className="result-actions">
           {result.maxAttempts && result.attemptsUsed >= result.maxAttempts ? (
             <p className="attempts-exhausted">Вы использовали все попытки</p>
@@ -456,6 +743,7 @@ const items = answers[index] || initialOrderRef.current[index] || question.corre
     );
   }
 
+  // ЭКРАН ПРОХОЖДЕНИЯ
   if (selectedHomework && questions.length > 0) {
     const currentQuestion = questions[currentQuestionIndex];
     const progress = ((currentQuestionIndex + 1) / questions.length) * 100;
@@ -513,6 +801,7 @@ const items = answers[index] || initialOrderRef.current[index] || question.corre
     );
   }
 
+  // ВЫБОР ПРЕДМЕТА
   if (!selectedSubject && subjects.length > 1) {
     return (
       <div className="section">
@@ -527,9 +816,7 @@ const items = answers[index] || initialOrderRef.current[index] || question.corre
                 <span className="subject-icon-big">{subject.icon}</span>
                 <h3>{subject.name}</h3>
                 <p>{subjectHomeworks.length} заданий</p>
-                {unfinishedCount > 0 && (
-                  <span className="badge-warning">❗ {unfinishedCount}</span>
-                )}
+                {unfinishedCount > 0 && <span className="badge-warning">❗ {unfinishedCount}</span>}
               </button>
             );
           })}
@@ -538,6 +825,7 @@ const items = answers[index] || initialOrderRef.current[index] || question.corre
     );
   }
 
+  // СПИСОК ДОМАШЕК
   const filteredHomeworks = selectedSubject
     ? homeworks.filter(hw => hw.subjectId === selectedSubject.id)
     : homeworks;

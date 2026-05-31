@@ -45,8 +45,6 @@ function StudentAppContent({ selectedStudent, onLogout }) {
 
   return (
     <div className="student-app">
-      {/* Header удалён - теперь каждая страница показывает свой заголовок */}
-
       <main className="content">
         {ActiveComponent && <ActiveComponent studentId={selectedStudent.id} />}
       </main>
@@ -114,22 +112,32 @@ function StudentApp() {
             </div>
           ) : (
             <div className="students-select-list">
-              {students.map(student => (
-                <button
-                  key={student.id}
-                  className="student-select-card"
-                  onClick={() => setSelectedStudent(student)}
-                >
-                  <div className="student-select-avatar">
-                    {student.firstName[0]}{student.lastName[0]}
-                  </div>
-                  <div className="student-select-info">
-                    <h3>{student.firstName} {student.lastName}</h3>
-                    <p>@{student.telegramUsername || 'no username'}</p>
-                  </div>
-                  <div className="student-select-arrow">→</div>
-                </button>
-              ))}
+              {students
+                .filter(student => {
+                  if (!student.isActive) return false;
+                  const now = new Date();
+                  return student.subjects?.some(s => {
+                    const end = s.UserSubject?.accessEndDate;
+                    return !end || new Date(end) > now;
+                  });
+                })
+                .map(student => (
+                  <button
+                    key={student.id}
+                    className="student-select-card"
+                    onClick={() => setSelectedStudent(student)}
+                  >
+                    <div className="student-select-avatar">
+                      {student.firstName?.[0]}{student.lastName?.[0]}
+                    </div>
+                    <div className="student-select-info">
+                      <h3>{student.firstName} {student.lastName}</h3>
+                      <p>@{student.telegramUsername || 'no username'}</p>
+                    </div>
+                    <div className="student-select-arrow">→</div>
+                  </button>
+                ))
+              }
             </div>
           )}
         </div>

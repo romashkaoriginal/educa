@@ -603,3 +603,78 @@
 .q-nav-btn:hover { border-color: #3b82f6; }
 .q-nav-btn.answered { background: #dbeafe; border-color: #93c5fd; color: #1e40af; }
 .q-nav-btn.active { background: #3b82f6; border-color: #3b82f6; color: white; }
+/* ========== РАЗБОР ОТВЕТОВ В ДОМАШКЕ ========== */
+
+.result-details {
+  margin: 16px 0;
+}
+
+.result-details h3 {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0 0 12px 0;
+}
+
+.result-question {
+  background: #ffffff;
+  border: 2px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 10px;
+}
+
+.result-question.correct { border-color: #d1fae5; }
+.result-question.incorrect { border-color: #fee2e2; }
+
+.result-question-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.result-question-number {
+  font-size: 12px;
+  font-weight: 700;
+  color: #6b7280;
+}
+
+.hw-q-points {
+  background: #fef3c7;
+  color: #92400e;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.result-question-text {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0 0 10px 0;
+  line-height: 1.4;
+}
+
+.result-answers {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.result-answer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 7px;
+  background: #f9fafb;
+  font-size: 13px;
+}
+
+.result-answer.correct-answer { background: #d1fae5; }
+.result-answer.wrong-answer { background: #fee2e2; }
+
+.correct-mark { color: #10b981; font-weight: 700; margin-left: auto; flex-shrink: 0; }
+.wrong-mark { color: #ef4444; font-weight: 700; margin-left: auto; flex-shrink: 0; }

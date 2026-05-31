@@ -16,7 +16,7 @@ const PracticeTopic = require('./PracticeTopic');
 const PracticeQuestion = require('./PracticeQuestion');
 const PracticeAttempt = require('./PracticeAttempt');
 const BotUser = require('./BotUser');
-
+const NotificationLog = require('./NotificationLog');
 // ========== СВЯЗИ С SUBJECTS ==========
 
 // User ↔ Subject (многие ко многим через UserSubject)
@@ -138,6 +138,7 @@ module.exports = {
   PracticeTopic,
   PracticeQuestion,
   PracticeAttempt,
+  NotificationLog,
   BotUser,
   syncDatabase
 };

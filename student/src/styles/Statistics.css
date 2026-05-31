@@ -340,3 +340,233 @@
 .hw-date-value.expired {
   color: #dc2626;
 }
+/* ===== НОВАЯ СТАТИСТИКА АДМИНА ===== */
+
+.as-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  gap: 12px;
+}
+
+.as-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.as-header-left h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  color: #1f2937;
+}
+
+.as-mode-hint {
+  font-size: 13px;
+  color: #9ca3af;
+  font-style: italic;
+}
+
+/* Layout: сайдбар + контент */
+.as-layout {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+.as-sidebar {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 12px;
+  max-height: 70vh;
+  overflow-y: auto;
+  position: sticky;
+  top: 0;
+}
+
+.as-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Кнопка ученика в сайдбаре */
+.as-student-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: white;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+  margin-bottom: 6px;
+}
+
+.as-student-btn:hover {
+  border-color: #3B82F6;
+  background: #eff6ff;
+}
+
+.as-ava {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.as-stu-info { flex: 1; min-width: 0; }
+.as-stu-name { font-size: 13px; font-weight: 600; color: #1f2937; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.as-stu-sub { font-size: 12px; color: #9ca3af; margin-top: 2px; }
+
+/* Процент */
+.as-percent {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
+.as-percent.good { background: #d1fae5; color: #059669; }
+.as-percent.medium { background: #fef3c7; color: #d97706; }
+.as-percent.low { background: #fee2e2; color: #dc2626; }
+
+/* Домашка - строка в режиме "все" */
+.as-hw-list { display: flex; flex-direction: column; gap: 8px; }
+
+.as-hw-row {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.as-hw-row-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px;
+  background: #f9fafb;
+  gap: 12px;
+}
+
+.as-hw-row-header:hover { background: #f3f4f6; }
+
+.as-hw-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2937;
+  flex: 1;
+}
+
+.as-hw-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.as-hw-done { font-size: 13px; color: #6b7280; font-weight: 500; }
+
+/* Детали домашки */
+.as-hw-details {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: white;
+}
+
+.as-hw-section-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #374151;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.as-hw-section { }
+
+.as-hw-student-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  background: #f9fafb;
+  border-radius: 8px;
+  margin-bottom: 4px;
+}
+
+.as-hw-student-row.not-done { background: #fff7f7; }
+
+.as-hw-student-name { flex: 1; font-size: 13px; font-weight: 500; color: #1f2937; }
+.as-hw-student-score { font-size: 13px; font-weight: 600; color: #6b7280; }
+
+@media (max-width: 768px) {
+  .as-layout {
+    grid-template-columns: 1fr;
+  }
+  .as-sidebar {
+    max-height: 200px;
+    position: static;
+  }
+}
+
+/* Статистика практики по предмету */
+.as-practice-subject-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  background: #f9fafb;
+  border-radius: 10px;
+}
+
+.as-stat-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+}
+
+.as-stat-label { color: #6b7280; font-weight: 500; }
+.as-stat-value { font-weight: 700; color: #1f2937; display: flex; align-items: center; }
+
+/* Заголовок предмета в домашке */
+.as-hw-subject-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.as-hw-subject-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+/* % выполнения в строке домашки */
+.as-hw-row-header .as-hw-done {
+  white-space: nowrap;
+}

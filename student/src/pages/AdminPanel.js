@@ -6,6 +6,7 @@ import Practice from '../components/admin/Practice';
 import Homework from '../components/admin/Homework';
 import Statistics from '../components/admin/Statistics';
 import Quiz from '../components/admin/Quiz';
+import Notifications from '../components/admin/Notifications';
 
 const API_URL = 'https://educa-production-a98e.up.railway.app/api';
 
@@ -34,33 +35,26 @@ function AdminPanel() {
 
   const loadCurrentUser = async () => {
     try {
-      // Попробуем получить ID из Telegram WebApp
       if (window.Telegram?.WebApp?.initDataUnsafe?.user) {
         const telegramUser = window.Telegram.WebApp.initDataUnsafe.user;
         const telegramId = telegramUser.id;
-        
-        // Получаем пользователя из базы по telegram ID
         const response = await fetch(`${API_URL}/auth/telegram/${telegramId}`);
         const data = await response.json();
-        
         if (data.user) {
           setCurrentUser(data.user);
           localStorage.setItem('currentUserId', data.user.id);
         }
       } else {
-        // Если нет Telegram WebApp, пробуем взять из localStorage
         const userId = localStorage.getItem('currentUserId');
         if (userId) {
           setCurrentUser({ id: parseInt(userId) });
         } else {
-          // Дефолтное значение для разработки
           setCurrentUser({ id: 1 });
           localStorage.setItem('currentUserId', '1');
         }
       }
     } catch (error) {
       console.error('Error loading current user:', error);
-      // Устанавливаем дефолтное значение
       setCurrentUser({ id: 1 });
       localStorage.setItem('currentUserId', '1');
     }
@@ -72,7 +66,8 @@ function AdminPanel() {
     { id: 'practice', name: 'Практика', icon: '💪' },
     { id: 'quiz', name: 'Викторина', icon: '🎯' },
     { id: 'homework', name: 'Дом. задание', icon: '📝' },
-    { id: 'statistics', name: 'Статистика', icon: '📊' }
+    { id: 'statistics', name: 'Статистика', icon: '📊' },
+    { id: 'notifications', name: 'Уведомления', icon: '📣' },
   ];
 
   return (
@@ -104,6 +99,7 @@ function AdminPanel() {
         {activeSection === 'practice' && <Practice subjects={subjects} />}
         {activeSection === 'homework' && <Homework subjects={subjects} currentUserId={currentUser?.id} />}
         {activeSection === 'statistics' && <Statistics />}
+        {activeSection === 'notifications' && <Notifications subjects={subjects} currentUser={currentUser} />}
         {activeSection === 'quiz' && (
           <Quiz subjects={subjects} currentUserId={currentUser?.id} />
         )}

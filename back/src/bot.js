@@ -229,4 +229,4 @@ function stopBot() {
   }
 }
 
-module.exports = { startBot, stopBot };
+module.exports = { startBot, stopBot, getBot: () => bot };

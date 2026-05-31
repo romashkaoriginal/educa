@@ -493,3 +493,99 @@
     max-width: 100%;
   }
 }
+/* ===== СВОРАЧИВАЕМЫЕ ВОПРОСЫ ===== */
+
+.questions-expand-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: #f9fafb;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+}
+
+.questions-expand-hint {
+  font-size: 13px;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.questions-expand-btns {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-expand {
+  padding: 5px 12px;
+  border: 1px solid #d1d5db;
+  background: #ffffff;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-expand:hover {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+}
+
+/* Шапка вопроса — переопределяем чтобы убрать margin-bottom */
+.question-card .question-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0;
+  gap: 12px;
+}
+
+.question-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+.question-expand-icon {
+  font-size: 10px;
+  color: #9ca3af;
+  flex-shrink: 0;
+  width: 12px;
+}
+
+.question-preview {
+  font-size: 14px;
+  font-weight: 500;
+  color: #1f2937;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.inactive-badge {
+  background: #fee2e2;
+  color: #dc2626;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+/* Тело вопроса */
+.question-body {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid #e5e7eb;
+}
+
+/* question-text и question-options внутри body не нужен нижний margin у последнего */
+.question-body .question-options {
+  margin-bottom: 0;
+}

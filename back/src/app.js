@@ -16,8 +16,8 @@ const homeworkRoutes = require('./routes/homework');
 const practiceRoutes = require('./routes/practice');
 const usersRoutes = require('./routes/users');
 const botUsersRoutes = require('./routes/botUsers');
-const quizRoutes = require('./routes/quiz'); // ← ДОБАВИЛИ
-
+const quizRoutes = require('./routes/quiz');
+const notifyRoutes = require('./routes/notify');
 const setupQuizSocket = require('./socket/quizSocket'); // ← ДОБАВИЛИ
 
 const app = express();
@@ -60,7 +60,8 @@ app.use('/api/homework', homeworkRoutes);
 app.use('/api/practice', practiceRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/bot-users', botUsersRoutes);
-app.use('/api/quiz', quizRoutes); // ← ДОБАВИЛИ
+app.use('/api/quiz', quizRoutes);
+app.use('/api/notify', notifyRoutes);
 
 // Подключаем WebSocket для викторин
 setupQuizSocket(io); // ← ДОБАВИЛИ
@@ -75,7 +76,7 @@ const startServer = async () => {
   const sequelize = require('./config/database'); 
   
   await syncDatabase();
-  //await sequelize.sync({ alter: true }); //
+  await sequelize.sync({ alter: true }); 
   
   // ИЗМЕНЕНО: server.listen вместо app.listen!
   server.listen(PORT, () => {
