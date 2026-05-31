@@ -10,7 +10,24 @@ const API_URL = 'https://educa-production-a98e.up.railway.app/api';
 
 function StudentAppContent({ selectedStudent, onLogout }) {
   const [activeTab, setActiveTab] = useState('practice');
-  const { preloadAllData } = useData();
+  const { preloadAllData, loadHomeworks, loadPractice, loadPracticeStats, loadHomeworkStats } = useData();
+
+  const handleTabChange = (tabId) => {
+    setActiveTab(tabId);
+    // Обновляем данные при переключении на вкладку
+    if (tabId === 'homework') {
+      loadHomeworks(true);
+      loadHomeworkStats(true);
+    }
+    if (tabId === 'practice') {
+      loadPractice(true);
+      loadPracticeStats(true);
+    }
+    if (tabId === 'stats') {
+      loadPracticeStats(true);
+      loadHomeworkStats(true);
+    }
+  };
   const [initialLoading, setInitialLoading] = useState(true);
 
   useEffect(() => {
@@ -54,7 +71,7 @@ function StudentAppContent({ selectedStudent, onLogout }) {
           <button
             key={tab.id}
             className={`nav-button ${activeTab === tab.id ? 'active' : ''}`}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => handleTabChange(tab.id)}
           >
             <span className="nav-icon">{tab.icon}</span>
             <span className="nav-text">{tab.name}</span>
@@ -75,7 +92,25 @@ function StudentApp() {
       try {
         const response = await fetch(`${API_URL}/students`);
         const data = await response.json();
-        setStudents(data.students || []);
+        const allStudents = data.students || [];
+        setStudents(allStudents);
+
+        // Пробуем получить telegramId из Telegram WebApp
+        const telegramId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+        if (telegramId) {
+          const now = new Date();
+          const matched = allStudents.find(s =>
+            s.telegramId && String(s.telegramId) === String(telegramId) &&
+            s.isActive &&
+            s.subjects?.some(sub => {
+              const end = sub.UserSubject?.accessEndDate;
+              return !end || new Date(end) > now;
+            })
+          );
+          if (matched) {
+            setSelectedStudent(matched);
+          }
+        }
       } catch (error) {
         console.error('Error fetching students:', error);
       } finally {

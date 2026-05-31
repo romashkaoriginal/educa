@@ -1,26 +1,36 @@
 const TelegramBot = require('node-telegram-bot-api');
-const axios = require('axios');
+const { User, BotUser, BotTest, Subject } = require('./models');
 
 const token = process.env.BOT_TOKEN;
 const webAppUrl = process.env.WEB_APP_URL;
-const apiUrl = process.env.API_URL || 'http://localhost:5000/api';
 
 let bot = null;
 
-// Состояния тестов для неавторизованных пользователей
-// { chatId: { step: 'subject'|'question', subjectId, questions, currentIndex, score, subjects } }
 const testSessions = {};
 
 async function registerBotUser(user) {
   try {
-    await axios.post(`${apiUrl}/bot-users/register`, {
-      telegramId: user.id,
-      telegramUsername: user.username || null,
-      firstName: user.first_name || 'Пользователь',
-      lastName: user.last_name || '',
-      languageCode: user.language_code || 'ru',
-      isBot: user.is_bot || false
+    const [botUser] = await BotUser.findOrCreate({
+      where: { telegramId: user.id },
+      defaults: {
+        telegramId: user.id,
+        telegramUsername: user.username || null,
+        firstName: user.first_name || 'Пользователь',
+        lastName: user.last_name || '',
+        languageCode: user.language_code || 'ru',
+        isBot: user.is_bot || false,
+        firstInteractionAt: new Date(),
+        lastInteractionAt: new Date(),
+        messageCount: 1
+      }
     });
+    if (botUser && !botUser._options?.isNewRecord) {
+      await botUser.update({
+        lastInteractionAt: new Date(),
+        messageCount: (botUser.messageCount || 0) + 1,
+        telegramUsername: user.username || botUser.telegramUsername
+      });
+    }
   } catch (e) {
     console.error('Ошибка регистрации:', e.message);
   }
@@ -28,10 +38,33 @@ async function registerBotUser(user) {
 
 async function checkUserRole(telegramId) {
   try {
-    const res = await axios.get(`${apiUrl}/auth/telegram/${telegramId}`);
-    return res.data.user;
+    const user = await User.findOne({
+      where: { telegramId },
+      attributes: ['id', 'firstName', 'lastName', 'role', 'isActive', 'telegramId']
+    });
+    return user || null;
   } catch {
     return null;
+  }
+}
+
+async function getSubjects() {
+  try {
+    return await Subject.findAll({ attributes: ['id', 'name', 'icon'] });
+  } catch {
+    return [];
+  }
+}
+
+async function getTestQuestions(subjectId) {
+  try {
+    return await BotTest.findAll({
+      where: { subjectId, isActive: true },
+      order: [['order', 'ASC'], ['id', 'ASC']],
+      attributes: ['id', 'questionText', 'options', 'correctAnswer', 'explanation']
+    });
+  } catch {
+    return [];
   }
 }
 
@@ -65,8 +98,7 @@ async function sendQuestion(chatId, session) {
 // Загружаем вопросы и запускаем тест
 async function startTest(chatId, subjectId, subjectName) {
   try {
-    const res = await axios.get(`${apiUrl}/bot-test/${subjectId}`);
-    const questions = res.data.questions || [];
+    const questions = await getTestQuestions(subjectId);
 
     if (questions.length === 0) {
       await bot.sendMessage(chatId, `😔 По предмету <b>${subjectName}</b> пока нет вопросов.\n\nВыберите другой предмет или напишите /start.`, { parse_mode: 'HTML' });
@@ -91,11 +123,9 @@ async function startTest(chatId, subjectId, subjectName) {
   }
 }
 
-// Показываем выбор предмета
 async function showSubjectPicker(chatId, firstName) {
   try {
-    const res = await axios.get(`${apiUrl}/subjects`);
-    const subjects = res.data.subjects || [];
+    const subjects = await getSubjects();
 
     if (subjects.length === 0) {
       await bot.sendMessage(chatId, '😔 Тесты пока недоступны. Обратитесь к администратору.');
@@ -112,10 +142,7 @@ async function showSubjectPicker(chatId, firstName) {
     await bot.sendMessage(
       chatId,
       `👋 Привет, <b>${firstName}</b>!\n\n🎓 Вы ещё не зарегистрированы в системе, но можете пройти вступительный тест.\n\n📚 Выберите предмет:`,
-      {
-        parse_mode: 'HTML',
-        reply_markup: { inline_keyboard: keyboard }
-      }
+      { parse_mode: 'HTML', reply_markup: { inline_keyboard: keyboard } }
     );
   } catch (e) {
     console.error('Ошибка загрузки предметов:', e.message);
