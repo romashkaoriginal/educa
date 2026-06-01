@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './Practice.css';
 import { useData } from './DataContext';
+import { apiFetch } from './api';
 
 const API_URL = 'https://educa-production-a98e.up.railway.app/api';
 
@@ -114,7 +115,7 @@ function Practice({ studentId }) {
     updatePracticeStatsOptimistic(activePractice.id, correctCount, totalCount);
 
     // Отправляем итог теста на сервер (fire-and-forget)
-    fetch(`${API_URL}/practice/attempts`, {
+    apiFetch(`${API_URL}/practice/attempts`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

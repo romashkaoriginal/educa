@@ -21,6 +21,7 @@ const quizRoutes = require('./routes/quiz');
 const notifyRoutes = require('./routes/notify');
 const botTestRoutes = require('./routes/botTest');
 const setupQuizSocket = require('./socket/quizSocket');
+const { telegramAuth, requireUser, requireAdmin } = require('./middleware/telegramAuth');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -61,17 +62,23 @@ app.use('/api/subjects', (req, res, next) => {
 });
 
 app.use('/api/auth', authRoutes);
-app.use('/api/subjects', subjectRoutes);
-app.use('/api/students', studentRoutes);
-app.use('/api/stats', statsRoutes);
-app.use('/api/admin', adminRoutes);
-app.use('/api/homework', homeworkRoutes);
-app.use('/api/practice', practiceRoutes);
-app.use('/api/users', usersRoutes);
+
+// Публичные эндпоинты (бот, проверка)
 app.use('/api/bot-users', botUsersRoutes);
-app.use('/api/quiz', quizRoutes);
-app.use('/api/notify', notifyRoutes);
-app.use('/api/bot-test', botTestRoutes);
+
+// Студенческие роуты — требуют Telegram auth
+app.use('/api/subjects', telegramAuth, requireUser, subjectRoutes);
+app.use('/api/homework', telegramAuth, requireUser, homeworkRoutes);
+app.use('/api/practice', telegramAuth, requireUser, practiceRoutes);
+app.use('/api/quiz', telegramAuth, requireUser, quizRoutes);
+
+// Админские роуты — требуют Telegram auth + роль admin
+app.use('/api/students', telegramAuth, requireAdmin, studentRoutes);
+app.use('/api/stats', telegramAuth, requireAdmin, statsRoutes);
+app.use('/api/admin', telegramAuth, requireAdmin, adminRoutes);
+app.use('/api/users', telegramAuth, requireAdmin, usersRoutes);
+app.use('/api/notify', telegramAuth, requireAdmin, notifyRoutes);
+app.use('/api/bot-test', telegramAuth, requireAdmin, botTestRoutes);
 
 setupQuizSocket(io);
 

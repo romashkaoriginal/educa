@@ -66,7 +66,7 @@ function Notifications({ subjects, currentUser }) {
   const loadPreview = useCallback(async () => {
     setPreviewLoading(true);
     try {
-      const res = await fetch(`${API_URL}/notify/preview`, {
+      const res = await adminFetch(`${API_URL}/notify/preview`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -95,7 +95,7 @@ function Notifications({ subjects, currentUser }) {
 
   const loadAllStudents = async () => {
     try {
-      const res = await fetch(`${API_URL}/students`);
+      const res = await adminFetch(`${API_URL}/students`);
       const data = await res.json();
       setAllStudents(data.students || []);
     } catch (e) { console.error(e); }
@@ -104,7 +104,7 @@ function Notifications({ subjects, currentUser }) {
   const loadHistory = async () => {
     setHistoryLoading(true);
     try {
-      const res = await fetch(`${API_URL}/notify/history`);
+      const res = await adminFetch(`${API_URL}/notify/history`);
       const data = await res.json();
       setHistory(data.logs || []);
     } catch (e) { console.error(e); }
@@ -142,7 +142,7 @@ function Notifications({ subjects, currentUser }) {
         };
       }
 
-      const res = await fetch(`${API_URL}/notify/send`, {
+      const res = await adminFetch(`${API_URL}/notify/send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)

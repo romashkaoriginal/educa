@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import '../../styles/Practice.css';
+import { adminFetch } from './adminApi';
 
 const API_URL = 'https://educa-production-a98e.up.railway.app/api';
 
@@ -49,7 +50,7 @@ function Practice() {
 
   const loadSubjects = async () => {
     try {
-      const response = await fetch(`${API_URL}/subjects`);
+      const response = await adminFetch(`${API_URL}/subjects`);
       const data = await response.json();
       setSubjects(data.subjects || []);
     } catch (error) {
@@ -59,7 +60,7 @@ function Practice() {
 
   const loadTopics = async () => {
     try {
-      const response = await fetch(`${API_URL}/practice/topics/${selectedSubject.id}`);
+      const response = await adminFetch(`${API_URL}/practice/topics/${selectedSubject.id}`);
       const data = await response.json();
       setTopics(data.topics || []);
     } catch (error) {
@@ -69,7 +70,7 @@ function Practice() {
 
   const loadQuestions = async () => {
     try {
-      const response = await fetch(`${API_URL}/practice/questions/${selectedTopic.id}`);
+      const response = await adminFetch(`${API_URL}/practice/questions/${selectedTopic.id}`);
       const data = await response.json();
       setQuestions(data.questions || []);
       setExpandedQuestions(new Set()); // при загрузке все свёрнуты
@@ -111,7 +112,7 @@ function Practice() {
   const handleCreateTopic = async (e) => {
     e.preventDefault();
     try {
-      const response = await fetch(`${API_URL}/practice/topics`, {
+      const response = await adminFetch(`${API_URL}/practice/topics`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -143,7 +144,7 @@ function Practice() {
   const handleUpdateTopic = async (e) => {
     e.preventDefault();
     try {
-      const response = await fetch(`${API_URL}/practice/topics/${editingTopic.id}`, {
+      const response = await adminFetch(`${API_URL}/practice/topics/${editingTopic.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(topicForm)
@@ -164,7 +165,7 @@ function Practice() {
     if (!window.confirm('Удалить раздел? Все вопросы в нём будут удалены!')) return;
 
     try {
-      const response = await fetch(`${API_URL}/practice/topics/${topicId}`, {
+      const response = await adminFetch(`${API_URL}/practice/topics/${topicId}`, {
         method: 'DELETE'
       });
 
@@ -182,7 +183,7 @@ function Practice() {
   const handleCreateQuestion = async (e) => {
     e.preventDefault();
     try {
-      const response = await fetch(`${API_URL}/practice/questions`, {
+      const response = await adminFetch(`${API_URL}/practice/questions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -216,7 +217,7 @@ function Practice() {
   const handleUpdateQuestion = async (e) => {
     e.preventDefault();
     try {
-      const response = await fetch(`${API_URL}/practice/questions/${editingQuestion.id}`, {
+      const response = await adminFetch(`${API_URL}/practice/questions/${editingQuestion.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(questionForm)
@@ -235,7 +236,7 @@ function Practice() {
 
   const handleToggleQuestion = async (questionId, isActive) => {
     try {
-      await fetch(`${API_URL}/practice/questions/${questionId}/toggle`, {
+      await adminFetch(`${API_URL}/practice/questions/${questionId}/toggle`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isActive: !isActive })
@@ -250,7 +251,7 @@ function Practice() {
     if (!window.confirm('Удалить вопрос?')) return;
 
     try {
-      const response = await fetch(`${API_URL}/practice/questions/${questionId}`, {
+      const response = await adminFetch(`${API_URL}/practice/questions/${questionId}`, {
         method: 'DELETE'
       });
 

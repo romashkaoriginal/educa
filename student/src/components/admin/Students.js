@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import '../../styles/Students.css';
+import { adminFetch } from './adminApi';
 
 const API_URL = 'https://educa-production-a98e.up.railway.app/api';
 
@@ -59,7 +60,7 @@ const [editFormData, setEditFormData] = useState({
   const loadStudents = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/students`);
+      const response = await adminFetch(`${API_URL}/students`);
       const data = await response.json();
       setStudents(data.students || []);
     } catch (error) {
@@ -72,7 +73,7 @@ const [editFormData, setEditFormData] = useState({
   const loadBotUsers = async () => {
     setLoadingBotUsers(true);
     try {
-      const response = await fetch(
+      const response = await adminFetch(
         `${API_URL}/bot-users?sortBy=${botUsersSortBy}&order=${botUsersSortOrder}&filter=${botUsersFilter}`
       );
       const data = await response.json();
@@ -223,7 +224,7 @@ const [editFormData, setEditFormData] = useState({
         };
       });
 
-      const response = await fetch(`${API_URL}/students`, {
+      const response = await adminFetch(`${API_URL}/students`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(convertedData)
@@ -252,7 +253,7 @@ const [editFormData, setEditFormData] = useState({
     }
 
     try {
-      const response = await fetch(`${API_URL}/students/${studentId}`, {
+      const response = await adminFetch(`${API_URL}/students/${studentId}`, {
         method: 'DELETE'
       });
 
@@ -268,7 +269,7 @@ const [editFormData, setEditFormData] = useState({
 
   const handleExtendAccess = async (studentId, days) => {
     try {
-      const response = await fetch(`${API_URL}/students/${studentId}/extend-access`, {
+      const response = await adminFetch(`${API_URL}/students/${studentId}/extend-access`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ days })
@@ -520,7 +521,7 @@ const handleSaveEdit = async () => {
       convertedData.subjectAccessDates[subjectId] = { startDate, endDate };
     });
 
-    const response = await fetch(`${API_URL}/students/${selectedStudent.id}`, {
+    const response = await adminFetch(`${API_URL}/students/${selectedStudent.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(convertedData)

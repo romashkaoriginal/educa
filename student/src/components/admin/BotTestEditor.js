@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import '../../styles/BotTestEditor.css';
+import { adminFetch } from './adminApi';
 
 const API_URL = 'https://educa-production-a98e.up.railway.app/api';
 
@@ -25,7 +26,7 @@ function BotTestEditor({ subjects }) {
   const loadQuestions = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/bot-test`);
+      const res = await adminFetch(`${API_URL}/bot-test`);
       const data = await res.json();
       setQuestions(data.questions || []);
     } catch (e) { console.error(e); }
@@ -79,7 +80,7 @@ function BotTestEditor({ subjects }) {
         ? `${API_URL}/bot-test/${editingQuestion.id}`
         : `${API_URL}/bot-test`;
       const method = editingQuestion ? 'PUT' : 'POST';
-      const res = await fetch(url, {
+      const res = await adminFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
@@ -94,14 +95,14 @@ function BotTestEditor({ subjects }) {
   const handleDelete = async (id) => {
     if (!window.confirm('Удалить вопрос?')) return;
     try {
-      await fetch(`${API_URL}/bot-test/${id}`, { method: 'DELETE' });
+      await adminFetch(`${API_URL}/bot-test/${id}`, { method: 'DELETE' });
       await loadQuestions();
     } catch (e) { console.error(e); }
   };
 
   const handleToggle = async (q) => {
     try {
-      await fetch(`${API_URL}/bot-test/${q.id}`, {
+      await adminFetch(`${API_URL}/bot-test/${q.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isActive: !q.isActive })

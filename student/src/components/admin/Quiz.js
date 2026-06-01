@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { io } from 'socket.io-client';
 import '../../styles/Quiz.css';
+import { adminFetch } from './adminApi';
 
 const API_URL = 'https://educa-production-a98e.up.railway.app/api';
 const SOCKET_URL = 'https://educa-production-a98e.up.railway.app';
@@ -92,7 +93,7 @@ function Quiz({ subjects, currentUserId }) {
 
   const loadQuizzes = async () => {
     try {
-      const response = await fetch(`${API_URL}/quiz/all`);
+      const response = await adminFetch(`${API_URL}/quiz/all`);
       const data = await response.json();
       setQuizzes(data.quizzes || []);
     } catch (error) {
@@ -138,7 +139,7 @@ function Quiz({ subjects, currentUserId }) {
     }
 
     try {
-      const response = await fetch(`${API_URL}/quiz/create`, {
+      const response = await adminFetch(`${API_URL}/quiz/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -193,7 +194,7 @@ function Quiz({ subjects, currentUserId }) {
   const deleteQuiz = async (id) => {
     if (!window.confirm('Удалить викторину?')) return;
     try {
-      await fetch(`${API_URL}/quiz/${id}`, { method: 'DELETE' });
+      await adminFetch(`${API_URL}/quiz/${id}`, { method: 'DELETE' });
       loadQuizzes();
     } catch (error) {
       console.error('Error:', error);
@@ -206,7 +207,7 @@ function Quiz({ subjects, currentUserId }) {
     setView('results');
 
     try {
-      const response = await fetch(`${API_URL}/quiz/${quiz.id}/results`);
+      const response = await adminFetch(`${API_URL}/quiz/${quiz.id}/results`);
       const data = await response.json();
       setResultsData(data);
     } catch (error) {

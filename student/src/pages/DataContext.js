@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
+import { apiFetch } from './api';
 
 const API_URL = 'https://educa-production-a98e.up.railway.app/api';
 
@@ -35,7 +36,7 @@ export const DataProvider = ({ children, studentId }) => {
     if (loading.subjects) return subjects;
     setLoading(prev => ({ ...prev, subjects: true }));
     try {
-      const response = await fetch(`${API_URL}/subjects/student/${studentId}`);
+      const response = await apiFetch(`${API_URL}/subjects/student/${studentId}`);
       const data = await response.json();
       setSubjects(data.subjects || []);
       setLoaded(prev => ({ ...prev, subjects: true }));
@@ -53,7 +54,7 @@ export const DataProvider = ({ children, studentId }) => {
     if (loading.practice) return practiceTopics;
     setLoading(prev => ({ ...prev, practice: true }));
     try {
-      const response = await fetch(`${API_URL}/practice/student/${studentId}`);
+      const response = await apiFetch(`${API_URL}/practice/student/${studentId}`);
       const data = await response.json();
       const topics = data.practiceTopics || [];
       setPracticeTopics(topics);
@@ -78,7 +79,7 @@ export const DataProvider = ({ children, studentId }) => {
     Promise.all(
       topicsToLoad.map(async (topic) => {
         try {
-          const res = await fetch(`${API_URL}/practice/questions/${topic.id}`);
+          const res = await apiFetch(`${API_URL}/practice/questions/${topic.id}`);
           const data = await res.json();
           const active = (data.questions || []).filter(q => q.isActive);
           if (active.length > 0) {
@@ -96,7 +97,7 @@ export const DataProvider = ({ children, studentId }) => {
     if (questionsCache.current[topic.id]) {
       return questionsCache.current[topic.id];
     }
-    const res = await fetch(`${API_URL}/practice/questions/${topic.id}`);
+    const res = await apiFetch(`${API_URL}/practice/questions/${topic.id}`);
     const data = await res.json();
     const active = (data.questions || []).filter(q => q.isActive);
     questionsCache.current[topic.id] = active;
@@ -108,7 +109,7 @@ export const DataProvider = ({ children, studentId }) => {
     if (loading.homework) return homeworks;
     setLoading(prev => ({ ...prev, homework: true }));
     try {
-      const response = await fetch(`${API_URL}/homework/student/${studentId}`);
+      const response = await apiFetch(`${API_URL}/homework/student/${studentId}`);
       const data = await response.json();
       setHomeworks(data.homeworks || []);
       setLoaded(prev => ({ ...prev, homework: true }));
@@ -126,7 +127,7 @@ export const DataProvider = ({ children, studentId }) => {
     if (loading.practiceStats) return practiceStats;
     setLoading(prev => ({ ...prev, practiceStats: true }));
     try {
-      const response = await fetch(`${API_URL}/practice/stats/${studentId}`);
+      const response = await apiFetch(`${API_URL}/practice/stats/${studentId}`);
       const data = await response.json();
       setPracticeStats(data);
       setLoaded(prev => ({ ...prev, practiceStats: true }));
@@ -144,7 +145,7 @@ export const DataProvider = ({ children, studentId }) => {
     if (loading.homeworkStats) return homeworkStats;
     setLoading(prev => ({ ...prev, homeworkStats: true }));
     try {
-      const response = await fetch(`${API_URL}/homework/student/${studentId}/stats`);
+      const response = await apiFetch(`${API_URL}/homework/student/${studentId}/stats`);
       const data = await response.json();
       setHomeworkStats(data);
       setLoaded(prev => ({ ...prev, homeworkStats: true }));
@@ -163,15 +164,17 @@ export const DataProvider = ({ children, studentId }) => {
     setPracticeTopics(prev => prev.map(topic => {
       if (topic.id !== topicId) return topic;
       const prevStats = topic.stats || { correct: 0, total: 0, successRate: 0 };
-      const newCorrect = prevStats.correct + correct;
-      const newTotal = prevStats.total + total;
-      const newRate = newTotal > 0 ? Math.round(newCorrect / newTotal * 100) : 0;
-      // Обновляем только если результат лучше предыдущего
+      const newRate = total > 0 ? Math.round(correct / total * 100) : 0;
       const prevRate = prevStats.successRate || 0;
-      if (newRate <= prevRate && prevStats.total > 0) return topic;
+      // Обновляем только если текущая попытка лучше предыдущего лучшего результата
+      if (newRate <= prevRate) return topic;
       return {
         ...topic,
-        stats: { correct: newCorrect, total: newTotal, successRate: newRate }
+        stats: {
+          correct,
+          total,
+          successRate: newRate
+        }
       };
     }));
   }, []);

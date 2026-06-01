@@ -87,8 +87,8 @@ function Homework({ subjects, currentUserId }) {
         title: data.homework.title,
         description: data.homework.description || '',
         subjectId: data.homework.subjectId,
-        openDate: data.homework.openDate?.slice(0, 16) || '',
-        closeDate: data.homework.closeDate?.slice(0, 16) || '',
+        openDate: data.homework.openDate ? (() => { const d = new Date(data.homework.openDate); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 16); })() : '',
+        closeDate: data.homework.closeDate ? (() => { const d = new Date(data.homework.closeDate); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 16); })() : '',
         maxAttempts: data.homework.maxAttempts || ''
       });
       setQuestions(data.homework.questions || []);
@@ -114,11 +114,18 @@ function Homework({ subjects, currentUserId }) {
         ? `${API_URL}/homework/${editingHomework.id}`
         : `${API_URL}/homework/create`;
       const method = editingHomework ? 'PUT' : 'POST';
+
+      // Конвертируем локальное время в UTC (datetime-local возвращает локальное)
+      const openDateUTC = formData.openDate ? new Date(formData.openDate).toISOString() : null;
+      const closeDateUTC = formData.closeDate ? new Date(formData.closeDate).toISOString() : null;
+
       const response = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
+          openDate: openDateUTC,
+          closeDate: closeDateUTC,
           maxAttempts: formData.maxAttempts === '' ? null : parseInt(formData.maxAttempts),
           questions: questions.map((q, index) => ({ ...q, order: index })),
           createdBy: currentUserId || 1

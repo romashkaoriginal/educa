@@ -46,7 +46,7 @@ function Users() {
   const loadUsers = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/users`);
+      const response = await adminFetch(`${API_URL}/users`);
       const data = await response.json();
       setUsers(data.users || []);
     } catch (error) {
@@ -59,7 +59,7 @@ function Users() {
   const loadBotUsers = async () => {
     setLoadingBotUsers(true);
     try {
-      const response = await fetch(
+      const response = await adminFetch(
         `${API_URL}/bot-users?sortBy=${botUsersSortBy}&order=${botUsersSortOrder}&filter=${botUsersFilter}`
       );
       const data = await response.json();
@@ -126,7 +126,7 @@ function Users() {
       
       const method = isEditing ? 'PUT' : 'POST';
 
-      const response = await fetch(url, {
+      const response = await adminFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
@@ -151,7 +151,7 @@ function Users() {
 
   const handleToggleStatus = async (userId) => {
     try {
-      const response = await fetch(`${API_URL}/users/${userId}/toggle-status`, {
+      const response = await adminFetch(`${API_URL}/users/${userId}/toggle-status`, {
         method: 'PATCH'
       });
 
@@ -169,7 +169,7 @@ function Users() {
     }
 
     try {
-      const response = await fetch(`${API_URL}/users/${userId}`, {
+      const response = await adminFetch(`${API_URL}/users/${userId}`, {
         method: 'DELETE'
       });
 

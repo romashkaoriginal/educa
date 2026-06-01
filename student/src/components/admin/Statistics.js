@@ -35,7 +35,7 @@ function AdminStatistics() {
 
   const loadStudents = async () => {
     try {
-      const res = await fetch(`${API_URL}/students`);
+      const res = await adminFetch(`${API_URL}/students`);
       const data = await res.json();
       setStudents(data.students || []);
     } catch (e) { console.error(e); }
@@ -46,7 +46,7 @@ function AdminStatistics() {
     setAllLoading(true);
     try {
       if (activeTab === 'practice') {
-        const res = await fetch(`${API_URL}/stats/admin?section=practice`);
+        const res = await adminFetch(`${API_URL}/stats/admin?section=practice`);
         const data = await res.json();
 
         // Данные уже агрегированы на бэкенде из PracticeDailyLog
@@ -64,12 +64,12 @@ function AdminStatistics() {
       }
 
       if (activeTab === 'homework') {
-        const hwRes = await fetch(`${API_URL}/homework/all`);
+        const hwRes = await adminFetch(`${API_URL}/homework/all`);
         const hwData = await hwRes.json();
         const homeworks = hwData.homeworks || [];
 
         const results = await Promise.all(homeworks.map(async hw => {
-          const rRes = await fetch(`${API_URL}/homework/${hw.id}/results`);
+          const rRes = await adminFetch(`${API_URL}/homework/${hw.id}/results`);
           const rData = await rRes.json();
           return { hw, results: rData.results || [] };
         }));
@@ -121,7 +121,7 @@ function AdminStatistics() {
     setStudentLoading(true);
     try {
       if (activeTab === 'practice') {
-        const res = await fetch(`${API_URL}/practice/stats/${selectedStudent.id}`);
+        const res = await adminFetch(`${API_URL}/practice/stats/${selectedStudent.id}`);
         const data = await res.json();
         // Группируем topicStats по предметам
         const bySubject = {};
@@ -141,7 +141,7 @@ function AdminStatistics() {
       }
 
       if (activeTab === 'homework') {
-        const res = await fetch(`${API_URL}/homework/student/${selectedStudent.id}/stats`);
+        const res = await adminFetch(`${API_URL}/homework/student/${selectedStudent.id}/stats`);
         const data = await res.json();
         // Группируем по предмету
         const bySubject = {};

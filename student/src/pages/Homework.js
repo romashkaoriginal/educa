@@ -1,8 +1,182 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import './Homework.css';
 import { useData } from './DataContext';
+import { apiFetch } from './api';
 
 const API_URL = 'https://educa-production-a98e.up.railway.app/api';
+
+function MatchingWire({ pairs, rightOrder, connections, colors, onChange }) {
+  const containerRef = React.useRef(null);
+  const [activeLeft, setActiveLeft] = React.useState(null);
+  const [mousePos, setMousePos] = React.useState({ x: 0, y: 0 });
+  const [dragging, setDragging] = React.useState(false);
+  const [svgH, setSvgH] = React.useState(300);
+
+  React.useEffect(() => {
+    if (containerRef.current) setSvgH(containerRef.current.offsetHeight);
+  });
+
+  const getDotPos = (side, idx) => {
+    if (!containerRef.current) return { x: 0, y: 0 };
+    const root = containerRef.current;
+    const rb = root.getBoundingClientRect();
+    const el = root.querySelector(`.mw-${side}[data-idx="${idx}"]`);
+    if (!el) return { x: 0, y: 0 };
+    const eb = el.getBoundingClientRect();
+    return {
+      x: side === 'left' ? eb.right - rb.left : eb.left - rb.left,
+      y: eb.top - rb.top + eb.height / 2
+    };
+  };
+
+  const onLeftDown = (e, li) => {
+    e.preventDefault();
+    setActiveLeft(li);
+    setDragging(true);
+    const rb = containerRef.current.getBoundingClientRect();
+    setMousePos({ x: e.clientX - rb.left, y: e.clientY - rb.top });
+  };
+
+  React.useEffect(() => {
+    if (!dragging) return;
+    const onMove = (e) => {
+      if (!containerRef.current) return;
+      const rb = containerRef.current.getBoundingClientRect();
+      setMousePos({ x: e.clientX - rb.left, y: e.clientY - rb.top });
+    };
+    const onUp = (e) => {
+      if (activeLeft !== null) {
+        const els = document.elementsFromPoint(e.clientX, e.clientY);
+        const rb = els.find(el => el.classList && el.classList.contains('mw-right'));
+        if (rb) {
+          const ri = +rb.dataset.idx;
+          // Один к одному: снимаем старую связь с этим правым блоком
+          const newConns = { ...connections };
+          Object.keys(newConns).forEach(k => { if (newConns[k] === ri) delete newConns[k]; });
+          newConns[activeLeft] = ri;
+          onChange(newConns);
+        }
+      }
+      setDragging(false);
+      setActiveLeft(null);
+    };
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+    return () => {
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+    };
+  }, [dragging, activeLeft, connections, onChange]);
+
+  return (
+    <div ref={containerRef} style={{ position: 'relative', userSelect: 'none', touchAction: 'none', padding: '8px 0' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start' }}>
+        {/* Левая колонка */}
+        <div style={{ width: '44%', display: 'flex', flexDirection: 'column', gap: 10, zIndex: 2, position: 'relative' }}>
+          {pairs.map((p, li) => {
+            const isActive = dragging && activeLeft === li;
+            const isConnected = connections[li] !== undefined;
+            const color = colors[li % colors.length];
+            return (
+              <div
+                key={li}
+                className="mw-left"
+                data-idx={li}
+                onPointerDown={(e) => onLeftDown(e, li)}
+                style={{
+                  padding: '10px 12px',
+                  borderRadius: '8px 0 0 8px',
+                  border: `2px solid ${isActive ? color : isConnected ? color + 'aa' : 'var(--color-border-primary)'}`,
+                  borderRight: 'none',
+                  background: isActive ? color + '20' : isConnected ? color + '12' : 'var(--color-background-secondary)',
+                  fontSize: 14,
+                  cursor: 'grab',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 8,
+                  minHeight: 44,
+                  transition: 'border-color 0.15s, background 0.15s',
+                }}
+              >
+                <span style={{ color: 'var(--color-text-primary)' }}>{p.left}</span>
+                <span style={{
+                  width: 10, height: 10, borderRadius: '50%', flexShrink: 0,
+                  background: isConnected || isActive ? color : 'var(--color-text-tertiary)',
+                  transition: 'background 0.15s',
+                }} />
+              </div>
+            );
+          })}
+        </div>
+
+        {/* SVG проводов */}
+        <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: svgH, pointerEvents: 'none', overflow: 'visible', zIndex: 1 }} height={svgH}>
+          {Object.entries(connections).map(([li, ri]) => {
+            li = +li;
+            const from = getDotPos('left', li);
+            const to = getDotPos('right', ri);
+            const cx = (from.x + to.x) / 2;
+            const color = colors[li % colors.length];
+            return (
+              <g key={`c${li}`}>
+                <path d={`M${from.x},${from.y} C${cx},${from.y} ${cx},${to.y} ${to.x},${to.y}`} stroke={color} strokeWidth="2.5" fill="none" opacity="0.9" />
+                <circle cx={from.x} cy={from.y} r="4" fill={color} />
+                <circle cx={to.x} cy={to.y} r="4" fill={color} />
+              </g>
+            );
+          })}
+          {dragging && activeLeft !== null && (() => {
+            const from = getDotPos('left', activeLeft);
+            const color = colors[activeLeft % colors.length];
+            const cx = (from.x + mousePos.x) / 2;
+            return <path d={`M${from.x},${from.y} C${cx},${from.y} ${cx},${mousePos.y} ${mousePos.x},${mousePos.y}`} stroke={color} strokeWidth="2.5" fill="none" opacity="0.5" strokeDasharray="6 3" />;
+          })()}
+        </svg>
+
+        {/* Правая колонка */}
+        <div style={{ width: '44%', marginLeft: 'auto', display: 'flex', flexDirection: 'column', gap: 10, zIndex: 2, position: 'relative' }}>
+          {rightOrder.map(ri => {
+            const li = Object.keys(connections).find(k => +connections[k] === ri);
+            const isConnected = li !== undefined;
+            const color = isConnected ? colors[+li % colors.length] : null;
+            return (
+              <div
+                key={ri}
+                className="mw-right"
+                data-idx={ri}
+                style={{
+                  padding: '10px 12px',
+                  borderRadius: '0 8px 8px 0',
+                  border: `2px solid ${isConnected ? color + 'aa' : 'var(--color-border-primary)'}`,
+                  borderLeft: 'none',
+                  background: isConnected ? color + '12' : 'var(--color-background-secondary)',
+                  fontSize: 14,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  minHeight: 44,
+                  cursor: 'crosshair',
+                  transition: 'border-color 0.15s, background 0.15s',
+                }}
+              >
+                <span style={{
+                  width: 10, height: 10, borderRadius: '50%', flexShrink: 0,
+                  background: isConnected ? color : 'var(--color-text-tertiary)',
+                  transition: 'background 0.15s',
+                }} />
+                <span style={{ color: 'var(--color-text-primary)' }}>{pairs[ri].right}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 8, marginBottom: 0 }}>
+        Зажмите левый блок и проведите к правому чтобы соединить
+      </p>
+    </div>
+  );
+}
 
 function StudentHomework({ studentId }) {
   const { homeworks, subjects, refreshAfterHomework, loading: contextLoading } = useData();
@@ -28,6 +202,7 @@ function StudentHomework({ studentId }) {
 
   const orderingListRefs = useRef({});
   const initialOrderRef = useRef({});
+  const matchingStateRef = useRef({}); // { [questionIndex]: { connections, rightOrder } }
 
   useEffect(() => {
     if (subjects.length === 1 && !selectedSubject) {
@@ -36,12 +211,16 @@ function StudentHomework({ studentId }) {
   }, [subjects, selectedSubject]);
 
   useEffect(() => {
+    const tg = window.Telegram?.WebApp;
+    if (!tg) return;
     if (selectedHomework && !showResult) {
-      if (window.Telegram?.WebApp) {
-        window.Telegram.WebApp.expand();
-        window.Telegram.WebApp.disableVerticalSwipes?.();
-        window.Telegram.WebApp.enableClosingConfirmation?.();
-      }
+      tg.expand();
+      tg.disableVerticalSwipes?.();
+      tg.enableClosingConfirmation?.();
+    } else {
+      // Возвращаем подтверждение закрытия но свайпы оставляем заблокированными глобально
+      tg.disableVerticalSwipes?.();
+      tg.disableClosingConfirmation?.();
     }
   }, [selectedHomework, showResult]);
 
@@ -53,6 +232,7 @@ function StudentHomework({ studentId }) {
       setSelectedHomework(homework);
       setQuestions(homework.questions);
       initialOrderRef.current = {};
+      matchingStateRef.current = {};
       setCurrentQuestionIndex(0);
       setAnswers({});
       setShowResult(false);
@@ -61,7 +241,7 @@ function StudentHomework({ studentId }) {
     }
     // Запасной вариант — загрузить с сервера если вопросов нет в кэше
     try {
-      const response = await fetch(`${API_URL}/homework/${homework.id}`);
+      const response = await apiFetch(`${API_URL}/homework/${homework.id}`);
       const data = await response.json();
       if (!data.homework) {
         alert('Ошибка: домашка не найдена');
@@ -70,6 +250,7 @@ function StudentHomework({ studentId }) {
       setSelectedHomework(data.homework);
       setQuestions(data.homework.questions || []);
       initialOrderRef.current = {};
+      matchingStateRef.current = {};
       setCurrentQuestionIndex(0);
       setAnswers({});
       setShowResult(false);
@@ -86,7 +267,6 @@ function StudentHomework({ studentId }) {
 
   const closeHomework = () => {
     if (window.Telegram?.WebApp) {
-      window.Telegram.WebApp.enableVerticalSwipes?.();
       window.Telegram.WebApp.disableClosingConfirmation?.();
     }
     setSelectedHomework(null);
@@ -173,30 +353,109 @@ function StudentHomework({ studentId }) {
     };
   }, [drag.active, handlePointerMove, handlePointerUp]);
 
-  const submitHomework = async () => {
-    const timeSpent = Math.floor((Date.now() - startTime) / 1000);
-    try {
-      const response = await fetch(`${API_URL}/homework/submit`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          homeworkId: selectedHomework.id,
-          studentId,
-          answers: Object.values(answers),
-          timeSpent,
-        }),
-      });
-      const data = await response.json();
-      if (response.ok) {
-        setResult(data);
-        setShowResult(true);
-      } else {
-        alert(data.message || 'Ошибка отправки');
+  // Проверка ответа локально — те же правила что на бэкенде
+  const checkAnswerLocal = (question, userAnswer) => {
+    const correct = question.correctAnswer;
+    switch (question.questionType) {
+      case 'single_choice': return userAnswer === correct;
+      case 'true_false': return userAnswer === correct;
+      case 'multiple_choice': {
+        if (!Array.isArray(userAnswer) || !Array.isArray(correct)) return false;
+        if (userAnswer.length !== correct.length) return false;
+        return [...userAnswer].sort().every((v, i) => v === [...correct].sort()[i]);
       }
-    } catch (error) {
-      console.error('Error submitting homework:', error);
-      alert('Ошибка отправки');
+      case 'short_answer':
+      case 'text_input': {
+        if (!userAnswer) return false;
+        const norm = userAnswer.toString().toLowerCase().trim();
+        return Array.isArray(correct)
+          ? correct.some(a => a.toLowerCase().trim() === norm)
+          : correct?.toLowerCase?.().trim() === norm;
+      }
+      case 'numeric':
+      case 'number_input': {
+        if (typeof userAnswer !== 'number') return false;
+        const tol = correct?.tolerance || 0;
+        return Math.abs(userAnswer - (correct?.value ?? correct)) <= tol;
+      }
+      case 'matching': {
+        // userAnswer может быть {connections, pairs} или [{left,right}]
+        const userPairs = userAnswer?.pairs || userAnswer || [];
+        if (!Array.isArray(userPairs)) return false;
+        return userPairs.every((pair, i) => {
+          const cp = correct[i];
+          return cp && pair.left === cp.left && pair.right === cp.right;
+        });
+      }
+      case 'ordering': {
+        if (!Array.isArray(userAnswer)) return false;
+        return userAnswer.every((item, i) => item === correct[i]);
+      }
+      case 'fill_blanks':
+      case 'fill_in_blank': {
+        if (!Array.isArray(userAnswer)) return false;
+        return userAnswer.every((ans, i) => {
+          const norm = ans?.toLowerCase?.().trim() || '';
+          return Array.isArray(correct[i])
+            ? correct[i].some(a => a.toLowerCase().trim() === norm)
+            : correct[i]?.toLowerCase?.().trim() === norm;
+        });
+      }
+      default: return false;
     }
+  };
+
+  const submitHomework = () => {
+    const timeSpent = Math.floor((Date.now() - startTime) / 1000);
+    const answersArray = Object.values(answers).map(ans => {
+      // matching хранится как {connections, pairs} — отправляем только pairs
+      if (ans && ans.pairs) return ans.pairs;
+      return ans;
+    });
+
+    // Считаем результат локально — мгновенно
+    let totalScore = 0;
+    let maxScore = 0;
+    questions.forEach((question, index) => {
+      const rawAnswer = Object.values(answers)[index];
+      // matching хранит {connections, pairs} — берём pairs для проверки
+      const userAnswer = rawAnswer?.pairs || rawAnswer;
+      const isCorrect = checkAnswerLocal(question, userAnswer);
+      maxScore += question.points || 1;
+      if (isCorrect) totalScore += question.points || 1;
+    });
+
+    const percentage = maxScore > 0 ? Math.round(totalScore / maxScore * 100) : 0;
+
+    // Показываем результат МГНОВЕННО
+    setResult({
+      totalScore,
+      maxScore,
+      percentage,
+      correctAnswers: questions.filter((q, i) => checkAnswerLocal(q, answersArray[i])).length,
+      attemptsUsed: 1,
+      maxAttempts: selectedHomework.maxAttempts
+    });
+    setShowResult(true);
+
+    // Отправляем на бэк фоново — не блокируем UI
+    apiFetch(`${API_URL}/homework/submit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        homeworkId: selectedHomework.id,
+        studentId,
+        answers: answersArray,
+        timeSpent,
+      }),
+    }).then(res => res.json()).then(data => {
+      // Обновляем попытки если бэк вернул данные
+      if (data.attemptsUsed !== undefined) {
+        setResult(prev => ({ ...prev, attemptsUsed: data.attemptsUsed, maxAttempts: data.maxAttempts }));
+      }
+      // Фоново обновляем список домашек чтобы при переходе уже было актуально
+      refreshAfterHomework();
+    }).catch(e => console.error('Error submitting homework:', e));
   };
 
   const renderQuestion = (question, index) => {
@@ -273,30 +532,39 @@ function StudentHomework({ studentId }) {
 
       case 'matching': {
         const pairs = question.correctAnswer || question.options || [];
-        const currentAnswers = answers[index] || pairs.map(p => ({ left: p.left, right: '' }));
-        const rightOptions = pairs.map(p => p.right).sort(() => Math.random() - 0.5);
+
+        // Инициализируем состояние для этого вопроса
+        if (!matchingStateRef.current[index]) {
+          matchingStateRef.current[index] = {
+            rightOrder: [...pairs.map((_, i) => i)].sort(() => Math.random() - 0.5),
+            connections: {} // { leftIdx: rightIdx }
+          };
+        }
+        const mState = matchingStateRef.current[index];
+        const connections = answers[index]?.connections || mState.connections;
+        const rightOrder = mState.rightOrder;
+
+        const WIRE_COLORS = ['#534AB7','#1D9E75','#D85A30','#993556','#185FA5'];
+
+        const updateConnections = (newConns) => {
+          matchingStateRef.current[index].connections = newConns;
+          // Конвертируем в формат [{left, right}] для бэкенда
+          const result = pairs.map((p, li) => ({
+            left: p.left,
+            right: newConns[li] !== undefined ? pairs[newConns[li]].right : ''
+          }));
+          handleAnswer(index, { connections: newConns, pairs: result });
+        };
+
         return (
-          <div className="matching-container">
-            {currentAnswers.map((pair, pairIndex) => (
-              <div key={pairIndex} className="matching-pair">
-                <div className="matching-left">{pair.left}</div>
-                <select
-                  className="matching-select"
-                  value={pair.right || ''}
-                  onChange={(e) => {
-                    const newPairs = [...currentAnswers];
-                    newPairs[pairIndex] = { ...pair, right: e.target.value };
-                    handleAnswer(index, newPairs);
-                  }}
-                >
-                  <option value="">Выберите...</option>
-                  {rightOptions.map((right, idx) => (
-                    <option key={idx} value={right}>{right}</option>
-                  ))}
-                </select>
-              </div>
-            ))}
-          </div>
+          <MatchingWire
+            key={`matching-${index}`}
+            pairs={pairs}
+            rightOrder={rightOrder}
+            connections={connections}
+            colors={WIRE_COLORS}
+            onChange={updateConnections}
+          />
         );
       }
 
@@ -399,55 +667,6 @@ function StudentHomework({ studentId }) {
 
   if (showResult && result) {
     const percentage = result.percentage || Math.round((result.totalScore / result.maxScore) * 100);
-
-    const checkAnswerLocal = (question, userAnswer) => {
-      const correct = question.correctAnswer;
-      switch (question.questionType) {
-        case 'single_choice': return userAnswer === correct;
-        case 'true_false': return userAnswer === correct;
-        case 'multiple_choice': {
-          if (!Array.isArray(userAnswer) || !Array.isArray(correct)) return false;
-          if (userAnswer.length !== correct.length) return false;
-          return [...userAnswer].sort().every((v, i) => v === [...correct].sort()[i]);
-        }
-        case 'short_answer':
-        case 'text_input': {
-          if (!userAnswer) return false;
-          const norm = userAnswer.toString().toLowerCase().trim();
-          return Array.isArray(correct)
-            ? correct.some(a => a.toLowerCase().trim() === norm)
-            : correct?.toLowerCase?.().trim() === norm;
-        }
-        case 'numeric':
-        case 'number_input': {
-          if (typeof userAnswer !== 'number') return false;
-          const tol = correct?.tolerance || 0;
-          return Math.abs(userAnswer - (correct?.value ?? correct)) <= tol;
-        }
-        case 'matching': {
-          if (!Array.isArray(userAnswer)) return false;
-          return userAnswer.every((pair, i) => {
-            const cp = correct[i];
-            return cp && pair.left === cp.left && pair.right === cp.right;
-          });
-        }
-        case 'ordering': {
-          if (!Array.isArray(userAnswer)) return false;
-          return userAnswer.every((item, i) => item === correct[i]);
-        }
-        case 'fill_blanks':
-        case 'fill_in_blank': {
-          if (!Array.isArray(userAnswer)) return false;
-          return userAnswer.every((ans, i) => {
-            const norm = ans?.toLowerCase?.().trim() || '';
-            return Array.isArray(correct[i])
-              ? correct[i].some(a => a.toLowerCase().trim() === norm)
-              : correct[i]?.toLowerCase?.().trim() === norm;
-          });
-        }
-        default: return false;
-      }
-    };
 
     const renderAnswerReview = (question, index) => {
       const userAnswer = answers[index];
@@ -572,7 +791,7 @@ function StudentHomework({ studentId }) {
         }
         case 'matching': {
           const pairs = correct || [];
-          const userPairs = userAnswer || [];
+          const userPairs = userAnswer?.pairs || userAnswer || [];
           return (
             <div className="result-answers">
               {pairs.map((pair, pi) => {
@@ -836,7 +1055,9 @@ function StudentHomework({ studentId }) {
           {filteredHomeworks.map(homework => {
             const now = new Date();
             const closeDate = new Date(homework.closeDate);
-            const hoursLeft = Math.floor((closeDate - now) / (1000 * 60 * 60));
+            const minutesLeft = Math.floor((closeDate - now) / (1000 * 60));
+            const hoursLeft = Math.floor(minutesLeft / 60);
+            const isExpired = minutesLeft <= 0;
             const maxScore = (homework.questions || []).reduce((sum, q) => sum + (q.points || 0), 0);
             const usedAttempts = homework.stats?.attempts || homework.stats?.attemptsUsed || 0;
             const attemptsLeft = homework.maxAttempts ? homework.maxAttempts - usedAttempts : null;
@@ -875,10 +1096,12 @@ function StudentHomework({ studentId }) {
                   </div>
                 )}
                 <div className="deadline-info">
-                  {hoursLeft > 24 ? (
+                  {minutesLeft > 24 * 60 ? (
                     <span className="deadline-ok">⏰ До сдачи: {Math.floor(hoursLeft / 24)} дн.</span>
-                  ) : hoursLeft > 0 ? (
+                  ) : minutesLeft > 60 ? (
                     <span className="deadline-warning">⏰ До сдачи: {hoursLeft} ч.</span>
+                  ) : minutesLeft > 0 ? (
+                    <span className="deadline-warning">⏰ До сдачи: {minutesLeft} мин.</span>
                   ) : (
                     <span className="deadline-urgent">⏰ Срок истёк!</span>
                   )}
@@ -886,7 +1109,7 @@ function StudentHomework({ studentId }) {
                 <button
                   className="primary-button"
                   onClick={() => startHomework(homework)}
-                  disabled={hoursLeft <= 0 || attemptsExhausted}
+                  disabled={isExpired || attemptsExhausted}
                 >
                   {attemptsExhausted ? 'Попытки исчерпаны' : homework.stats?.bestScore > 0 ? 'Пройти заново' : 'Начать выполнение'}
                 </button>
