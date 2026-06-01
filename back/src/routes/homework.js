@@ -97,7 +97,8 @@ router.get('/student/:studentId', async (req, res) => {
         {
           model: HomeworkQuestion,
           as: 'questions',
-          attributes: ['id', 'points']
+          attributes: ['id', 'questionText', 'questionType', 'options', 'correctAnswer', 'points', 'order'],
+          order: [['order', 'ASC']]
         }
       ],
       order: [['closeDate', 'ASC']]
@@ -352,15 +353,17 @@ router.post('/submit', async (req, res) => {
       return res.status(500).json({ message: 'Failed to create submission' });
     }
 
-    // Create answers — один запрос вместо N отдельных
-    await HomeworkAnswer.bulkCreate(
-      gradedAnswers.map(ans => ({
+    // Create answers
+    const answerPromises = gradedAnswers.map(ans =>
+      HomeworkAnswer.create({
         submissionId: submission.id,
         questionId: ans.questionId,
         userAnswer: ans.userAnswer,
         isCorrect: ans.isCorrect
-      }))
+      })
     );
+
+    await Promise.all(answerPromises);
 
     res.json({ 
       message: 'Homework submitted successfully',
@@ -534,7 +537,8 @@ router.get('/student/:studentId/stats', async (req, res) => {
         {
           model: HomeworkQuestion,
           as: 'questions',
-          attributes: ['id', 'points']
+          attributes: ['id', 'questionText', 'questionType', 'options', 'correctAnswer', 'points', 'order'],
+          order: [['order', 'ASC']]
         }
       ]
     });
