@@ -96,10 +96,7 @@ setInterval(() => {
 }, 4 * 60 * 1000); // каждые 4 минуты
 
 const startServer = async () => {
-  const sequelize = require('./config/database');
-
   await syncDatabase();
-  await sequelize.sync({ alter: true });
 
   server.listen(PORT, () => {
     console.log(`🚀 Server running on http://localhost:${PORT}`);

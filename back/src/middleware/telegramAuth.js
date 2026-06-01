@@ -36,23 +36,21 @@ function verifyTelegramInitData(initData) {
 // Middleware — проверяет initData и находит пользователя в БД
 exports.telegramAuth = async (req, res, next) => {
   try {
-    // В dev режиме пропускаем если есть bypass заголовок
-    if (process.env.NODE_ENV === 'development' && req.headers['x-dev-bypass'] === process.env.DEV_BYPASS_KEY) {
-      req.telegramUser = { id: parseInt(req.headers['x-dev-student-id']) || null };
-      req.dbUser = null;
-      return next();
-    }
-
     const initData = req.headers['x-telegram-init-data'];
+    
+    console.log(`[Auth] ${req.method} ${req.path} | initData: ${initData ? initData.slice(0, 50) + '...' : 'MISSING'}`);
+    
     if (!initData) {
       return res.status(401).json({ message: 'No Telegram auth data' });
     }
 
     const telegramUser = verifyTelegramInitData(initData);
     if (!telegramUser) {
+      console.log(`[Auth] Invalid initData hash`);
       return res.status(401).json({ message: 'Invalid Telegram auth data' });
     }
 
+    console.log(`[Auth] ✅ telegramId: ${telegramUser.id}, role: ${telegramUser.role || 'unknown'}`);
     req.telegramUser = telegramUser;
 
     // Ищем пользователя в БД по telegramId
