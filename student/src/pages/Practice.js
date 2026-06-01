@@ -89,21 +89,6 @@ function Practice({ studentId }) {
     }];
     setUserAnswers(newAnswers);
 
-    // Сохраняем попытку — fire and forget (не блокируем UI)
-    fetch(`${API_URL}/practice/attempts`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        studentId: studentId,
-        topicId: activePractice.id,
-        questionId: currentQuestion.id,
-        subjectId: activePractice.subjectId,
-        selectedAnswer: answerIndex,
-        isCorrect: correct,
-        timeSpent: 0
-      })
-    }).catch(e => console.error('Error saving attempt:', e));
-
     // Автопереход через 1.5 секунды
     autoNextTimerRef.current = setTimeout(() => {
       if (currentQuestionIndex < questions.length - 1) {
@@ -117,21 +102,29 @@ function Practice({ studentId }) {
     }, RESULT_DURATION);
   };
 
-  const finishPractice = (answers) => {
+  const finishPractice = async (answers) => {
     const correctCount = answers.filter(a => a.isCorrect).length;
     const totalCount = answers.length;
     const scorePercentage = Math.round((correctCount / totalCount) * 100);
 
-    setPracticeResult({
-      correctCount,
-      totalCount,
-      scorePercentage,
-      answers
-    });
+    setPracticeResult({ correctCount, totalCount, scorePercentage, answers });
     setShowResult(true);
 
-    // Оптимистично обновляем статистику темы — без ожидания сервера
+    // Оптимистично обновляем статистику темы
     updatePracticeStatsOptimistic(activePractice.id, correctCount, totalCount);
+
+    // Отправляем итог теста на сервер (fire-and-forget)
+    fetch(`${API_URL}/practice/attempts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        studentId,
+        topicId: activePractice.id,
+        subjectId: activePractice.subjectId,
+        correct: correctCount,
+        total: totalCount
+      })
+    }).catch(e => console.error('Error saving attempt:', e));
   };
 
   const closePractice = () => {

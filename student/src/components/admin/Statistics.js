@@ -48,54 +48,19 @@ function AdminStatistics() {
       if (activeTab === 'practice') {
         const res = await fetch(`${API_URL}/stats/admin?section=practice`);
         const data = await res.json();
-        const attempts = data.practice || [];
 
-        // Группируем по предмету
-        const bySubject = {};
-        attempts.forEach(att => {
-          const sId = att.subjectId;
-          const sName = att.subject?.name || 'Без предмета';
-          const sIcon = att.subject?.icon || '📖';
-          if (!bySubject[sId]) bySubject[sId] = { icon: sIcon, name: sName, students: new Set(), attemptsByDate: {}, correctByDate: {}, todayStudents: new Set() };
-
-          bySubject[sId].students.add(att.student?.id || att.studentId);
-
-          const day = att.createdAt?.slice(0, 10);
-          if (day) {
-            if (!bySubject[sId].attemptsByDate[day]) bySubject[sId].attemptsByDate[day] = 0;
-            bySubject[sId].attemptsByDate[day]++;
-            if (att.isCorrect) {
-              if (!bySubject[sId].correctByDate[day]) bySubject[sId].correctByDate[day] = 0;
-              bySubject[sId].correctByDate[day]++;
-            }
-            // Считаем уникальных студентов решавших сегодня
-            const today2 = new Date().toISOString().slice(0, 10);
-            if (day === today2) {
-              bySubject[sId].todayStudents.add(att.student?.id || att.studentId);
-            }
-          }
-        });
-
-        // Считаем уникальных студентов из самих попыток (не из state который может не загрузиться)
-        const allStudentIds = new Set(attempts.map(a => a.student?.id || a.studentId).filter(Boolean));
-        const totalStudents = allStudentIds.size || 1;
-        const today = new Date().toISOString().slice(0, 10);
-
-        setAllPractice(Object.values(bySubject).map(s => {
-          const activeStudents = s.todayStudents.size;
-          const activePercent = totalStudents > 0 ? Math.round(activeStudents / totalStudents * 100) : 0;
-
-          const todayTotal = s.attemptsByDate[today] || 0;
-          // Среднее = попыток сегодня / студентов решавших сегодня (не всех)
-          const todayStudentsCount = s.todayStudents.size;
-          const avgPerStudentToday = todayStudentsCount > 0 ? Math.round(todayTotal / todayStudentsCount) : 0;
-
-          return {
-            icon: s.icon, name: s.name,
-            activeStudents, totalStudents, activePercent,
-            todayTotal, todayStudentsCount, avgPerStudentToday
-          };
-        }));
+        // Данные уже агрегированы на бэкенде из PracticeDailyLog
+        const total = students.length || 1;
+        setAllPractice((data.practice || []).map(s => ({
+          icon: s.subject?.icon || '📖',
+          name: s.subject?.name || 'Без предмета',
+          activeStudents: s.uniqueStudents,
+          totalStudents: total,
+          activePercent: total > 0 ? Math.round(s.uniqueStudents / total * 100) : 0,
+          todayTotal: s.totalAttempts,
+          todayStudentsCount: s.uniqueStudents,
+          avgPerStudentToday: s.avgPerStudent
+        })));
       }
 
       if (activeTab === 'homework') {

@@ -1,20 +1,18 @@
-const { PracticeTopic, PracticeQuestion, PracticeAttempt, Subject, User } = require('../models');
+const { PracticeTopic, PracticeQuestion, PracticeAttempt, PracticeBest, PracticeDailyLog, Subject, User } = require('../models');
 const { Op } = require('sequelize');
+const sequelize = require('../config/database');
 
 // In-memory кэш статистики (TTL 60 секунд)
 const statsCache = new Map();
 const CACHE_TTL = 60 * 1000;
-
 const getCached = (key) => {
   const item = statsCache.get(key);
   if (!item) return null;
   if (Date.now() - item.time > CACHE_TTL) { statsCache.delete(key); return null; }
   return item.data;
 };
-
 const setCache = (key, data) => statsCache.set(key, { data, time: Date.now() });
 const invalidateCache = (key) => statsCache.delete(key);
-const sequelize = require('../config/database');
 
 // ========== АДМИН ФУНКЦИИ ==========
 
@@ -22,25 +20,17 @@ const sequelize = require('../config/database');
 exports.getTopicsBySubject = async (req, res) => {
   try {
     const { subjectId } = req.params;
-
     const topics = await PracticeTopic.findAll({
       where: { subjectId },
       attributes: ['id', 'name', 'description', 'icon', 'isActive', 'createdAt'],
       order: [['createdAt', 'ASC']]
     });
-
     const topicsWithCounts = await Promise.all(
       topics.map(async (topic) => {
-        const questionCount = await PracticeQuestion.count({
-          where: { topicId: topic.id }
-        });
-        return {
-          ...topic.toJSON(),
-          questionCount
-        };
+        const questionCount = await PracticeQuestion.count({ where: { topicId: topic.id } });
+        return { ...topic.toJSON(), questionCount };
       })
     );
-
     res.json({ topics: topicsWithCounts });
   } catch (error) {
     console.error('Get topics error:', error);
@@ -52,11 +42,7 @@ exports.getTopicsBySubject = async (req, res) => {
 exports.createTopic = async (req, res) => {
   try {
     const { name, description, icon, subjectId } = req.body;
-
-    if (!name || !subjectId) {
-      return res.status(400).json({ message: 'Name and subjectId required' });
-    }
-
+    if (!name || !subjectId) return res.status(400).json({ message: 'Name and subjectId required' });
     const topic = await PracticeTopic.create({
       name,
       description: description || '',
@@ -64,7 +50,6 @@ exports.createTopic = async (req, res) => {
       subjectId,
       isActive: true
     });
-
     res.json({ topic });
   } catch (error) {
     console.error('Create topic error:', error);
@@ -77,16 +62,11 @@ exports.updateTopic = async (req, res) => {
   try {
     const { topicId } = req.params;
     const { name, description, icon } = req.body;
-
     const topic = await PracticeTopic.findByPk(topicId);
-    if (!topic) {
-      return res.status(404).json({ message: 'Topic not found' });
-    }
-
+    if (!topic) return res.status(404).json({ message: 'Topic not found' });
     if (name) topic.name = name;
     if (description !== undefined) topic.description = description;
     if (icon) topic.icon = icon;
-
     await topic.save();
     res.json({ topic });
   } catch (error) {
@@ -99,33 +79,21 @@ exports.updateTopic = async (req, res) => {
 exports.deleteTopic = async (req, res) => {
   try {
     const { topicId } = req.params;
-
     const topic = await PracticeTopic.findByPk(topicId);
-    if (!topic) {
-      return res.status(404).json({ message: 'Topic not found' });
-    }
+    if (!topic) return res.status(404).json({ message: 'Topic not found' });
 
-    // Шаг 1: Найти все вопросы этого топика
-    const questions = await PracticeQuestion.findAll({
-      where: { topicId: topic.id },
-      attributes: ['id']
-    });
-
+    const questions = await PracticeQuestion.findAll({ where: { topicId: topic.id }, attributes: ['id'] });
     const questionIds = questions.map(q => q.id);
 
-    // Шаг 2: Удалить все попытки по этим вопросам
+    // Удаляем старые попытки если они ещё есть
     if (questionIds.length > 0) {
-      await PracticeAttempt.destroy({
-        where: { questionId: questionIds }
-      });
+      await PracticeAttempt.destroy({ where: { questionId: questionIds } }).catch(() => {});
     }
 
-    // Шаг 3: Удалить все вопросы
-    await PracticeQuestion.destroy({
-      where: { topicId: topic.id }
-    });
+    // Удаляем PracticeBest и PracticeDailyLog по теме
+    await PracticeBest.destroy({ where: { topicId: topic.id } });
 
-    // Шаг 4: Удалить сам топик
+    await PracticeQuestion.destroy({ where: { topicId: topic.id } });
     await topic.destroy();
 
     res.json({ message: 'Topic deleted' });
@@ -139,22 +107,11 @@ exports.deleteTopic = async (req, res) => {
 exports.getQuestionsByTopic = async (req, res) => {
   try {
     const { topicId } = req.params;
-
     const questions = await PracticeQuestion.findAll({
       where: { topicId },
-      attributes: [
-        'id',
-        'questionText',
-        'options',
-        'correctAnswer',
-        'explanation',
-        'difficulty',
-        'isActive',
-        'createdAt'
-      ],
+      attributes: ['id', 'questionText', 'options', 'correctAnswer', 'explanation', 'difficulty', 'isActive', 'createdAt'],
       order: [['createdAt', 'ASC']]
     });
-
     res.json({ questions });
   } catch (error) {
     console.error('Get questions error:', error);
@@ -166,27 +123,16 @@ exports.getQuestionsByTopic = async (req, res) => {
 exports.createQuestion = async (req, res) => {
   try {
     const { topicId, questionText, options, correctAnswer, explanation, difficulty } = req.body;
-
     if (!topicId || !questionText || !options || options.length !== 4) {
-      return res.status(400).json({ 
-        message: 'topicId, questionText, and 4 options required' 
-      });
+      return res.status(400).json({ message: 'topicId, questionText, and 4 options required' });
     }
-
-    if (correctAnswer < 0 || correctAnswer > 3) {
-      return res.status(400).json({ message: 'correctAnswer must be 0-3' });
-    }
-
+    if (correctAnswer < 0 || correctAnswer > 3) return res.status(400).json({ message: 'correctAnswer must be 0-3' });
     const question = await PracticeQuestion.create({
-      topicId,
-      questionText,
-      options,
-      correctAnswer,
+      topicId, questionText, options, correctAnswer,
       explanation: explanation || '',
       difficulty: difficulty || 'medium',
       isActive: true
     });
-
     res.json({ question });
   } catch (error) {
     console.error('Create question error:', error);
@@ -199,20 +145,14 @@ exports.updateQuestion = async (req, res) => {
   try {
     const { questionId } = req.params;
     const { questionText, options, correctAnswer, explanation, difficulty } = req.body;
-
     const question = await PracticeQuestion.findByPk(questionId);
-    if (!question) {
-      return res.status(404).json({ message: 'Question not found' });
-    }
-
+    if (!question) return res.status(404).json({ message: 'Question not found' });
     if (questionText) question.questionText = questionText;
     if (options && options.length === 4) question.options = options;
     if (typeof correctAnswer === 'number') question.correctAnswer = correctAnswer;
     if (explanation !== undefined) question.explanation = explanation;
     if (difficulty) question.difficulty = difficulty;
-
     await question.save();
-
     res.json({ question });
   } catch (error) {
     console.error('Update question error:', error);
@@ -225,15 +165,10 @@ exports.toggleQuestion = async (req, res) => {
   try {
     const { questionId } = req.params;
     const { isActive } = req.body;
-
     const question = await PracticeQuestion.findByPk(questionId);
-    if (!question) {
-      return res.status(404).json({ message: 'Question not found' });
-    }
-
+    if (!question) return res.status(404).json({ message: 'Question not found' });
     question.isActive = isActive;
     await question.save();
-
     res.json({ question });
   } catch (error) {
     console.error('Toggle question error:', error);
@@ -245,14 +180,9 @@ exports.toggleQuestion = async (req, res) => {
 exports.deleteQuestion = async (req, res) => {
   try {
     const { questionId } = req.params;
-
     const question = await PracticeQuestion.findByPk(questionId);
-    if (!question) {
-      return res.status(404).json({ message: 'Question not found' });
-    }
-
+    if (!question) return res.status(404).json({ message: 'Question not found' });
     await question.destroy();
-
     res.json({ message: 'Question deleted' });
   } catch (error) {
     console.error('Delete question error:', error);
@@ -262,54 +192,60 @@ exports.deleteQuestion = async (req, res) => {
 
 // ========== ПОПЫТКИ И СТАТИСТИКА ==========
 
-// Сохранить попытку
+// Сохранить результат прохождения темы
+// Принимает итог теста: { studentId, topicId, subjectId, correct, total }
 exports.saveAttempt = async (req, res) => {
-  // Инвалидируем кэш статистики при новой попытке
   try {
-    const { studentId, topicId, questionId, subjectId, selectedAnswer, isCorrect, timeSpent } = req.body;
+    const { studentId, topicId, subjectId, correct, total } = req.body;
 
-    const attempt = await PracticeAttempt.create({
-      studentId,
-      topicId,
-      questionId,
-      subjectId,
-      selectedAnswer,
-      isCorrect,
-      timeSpent: timeSpent || 0
+    if (!studentId || !topicId || !subjectId || correct === undefined || !total) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const percent = total > 0 ? Math.round(correct / total * 100) : 0;
+    const today = new Date().toISOString().slice(0, 10);
+
+    // 1. Обновляем PracticeBest — только если результат лучше
+    const [best, created] = await PracticeBest.findOrCreate({
+      where: { studentId, topicId },
+      defaults: { studentId, topicId, subjectId, correct, total, percent }
     });
 
-    res.json({ success: true, attempt });
+    if (!created && percent > best.percent) {
+      await best.update({ correct, total, percent });
+    }
+
+    // 2. Инкрементируем PracticeDailyLog
+    const [log, logCreated] = await PracticeDailyLog.findOrCreate({
+      where: { studentId, subjectId, date: today },
+      defaults: { studentId, subjectId, date: today, attemptsCount: total }
+    });
+
+    if (!logCreated) {
+      await log.increment('attemptsCount', { by: total });
+    }
+
+    // Инвалидируем кэш статистики
+    invalidateCache(`stats_${studentId}`);
+
+    res.json({ success: true });
   } catch (error) {
     console.error('Save attempt error:', error);
     res.status(500).json({ error: 'Failed to save attempt' });
   }
 };
 
-// Получить статистику по конкретному топику для студента (последняя попытка)
+// Получить статистику по конкретному топику для студента
 exports.getTopicStats = async (req, res) => {
   try {
     const { studentId, topicId } = req.params;
-
-    // Получаем последнюю попытку по каждому вопросу в этом топике
-    const lastAttempts = await sequelize.query(`
-      SELECT DISTINCT ON ("questionId") "questionId", "isCorrect"
-      FROM practice_attempts
-      WHERE "studentId" = :studentId AND "topicId" = :topicId
-      ORDER BY "questionId", "createdAt" DESC
-    `, {
-      replacements: { studentId, topicId },
-      type: sequelize.QueryTypes.SELECT
-    });
-
-    const total = lastAttempts.length;
-    const correct = lastAttempts.filter(a => a.isCorrect).length;
-    const successRate = total > 0 ? Math.round((correct / total) * 100) : 0;
-
+    const best = await PracticeBest.findOne({ where: { studentId, topicId } });
+    if (!best) return res.json({ total: 0, correct: 0, incorrect: 0, successRate: 0 });
     res.json({
-      total,
-      correct,
-      incorrect: total - correct,
-      successRate
+      total: best.total,
+      correct: best.correct,
+      incorrect: best.total - best.correct,
+      successRate: best.percent
     });
   } catch (error) {
     console.error('Get topic stats error:', error);
@@ -317,123 +253,75 @@ exports.getTopicStats = async (req, res) => {
   }
 };
 
-// Получить статистику студента (по последним попыткам)
+// Получить статистику студента — из PracticeBest
 exports.getStudentStats = async (req, res) => {
   try {
     const { studentId } = req.params;
 
-    // Проверяем кэш
     const cacheKey = `stats_${studentId}`;
     const cached = getCached(cacheKey);
     if (cached) return res.json(cached);
 
-    // Все последние попытки по каждому вопросу
-    const lastAttempts = await sequelize.query(`
-      SELECT DISTINCT ON (pa."questionId") 
-        pa."questionId", 
-        pa."isCorrect", 
-        pa."topicId", 
-        pa."subjectId",
-        pa."createdAt"
-      FROM practice_attempts pa
-      WHERE pa."studentId" = :studentId
-      ORDER BY pa."questionId", pa."createdAt" DESC
-    `, {
-      replacements: { studentId },
-      type: sequelize.QueryTypes.SELECT
-    });
-
-    const totalAttempts = lastAttempts.length;
-    const correctAttempts = lastAttempts.filter(a => a.isCorrect).length;
-    const incorrectAttempts = totalAttempts - correctAttempts;
-    const successRate = totalAttempts > 0 ? Math.round((correctAttempts / totalAttempts) * 100) : 0;
-
-    // Группируем по предметам
-    const subjectMap = {};
-    for (const attempt of lastAttempts) {
-      const sid = attempt.subjectId;
-      if (!subjectMap[sid]) {
-        subjectMap[sid] = { total: 0, correct: 0 };
-      }
-      subjectMap[sid].total++;
-      if (attempt.isCorrect) subjectMap[sid].correct++;
-    }
-
-    // Получаем инфу о предметах
-    const subjectIds = Object.keys(subjectMap);
-    const subjects = await Subject.findAll({
-      where: { id: subjectIds },
-      attributes: ['id', 'name', 'icon']
-    });
-
-    const subjectStats = subjects.map(subj => ({
-      subjectId: subj.id,
-      subject: { name: subj.name, icon: subj.icon },
-      total: subjectMap[subj.id].total,
-      correct: subjectMap[subj.id].correct,
-      successRate: Math.round((subjectMap[subj.id].correct / subjectMap[subj.id].total) * 100)
-    }));
-
-    // Группируем по топикам
-    const topicMap = {};
-    for (const attempt of lastAttempts) {
-      const tid = attempt.topicId;
-      if (!topicMap[tid]) {
-        topicMap[tid] = { total: 0, correct: 0 };
-      }
-      topicMap[tid].total++;
-      if (attempt.isCorrect) topicMap[tid].correct++;
-    }
-
-    // Получаем инфу о топиках
-    const topicIds = Object.keys(topicMap);
-    const topics = await PracticeTopic.findAll({
-      where: { id: topicIds },
-      attributes: ['id', 'name', 'icon'],
+    const bests = await PracticeBest.findAll({
+      where: { studentId },
       include: [{
-        model: Subject,
-        as: 'subject',
-        attributes: ['name']
+        model: PracticeTopic,
+        as: 'topic',
+        attributes: ['id', 'name', 'icon'],
+        include: [{ model: Subject, as: 'subject', attributes: ['id', 'name', 'icon'] }]
       }]
     });
 
-    const topicStats = topics.map(t => ({
-      topicId: t.id,
-      topic: { 
-        name: t.name, 
-        icon: t.icon, 
-        subject: { name: t.subject?.name }
-      },
-      total: topicMap[t.id].total,
-      correct: topicMap[t.id].correct,
-      successRate: Math.round((topicMap[t.id].correct / topicMap[t.id].total) * 100)
+    if (bests.length === 0) {
+      return res.json({
+        stats: { total: 0, correct: 0, incorrect: 0, successRate: 0 },
+        subjectStats: [],
+        topicStats: []
+      });
+    }
+
+    // Агрегируем по предметам
+    const subjectMap = {};
+    bests.forEach(b => {
+      const sid = b.subjectId;
+      if (!subjectMap[sid]) subjectMap[sid] = { subject: b.topic?.subject, correct: 0, total: 0 };
+      subjectMap[sid].correct += b.correct;
+      subjectMap[sid].total += b.total;
+    });
+
+    const subjectStats = Object.values(subjectMap).map(s => ({
+      subject: s.subject,
+      correct: s.correct,
+      total: s.total,
+      successRate: s.total > 0 ? Math.round(s.correct / s.total * 100) : 0
     }));
 
-    // Последние 20 решений (по дате)
-    const recentAttempts = await PracticeAttempt.findAll({
-      where: { studentId },
-      include: [
-        { model: PracticeQuestion, as: 'question', attributes: ['questionText'] },
-        { model: PracticeTopic, as: 'topic', attributes: ['name', 'icon'] },
-        { model: Subject, as: 'subject', attributes: ['name', 'icon'] }
-      ],
-      order: [['createdAt', 'DESC']],
-      limit: 20
-    });
+    const totalCorrect = bests.reduce((sum, b) => sum + b.correct, 0);
+    const totalAll = bests.reduce((sum, b) => sum + b.total, 0);
+
+    const topicStats = bests.map(b => ({
+      topicId: b.topicId,
+      topic: {
+        name: b.topic?.name,
+        icon: b.topic?.icon,
+        subject: { name: b.topic?.subject?.name }
+      },
+      correct: b.correct,
+      total: b.total,
+      successRate: b.percent
+    }));
 
     const result = {
       stats: {
-        total: totalAttempts,
-        correct: correctAttempts,
-        incorrect: incorrectAttempts,
-        successRate
+        total: totalAll,
+        correct: totalCorrect,
+        incorrect: totalAll - totalCorrect,
+        successRate: totalAll > 0 ? Math.round(totalCorrect / totalAll * 100) : 0
       },
       subjectStats,
-      topicStats,
-      recentAttempts
+      topicStats
     };
 
-    // Кэшируем результат на 60 секунд
     setCache(cacheKey, result);
     res.json(result);
   } catch (error) {
@@ -442,31 +330,17 @@ exports.getStudentStats = async (req, res) => {
   }
 };
 
-// Получить вопросы с ошибками
+// Получить вопросы с ошибками (упрощённо — все вопросы темы если не 100%)
 exports.getIncorrectQuestions = async (req, res) => {
   try {
     const { studentId, topicId } = req.params;
-
-    const incorrectQuestionIds = await PracticeAttempt.findAll({
-      where: { studentId, topicId, isCorrect: false },
-      attributes: [[sequelize.fn('DISTINCT', sequelize.col('questionId')), 'questionId']],
-      raw: true
-    });
-
-    const questionIds = incorrectQuestionIds.map(q => q.questionId);
-
-    if (questionIds.length === 0) {
-      return res.json({ questions: [] });
-    }
-
+    const best = await PracticeBest.findOne({ where: { studentId, topicId } });
+    if (!best || best.percent === 100) return res.json({ questions: [] });
     const questions = await PracticeQuestion.findAll({
-      where: {
-        id: { [Op.in]: questionIds },
-        isActive: true
-      },
+      where: { topicId, isActive: true },
+      attributes: ['id', 'questionText', 'options', 'correctAnswer', 'explanation', 'difficulty'],
       order: [['createdAt', 'ASC']]
     });
-
     res.json({ questions });
   } catch (error) {
     console.error('Get incorrect questions error:', error);

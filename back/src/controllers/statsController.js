@@ -1,5 +1,6 @@
 const { 
-  PracticeAttempt, 
+  PracticeBest,
+  PracticeDailyLog,
   PracticeTopic, 
   PracticeQuestion,
   Subject, 
@@ -210,19 +211,38 @@ exports.getAdminStats = async (req, res) => {
 
     const result = {};
 
-    // Статистика по практике
+    // Статистика по практике — из PracticeDailyLog (только сегодня)
     if (!section || section === 'practice') {
-      const practiceAttempts = await PracticeAttempt.findAll({
-        where: whereClause,
+      const today = new Date().toISOString().slice(0, 10);
+
+      const dailyLogs = await PracticeDailyLog.findAll({
+        where: { date: today },
         include: [
-          { model: User, as: 'student', attributes: ['id', 'firstName', 'lastName'] },
-          { model: Subject, as: 'subject', attributes: ['name', 'icon'] },
-          { model: PracticeTopic, as: 'topic', attributes: ['name'] }
-        ],
-        order: [['createdAt', 'DESC']]
+          { model: Subject, as: 'subject', attributes: ['id', 'name', 'icon'] }
+        ]
       });
 
-      result.practice = practiceAttempts;
+      // Группируем по предмету
+      const bySubject = {};
+      dailyLogs.forEach(log => {
+        const sid = log.subjectId;
+        if (!bySubject[sid]) bySubject[sid] = {
+          subjectId: sid,
+          subject: log.subject,
+          studentIds: new Set(),
+          totalAttempts: 0
+        };
+        bySubject[sid].studentIds.add(log.studentId);
+        bySubject[sid].totalAttempts += log.attemptsCount;
+      });
+
+      result.practice = Object.values(bySubject).map(s => ({
+        subjectId: s.subjectId,
+        subject: s.subject,
+        uniqueStudents: s.studentIds.size,
+        totalAttempts: s.totalAttempts,
+        avgPerStudent: s.studentIds.size > 0 ? Math.round(s.totalAttempts / s.studentIds.size) : 0
+      }));
     }
 
     // Статистика по домашке
