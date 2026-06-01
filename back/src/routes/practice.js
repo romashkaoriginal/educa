@@ -78,37 +78,21 @@ router.get('/student/:studentId', async (req, res) => {
       order: [['createdAt', 'ASC']]
     });
 
-    // Добавляем статистику (последняя попытка по каждому вопросу)
-    const topicsWithStats = await Promise.all(
-      practiceTopics.map(async (topic) => {
-        const topicJSON = topic.toJSON();
-        
-        // Берём последнюю попытку по каждому вопросу
-        const lastAttempts = await sequelize.query(`
-          SELECT DISTINCT ON ("questionId") "questionId", "isCorrect"
-          FROM practice_attempts
-          WHERE "studentId" = :studentId AND "topicId" = :topicId
-          ORDER BY "questionId", "createdAt" DESC
-        `, {
-          replacements: { studentId: parseInt(studentId), topicId: topic.id },
-          type: sequelize.QueryTypes.SELECT
-        });
+    // Берём лучшие результаты из PracticeBest
+    const { PracticeBest } = require('../models');
+    const bests = await PracticeBest.findAll({
+      where: { studentId: parseInt(studentId) },
+      attributes: ['topicId', 'correct', 'total', 'percent']
+    });
+    const bestMap = {};
+    bests.forEach(b => {
+      bestMap[b.topicId] = { correct: b.correct, total: b.total, successRate: b.percent };
+    });
 
-        const total = lastAttempts.length;
-        const correct = lastAttempts.filter(a => a.isCorrect).length;
-        const successRate = total > 0 ? Math.round((correct / total) * 100) : 0;
-
-        return {
-          ...topicJSON,
-          stats: {
-            total,
-            correct,
-            incorrect: total - correct,
-            successRate
-          }
-        };
-      })
-    );
+    const topicsWithStats = practiceTopics.map(topic => ({
+      ...topic.toJSON(),
+      stats: bestMap[topic.id] || null
+    }));
 
     res.json({ practiceTopics: topicsWithStats });
   } catch (error) {
