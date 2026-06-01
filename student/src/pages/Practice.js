@@ -6,7 +6,7 @@ const API_URL = 'https://educa-production-a98e.up.railway.app/api';
 
 function Practice({ studentId }) {
   // Используем данные из контекста
-  const { practiceTopics, subjects, refreshAfterPractice, loading: contextLoading } = useData();
+  const { practiceTopics, subjects, refreshAfterPractice, loading: contextLoading, prefetchQuestions, getQuestions, updatePracticeStatsOptimistic } = useData();
   
   const [selectedSubject, setSelectedSubject] = useState(null); // null = экран выбора предмета
   
@@ -23,7 +23,6 @@ function Practice({ studentId }) {
   const [showExplanationHint, setShowExplanationHint] = useState(false);
   
   const autoNextTimerRef = useRef(null);
-  const questionsCache = useRef({}); // кэш вопросов по topicId
 
   const RESULT_DURATION = 1500; // 1.5 секунды показ результата
 
@@ -34,6 +33,13 @@ function Practice({ studentId }) {
     }
   }, [subjects, selectedSubject]);
 
+  // Prefetch вопросов фоново при входе в раздел практики
+  useEffect(() => {
+    if (practiceTopics.length > 0) {
+      prefetchQuestions(practiceTopics);
+    }
+  }, [practiceTopics, prefetchQuestions]);
+
   // Очистка таймера при размонтировании
   useEffect(() => {
     return () => {
@@ -43,16 +49,7 @@ function Practice({ studentId }) {
 
   const startPractice = async (topic) => {
     try {
-      // Берём из кэша если уже загружали
-      let activeQuestions;
-      if (questionsCache.current[topic.id]) {
-        activeQuestions = questionsCache.current[topic.id];
-      } else {
-        const response = await fetch(`${API_URL}/practice/questions/${topic.id}`);
-        const data = await response.json();
-        activeQuestions = data.questions.filter(q => q.isActive);
-        questionsCache.current[topic.id] = activeQuestions; // кэшируем
-      }
+      const activeQuestions = await getQuestions(topic);
       
       if (activeQuestions.length === 0) {
         alert('В этой практике пока нет вопросов');
@@ -132,6 +129,9 @@ function Practice({ studentId }) {
       answers
     });
     setShowResult(true);
+
+    // Оптимистично обновляем статистику темы — без ожидания сервера
+    updatePracticeStatsOptimistic(activePractice.id, correctCount, totalCount);
   };
 
   const closePractice = () => {

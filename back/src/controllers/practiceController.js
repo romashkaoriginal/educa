@@ -1,5 +1,19 @@
 const { PracticeTopic, PracticeQuestion, PracticeAttempt, Subject, User } = require('../models');
 const { Op } = require('sequelize');
+
+// In-memory кэш статистики (TTL 60 секунд)
+const statsCache = new Map();
+const CACHE_TTL = 60 * 1000;
+
+const getCached = (key) => {
+  const item = statsCache.get(key);
+  if (!item) return null;
+  if (Date.now() - item.time > CACHE_TTL) { statsCache.delete(key); return null; }
+  return item.data;
+};
+
+const setCache = (key, data) => statsCache.set(key, { data, time: Date.now() });
+const invalidateCache = (key) => statsCache.delete(key);
 const sequelize = require('../config/database');
 
 // ========== АДМИН ФУНКЦИИ ==========
@@ -250,6 +264,7 @@ exports.deleteQuestion = async (req, res) => {
 
 // Сохранить попытку
 exports.saveAttempt = async (req, res) => {
+  // Инвалидируем кэш статистики при новой попытке
   try {
     const { studentId, topicId, questionId, subjectId, selectedAnswer, isCorrect, timeSpent } = req.body;
 
@@ -306,6 +321,11 @@ exports.getTopicStats = async (req, res) => {
 exports.getStudentStats = async (req, res) => {
   try {
     const { studentId } = req.params;
+
+    // Проверяем кэш
+    const cacheKey = `stats_${studentId}`;
+    const cached = getCached(cacheKey);
+    if (cached) return res.json(cached);
 
     // Все последние попытки по каждому вопросу
     const lastAttempts = await sequelize.query(`
@@ -401,7 +421,7 @@ exports.getStudentStats = async (req, res) => {
       limit: 20
     });
 
-    res.json({
+    const result = {
       stats: {
         total: totalAttempts,
         correct: correctAttempts,
@@ -411,7 +431,11 @@ exports.getStudentStats = async (req, res) => {
       subjectStats,
       topicStats,
       recentAttempts
-    });
+    };
+
+    // Кэшируем результат на 60 секунд
+    setCache(cacheKey, result);
+    res.json(result);
   } catch (error) {
     console.error('Get stats error:', error);
     res.status(500).json({ error: 'Failed to get statistics' });

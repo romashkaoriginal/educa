@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
 
 const API_URL = 'https://educa-production-a98e.up.railway.app/api';
 
@@ -6,9 +6,7 @@ const DataContext = createContext();
 
 export const useData = () => {
   const context = useContext(DataContext);
-  if (!context) {
-    throw new Error('useData must be used within DataProvider');
-  }
+  if (!context) throw new Error('useData must be used within DataProvider');
   return context;
 };
 
@@ -20,25 +18,21 @@ export const DataProvider = ({ children, studentId }) => {
   const [homeworkStats, setHomeworkStats] = useState(null);
 
   const [loaded, setLoaded] = useState({
-    subjects: false,
-    practice: false,
-    homework: false,
-    practiceStats: false,
-    homeworkStats: false
+    subjects: false, practice: false, homework: false,
+    practiceStats: false, homeworkStats: false
   });
 
   const [loading, setLoading] = useState({
-    subjects: false,
-    practice: false,
-    homework: false,
-    practiceStats: false,
-    homeworkStats: false
+    subjects: false, practice: false, homework: false,
+    practiceStats: false, homeworkStats: false
   });
+
+  // Кэш вопросов практики: { topicId: [questions] }
+  const questionsCache = useRef({});
 
   const loadSubjects = useCallback(async (force = false) => {
     if (loaded.subjects && !force) return subjects;
     if (loading.subjects) return subjects;
-
     setLoading(prev => ({ ...prev, subjects: true }));
     try {
       const response = await fetch(`${API_URL}/subjects/student/${studentId}`);
@@ -57,14 +51,14 @@ export const DataProvider = ({ children, studentId }) => {
   const loadPractice = useCallback(async (force = false) => {
     if (loaded.practice && !force) return practiceTopics;
     if (loading.practice) return practiceTopics;
-
     setLoading(prev => ({ ...prev, practice: true }));
     try {
       const response = await fetch(`${API_URL}/practice/student/${studentId}`);
       const data = await response.json();
-      setPracticeTopics(data.practiceTopics || []);
+      const topics = data.practiceTopics || [];
+      setPracticeTopics(topics);
       setLoaded(prev => ({ ...prev, practice: true }));
-      return data.practiceTopics || [];
+      return topics;
     } catch (error) {
       console.error('Error loading practice:', error);
       return [];
@@ -73,10 +67,45 @@ export const DataProvider = ({ children, studentId }) => {
     }
   }, [studentId, loaded.practice, loading.practice, practiceTopics]);
 
+  // Prefetch вопросов всех тем фоново — вызывается при входе в раздел практики
+  const prefetchQuestions = useCallback(async (topics) => {
+    const topicsToLoad = topics.filter(t =>
+      t.questions?.length > 0 && !questionsCache.current[t.id]
+    );
+    if (topicsToLoad.length === 0) return;
+
+    // Грузим параллельно, но не блокируем UI
+    Promise.all(
+      topicsToLoad.map(async (topic) => {
+        try {
+          const res = await fetch(`${API_URL}/practice/questions/${topic.id}`);
+          const data = await res.json();
+          const active = (data.questions || []).filter(q => q.isActive);
+          if (active.length > 0) {
+            questionsCache.current[topic.id] = active;
+          }
+        } catch (e) {
+          // тихо игнорируем ошибки prefetch
+        }
+      })
+    );
+  }, []);
+
+  // Получить вопросы из кэша или загрузить
+  const getQuestions = useCallback(async (topic) => {
+    if (questionsCache.current[topic.id]) {
+      return questionsCache.current[topic.id];
+    }
+    const res = await fetch(`${API_URL}/practice/questions/${topic.id}`);
+    const data = await res.json();
+    const active = (data.questions || []).filter(q => q.isActive);
+    questionsCache.current[topic.id] = active;
+    return active;
+  }, []);
+
   const loadHomeworks = useCallback(async (force = false) => {
     if (loaded.homework && !force) return homeworks;
     if (loading.homework) return homeworks;
-
     setLoading(prev => ({ ...prev, homework: true }));
     try {
       const response = await fetch(`${API_URL}/homework/student/${studentId}`);
@@ -95,7 +124,6 @@ export const DataProvider = ({ children, studentId }) => {
   const loadPracticeStats = useCallback(async (force = false) => {
     if (loaded.practiceStats && !force) return practiceStats;
     if (loading.practiceStats) return practiceStats;
-
     setLoading(prev => ({ ...prev, practiceStats: true }));
     try {
       const response = await fetch(`${API_URL}/practice/stats/${studentId}`);
@@ -114,7 +142,6 @@ export const DataProvider = ({ children, studentId }) => {
   const loadHomeworkStats = useCallback(async (force = false) => {
     if (loaded.homeworkStats && !force) return homeworkStats;
     if (loading.homeworkStats) return homeworkStats;
-
     setLoading(prev => ({ ...prev, homeworkStats: true }));
     try {
       const response = await fetch(`${API_URL}/homework/student/${studentId}/stats`);
@@ -129,6 +156,25 @@ export const DataProvider = ({ children, studentId }) => {
       setLoading(prev => ({ ...prev, homeworkStats: false }));
     }
   }, [studentId, loaded.homeworkStats, loading.homeworkStats, homeworkStats]);
+
+  // Оптимистичное обновление статистики после прохождения практики
+  // newResult: { topicId, correct, total }
+  const updatePracticeStatsOptimistic = useCallback((topicId, correct, total) => {
+    setPracticeTopics(prev => prev.map(topic => {
+      if (topic.id !== topicId) return topic;
+      const prevStats = topic.stats || { correct: 0, total: 0, successRate: 0 };
+      const newCorrect = prevStats.correct + correct;
+      const newTotal = prevStats.total + total;
+      const newRate = newTotal > 0 ? Math.round(newCorrect / newTotal * 100) : 0;
+      // Обновляем только если результат лучше предыдущего
+      const prevRate = prevStats.successRate || 0;
+      if (newRate <= prevRate && prevStats.total > 0) return topic;
+      return {
+        ...topic,
+        stats: { correct: newCorrect, total: newTotal, successRate: newRate }
+      };
+    }));
+  }, []);
 
   const preloadAllData = useCallback(async () => {
     await Promise.all([
@@ -155,21 +201,11 @@ export const DataProvider = ({ children, studentId }) => {
   }, [loadHomeworks, loadHomeworkStats]);
 
   const value = {
-    subjects,
-    practiceTopics,
-    homeworks,
-    practiceStats,
-    homeworkStats,
-    loaded,
-    loading,
-    loadSubjects,
-    loadPractice,
-    loadHomeworks,
-    loadPracticeStats,
-    loadHomeworkStats,
-    preloadAllData,
-    refreshAfterPractice,
-    refreshAfterHomework
+    subjects, practiceTopics, homeworks, practiceStats, homeworkStats,
+    loaded, loading,
+    loadSubjects, loadPractice, loadHomeworks, loadPracticeStats, loadHomeworkStats,
+    preloadAllData, refreshAfterPractice, refreshAfterHomework,
+    prefetchQuestions, getQuestions, updatePracticeStatsOptimistic
   };
 
   return (
