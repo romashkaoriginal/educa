@@ -352,17 +352,15 @@ router.post('/submit', async (req, res) => {
       return res.status(500).json({ message: 'Failed to create submission' });
     }
 
-    // Create answers
-    const answerPromises = gradedAnswers.map(ans =>
-      HomeworkAnswer.create({
+    // Create answers — один запрос вместо N отдельных
+    await HomeworkAnswer.bulkCreate(
+      gradedAnswers.map(ans => ({
         submissionId: submission.id,
         questionId: ans.questionId,
         userAnswer: ans.userAnswer,
         isCorrect: ans.isCorrect
-      })
+      }))
     );
-
-    await Promise.all(answerPromises);
 
     res.json({ 
       message: 'Homework submitted successfully',

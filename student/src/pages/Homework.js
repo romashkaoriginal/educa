@@ -29,15 +29,12 @@ function StudentHomework({ studentId }) {
   const orderingListRefs = useRef({});
   const initialOrderRef = useRef({});
 
-  // Автовыбор предмета
   useEffect(() => {
     if (subjects.length === 1 && !selectedSubject) {
       setSelectedSubject(subjects[0]);
     }
   }, [subjects, selectedSubject]);
 
-  // Блокируем свайп ТОЛЬКО когда идёт прохождение (не на экране результата)
-  // Разблокируем только при closeHomework — не в cleanup
   useEffect(() => {
     if (selectedHomework && !showResult) {
       if (window.Telegram?.WebApp) {
@@ -46,12 +43,23 @@ function StudentHomework({ studentId }) {
         window.Telegram.WebApp.enableClosingConfirmation?.();
       }
     }
-    // НЕ возвращаем cleanup — разблокируем вручную в closeHomework
   }, [selectedHomework, showResult]);
 
   const backToSubjects = () => setSelectedSubject(null);
 
+  // ОПТИМИЗАЦИЯ: используем вопросы из DataContext, не делаем лишний fetch
   const startHomework = async (homework) => {
+    if (homework.questions && homework.questions.length > 0) {
+      setSelectedHomework(homework);
+      setQuestions(homework.questions);
+      initialOrderRef.current = {};
+      setCurrentQuestionIndex(0);
+      setAnswers({});
+      setShowResult(false);
+      setStartTime(Date.now());
+      return;
+    }
+    // Запасной вариант — загрузить с сервера если вопросов нет в кэше
     try {
       const response = await fetch(`${API_URL}/homework/${homework.id}`);
       const data = await response.json();
@@ -63,6 +71,7 @@ function StudentHomework({ studentId }) {
       setQuestions(data.homework.questions || []);
       initialOrderRef.current = {};
       setCurrentQuestionIndex(0);
+      setAnswers({});
       setShowResult(false);
       setStartTime(Date.now());
     } catch (error) {
@@ -75,9 +84,7 @@ function StudentHomework({ studentId }) {
     setAnswers(prev => ({ ...prev, [questionIndex]: answer }));
   };
 
-  // Разблокируем Telegram и возвращаемся к списку
   const closeHomework = () => {
-    // Разблокируем свайп только здесь
     if (window.Telegram?.WebApp) {
       window.Telegram.WebApp.enableVerticalSwipes?.();
       window.Telegram.WebApp.disableClosingConfirmation?.();
@@ -90,7 +97,6 @@ function StudentHomework({ studentId }) {
     refreshAfterHomework();
   };
 
-  // Drag-and-drop
   const handlePointerDown = useCallback((e, questionIndex, itemIndex, items) => {
     e.preventDefault();
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
@@ -117,7 +123,6 @@ function StudentHomework({ studentId }) {
       clientY = e.clientY;
     }
     const offsetY = clientY - drag.startY;
-
     const elementUnder = document.elementFromPoint(clientX, clientY);
     if (elementUnder) {
       const orderItem = elementUnder.closest('.ordering-item');
@@ -301,7 +306,6 @@ function StudentHomework({ studentId }) {
         }
         const items = answers[index] || initialOrderRef.current[index] || question.correctAnswer || [];
         const isActiveDrag = drag.active && drag.questionIndex === index;
-
         return (
           <div className="ordering-container">
             <p className="ordering-hint">Зажмите элемент и перетащите, чтобы изменить порядок:</p>
@@ -384,8 +388,6 @@ function StudentHomework({ studentId }) {
     }
   };
 
-  // --- RENDER ---
-
   if (contextLoading.homework && homeworks.length === 0) {
     return (
       <div className="section">
@@ -395,11 +397,9 @@ function StudentHomework({ studentId }) {
     );
   }
 
-  // ЭКРАН РЕЗУЛЬТАТА
   if (showResult && result) {
     const percentage = result.percentage || Math.round((result.totalScore / result.maxScore) * 100);
 
-    // Проверяем правильность ответа локально (те же правила что на бэкенде)
     const checkAnswerLocal = (question, userAnswer) => {
       const correct = question.correctAnswer;
       switch (question.questionType) {
@@ -462,7 +462,6 @@ function StudentHomework({ studentId }) {
               {options.map((option, oIndex) => {
                 const isUser = userAnswer === oIndex;
                 const isCorrectOpt = oIndex === correct;
-                // Показываем только правильный и неправильно выбранный
                 if (!isCorrectOpt && !isUser) return null;
                 return (
                   <div key={oIndex} className={`result-answer ${isCorrectOpt ? 'correct-answer' : 'wrong-answer'}`}>
@@ -475,7 +474,6 @@ function StudentHomework({ studentId }) {
             </div>
           );
         }
-
         case 'multiple_choice': {
           const options = question.options || [];
           const userArr = userAnswer || [];
@@ -497,7 +495,6 @@ function StudentHomework({ studentId }) {
             </div>
           );
         }
-
         case 'true_false': {
           const userLabel = userAnswer === true ? '✓ Верно' : userAnswer === false ? '✗ Неверно' : '—';
           const correctLabel = correct === true ? '✓ Верно' : '✗ Неверно';
@@ -523,10 +520,8 @@ function StudentHomework({ studentId }) {
             </div>
           );
         }
-
         case 'short_answer':
         case 'text_input': {
-          const correctDisplay = Array.isArray(correct) ? correct[0] : correct;
           return (
             <div className="result-answers">
               {isOk ? (
@@ -549,7 +544,6 @@ function StudentHomework({ studentId }) {
             </div>
           );
         }
-
         case 'numeric':
         case 'number_input': {
           const correctVal = correct?.value ?? correct;
@@ -576,7 +570,6 @@ function StudentHomework({ studentId }) {
             </div>
           );
         }
-
         case 'matching': {
           const pairs = correct || [];
           const userPairs = userAnswer || [];
@@ -601,7 +594,6 @@ function StudentHomework({ studentId }) {
             </div>
           );
         }
-
         case 'ordering': {
           const correctOrder = correct || [];
           const userOrder = userAnswer || [];
@@ -627,7 +619,6 @@ function StudentHomework({ studentId }) {
             </div>
           );
         }
-
         case 'fill_blanks':
         case 'fill_in_blank': {
           const text = question.questionText || '';
@@ -662,7 +653,6 @@ function StudentHomework({ studentId }) {
                   );
                 })
               ) : (
-                // Если в тексте нет ___, показываем просто ваш/правильный
                 isOk ? (
                   <div className="result-answer correct-answer">
                     <span className="answer-text">Ваш ответ: <strong>{userBlanks.join(', ') || '—'}</strong></span>
@@ -684,9 +674,7 @@ function StudentHomework({ studentId }) {
             </div>
           );
         }
-
-        default:
-          return null;
+        default: return null;
       }
     };
 
@@ -708,8 +696,6 @@ function StudentHomework({ studentId }) {
           {percentage >= 50 && percentage < 70 && <p className="average">📖 Неплохо, но есть куда расти!</p>}
           {percentage < 50 && <p className="needs-work">💪 Стоит повторить материал и попробовать снова!</p>}
         </div>
-
-        {/* Разбор ответов */}
         <div className="result-details">
           <h3>Разбор ответов</h3>
           {questions.map((question, qIndex) => {
@@ -726,7 +712,6 @@ function StudentHomework({ studentId }) {
             );
           })}
         </div>
-
         <div className="result-actions">
           {result.maxAttempts && result.attemptsUsed >= result.maxAttempts ? (
             <p className="attempts-exhausted">Вы использовали все попытки</p>
@@ -743,7 +728,6 @@ function StudentHomework({ studentId }) {
     );
   }
 
-  // ЭКРАН ПРОХОЖДЕНИЯ
   if (selectedHomework && questions.length > 0) {
     const currentQuestion = questions[currentQuestionIndex];
     const progress = ((currentQuestionIndex + 1) / questions.length) * 100;
@@ -801,7 +785,6 @@ function StudentHomework({ studentId }) {
     );
   }
 
-  // ВЫБОР ПРЕДМЕТА
   if (!selectedSubject && subjects.length > 1) {
     return (
       <div className="section">
@@ -825,7 +808,6 @@ function StudentHomework({ studentId }) {
     );
   }
 
-  // СПИСОК ДОМАШЕК
   const filteredHomeworks = selectedSubject
     ? homeworks.filter(hw => hw.subjectId === selectedSubject.id)
     : homeworks;
