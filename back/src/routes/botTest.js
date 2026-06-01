@@ -1,4 +1,5 @@
 const express = require('express');
+const { requireRole } = require('../middleware/telegramAuth');
 const router = express.Router();
 const { BotTest, Subject } = require('../models');
 
@@ -54,7 +55,7 @@ router.get('/:subjectId', async (req, res) => {
 });
 
 // POST /api/bot-test — создать вопрос
-router.post('/', async (req, res) => {
+router.post('/', requireRole(['admin', 'manager', 'teacher']), async (req, res) => {
   try {
     const { subjectId, questionText, options, correctAnswer, order } = req.body;
     const question = await BotTest.create({ subjectId, questionText, options, correctAnswer, order: order || 0 });
@@ -65,7 +66,7 @@ router.post('/', async (req, res) => {
 });
 
 // PUT /api/bot-test/:id — обновить
-router.put('/:id', async (req, res) => {
+router.put('/:id', requireRole(['admin', 'manager', 'teacher']), async (req, res) => {
   try {
     const q = await BotTest.findByPk(req.params.id);
     if (!q) return res.status(404).json({ message: 'Не найден' });
@@ -77,7 +78,7 @@ router.put('/:id', async (req, res) => {
 });
 
 // DELETE /api/bot-test/:id
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', requireRole(['admin', 'manager', 'teacher']), async (req, res) => {
   try {
     await BotTest.destroy({ where: { id: req.params.id } });
     res.json({ message: 'Удалён' });

@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const { Quiz, QuizQuestion, QuizParticipant, QuizAnswer, User, Subject } = require('../models');
 const { Op } = require('sequelize');
+const { requireRole } = require('../middleware/telegramAuth');
+const isAdmin = requireRole(['admin', 'teacher']);
 
 // Генерация уникального кода
 function generateAccessCode() {
@@ -9,7 +11,7 @@ function generateAccessCode() {
 }
 
 // Получить все викторины (admin)
-router.get('/all', async (req, res) => {
+router.get('/all', isAdmin, async (req, res) => {
   try {
     const quizzes = await Quiz.findAll({
       where: { isDeleted: false }, // ✅ показываем только не удалённые
@@ -103,7 +105,7 @@ router.get('/student/:studentId/stats', async (req, res) => {
 });
 
 // Создать викторину
-router.post('/create', async (req, res) => {
+router.post('/create', isAdmin, async (req, res) => {
   try {
     const { title, description, subjectId, questions, createdBy } = req.body;
 
@@ -185,7 +187,7 @@ router.get('/:id', async (req, res) => {
 
 // Удалить викторину
 // Удалить викторину (мягкое удаление)
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', isAdmin, async (req, res) => {
   try {
     await Quiz.update(
       { isDeleted: true },

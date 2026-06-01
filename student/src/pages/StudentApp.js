@@ -5,38 +5,22 @@ import Homework from './Homework';
 import Quiz from './Quiz';
 import Statistics from './Statistics';
 import { DataProvider, useData } from './DataContext';
+import { apiFetch } from './api';
 
 const API_URL = 'https://educa-production-a98e.up.railway.app/api';
 
-function StudentAppContent({ selectedStudent, onLogout }) {
+function StudentAppContent({ selectedStudent }) {
   const [activeTab, setActiveTab] = useState('practice');
-  const { preloadAllData, loadHomeworks, loadPractice, loadPracticeStats, loadHomeworkStats } = useData();
+  const { preloadAllData } = useData();
+
+  // Грузим данные один раз при монтировании — без ожидания, сразу показываем UI
+  useEffect(() => {
+    preloadAllData();
+  }, []); // eslint-disable-line
 
   const handleTabChange = (tabId) => {
     setActiveTab(tabId);
-    // Обновляем данные при переключении на вкладку
-    if (tabId === 'homework') {
-      loadHomeworks(true);
-      loadHomeworkStats(true);
-    }
-    if (tabId === 'practice') {
-      loadPractice(true);
-      loadPracticeStats(true);
-    }
-    if (tabId === 'stats') {
-      loadPracticeStats(true);
-      loadHomeworkStats(true);
-    }
   };
-  const [initialLoading, setInitialLoading] = useState(true);
-
-  useEffect(() => {
-    const loadInitialData = async () => {
-      await preloadAllData();
-      setInitialLoading(false);
-    };
-    loadInitialData();
-  }, [preloadAllData]);
 
   const tabs = [
     { id: 'practice', name: 'Практика', icon: '💪', component: Practice },
@@ -46,19 +30,6 @@ function StudentAppContent({ selectedStudent, onLogout }) {
   ];
 
   const ActiveComponent = tabs.find(tab => tab.id === activeTab)?.component;
-
-  if (initialLoading) {
-    return (
-      <div className="initial-loading">
-        <div className="loading-logo">
-          <span className="logo-ed">ED</span>
-          <span className="logo-me">me</span>
-        </div>
-        <div className="loading-spinner"></div>
-        <p>Загружаем данные...</p>
-      </div>
-    );
-  }
 
   return (
     <div className="student-app">
@@ -90,12 +61,20 @@ function StudentApp() {
   useEffect(() => {
     const fetchStudents = async () => {
       try {
-        const response = await fetch(`${API_URL}/students`);
-        const data = await response.json();
-        const allStudents = data.students || [];
-        setStudents(allStudents);
+        // Берём из prefetch кэша если уже загружено фоново в App.js
+        const cached = sessionStorage.getItem('prefetchedStudents');
+        let allStudents;
+        if (cached) {
+          allStudents = JSON.parse(cached);
+          setStudents(allStudents);
+          sessionStorage.removeItem('prefetchedStudents');
+        } else {
+          const response = await apiFetch(`${API_URL}/students`);
+          const data = await response.json();
+          allStudents = data.students || [];
+          setStudents(allStudents);
+        }
 
-        // Пробуем получить telegramId из Telegram WebApp
         const telegramId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
         if (telegramId) {
           const now = new Date();
@@ -182,10 +161,7 @@ function StudentApp() {
 
   return (
     <DataProvider studentId={selectedStudent.id}>
-      <StudentAppContent 
-        selectedStudent={selectedStudent} 
-        onLogout={() => setSelectedStudent(null)}
-      />
+      <StudentAppContent selectedStudent={selectedStudent} />
     </DataProvider>
   );
 }

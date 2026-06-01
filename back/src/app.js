@@ -21,7 +21,7 @@ const quizRoutes = require('./routes/quiz');
 const notifyRoutes = require('./routes/notify');
 const botTestRoutes = require('./routes/botTest');
 const setupQuizSocket = require('./socket/quizSocket');
-const { telegramAuth, requireUser, requireAdmin } = require('./middleware/telegramAuth');
+const { telegramAuth, requireUser, requireAdmin, requireRole } = require('./middleware/telegramAuth');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -66,19 +66,29 @@ app.use('/api/auth', authRoutes);
 // Публичные эндпоинты (бот, проверка)
 app.use('/api/bot-users', botUsersRoutes);
 
-// Студенческие роуты — требуют Telegram auth
+// Публичные роуты (для бота — без auth)
+app.use('/api/bot-test', botTestRoutes); // бот читает вопросы без авторизации
+
+// Все авторизованные пользователи
 app.use('/api/subjects', telegramAuth, requireUser, subjectRoutes);
-app.use('/api/homework', telegramAuth, requireUser, homeworkRoutes);
-app.use('/api/practice', telegramAuth, requireUser, practiceRoutes);
 app.use('/api/quiz', telegramAuth, requireUser, quizRoutes);
 
-// Админские роуты — требуют Telegram auth + роль admin
-app.use('/api/students', telegramAuth, requireAdmin, studentRoutes);
-app.use('/api/stats', telegramAuth, requireAdmin, statsRoutes);
+// Студенты + все роли (практика и домашка нужны и преподу)
+app.use('/api/practice', telegramAuth, requireUser, practiceRoutes);
+app.use('/api/homework', telegramAuth, requireUser, homeworkRoutes);
+
+// Статистика — все роли (студент видит свою, админ/препод/менеджер — общую)
+app.use('/api/stats', telegramAuth, requireUser, statsRoutes);
+
+// Только admin
 app.use('/api/admin', telegramAuth, requireAdmin, adminRoutes);
-app.use('/api/users', telegramAuth, requireAdmin, usersRoutes);
-app.use('/api/notify', telegramAuth, requireAdmin, notifyRoutes);
-app.use('/api/bot-test', telegramAuth, requireAdmin, botTestRoutes);
+
+// admin + manager
+app.use('/api/students', telegramAuth, requireRole(['admin', 'manager']), studentRoutes);
+app.use('/api/users', telegramAuth, requireRole(['admin', 'manager']), usersRoutes);
+
+// admin + manager + teacher
+app.use('/api/notify', telegramAuth, requireRole(['admin', 'manager', 'teacher']), notifyRoutes);
 
 setupQuizSocket(io);
 

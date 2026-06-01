@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
+import { apiFetch } from './api';
 import './Quiz.css';
 
 const API_URL = 'https://educa-production-a98e.up.railway.app/api';
@@ -57,7 +58,7 @@ function Quiz({ studentId }) {
     setError('');
 
     try {
-      const response = await fetch(`${API_URL}/quiz/code/${accessCode.toUpperCase()}`);
+      const response = await apiFetch(`${API_URL}/quiz/code/${accessCode.toUpperCase()}`);
       const data = await response.json();
 
       if (!response.ok) {

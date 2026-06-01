@@ -28,45 +28,53 @@ export const DataProvider = ({ children, studentId }) => {
     practiceStats: false, homeworkStats: false
   });
 
+  const loadedRef = useRef({ subjects: false, practice: false, homework: false, practiceStats: false, homeworkStats: false });
+  const loadingRef = useRef({ subjects: false, practice: false, homework: false, practiceStats: false, homeworkStats: false });
   // Кэш вопросов практики: { topicId: [questions] }
   const questionsCache = useRef({});
 
   const loadSubjects = useCallback(async (force = false) => {
-    if (loaded.subjects && !force) return subjects;
-    if (loading.subjects) return subjects;
+    if (loadedRef.current.subjects && !force) return subjects;
+    if (loadingRef.current.subjects) return subjects;
+    loadingRef.current.subjects = true;
     setLoading(prev => ({ ...prev, subjects: true }));
     try {
       const response = await apiFetch(`${API_URL}/subjects/student/${studentId}`);
       const data = await response.json();
       setSubjects(data.subjects || []);
+      loadedRef.current.subjects = true;
       setLoaded(prev => ({ ...prev, subjects: true }));
       return data.subjects || [];
     } catch (error) {
       console.error('Error loading subjects:', error);
       return [];
     } finally {
+      loadingRef.current.subjects = false;
       setLoading(prev => ({ ...prev, subjects: false }));
     }
-  }, [studentId, loaded.subjects, loading.subjects, subjects]);
+  }, [studentId]); // eslint-disable-line
 
   const loadPractice = useCallback(async (force = false) => {
-    if (loaded.practice && !force) return practiceTopics;
-    if (loading.practice) return practiceTopics;
+    if (loadedRef.current.practice && !force) return practiceTopics;
+    if (loadingRef.current.practice) return practiceTopics;
+    loadingRef.current.practice = true;
     setLoading(prev => ({ ...prev, practice: true }));
     try {
       const response = await apiFetch(`${API_URL}/practice/student/${studentId}`);
       const data = await response.json();
       const topics = data.practiceTopics || [];
       setPracticeTopics(topics);
+      loadedRef.current.practice = true;
       setLoaded(prev => ({ ...prev, practice: true }));
       return topics;
     } catch (error) {
       console.error('Error loading practice:', error);
       return [];
     } finally {
+      loadingRef.current.practice = false;
       setLoading(prev => ({ ...prev, practice: false }));
     }
-  }, [studentId, loaded.practice, loading.practice, practiceTopics]);
+  }, [studentId]); // eslint-disable-line
 
   // Prefetch вопросов всех тем фоново — вызывается при входе в раздел практики
   const prefetchQuestions = useCallback(async (topics) => {
@@ -105,58 +113,67 @@ export const DataProvider = ({ children, studentId }) => {
   }, []);
 
   const loadHomeworks = useCallback(async (force = false) => {
-    if (loaded.homework && !force) return homeworks;
-    if (loading.homework) return homeworks;
+    if (loadedRef.current.homework && !force) return homeworks;
+    if (loadingRef.current.homework) return homeworks;
+    loadingRef.current.homework = true;
     setLoading(prev => ({ ...prev, homework: true }));
     try {
       const response = await apiFetch(`${API_URL}/homework/student/${studentId}`);
       const data = await response.json();
       setHomeworks(data.homeworks || []);
+      loadedRef.current.homework = true;
       setLoaded(prev => ({ ...prev, homework: true }));
       return data.homeworks || [];
     } catch (error) {
       console.error('Error loading homeworks:', error);
       return [];
     } finally {
+      loadingRef.current.homework = false;
       setLoading(prev => ({ ...prev, homework: false }));
     }
-  }, [studentId, loaded.homework, loading.homework, homeworks]);
+  }, [studentId]); // eslint-disable-line
 
   const loadPracticeStats = useCallback(async (force = false) => {
-    if (loaded.practiceStats && !force) return practiceStats;
-    if (loading.practiceStats) return practiceStats;
+    if (loadedRef.current.practiceStats && !force) return practiceStats;
+    if (loadingRef.current.practiceStats) return practiceStats;
+    loadingRef.current.practiceStats = true;
     setLoading(prev => ({ ...prev, practiceStats: true }));
     try {
       const response = await apiFetch(`${API_URL}/practice/stats/${studentId}`);
       const data = await response.json();
       setPracticeStats(data);
+      loadedRef.current.practiceStats = true;
       setLoaded(prev => ({ ...prev, practiceStats: true }));
       return data;
     } catch (error) {
       console.error('Error loading practice stats:', error);
       return null;
     } finally {
+      loadingRef.current.practiceStats = false;
       setLoading(prev => ({ ...prev, practiceStats: false }));
     }
-  }, [studentId, loaded.practiceStats, loading.practiceStats, practiceStats]);
+  }, [studentId]); // eslint-disable-line
 
   const loadHomeworkStats = useCallback(async (force = false) => {
-    if (loaded.homeworkStats && !force) return homeworkStats;
-    if (loading.homeworkStats) return homeworkStats;
+    if (loadedRef.current.homeworkStats && !force) return homeworkStats;
+    if (loadingRef.current.homeworkStats) return homeworkStats;
+    loadingRef.current.homeworkStats = true;
     setLoading(prev => ({ ...prev, homeworkStats: true }));
     try {
       const response = await apiFetch(`${API_URL}/homework/student/${studentId}/stats`);
       const data = await response.json();
       setHomeworkStats(data);
+      loadedRef.current.homeworkStats = true;
       setLoaded(prev => ({ ...prev, homeworkStats: true }));
       return data;
     } catch (error) {
       console.error('Error loading homework stats:', error);
       return null;
     } finally {
+      loadingRef.current.homeworkStats = false;
       setLoading(prev => ({ ...prev, homeworkStats: false }));
     }
-  }, [studentId, loaded.homeworkStats, loading.homeworkStats, homeworkStats]);
+  }, [studentId]); // eslint-disable-line
 
   // Оптимистичное обновление статистики после прохождения практики
   // newResult: { topicId, correct, total }
@@ -180,27 +197,22 @@ export const DataProvider = ({ children, studentId }) => {
   }, []);
 
   const preloadAllData = useCallback(async () => {
-    await Promise.all([
-      loadSubjects(),
-      loadPractice(),
-      loadHomeworks(),
-      loadPracticeStats(),
-      loadHomeworkStats()
-    ]);
+    // Сначала грузим то что видно сразу — subjects и practice
+    await Promise.all([loadSubjects(), loadPractice()]);
+    // Остальное фоново — не блокируем UI
+    Promise.all([loadHomeworks(), loadPracticeStats(), loadHomeworkStats()]);
   }, [loadSubjects, loadPractice, loadHomeworks, loadPracticeStats, loadHomeworkStats]);
 
   const refreshAfterPractice = useCallback(async () => {
-    await Promise.all([
-      loadPractice(true),
-      loadPracticeStats(true)
-    ]);
+    loadedRef.current.practice = false;
+    loadedRef.current.practiceStats = false;
+    await Promise.all([loadPractice(true), loadPracticeStats(true)]);
   }, [loadPractice, loadPracticeStats]);
 
   const refreshAfterHomework = useCallback(async () => {
-    await Promise.all([
-      loadHomeworks(true),
-      loadHomeworkStats(true)
-    ]);
+    loadedRef.current.homework = false;
+    loadedRef.current.homeworkStats = false;
+    await Promise.all([loadHomeworks(true), loadHomeworkStats(true)]);
   }, [loadHomeworks, loadHomeworkStats]);
 
   const value = {

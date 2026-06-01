@@ -8,23 +8,52 @@ import Statistics from '../components/admin/Statistics';
 import Quiz from '../components/admin/Quiz';
 import Notifications from '../components/admin/Notifications';
 import BotTestEditor from '../components/admin/BotTestEditor';
+import { adminFetch } from '../components/admin/adminApi';
 
 const API_URL = 'https://educa-production-a98e.up.railway.app/api';
 
+// Доступные разделы по ролям
+const ROLE_SECTIONS = {
+  admin: ['users', 'students', 'practice', 'quiz', 'homework', 'statistics', 'notifications', 'bottest'],
+  manager: ['users', 'students', 'statistics', 'notifications', 'bottest'],
+  teacher: ['practice', 'quiz', 'homework', 'statistics', 'notifications', 'bottest'],
+};
+
+const ALL_SECTIONS = [
+  { id: 'users', name: 'Пользователи', icon: '👨‍💼' },
+  { id: 'students', name: 'Ученики', icon: '👥' },
+  { id: 'practice', name: 'Практика', icon: '💪' },
+  { id: 'quiz', name: 'Викторина', icon: '🎯' },
+  { id: 'homework', name: 'Дом. задание', icon: '📝' },
+  { id: 'statistics', name: 'Статистика', icon: '📊' },
+  { id: 'notifications', name: 'Уведомления', icon: '📣' },
+  { id: 'bottest', name: 'Тест бота', icon: '🤖' },
+];
+
 function AdminPanel() {
-  const [activeSection, setActiveSection] = useState('students');
   const [subjects, setSubjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
+  const [userRole, setUserRole] = useState('admin');
+  const [activeSection, setActiveSection] = useState(null);
 
   useEffect(() => {
-    loadSubjects();
-    loadCurrentUser();
+    const tg = window.Telegram?.WebApp;
+    if (tg) {
+      tg.ready();
+      setTimeout(() => {
+        loadSubjects();
+        loadCurrentUser();
+      }, 100);
+    } else {
+      loadSubjects();
+      loadCurrentUser();
+    }
   }, []);
 
   const loadSubjects = async () => {
     try {
-      const response = await fetch(`${API_URL}/subjects`);
+      const response = await adminFetch(`${API_URL}/subjects`);
       const data = await response.json();
       setSubjects(data.subjects || []);
       setLoading(false);
@@ -38,39 +67,33 @@ function AdminPanel() {
     try {
       if (window.Telegram?.WebApp?.initDataUnsafe?.user) {
         const telegramUser = window.Telegram.WebApp.initDataUnsafe.user;
-        const telegramId = telegramUser.id;
-        const response = await fetch(`${API_URL}/auth/telegram/${telegramId}`);
+        const response = await adminFetch(`${API_URL}/auth/telegram/${telegramUser.id}`);
         const data = await response.json();
         if (data.user) {
           setCurrentUser(data.user);
-          localStorage.setItem('currentUserId', data.user.id);
+          const role = data.user.role || 'admin';
+          setUserRole(role);
+          // Устанавливаем первый доступный раздел
+          const available = ROLE_SECTIONS[role] || ROLE_SECTIONS.admin;
+          setActiveSection(available[0]);
         }
       } else {
-        const userId = localStorage.getItem('currentUserId');
-        if (userId) {
-          setCurrentUser({ id: parseInt(userId) });
-        } else {
-          setCurrentUser({ id: 1 });
-          localStorage.setItem('currentUserId', '1');
-        }
+        setCurrentUser({ id: 1 });
+        setActiveSection('students');
       }
     } catch (error) {
       console.error('Error loading current user:', error);
       setCurrentUser({ id: 1 });
-      localStorage.setItem('currentUserId', '1');
+      setActiveSection('students');
     }
   };
 
-  const sections = [
-    { id: 'users', name: 'Пользователи', icon: '👨‍💼' },
-    { id: 'students', name: 'Ученики', icon: '👥' },
-    { id: 'practice', name: 'Практика', icon: '💪' },
-    { id: 'quiz', name: 'Викторина', icon: '🎯' },
-    { id: 'homework', name: 'Дом. задание', icon: '📝' },
-    { id: 'statistics', name: 'Статистика', icon: '📊' },
-    { id: 'notifications', name: 'Уведомления', icon: '📣' },
-    { id: 'bottest', name: 'Тест бота', icon: '🤖' },
-  ];
+  // Фильтруем разделы по роли
+  const availableSections = ALL_SECTIONS.filter(s =>
+    (ROLE_SECTIONS[userRole] || ROLE_SECTIONS.admin).includes(s.id)
+  );
+
+  if (loading || !activeSection) return null;
 
   return (
     <div className="admin-panel">
@@ -83,7 +106,7 @@ function AdminPanel() {
       </header>
 
       <nav className="admin-tabs">
-        {sections.map(section => (
+        {availableSections.map(section => (
           <button
             key={section.id}
             className={`admin-tab ${activeSection === section.id ? 'active' : ''}`}
@@ -101,11 +124,9 @@ function AdminPanel() {
         {activeSection === 'practice' && <Practice subjects={subjects} />}
         {activeSection === 'homework' && <Homework subjects={subjects} currentUserId={currentUser?.id} />}
         {activeSection === 'statistics' && <Statistics />}
+        {activeSection === 'quiz' && <Quiz subjects={subjects} currentUserId={currentUser?.id} />}
         {activeSection === 'notifications' && <Notifications subjects={subjects} currentUser={currentUser} />}
         {activeSection === 'bottest' && <BotTestEditor subjects={subjects} />}
-        {activeSection === 'quiz' && (
-          <Quiz subjects={subjects} currentUserId={currentUser?.id} />
-        )}
       </main>
     </div>
   );

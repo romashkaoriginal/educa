@@ -265,7 +265,7 @@ function StudentHomework({ studentId }) {
     setAnswers(prev => ({ ...prev, [questionIndex]: answer }));
   };
 
-  const closeHomework = () => {
+  const closeHomework = (wasSubmitted = false) => {
     if (window.Telegram?.WebApp) {
       window.Telegram.WebApp.disableClosingConfirmation?.();
     }
@@ -274,7 +274,8 @@ function StudentHomework({ studentId }) {
     setAnswers({});
     setShowResult(false);
     setResult(null);
-    refreshAfterHomework();
+    // Обновляем данные только если реально сдали домашку
+    if (wasSubmitted) refreshAfterHomework();
   };
 
   const handlePointerDown = useCallback((e, questionIndex, itemIndex, items) => {
@@ -939,7 +940,7 @@ function StudentHomework({ studentId }) {
               Попробовать еще раз
             </button>
           )}
-          <button className="secondary-button" onClick={closeHomework}>
+          <button className="secondary-button" onClick={() => closeHomework(true)}>
             К списку домашек
           </button>
         </div>

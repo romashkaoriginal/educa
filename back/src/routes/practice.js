@@ -1,4 +1,6 @@
 const express = require('express');
+const { requireRole } = require('../middleware/telegramAuth');
+const isAdmin = requireRole(['admin', 'teacher']);
 const router = express.Router();
 const practiceController = require('../controllers/practiceController');
 
@@ -8,13 +10,13 @@ const practiceController = require('../controllers/practiceController');
 router.get('/topics/:subjectId', practiceController.getTopicsBySubject);
 
 // Создать раздел
-router.post('/topics', practiceController.createTopic);
+router.post('/topics', isAdmin, practiceController.createTopic);
 
 // Обновить раздел
-router.put('/topics/:topicId', practiceController.updateTopic);
+router.put('/topics/:topicId', isAdmin, practiceController.updateTopic);
 
 // Удалить раздел
-router.delete('/topics/:topicId', practiceController.deleteTopic);
+router.delete('/topics/:topicId', isAdmin, practiceController.deleteTopic);
 
 // ========== ВОПРОСЫ ==========
 
@@ -22,16 +24,16 @@ router.delete('/topics/:topicId', practiceController.deleteTopic);
 router.get('/questions/:topicId', practiceController.getQuestionsByTopic);
 
 // Создать вопрос
-router.post('/questions', practiceController.createQuestion);
+router.post('/questions', isAdmin, practiceController.createQuestion);
 
 // Обновить вопрос
-router.put('/questions/:questionId', practiceController.updateQuestion);
+router.put('/questions/:questionId', isAdmin, practiceController.updateQuestion);
 
 // Включить/выключить вопрос
 router.put('/questions/:questionId/toggle', practiceController.toggleQuestion);
 
 // Удалить вопрос
-router.delete('/questions/:questionId', practiceController.deleteQuestion);
+router.delete('/questions/:questionId', isAdmin, practiceController.deleteQuestion);
 
 // ========== СТУДЕНЧЕСКАЯ ЧАСТЬ ==========
 

@@ -1,4 +1,6 @@
 const express = require('express');
+const { requireRole } = require('../middleware/telegramAuth');
+const isAdmin = requireRole(['admin', 'teacher']);
 const { Homework, HomeworkQuestion, HomeworkSubmission, HomeworkAnswer, User, Subject, sequelize } = require('../models');
 const { Op } = require('sequelize');
 
@@ -143,7 +145,7 @@ router.get('/student/:studentId', async (req, res) => {
 });
 
 // Create homework
-router.post('/create', async (req, res) => {
+router.post('/create', isAdmin, async (req, res) => {
   try {
     const { title, description, subjectId, openDate, closeDate, maxAttempts, questions, createdBy } = req.body;
 
@@ -192,7 +194,7 @@ router.post('/create', async (req, res) => {
 });
 
 // Update homework
-router.put('/:id', async (req, res) => {
+router.put('/:id', isAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { title, description, subjectId, openDate, closeDate, maxAttempts, questions } = req.body;
@@ -238,7 +240,7 @@ router.put('/:id', async (req, res) => {
 });
 
 // Toggle homework active status
-router.patch('/:id/toggle', async (req, res) => {
+router.patch('/:id/toggle', isAdmin, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -257,7 +259,7 @@ router.patch('/:id/toggle', async (req, res) => {
 });
 
 // Delete homework
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', isAdmin, async (req, res) => {
   try {
     const { id } = req.params;
 

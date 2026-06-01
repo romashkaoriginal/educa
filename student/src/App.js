@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
 import StudentApp from './pages/StudentApp';
+
 import AdminPanel from './pages/AdminPanel';
 
 const API_URL = 'https://educa-production-a98e.up.railway.app/api';
@@ -81,13 +82,7 @@ function App() {
       setTimeout(checkTelegramWebApp, 500);
     }
 
-    // Загрузка данных дашборда
-    fetch(`${API_URL}/admin/dashboard`)
-      .then(res => res.json())
-      .then(data => {
-        sessionStorage.setItem('adminData', JSON.stringify(data));
-      })
-      .catch(() => {});
+    // dashboard загружается в AdminPanel
   }, []);
 
   const checkUserRole = async (telegramId) => {
@@ -101,6 +96,10 @@ function App() {
         if (role === 'admin' || role === 'teacher' || role === 'manager') {
           setUserRole(role);
           setLoading(false);
+          // Prefetch студентов фоново пока показывается экран выбора роли
+          fetch(`${API_URL}/students`).then(r => r.json()).then(data => {
+            if (data.students) sessionStorage.setItem('prefetchedStudents', JSON.stringify(data.students));
+          }).catch(() => {});
         } else {
           setUserRole('student');
           setSelectedRole('student');
