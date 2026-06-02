@@ -1201,3 +1201,61 @@
     margin-left: 42px;
   }
 }
+/* ===== ГЕНЕРАЦИЯ КОДА В ЛОББИ ===== */
+.code-generation {
+  text-align: center;
+  padding: 24px;
+  background: #f8fafc;
+  border-radius: 16px;
+  margin-bottom: 24px;
+}
+
+.generated-code {
+  font-size: 42px;
+  font-weight: 900;
+  letter-spacing: 6px;
+  color: #1E40AF;
+  background: #fff;
+  padding: 16px 24px;
+  border-radius: 12px;
+  border: 2px dashed #3B82F6;
+  margin: 16px 0;
+  font-family: monospace;
+}
+
+.generate-code-btn, .regenerate-btn {
+  padding: 14px 28px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, #1E40AF 0%, #3B82F6 100%);
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.generate-code-btn:hover, .regenerate-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(30, 64, 175, 0.3);
+}
+
+.generate-code-btn:disabled, .regenerate-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.regenerate-btn {
+  background: #fff;
+  color: #1E40AF;
+  border: 2px solid #3B82F6;
+  font-size: 14px;
+  padding: 10px 20px;
+}
+
+.code-hint {
+  font-size: 12px;
+  color: #9ca3af;
+  margin-top: 12px;
+}

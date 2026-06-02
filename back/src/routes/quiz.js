@@ -113,20 +113,11 @@ router.post('/create', isAdmin, async (req, res) => {
       return res.status(400).json({ message: 'Missing required fields' });
     }
 
-    // Уникальный код
-    let accessCode;
-    let isUnique = false;
-    while (!isUnique) {
-      accessCode = generateAccessCode();
-      const exists = await Quiz.findOne({ where: { accessCode } });
-      if (!exists) isUnique = true;
-    }
-
     const quiz = await Quiz.create({
       title,
       description,
       subjectId,
-      accessCode,
+      accessCode: null, // код генерируется отдельно в лобби
       createdBy: createdBy || 1,
       status: 'draft'
     });
@@ -203,8 +194,13 @@ router.delete('/:id', isAdmin, async (req, res) => {
 // Найти викторину по коду
 router.get('/code/:accessCode', async (req, res) => {
   try {
+    const code = req.params.accessCode.toUpperCase();
+    if (!code || code.length < 4) {
+      return res.status(404).json({ message: 'Неверный код' });
+    }
+
     const quiz = await Quiz.findOne({
-      where: { accessCode: req.params.accessCode.toUpperCase() },
+      where: { accessCode: code },
       include: [
         { model: Subject, as: 'subject' },
         { model: QuizQuestion, as: 'questions' }
@@ -334,6 +330,37 @@ router.get('/student/:studentId/subjects', async (req, res) => {
   } catch (error) {
     console.error('Get student subjects error:', error);
     res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// POST /api/quiz/:id/generate-code — сгенерировать новый код (старый перестаёт работать)
+router.post('/:id/generate-code', isAdmin, async (req, res) => {
+  try {
+    const quiz = await Quiz.findByPk(req.params.id);
+    if (!quiz) return res.status(404).json({ message: 'Викторина не найдена' });
+
+    // Генерируем уникальный код
+    let accessCode;
+    let isUnique = false;
+    while (!isUnique) {
+      accessCode = generateAccessCode();
+      const exists = await Quiz.findOne({ where: { accessCode } });
+      if (!exists) isUnique = true;
+    }
+
+    // Сбрасываем викторину в исходное состояние (новый код = новая сессия)
+    await quiz.update({
+      accessCode,
+      status: 'draft',
+      currentQuestionIndex: 0,
+      startedAt: null,
+      finishedAt: null
+    });
+
+    res.json({ accessCode, quiz });
+  } catch (error) {
+    console.error('Generate code error:', error);
+    res.status(500).json({ message: 'Ошибка сервера' });
   }
 });
 

@@ -32,6 +32,8 @@ function Quiz({ subjects, currentUserId }) {
   // Live режим
   const [participants, setParticipants] = useState([]);
   const [leaderboard, setLeaderboard] = useState([]);
+  const [generatingCode, setGeneratingCode] = useState(false);
+  const [currentCode, setCurrentCode] = useState(null);
   const [currentQuestion, setCurrentQuestion] = useState(null);
   const [questionIndex, setQuestionIndex] = useState(0);
   const [totalQuestions, setTotalQuestions] = useState(0);
@@ -47,7 +49,7 @@ function Quiz({ subjects, currentUserId }) {
   }, []);
 
   useEffect(() => {
-    if (view === 'live' && activeQuiz && !socket) {
+    if (view === 'live' && activeQuiz && currentCode && !socket) {
       const newSocket = io(SOCKET_URL);
       
       newSocket.on('connect', () => {
@@ -81,7 +83,7 @@ function Quiz({ subjects, currentUserId }) {
         newSocket.disconnect();
       };
     }
-  }, [view, activeQuiz]);
+  }, [view, activeQuiz, currentCode]);
 
   // Таймер
   useEffect(() => {
@@ -169,6 +171,29 @@ function Quiz({ subjects, currentUserId }) {
     setParticipants([]);
     setLeaderboard([]);
     setCurrentQuestion(null);
+    setCurrentCode(quiz.accessCode || null); // если код уже был
+  };
+
+  // Генерация нового кода — старый перестаёт работать
+  const generateCode = async () => {
+    setGeneratingCode(true);
+    try {
+      const response = await adminFetch(`${API_URL}/quiz/${activeQuiz.id}/generate-code`, {
+        method: 'POST'
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setCurrentCode(data.accessCode);
+        setActiveQuiz(prev => ({ ...prev, accessCode: data.accessCode }));
+      } else {
+        alert(data.message || 'Ошибка генерации кода');
+      }
+    } catch (error) {
+      console.error('Generate code error:', error);
+      alert('Ошибка генерации кода');
+    } finally {
+      setGeneratingCode(false);
+    }
   };
 
   const handleStartQuiz = () => {
@@ -395,10 +420,12 @@ function Quiz({ subjects, currentUserId }) {
             setActiveQuiz(null);
           }}>← Назад</button>
           <h2>{activeQuiz.title}</h2>
-          <div className="access-code-big">
-            <span>КОД:</span>
-            <strong>{activeQuiz.accessCode}</strong>
-          </div>
+          {currentCode && (
+            <div className="access-code-big">
+              <span>КОД:</span>
+              <strong>{currentCode}</strong>
+            </div>
+          )}
         </div>
 
         <div className="live-grid">
@@ -407,18 +434,43 @@ function Quiz({ subjects, currentUserId }) {
             {!currentQuestion && (
               <div className="lobby">
                 <h3>👥 Лобби</h3>
-                <p className="lobby-info">Ученики подключаются по коду <strong>{activeQuiz.accessCode}</strong></p>
-                <div className="participants-count">
-                  <span className="count-big">{participants.length}</span>
-                  <span>участников</span>
+
+                {/* Поле с кодом + генерация */}
+                <div className="code-generation">
+                  {currentCode ? (
+                    <>
+                      <p className="lobby-info">Код для входа:</p>
+                      <div className="generated-code">{currentCode}</div>
+                      <button className="regenerate-btn" onClick={generateCode} disabled={generatingCode}>
+                        {generatingCode ? 'Генерация...' : '🔄 Сгенерировать новый'}
+                      </button>
+                      <p className="code-hint">При генерации нового кода старый перестанет работать</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="lobby-info">Сгенерируйте код чтобы открыть вход для учеников</p>
+                      <button className="generate-code-btn" onClick={generateCode} disabled={generatingCode}>
+                        {generatingCode ? 'Генерация...' : '🔑 Сгенерировать код'}
+                      </button>
+                    </>
+                  )}
                 </div>
-                <button 
-                  className="start-button"
-                  onClick={handleStartQuiz}
-                  disabled={participants.length === 0}
-                >
-                  🚀 Запустить викторину
-                </button>
+
+                {currentCode && (
+                  <>
+                    <div className="participants-count">
+                      <span className="count-big">{participants.length}</span>
+                      <span>участников подключилось</span>
+                    </div>
+                    <button 
+                      className="start-button"
+                      onClick={handleStartQuiz}
+                      disabled={participants.length === 0}
+                    >
+                      🚀 Запустить викторину
+                    </button>
+                  </>
+                )}
               </div>
             )}
 
@@ -635,9 +687,11 @@ function Quiz({ subjects, currentUserId }) {
                 <span>📚 {q.questions?.length || 0} вопросов</span>
                 <span>👥 {q.participants?.length || 0} участников</span>
               </div>
-              <div className="quiz-code">
-                Код: <strong>{q.accessCode}</strong>
-              </div>
+              {q.accessCode && (
+                <div className="quiz-code">
+                  Последний код: <strong>{q.accessCode}</strong>
+                </div>
+              )}
               <div className="quiz-actions">
                 {q.status === 'finished' && (
                   <button onClick={() => viewResults(q)} className="view-results-btn">
@@ -646,7 +700,7 @@ function Quiz({ subjects, currentUserId }) {
                 )}
                 {q.status !== 'finished' && (
                   <button onClick={() => startLiveQuiz(q)} className="live-btn">
-                    🎮 Запустить
+                    🎮 Лобби
                   </button>
                 )}
                 <button onClick={() => deleteQuiz(q.id)} className="delete-btn">
