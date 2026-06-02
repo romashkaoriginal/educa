@@ -8,20 +8,22 @@ import Statistics from '../components/admin/Statistics';
 import Quiz from '../components/admin/Quiz';
 import Notifications from '../components/admin/Notifications';
 import BotTestEditor from '../components/admin/BotTestEditor';
+import Applications from '../components/admin/Applications';
 import { adminFetch } from '../components/admin/adminApi';
 
 const API_URL = 'https://educa-production-a98e.up.railway.app/api';
 
 // Доступные разделы по ролям
 const ROLE_SECTIONS = {
-  admin: ['users', 'students', 'practice', 'quiz', 'homework', 'statistics', 'notifications', 'bottest'],
-  manager: ['users', 'students', 'statistics', 'notifications', 'bottest'],
+  admin: ['users', 'students', 'applications', 'practice', 'quiz', 'homework', 'statistics', 'notifications', 'bottest'],
+  manager: ['users', 'students', 'applications', 'statistics', 'notifications', 'bottest'],
   teacher: ['practice', 'quiz', 'homework', 'statistics', 'notifications', 'bottest'],
 };
 
 const ALL_SECTIONS = [
   { id: 'users', name: 'Пользователи', icon: '👨‍💼' },
   { id: 'students', name: 'Ученики', icon: '👥' },
+  { id: 'applications', name: 'Заявки', icon: '📋' },
   { id: 'practice', name: 'Практика', icon: '💪' },
   { id: 'quiz', name: 'Викторина', icon: '🎯' },
   { id: 'homework', name: 'Дом. задание', icon: '📝' },
@@ -127,6 +129,7 @@ function AdminPanel() {
         {activeSection === 'quiz' && <Quiz subjects={subjects} currentUserId={currentUser?.id} />}
         {activeSection === 'notifications' && <Notifications subjects={subjects} currentUser={currentUser} />}
         {activeSection === 'bottest' && <BotTestEditor subjects={subjects} />}
+        {activeSection === 'applications' && <Applications />}
       </main>
     </div>
   );

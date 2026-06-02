@@ -19,6 +19,7 @@ const usersRoutes = require('./routes/users');
 const botUsersRoutes = require('./routes/botUsers');
 const quizRoutes = require('./routes/quiz');
 const notifyRoutes = require('./routes/notify');
+const applicationRoutes = require('./routes/applications');
 const botTestRoutes = require('./routes/botTest');
 const setupQuizSocket = require('./socket/quizSocket');
 const { telegramAuth, requireUser, requireAdmin, requireRole } = require('./middleware/telegramAuth');
@@ -89,6 +90,9 @@ app.use('/api/users', telegramAuth, requireRole(['admin', 'manager']), usersRout
 
 // admin + manager + teacher
 app.use('/api/notify', telegramAuth, requireRole(['admin', 'manager', 'teacher']), notifyRoutes);
+
+// Заявки — POST публичный (из бота), GET/PATCH/resend защищены внутри роута
+app.use('/api/applications', applicationRoutes);
 
 setupQuizSocket(io);
 

@@ -20,6 +20,7 @@ const PracticeDailyLog = require('./PracticeDailyLog');
 const BotUser = require('./BotUser');
 const NotificationLog = require('./NotificationLog');
 const BotTest = require('./BotTest');
+const Application = require('./Application');
 
 // ========== СВЯЗИ С SUBJECTS ==========
 

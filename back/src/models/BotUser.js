@@ -74,6 +74,13 @@ const BotUser = sequelize.define('BotUser', {
   messageCount: {
     type: DataTypes.INTEGER,
     defaultValue: 0
+  },
+
+  // Счётчики попыток по датам и предметам
+  // Формат: { "2026-06-02": { "test_42": 1, "app_42": 0 } }
+  dailyLimits: {
+    type: DataTypes.JSONB,
+    defaultValue: {}
   }
 }, {
   tableName: 'bot_users',

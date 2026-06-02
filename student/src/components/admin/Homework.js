@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import '../../styles/Homework.css';
+import { adminFetch } from './adminApi';
 
 const API_URL = 'https://educa-production-a98e.up.railway.app/api';
 
@@ -55,7 +56,7 @@ function Homework({ subjects, currentUserId }) {
 
   const loadHomeworks = async () => {
     try {
-      const response = await fetch(`${API_URL}/homework/all`);
+      const response = await adminFetch(`${API_URL}/homework/all`);
       const data = await response.json();
       setHomeworks(data.homeworks || []);
     } catch (error) {
@@ -81,7 +82,7 @@ function Homework({ subjects, currentUserId }) {
 
   const openEditModal = async (homework) => {
     try {
-      const response = await fetch(`${API_URL}/homework/${homework.id}`);
+      const response = await adminFetch(`${API_URL}/homework/${homework.id}`);
       const data = await response.json();
       setFormData({
         title: data.homework.title,
@@ -119,7 +120,7 @@ function Homework({ subjects, currentUserId }) {
       const openDateUTC = formData.openDate ? new Date(formData.openDate).toISOString() : null;
       const closeDateUTC = formData.closeDate ? new Date(formData.closeDate).toISOString() : null;
 
-      const response = await fetch(url, {
+      const response = await adminFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -147,7 +148,7 @@ function Homework({ subjects, currentUserId }) {
 
   const toggleHomeworkStatus = async (homework) => {
     try {
-      await fetch(`${API_URL}/homework/${homework.id}/toggle`, { method: 'PATCH' });
+      await adminFetch(`${API_URL}/homework/${homework.id}/toggle`, { method: 'PATCH' });
       loadHomeworks();
     } catch (error) {
       console.error('Error toggling homework:', error);
@@ -157,7 +158,7 @@ function Homework({ subjects, currentUserId }) {
   const deleteHomework = async (homeworkId) => {
     if (!window.confirm('Удалить эту домашку?')) return;
     try {
-      await fetch(`${API_URL}/homework/${homeworkId}`, { method: 'DELETE' });
+      await adminFetch(`${API_URL}/homework/${homeworkId}`, { method: 'DELETE' });
       loadHomeworks();
     } catch (error) {
       console.error('Error deleting homework:', error);
@@ -230,7 +231,7 @@ function Homework({ subjects, currentUserId }) {
 
   const viewResults = async (homework) => {
     try {
-      const response = await fetch(`${API_URL}/homework/${homework.id}/results`);
+      const response = await adminFetch(`${API_URL}/homework/${homework.id}/results`);
       const data = await response.json();
       setSelectedHomework({ ...homework, results: data.results });
     } catch (error) {

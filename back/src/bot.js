@@ -1,5 +1,5 @@
 const TelegramBot = require('node-telegram-bot-api');
-const { User, BotUser, BotTest, Subject } = require('./models');
+const { User, BotUser, BotTest, Subject, Application } = require('./models');
 
 const token = process.env.BOT_TOKEN;
 const webAppUrl = process.env.WEB_APP_URL;
@@ -7,6 +7,8 @@ const webAppUrl = process.env.WEB_APP_URL;
 let bot = null;
 
 const testSessions = {};
+const lastTestResults = {};
+const applicationSessions = {};
 
 async function registerBotUser(user) {
   try {
@@ -33,6 +35,48 @@ async function registerBotUser(user) {
     }
   } catch (e) {
     console.error('Ошибка регистрации:', e.message);
+  }
+}
+
+
+// Получить сегодняшнюю дату в формате YYYY-MM-DD (по UTC)
+function todayKey() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+// Проверить и увеличить счётчик. Возвращает true если лимит не превышен
+async function checkAndIncrement(telegramId, type, subjectId, limit = 2) {
+  try {
+    const botUser = await BotUser.findOne({ where: { telegramId } });
+    if (!botUser) return true; // новый — пропускаем
+
+    const day = todayKey();
+    const key = `${type}_${subjectId}`;
+    const limits = { ...(botUser.dailyLimits || {}) };
+    if (!limits[day]) limits[day] = {};
+    const current = limits[day][key] || 0;
+
+    if (current >= limit) return false; // лимит исчерпан
+
+    limits[day][key] = current + 1;
+    await botUser.update({ dailyLimits: limits });
+    return true;
+  } catch {
+    return true; // при ошибке не блокируем
+  }
+}
+
+// Проверить без увеличения
+async function checkLimit(telegramId, type, subjectId, limit = 2) {
+  try {
+    const botUser = await BotUser.findOne({ where: { telegramId } });
+    if (!botUser) return true;
+    const day = todayKey();
+    const key = `${type}_${subjectId}`;
+    const current = botUser.dailyLimits?.[day]?.[key] || 0;
+    return current < limit;
+  } catch {
+    return true;
   }
 }
 
@@ -96,8 +140,19 @@ async function sendQuestion(chatId, session) {
 }
 
 // Загружаем вопросы и запускаем тест
-async function startTest(chatId, subjectId, subjectName) {
+async function startTest(chatId, subjectId, subjectName, telegramId) {
   try {
+    // Проверяем лимит теста (2 раза в день на предмет)
+    if (telegramId) {
+      const allowed = await checkAndIncrement(telegramId, 'test', subjectId, 2);
+      if (!allowed) {
+        await bot.sendMessage(chatId,
+          `⛔ <b>Лимит исчерпан</b>\n\nВы уже прошли тест по <b>${subjectName}</b> 2 раза сегодня.\n\n🕛 Попробуйте завтра!`,
+          { parse_mode: 'HTML' }
+        );
+        return;
+      }
+    }
     const questions = await getTestQuestions(subjectId);
 
     if (questions.length === 0) {
@@ -254,7 +309,7 @@ function startBot() {
       const parts = data.split('_');
       const subjectId = parts[1];
       const subjectName = parts.slice(2).join('_');
-      await startTest(chatId, subjectId, subjectName);
+      await startTest(chatId, subjectId, subjectName, query.from.id);
       return;
     }
 
@@ -321,14 +376,28 @@ function startBot() {
             parse_mode: 'HTML',
             reply_markup: {
               inline_keyboard: [
+                [{ text: '📋 Оставить заявку', callback_data: 'leave_application' }],
                 [{ text: '🔄 Пройти снова', callback_data: 'restart' }],
                 [{ text: '📚 Выбрать другой предмет', callback_data: 'choose_subject' }]
               ]
             }
           }
         );
+        lastTestResults[chatId] = { subjectId: session.subjectId, subjectName: session.subjectName, correct: score, total, percent };
         delete testSessions[chatId];
       }
+      return;
+    }
+
+    // Оставить заявку
+    if (data === 'leave_application') {
+      applicationSessions[chatId] = {
+        step: 'name',
+        testResult: lastTestResults[chatId] || null,
+        telegramId: query.from.id,
+        telegramUsername: query.from.username || null
+      };
+      await bot.sendMessage(chatId, `📝 <b>Оставить заявку</b>\r\n\r\nНапишите ваше <b>ФИО</b>:`, { parse_mode: 'HTML' });
       return;
     }
 
@@ -349,6 +418,54 @@ function startBot() {
 
     const systemUser = await checkUserRole(msg.from.id);
     if (systemUser) return; // авторизованные пользователи игнорируем
+
+    // Сбор данных заявки
+    const appSession = applicationSessions[chatId];
+    if (appSession) {
+      if (appSession.step === 'name') {
+        appSession.fullName = msg.text.trim();
+        appSession.step = 'phone';
+        await bot.sendMessage(chatId, `📞 Теперь напишите ваш <b>номер телефона</b>:`, { parse_mode: 'HTML' });
+        return;
+      }
+      if (appSession.step === 'phone') {
+        appSession.phone = msg.text.trim();
+        // Проверяем лимит заявок (2 раза в день)
+        const subjectId = appSession.testResult?.subjectId || 'any';
+        const appAllowed = await checkAndIncrement(appSession.telegramId, 'app', subjectId, 2);
+        if (!appAllowed) {
+          await bot.sendMessage(chatId,
+            `⛔ <b>Лимит заявок исчерпан</b>\n\nВы уже отправили 2 заявки сегодня.\n\n🕛 Попробуйте завтра!`,
+            { parse_mode: 'HTML' }
+          );
+          delete applicationSessions[chatId];
+          return;
+        }
+        try {
+          const tr = appSession.testResult;
+          await Application.create({
+            fullName: appSession.fullName,
+            phone: appSession.phone,
+            telegramId: appSession.telegramId,
+            telegramUsername: appSession.telegramUsername,
+            subjectId: tr?.subjectId || null,
+            subjectName: tr?.subjectName || null,
+            testCorrect: tr?.correct || 0,
+            testTotal: tr?.total || 0,
+            testPercent: tr?.percent || 0,
+            testAnswers: tr?.answers || [],
+            status: 'new',
+            crmStatus: 'pending'
+          });
+          await bot.sendMessage(chatId, `✅ <b>Заявка отправлена!</b>\r\n\r\nМы свяжемся с вами в ближайшее время.\r\n\r\n👤 ${appSession.fullName}\r\n📞 ${appSession.phone}`, { parse_mode: 'HTML' });
+        } catch (e) {
+          console.error('Ошибка сохранения заявки:', e.message);
+          await bot.sendMessage(chatId, '❌ Ошибка отправки заявки. Попробуйте позже.');
+        }
+        delete applicationSessions[chatId];
+        return;
+      }
+    }
 
     const session = testSessions[chatId];
 
