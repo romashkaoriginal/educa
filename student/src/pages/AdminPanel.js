@@ -91,15 +91,15 @@ function AdminPanelContent() {
     }
   };
 
+  const { refresh } = useAdminData();
+  const refreshableSections = ['students', 'users', 'applications', 'statistics'];
+
   // Фильтруем разделы по роли
   const availableSections = ALL_SECTIONS.filter(s =>
     (ROLE_SECTIONS[userRole] || ROLE_SECTIONS.admin).includes(s.id)
   );
 
   if (loading || !activeSection) return null;
-
-  const { refresh } = useAdminData();
-  const refreshableSections = ['students', 'users', 'applications', 'statistics'];
 
   return (
     <div className="admin-panel">
@@ -130,15 +130,15 @@ function AdminPanelContent() {
       </nav>
 
       <main className="admin-content">
-        {activeSection === 'users' && <Users />}
-        {activeSection === 'students' && <Students subjects={subjects} />}
-        {activeSection === 'practice' && <Practice subjects={subjects} />}
-        {activeSection === 'homework' && <Homework subjects={subjects} currentUserId={currentUser?.id} />}
-        {activeSection === 'statistics' && <Statistics />}
-        {activeSection === 'quiz' && <Quiz subjects={subjects} currentUserId={currentUser?.id} />}
-        {activeSection === 'notifications' && <Notifications subjects={subjects} currentUser={currentUser} />}
-        {activeSection === 'bottest' && <BotTestEditor subjects={subjects} />}
-        {activeSection === 'applications' && <Applications />}
+        <div style={{ display: activeSection === 'users' ? 'block' : 'none' }}><Users /></div>
+        <div style={{ display: activeSection === 'students' ? 'block' : 'none' }}><Students subjects={subjects} /></div>
+        <div style={{ display: activeSection === 'practice' ? 'block' : 'none' }}><Practice subjects={subjects} /></div>
+        <div style={{ display: activeSection === 'homework' ? 'block' : 'none' }}><Homework subjects={subjects} currentUserId={currentUser?.id} /></div>
+        <div style={{ display: activeSection === 'statistics' ? 'block' : 'none' }}><Statistics /></div>
+        <div style={{ display: activeSection === 'quiz' ? 'block' : 'none' }}><Quiz subjects={subjects} currentUserId={currentUser?.id} /></div>
+        <div style={{ display: activeSection === 'notifications' ? 'block' : 'none' }}><Notifications subjects={subjects} currentUser={currentUser} /></div>
+        <div style={{ display: activeSection === 'bottest' ? 'block' : 'none' }}><BotTestEditor subjects={subjects} /></div>
+        <div style={{ display: activeSection === 'applications' ? 'block' : 'none' }}><Applications /></div>
       </main>
     </div>
   );

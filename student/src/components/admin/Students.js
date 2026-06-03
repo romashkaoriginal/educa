@@ -6,7 +6,7 @@ import { useAdminData } from './AdminDataContext';
 const API_URL = 'https://educa-production-a98e.up.railway.app/api';
 
 function Students({ subjects }) {
-  const { students: ctxStudents, loading: ctxLoading, loadStudents, refresh } = useAdminData();
+  const { refresh } = useAdminData();
   const [students, setStudents] = useState([]);
   const [botUsers, setBotUsers] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -235,6 +235,8 @@ const [editFormData, setEditFormData] = useState({
       if (response.ok) {
         setShowAddModal(false);
         resetForm();
+        await loadStudents();
+      refresh('students');
         refresh('students');
         if (addMode === 'bot') {
           await loadBotUsers();
@@ -262,6 +264,8 @@ const [editFormData, setEditFormData] = useState({
       if (response.ok) {
         setSelectedStudent(null);
         setShowDetailModal(false);
+        await loadStudents();
+      refresh('students');
         refresh('students');
       }
     } catch (error) {
@@ -278,6 +282,8 @@ const [editFormData, setEditFormData] = useState({
       });
 
       if (response.ok) {
+        await loadStudents();
+      refresh('students');
         refresh('students');
         if (selectedStudent?.id === studentId) {
           const updated = students.find(s => s.id === studentId);
@@ -530,6 +536,7 @@ const handleSaveEdit = async () => {
     });
 
     if (response.ok) {
+      await loadStudents();
       refresh('students');
       const updated = students.find(s => s.id === selectedStudent.id);
       setSelectedStudent(updated);

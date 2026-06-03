@@ -213,15 +213,9 @@ function StudentHomework({ studentId }) {
   useEffect(() => {
     const tg = window.Telegram?.WebApp;
     if (!tg) return;
-    if (selectedHomework && !showResult) {
-      tg.expand();
-      tg.disableVerticalSwipes?.();
-      tg.enableClosingConfirmation?.();
-    } else {
-      // Возвращаем подтверждение закрытия но свайпы оставляем заблокированными глобально
-      tg.disableVerticalSwipes?.();
-      tg.disableClosingConfirmation?.();
-    }
+    // Свайпы всегда заблокированы глобально, closingConfirmation управляется в StudentApp
+    tg.disableVerticalSwipes?.();
+    if (selectedHomework && !showResult) tg.expand?.();
   }, [selectedHomework, showResult]);
 
   const backToSubjects = () => setSelectedSubject(null);
@@ -266,9 +260,6 @@ function StudentHomework({ studentId }) {
   };
 
   const closeHomework = (wasSubmitted = false) => {
-    if (window.Telegram?.WebApp) {
-      window.Telegram.WebApp.disableClosingConfirmation?.();
-    }
     setSelectedHomework(null);
     setQuestions([]);
     setAnswers({});

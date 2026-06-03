@@ -18,23 +18,36 @@ function StudentAppContent({ selectedStudent }) {
     preloadAllData();
   }, []); // eslint-disable-line
 
+  // Глобально включаем подтверждение закрытия — всегда, для всех разделов
+  useEffect(() => {
+    const tg = window.Telegram?.WebApp;
+    if (tg) {
+      tg.enableClosingConfirmation?.();
+      tg.disableVerticalSwipes?.();
+    }
+    return () => {
+      tg?.disableClosingConfirmation?.();
+    };
+  }, []);
+
   const handleTabChange = (tabId) => {
     setActiveTab(tabId);
   };
 
   const tabs = [
-    { id: 'practice', name: 'Практика', icon: '💪', component: Practice },
-    { id: 'homework', name: 'Домашка', icon: '📝', component: Homework },
-    { id: 'quiz', name: 'Викторина', icon: '🎯', component: Quiz },
-    { id: 'stats', name: 'Статистика', icon: '📊', component: Statistics },
+    { id: 'practice', name: 'Практика', icon: '💪' },
+    { id: 'homework', name: 'Домашка', icon: '📝' },
+    { id: 'quiz', name: 'Викторина', icon: '🎯' },
+    { id: 'stats', name: 'Статистика', icon: '📊' },
   ];
-
-  const ActiveComponent = tabs.find(tab => tab.id === activeTab)?.component;
 
   return (
     <div className="student-app">
       <main className="content">
-        {ActiveComponent && <ActiveComponent studentId={selectedStudent.id} />}
+        <div style={{ display: activeTab === 'practice' ? 'block' : 'none' }}><Practice studentId={selectedStudent.id} /></div>
+        <div style={{ display: activeTab === 'homework' ? 'block' : 'none' }}><Homework studentId={selectedStudent.id} /></div>
+        <div style={{ display: activeTab === 'quiz' ? 'block' : 'none' }}><Quiz studentId={selectedStudent.id} /></div>
+        <div style={{ display: activeTab === 'stats' ? 'block' : 'none' }}><Statistics studentId={selectedStudent.id} /></div>
       </main>
 
       <nav className="bottom-navigation">

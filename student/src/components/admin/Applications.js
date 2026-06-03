@@ -19,7 +19,7 @@ const CRM_LABELS = {
 };
 
 function Applications() {
-  const { applications: ctxApps, loadApplications, refresh } = useAdminData();
+  const { refresh } = useAdminData();
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState(null);
@@ -28,10 +28,6 @@ function Applications() {
   useEffect(() => {
     loadApplications();
   }, []);
-
-  useEffect(() => {
-    if (ctxApps.length > 0) setApplications(ctxApps);
-  }, [ctxApps]);
 
   const loadApplications = async () => {
     try {

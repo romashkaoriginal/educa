@@ -44,9 +44,9 @@ function setupQuizSocket(io) {
           }
         });
 
+        // Обновить список участников у админа
         const participants = await getParticipants(quizId);
         io.to(`quiz-${quizId}-admin`).emit('participants:updated', { participants });
-        io.to(`quiz-${quizId}-admin`).emit('leaderboard:updated', { leaderboard: participants });
       } catch (error) {
         console.error('Student join error:', error);
         socket.emit('error', { message: 'Ошибка подключения' });
@@ -71,7 +71,17 @@ function setupQuizSocket(io) {
         });
 
         if (question) {
-          io.to(`quiz-${quizId}`).emit('quiz:started');
+          // Отправляем все вопросы с правильными ответами для мгновенной проверки
+          const allQuestions = await QuizQuestion.findAll({
+            where: { quizId },
+            order: [['order', 'ASC']]
+          });
+          const answersMap = {};
+          allQuestions.forEach(q => {
+            answersMap[q.id] = { correctAnswer: q.correctAnswer, explanation: q.explanation };
+          });
+
+          io.to(`quiz-${quizId}`).emit('quiz:started', { answersMap });
           sendQuestion(io, quizId, question, 0);
         }
       } catch (error) {
@@ -191,16 +201,11 @@ function setupQuizSocket(io) {
           { where: { quizId, userId } }
         );
 
-        socket.emit('student:answer-received', {
-          isCorrect,
-          score,
-          correctAnswer: question.correctAnswer,
-          explanation: question.explanation || null
-        });
+        socket.emit('student:answer-received', { isCorrect, score });
 
+        // Обновить список участников для всех (для мини-лидерборда)
         const participants = await getParticipants(quizId);
         io.to(`quiz-${quizId}`).emit('participants:updated', { participants });
-        io.to(`quiz-${quizId}-admin`).emit('leaderboard:updated', { leaderboard: participants });
       } catch (error) {
         console.error('Submit answer error:', error);
       }
@@ -246,12 +251,33 @@ async function sendQuestion(io, quizId, question, index) {
     totalQuestions
   });
 
-  // Таймер автозавершения вопроса
+  // Таймер — показываем правильный ответ и автоматически переходим к следующему
   questionTimers[quizId] = setTimeout(async () => {
     io.to(`quiz-${quizId}`).emit('quiz:question-ended', {
       correctAnswer: question.correctAnswer,
       explanation: question.explanation
     });
+
+    // Пауза 2 секунды чтобы показать правильный ответ, потом следующий вопрос
+    await new Promise(r => setTimeout(r, 2000));
+
+    const quiz = await Quiz.findByPk(quizId);
+    if (!quiz || quiz.status !== 'active') return;
+
+    const nextIndex = quiz.currentQuestionIndex + 1;
+    const totalQuestions = await QuizQuestion.count({ where: { quizId } });
+
+    if (nextIndex >= totalQuestions) {
+      await Quiz.update({ status: 'finished', finishedAt: new Date() }, { where: { id: quizId } });
+      io.to(`quiz-${quizId}`).emit('quiz:finished');
+    } else {
+      await Quiz.update(
+        { currentQuestionIndex: nextIndex, questionStartedAt: new Date() },
+        { where: { id: quizId } }
+      );
+      const nextQuestion = await QuizQuestion.findOne({ where: { quizId, order: nextIndex } });
+      if (nextQuestion) sendQuestion(io, quizId, nextQuestion, nextIndex);
+    }
   }, question.timeLimit * 1000);
 }
 

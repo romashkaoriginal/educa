@@ -25,6 +25,7 @@ function Quiz({ studentId }) {
   const [explanation, setExplanation] = useState(null);
   const [myScore, setMyScore] = useState(0);
   const [participants, setParticipants] = useState([]);
+  const [answersMap, setAnswersMap] = useState({}); // { questionId: { correctAnswer, explanation } }
 
   const questionStartTime = useRef(null);
   const codeInputRef = useRef(null);
@@ -32,6 +33,16 @@ function Quiz({ studentId }) {
   useEffect(() => {
     return () => { if (socket) socket.disconnect(); };
   }, [socket]);
+
+  // Блокируем скролл всегда в разделе викторины
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
+    };
+  }, []);
 
   useEffect(() => {
     if (timeLeft > 0) {
@@ -61,7 +72,10 @@ function Quiz({ studentId }) {
         setView(quiz.status === 'active' ? 'playing' : 'lobby');
       });
 
-      newSocket.on('quiz:started', () => setView('playing'));
+      newSocket.on('quiz:started', ({ answersMap }) => {
+        if (answersMap) setAnswersMap(answersMap);
+        setView('playing');
+      });
 
       newSocket.on('quiz:new-question', ({ question, questionIndex, totalQuestions }) => {
         setCurrentQuestion(question);
@@ -114,6 +128,20 @@ function Quiz({ studentId }) {
     const responseTime = Date.now() - questionStartTime.current;
     setSelectedAnswer(answerIndex);
     setAnswered(true);
+
+    // Мгновенная проверка локально — не ждём бэкенд
+    const qData = answersMap[currentQuestion.id];
+    if (qData) {
+      setShowCorrect(true);
+      setCorrectAnswer(qData.correctAnswer);
+      if (qData.explanation) setExplanation(qData.explanation);
+      if (answerIndex === qData.correctAnswer) {
+        // Оптимистично обновляем счёт (уточнится от бэка)
+        setMyScore(prev => prev + (currentQuestion.points || 1));
+      }
+    }
+
+    // Отправляем на бэкенд фоново
     socket.emit('student:submit-answer', {
       quizId: quiz.id,
       questionId: currentQuestion.id,
@@ -173,7 +201,7 @@ function Quiz({ studentId }) {
     const myRank = participants.findIndex(p => p.userId === studentId) + 1;
 
     return (
-      <div className="section quiz-section playing">
+      <div className="section quiz-section playing" style={{ overflow: 'hidden', position: 'fixed', width: '100%', height: '100%', top: 0, left: 0, overflowY: 'auto' }}>
         <div className="quiz-playing-header">
           <div className="question-counter">Вопрос {questionIndex + 1} / {totalQuestions}</div>
           <div className="my-score-mini">⭐ {myScore.toFixed(1)}</div>

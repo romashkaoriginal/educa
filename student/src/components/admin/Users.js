@@ -6,7 +6,7 @@ import { useAdminData } from './AdminDataContext';
 const API_URL = 'https://educa-production-a98e.up.railway.app/api';
 
 function Users() {
-  const { users: ctxUsers, loadUsers, refresh } = useAdminData();
+  const { refresh } = useAdminData();
   const [users, setUsers] = useState([]);
   const [botUsers, setBotUsers] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -138,6 +138,8 @@ function Users() {
       if (response.ok) {
         setShowAddModal(false);
         resetForm();
+        await loadUsers();
+      refresh('users');
         refresh('users');
         if (addMode === 'bot') {
           await loadBotUsers();
@@ -159,6 +161,8 @@ function Users() {
       });
 
       if (response.ok) {
+        await loadUsers();
+      refresh('users');
         refresh('users');
       }
     } catch (error) {
@@ -177,6 +181,8 @@ function Users() {
       });
 
       if (response.ok) {
+        await loadUsers();
+      refresh('users');
         refresh('users');
       }
     } catch (error) {
