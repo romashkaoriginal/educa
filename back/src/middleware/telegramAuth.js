@@ -34,8 +34,9 @@ exports.telegramAuth = async (req, res, next) => {
     const initData = req.headers['x-telegram-init-data'];
     if (!initData) return res.status(401).json({ message: 'No Telegram auth data' });
 
+    if (!initData) { console.log('[Auth] No initData header'); }
     const telegramUser = verifyTelegramInitData(initData);
-    if (!telegramUser) return res.status(401).json({ message: 'Invalid Telegram auth data' });
+    if (!telegramUser) { console.log('[Auth] Invalid initData signature'); return res.status(401).json({ message: 'Invalid Telegram auth data' }); }
 
     req.telegramUser = telegramUser;
 
@@ -44,6 +45,7 @@ exports.telegramAuth = async (req, res, next) => {
       attributes: ['id', 'role', 'isActive', 'telegramId']
     });
 
+    if (!dbUser) console.log('[Auth] User not found in DB, telegramId:', telegramUser?.id);
     req.dbUser = dbUser;
     next();
   } catch (error) {
@@ -53,7 +55,7 @@ exports.telegramAuth = async (req, res, next) => {
 };
 
 exports.requireUser = (req, res, next) => {
-  if (!req.dbUser) return res.status(403).json({ message: 'User not registered in system' });
+  if (!req.dbUser) { console.log('[Auth] requireUser failed - no dbUser'); return res.status(403).json({ message: 'User not registered in system' }); }
   if (!req.dbUser.isActive) return res.status(403).json({ message: 'Account is deactivated' });
   next();
 };
