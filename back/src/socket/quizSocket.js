@@ -44,9 +44,9 @@ function setupQuizSocket(io) {
           }
         });
 
-        // Обновить список участников у админа
         const participants = await getParticipants(quizId);
         io.to(`quiz-${quizId}-admin`).emit('participants:updated', { participants });
+        io.to(`quiz-${quizId}-admin`).emit('leaderboard:updated', { leaderboard: participants });
       } catch (error) {
         console.error('Student join error:', error);
         socket.emit('error', { message: 'Ошибка подключения' });
@@ -191,11 +191,16 @@ function setupQuizSocket(io) {
           { where: { quizId, userId } }
         );
 
-        socket.emit('student:answer-received', { isCorrect, score });
+        socket.emit('student:answer-received', {
+          isCorrect,
+          score,
+          correctAnswer: question.correctAnswer,
+          explanation: question.explanation || null
+        });
 
-        // Обновить список участников для всех (для мини-лидерборда)
         const participants = await getParticipants(quizId);
         io.to(`quiz-${quizId}`).emit('participants:updated', { participants });
+        io.to(`quiz-${quizId}-admin`).emit('leaderboard:updated', { leaderboard: participants });
       } catch (error) {
         console.error('Submit answer error:', error);
       }
