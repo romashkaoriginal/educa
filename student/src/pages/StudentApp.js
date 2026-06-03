@@ -61,35 +61,35 @@ function StudentApp() {
   useEffect(() => {
     const fetchStudents = async () => {
       try {
-        // Берём из prefetch кэша если уже загружено фоново в App.js
+        // Пробуем найти себя по initData — безопасно и не требует прав админа
+        const meResponse = await apiFetch(`${API_URL}/auth/me`);
+        if (meResponse.ok) {
+          const meData = await meResponse.json();
+          if (meData.student) {
+            // Нашли себя — сразу заходим без экрана выбора
+            setSelectedStudent(meData.student);
+            setLoading(false);
+            return;
+          }
+        }
+
+        // Fallback: если /me не сработал — показываем список (для admin входящего как студент)
         const cached = sessionStorage.getItem('prefetchedStudents');
         let allStudents;
         if (cached) {
           allStudents = JSON.parse(cached);
-          setStudents(allStudents);
           sessionStorage.removeItem('prefetchedStudents');
         } else {
           const response = await apiFetch(`${API_URL}/students`);
+          if (!response.ok) {
+            // Нет прав на список — просто показываем пустой экран выбора
+            setLoading(false);
+            return;
+          }
           const data = await response.json();
           allStudents = data.students || [];
-          setStudents(allStudents);
         }
-
-        const telegramId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
-        if (telegramId) {
-          const now = new Date();
-          const matched = allStudents.find(s =>
-            s.telegramId && String(s.telegramId) === String(telegramId) &&
-            s.isActive &&
-            s.subjects?.some(sub => {
-              const end = sub.UserSubject?.accessEndDate;
-              return !end || new Date(end) > now;
-            })
-          );
-          if (matched) {
-            setSelectedStudent(matched);
-          }
-        }
+        setStudents(allStudents);
       } catch (error) {
         console.error('Error fetching students:', error);
       } finally {
