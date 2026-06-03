@@ -20,17 +20,17 @@ const Quiz = sequelize.define('Quiz', {
   },
   accessCode: {
     type: DataTypes.STRING(10),
-    allowNull: false,
-    unique: true
+    allowNull: true,  // null пока код не сгенерирован
+    unique: true      // уникальность сохраняем (null не считается дублем в PostgreSQL)
   },
   status: {
     type: DataTypes.ENUM('draft', 'active', 'finished'),
     defaultValue: 'draft'
   },
   isDeleted: {
-  type: DataTypes.BOOLEAN,
-  defaultValue: false
-},
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
   createdBy: {
     type: DataTypes.INTEGER,
     references: { model: 'users', key: 'id' }
