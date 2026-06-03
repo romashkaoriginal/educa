@@ -1279,3 +1279,205 @@
     align-items: flex-start;
   }
 }
+/* ===== ГЕНЕРАЦИЯ КОДА В ЛОББИ ===== */
+.code-generation {
+  text-align: center;
+  padding: 24px;
+  background: #f8fafc;
+  border-radius: 16px;
+  margin-bottom: 24px;
+}
+
+.generated-code {
+  font-size: 42px;
+  font-weight: 900;
+  letter-spacing: 6px;
+  color: #1E40AF;
+  background: #fff;
+  padding: 16px 24px;
+  border-radius: 12px;
+  border: 2px dashed #3B82F6;
+  margin: 16px 0;
+  font-family: monospace;
+}
+
+.generate-code-btn, .regenerate-btn {
+  padding: 14px 28px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, #1E40AF 0%, #3B82F6 100%);
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.generate-code-btn:hover, .regenerate-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(30, 64, 175, 0.3);
+}
+
+.generate-code-btn:disabled, .regenerate-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.regenerate-btn {
+  background: #fff;
+  color: #1E40AF;
+  border: 2px solid #3B82F6;
+  font-size: 14px;
+  padding: 10px 20px;
+}
+
+.code-hint {
+  font-size: 12px;
+  color: #9ca3af;
+  margin-top: 12px;
+}
+
+/* ===== ГЕНЕРАЦИЯ КОДА В ЛОББИ ===== */
+.code-generation {
+  text-align: center;
+  padding: 20px;
+  background: #f8fafc;
+  border-radius: 16px;
+  margin-bottom: 20px;
+}
+.generated-code {
+  font-size: 40px;
+  font-weight: 900;
+  letter-spacing: 6px;
+  color: #1E40AF;
+  background: #fff;
+  padding: 14px 24px;
+  border-radius: 12px;
+  border: 2px dashed #3B82F6;
+  margin: 12px 0;
+  font-family: monospace;
+}
+.generate-code-btn {
+  padding: 14px 28px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, #1E40AF, #3B82F6);
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.generate-code-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(30,64,175,0.3); }
+.generate-code-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+.regenerate-btn {
+  padding: 10px 20px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1E40AF;
+  background: #fff;
+  border: 2px solid #3B82F6;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.regenerate-btn:hover { background: #EFF6FF; }
+.regenerate-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* ===== ОЖИДАНИЕ ПОСЛЕ ОТВЕТА ===== */
+.answer-feedback.waiting {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px;
+  background: #f8fafc;
+  border-radius: 12px;
+  margin-top: 16px;
+}
+
+.waiting-dots {
+  display: flex;
+  gap: 6px;
+}
+
+.waiting-dots span {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #3B82F6;
+  animation: waiting-bounce 1.2s ease-in-out infinite;
+}
+
+.waiting-dots span:nth-child(2) { animation-delay: 0.2s; }
+.waiting-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes waiting-bounce {
+  0%, 80%, 100% { transform: scale(0.7); opacity: 0.5; }
+  40% { transform: scale(1); opacity: 1; }
+}
+
+.answer-feedback.waiting .feedback-text {
+  font-size: 14px;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+/* ===== LAYOUT С ЛИДЕРБОРДОМ СПРАВА ===== */
+.quiz-playing-layout {
+  display: flex;
+  gap: 0;
+  height: 100%;
+  width: 100%;
+}
+
+.quiz-playing-main {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.quiz-sidebar {
+  width: 100px;
+  flex-shrink: 0;
+  padding: 8px 4px;
+  border-left: 1px solid var(--color-border-primary, #e5e7eb);
+  background: var(--color-background-secondary, #f9fafb);
+  overflow-y: auto;
+}
+
+.quiz-sidebar .mini-leaderboard {
+  padding: 0;
+  background: none;
+}
+
+.quiz-sidebar .mini-leaderboard h3 {
+  font-size: 11px;
+  color: #6b7280;
+  text-align: center;
+  margin-bottom: 8px;
+  font-weight: 700;
+}
+
+.quiz-sidebar .mini-leader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 4px;
+  border-radius: 8px;
+  margin-bottom: 4px;
+  background: #fff;
+}
+
+.quiz-sidebar .mini-leader.me {
+  background: #EFF6FF;
+  border: 1px solid #BFDBFE;
+}
+
+.quiz-sidebar .mini-rank { font-size: 16px; }
+.quiz-sidebar .mini-name { font-size: 10px; color: #374151; text-align: center; font-weight: 600; word-break: break-word; }
+.quiz-sidebar .mini-score { font-size: 11px; color: #1E40AF; font-weight: 700; }
+.quiz-sidebar .my-rank-info { font-size: 10px; color: #6b7280; text-align: center; margin-top: 4px; }

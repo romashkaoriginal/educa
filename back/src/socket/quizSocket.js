@@ -78,7 +78,7 @@ function setupQuizSocket(io) {
           });
           const answersMap = {};
           allQuestions.forEach(q => {
-            answersMap[q.id] = { correctAnswer: q.correctAnswer, explanation: q.explanation };
+            answersMap[String(q.id)] = { correctAnswer: q.correctAnswer, explanation: q.explanation };
           });
 
           io.to(`quiz-${quizId}`).emit('quiz:started', { answersMap });

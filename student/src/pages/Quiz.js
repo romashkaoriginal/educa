@@ -34,15 +34,7 @@ function Quiz({ studentId }) {
     return () => { if (socket) socket.disconnect(); };
   }, [socket]);
 
-  // Блокируем скролл всегда в разделе викторины
-  useEffect(() => {
-    document.body.style.overflow = 'hidden';
-    document.documentElement.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = '';
-      document.documentElement.style.overflow = '';
-    };
-  }, []);
+
 
   useEffect(() => {
     if (timeLeft > 0) {
@@ -130,7 +122,7 @@ function Quiz({ studentId }) {
     setAnswered(true);
 
     // Мгновенная проверка локально — не ждём бэкенд
-    const qData = answersMap[currentQuestion.id];
+    const qData = answersMap[currentQuestion.id] || answersMap[String(currentQuestion.id)];
     if (qData) {
       setShowCorrect(true);
       setCorrectAnswer(qData.correctAnswer);
@@ -201,7 +193,9 @@ function Quiz({ studentId }) {
     const myRank = participants.findIndex(p => p.userId === studentId) + 1;
 
     return (
-      <div className="section quiz-section playing" style={{ overflow: 'hidden', position: 'fixed', width: '100%', height: '100%', top: 0, left: 0, overflowY: 'auto' }}>
+      <div className="section quiz-section playing">
+        <div className="quiz-playing-layout">
+        <div className="quiz-playing-main">
         <div className="quiz-playing-header">
           <div className="question-counter">Вопрос {questionIndex + 1} / {totalQuestions}</div>
           <div className="my-score-mini">⭐ {myScore.toFixed(1)}</div>
@@ -258,19 +252,24 @@ function Quiz({ studentId }) {
           )}
         </div>
 
+        </div>{/* quiz-playing-main */}
+
         {participants.length > 0 && (
-          <div className="mini-leaderboard">
-            <h3>🏆 Топ-3</h3>
-            {participants.slice(0, 3).map((p, i) => (
-              <div key={p.id} className={`mini-leader ${p.userId === studentId ? 'me' : ''}`}>
-                <span className="mini-rank">{i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'}</span>
-                <span className="mini-name">{p.user?.firstName} {p.user?.lastName?.[0]}.</span>
-                <span className="mini-score">{parseFloat(p.totalScore || 0).toFixed(1)}</span>
-              </div>
-            ))}
-            {myRank > 3 && <div className="my-rank-info">Ваше место: <strong>#{myRank}</strong></div>}
+          <div className="quiz-sidebar">
+            <div className="mini-leaderboard">
+              <h3>🏆 Топ</h3>
+              {participants.slice(0, 5).map((p, i) => (
+                <div key={p.id} className={`mini-leader ${p.userId === studentId ? 'me' : ''}`}>
+                  <span className="mini-rank">{i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i+1}`}</span>
+                  <span className="mini-name">{p.user?.firstName}</span>
+                  <span className="mini-score">{parseFloat(p.totalScore || 0).toFixed(1)}</span>
+                </div>
+              ))}
+              {myRank > 5 && <div className="my-rank-info">Вы: <strong>#{myRank}</strong></div>}
+            </div>
           </div>
         )}
+        </div>{/* quiz-playing-layout */}
       </div>
     );
   }
