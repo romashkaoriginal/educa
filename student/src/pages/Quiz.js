@@ -34,7 +34,7 @@ function Quiz({ studentId }) {
   }, [socket]);
 
   useEffect(() => {
-    if (timeLeft > 0 && !answered) {
+    if (timeLeft > 0) {
       const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
       return () => clearTimeout(timer);
     }
@@ -202,7 +202,7 @@ function Quiz({ studentId }) {
                   key={index}
                   className={`answer-btn answer-${index} ${isSelected ? 'selected' : ''} ${isCorrect ? 'correct' : ''} ${isWrong ? 'wrong' : ''}`}
                   onClick={() => submitAnswer(index)}
-                  disabled={answered || timeLeft === 0}
+                  disabled={showCorrect || timeLeft === 0}
                 >
                   <span className="answer-letter">{String.fromCharCode(65 + index)}</span>
                   <span className="answer-text">{option}</span>

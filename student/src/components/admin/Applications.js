@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import '../../styles/Applications.css';
 import { adminFetch } from './adminApi';
+import { useAdminData } from './AdminDataContext';
 
 const API_URL = 'https://educa-production-a98e.up.railway.app/api';
 
@@ -18,6 +19,7 @@ const CRM_LABELS = {
 };
 
 function Applications() {
+  const { applications: ctxApps, loadApplications, refresh } = useAdminData();
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState(null);
@@ -26,6 +28,10 @@ function Applications() {
   useEffect(() => {
     loadApplications();
   }, []);
+
+  useEffect(() => {
+    if (ctxApps.length > 0) setApplications(ctxApps);
+  }, [ctxApps]);
 
   const loadApplications = async () => {
     try {

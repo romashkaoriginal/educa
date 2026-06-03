@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import '../../styles/Statistics.css';
 import { adminFetch } from './adminApi';
+import { useAdminData } from './AdminDataContext';
 
 const API_URL = 'https://educa-production-a98e.up.railway.app/api';
 

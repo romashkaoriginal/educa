@@ -1,6 +1,41 @@
 const { User, Subject, UserSubject, HomeworkSubmission, HomeworkAnswer, PracticeAttempt, BotUser, QuizAnswer, QuizParticipant } = require('../models');
 const { Op } = require('sequelize');
 
+const webAppUrl = process.env.WEB_APP_URL;
+
+function formatDate(date) {
+  if (!date) return 'бессрочно';
+  return new Date(date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+async function notifyStudent(telegramId, message) {
+  if (!telegramId) return;
+  try {
+    const { getBot } = require('../bot');
+    const bot = getBot();
+    if (!bot) return;
+    await bot.sendMessage(telegramId, message, {
+      parse_mode: 'HTML',
+      reply_markup: {
+        inline_keyboard: [[{ text: '📚 Открыть приложение', web_app: { url: webAppUrl } }]]
+      }
+    });
+  } catch (e) {
+    console.error('Notify student error:', e.message);
+  }
+}
+
+function buildSubjectsText(subjects) {
+  if (!subjects || subjects.length === 0) return '— нет предметов';
+  return subjects.map(s => {
+    const us = s.UserSubject;
+    const start = formatDate(us?.accessStartDate);
+    const end = formatDate(us?.accessEndDate);
+    return `• ${s.icon || ''} <b>${s.name}</b>\n  📅 ${start} — ${end}`;
+  }).join('\n');
+}
+
+
 // Получить всех студентов
 exports.getAllStudents = async (req, res) => {
   try {
@@ -111,6 +146,17 @@ exports.createStudent = async (req, res) => {
       await botUser.save();
     }
 
+    // 🔔 Уведомляем студента о создании аккаунта
+    if (telegramId) {
+      const subjectsText = buildSubjectsText(studentWithSubjects.subjects);
+      await notifyStudent(telegramId,
+        `👋 Привет, <b>${firstName}</b>!\n\n` +
+        `🎓 Вам открыт доступ к образовательной платформе <b>EDme</b>.\n\n` +
+        `📚 <b>Ваши предметы:</b>\n${subjectsText}\n\n` +
+        `Нажмите кнопку ниже чтобы войти в приложение:`
+      );
+    }
+
     res.status(201).json({
       message: 'Student created successfully',
       student: studentWithSubjects
@@ -142,6 +188,11 @@ exports.updateStudent = async (req, res) => {
     if (!student || student.role !== 'student') {
       return res.status(404).json({ message: 'Student not found' });
     }
+
+    // Старые предметы для сравнения
+    const oldStudent = await User.findByPk(studentId, {
+      include: [{ model: Subject, as: 'subjects', through: { attributes: ['accessStartDate', 'accessEndDate'] } }]
+    });
 
     // Обновляем основные данные
     if (telegramId !== undefined) student.telegramId = telegramId || null;
@@ -198,6 +249,29 @@ exports.updateStudent = async (req, res) => {
       }]
     });
 
+    // 🔔 Уведомляем если изменились предметы или даты
+    const notifyId = student.telegramId;
+    if (notifyId && subjectIds) {
+      const oldIds = oldStudent.subjects.map(s => s.id).sort().join(',');
+      const newIds = [...subjectIds].sort().join(',');
+      const subjectsChanged = oldIds !== newIds;
+      const datesChanged = !subjectsChanged && subjectIds.some(sid => {
+        const oldSub = oldStudent.subjects.find(s => s.id === parseInt(sid));
+        const acc = subjectAccessDates?.[sid] || {};
+        const oldEnd = oldSub?.UserSubject?.accessEndDate ? new Date(oldSub.UserSubject.accessEndDate).toDateString() : null;
+        const newEnd = acc.endDate ? new Date(acc.endDate).toDateString() : null;
+        return oldEnd !== newEnd;
+      });
+      if (subjectsChanged || datesChanged) {
+        const subjectsText = buildSubjectsText(updatedStudent.subjects);
+        await notifyStudent(notifyId,
+          `📋 <b>Изменения в вашем доступе</b>\n\n` +
+          `📚 <b>Актуальные предметы:</b>\n${subjectsText}\n\n` +
+          `Войдите в приложение:`
+        );
+      }
+    }
+
     res.json({
       message: 'Student updated successfully',
       student: updatedStudent
@@ -218,6 +292,11 @@ exports.updateStudentSubjects = async (req, res) => {
     if (!student || student.role !== 'student') {
       return res.status(404).json({ message: 'Student not found' });
     }
+
+    // Старые предметы для сравнения
+    const oldSubjects = await User.findByPk(studentId, {
+      include: [{ model: Subject, as: 'subjects', through: { attributes: ['accessStartDate', 'accessEndDate'] } }]
+    });
 
     // Удаляем старые связи
     await UserSubject.destroy({ where: { userId: studentId } });
@@ -247,6 +326,30 @@ exports.updateStudentSubjects = async (req, res) => {
         }
       }]
     });
+
+    // 🔔 Уведомляем об изменении предметов/дат
+    if (student.telegramId) {
+      const oldIds = oldSubjects.subjects.map(s => s.id).sort().join(',');
+      const newIds = [...(subjectIds || [])].sort().join(',');
+      if (oldIds !== newIds) {
+        const added = updatedStudent.subjects.filter(s => !oldSubjects.subjects.find(o => o.id === s.id));
+        const removed = oldSubjects.subjects.filter(o => !updatedStudent.subjects.find(s => s.id === o.id));
+        let changeText = '';
+        if (added.length > 0) changeText += `\n➕ Добавлены: ${added.map(s => s.name).join(', ')}`;
+        if (removed.length > 0) changeText += `\n➖ Убраны: ${removed.map(s => s.name).join(', ')}`;
+        const subjectsText = buildSubjectsText(updatedStudent.subjects);
+        await notifyStudent(student.telegramId,
+          `📋 <b>Изменены ваши предметы</b>${changeText}\n\n` +
+          `📚 <b>Актуальный список:</b>\n${subjectsText}\n\nВойдите в приложение:`
+        );
+      } else {
+        const subjectsText = buildSubjectsText(updatedStudent.subjects);
+        await notifyStudent(student.telegramId,
+          `📋 <b>Обновлены сроки доступа</b>\n\n` +
+          `📚 <b>Ваши предметы:</b>\n${subjectsText}\n\nВойдите в приложение:`
+        );
+      }
+    }
 
     res.json({
       message: 'Student subjects updated',

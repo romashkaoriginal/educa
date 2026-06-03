@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import '../../styles/Students.css';
 import { adminFetch } from './adminApi';
+import { useAdminData } from './AdminDataContext';
 
 const API_URL = 'https://educa-production-a98e.up.railway.app/api';
 
 function Students({ subjects }) {
+  const { students: ctxStudents, loading: ctxLoading, loadStudents, refresh } = useAdminData();
   const [students, setStudents] = useState([]);
   const [botUsers, setBotUsers] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -233,7 +235,7 @@ const [editFormData, setEditFormData] = useState({
       if (response.ok) {
         setShowAddModal(false);
         resetForm();
-        await loadStudents();
+        refresh('students');
         if (addMode === 'bot') {
           await loadBotUsers();
         }
@@ -260,7 +262,7 @@ const [editFormData, setEditFormData] = useState({
       if (response.ok) {
         setSelectedStudent(null);
         setShowDetailModal(false);
-        await loadStudents();
+        refresh('students');
       }
     } catch (error) {
       console.error('Error deleting student:', error);
@@ -276,7 +278,7 @@ const [editFormData, setEditFormData] = useState({
       });
 
       if (response.ok) {
-        await loadStudents();
+        refresh('students');
         if (selectedStudent?.id === studentId) {
           const updated = students.find(s => s.id === studentId);
           setSelectedStudent(updated);
@@ -528,7 +530,7 @@ const handleSaveEdit = async () => {
     });
 
     if (response.ok) {
-      await loadStudents();
+      refresh('students');
       const updated = students.find(s => s.id === selectedStudent.id);
       setSelectedStudent(updated);
       setIsEditingStudent(false);

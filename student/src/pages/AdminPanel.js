@@ -10,6 +10,7 @@ import Notifications from '../components/admin/Notifications';
 import BotTestEditor from '../components/admin/BotTestEditor';
 import Applications from '../components/admin/Applications';
 import { adminFetch } from '../components/admin/adminApi';
+import { AdminDataProvider, useAdminData } from '../components/admin/AdminDataContext';
 
 const API_URL = 'https://educa-production-a98e.up.railway.app/api';
 
@@ -32,7 +33,7 @@ const ALL_SECTIONS = [
   { id: 'bottest', name: 'Тест бота', icon: '🤖' },
 ];
 
-function AdminPanel() {
+function AdminPanelContent() {
   const [subjects, setSubjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
@@ -97,6 +98,9 @@ function AdminPanel() {
 
   if (loading || !activeSection) return null;
 
+  const { refresh } = useAdminData();
+  const refreshableSections = ['students', 'users', 'applications', 'statistics'];
+
   return (
     <div className="admin-panel">
       <header className="admin-header">
@@ -105,6 +109,11 @@ function AdminPanel() {
           <span className="logo-me">me</span>
         </div>
         <div className="admin-title">Админ-панель</div>
+        {refreshableSections.includes(activeSection) && (
+          <button className="admin-refresh-btn" onClick={() => refresh(activeSection)} title="Обновить">
+            🔄
+          </button>
+        )}
       </header>
 
       <nav className="admin-tabs">
@@ -132,6 +141,14 @@ function AdminPanel() {
         {activeSection === 'applications' && <Applications />}
       </main>
     </div>
+  );
+}
+
+function AdminPanel() {
+  return (
+    <AdminDataProvider>
+      <AdminPanelContent />
+    </AdminDataProvider>
   );
 }
 

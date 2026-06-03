@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import '../../styles/Users.css';
 import { adminFetch } from './adminApi';
+import { useAdminData } from './AdminDataContext';
 
 const API_URL = 'https://educa-production-a98e.up.railway.app/api';
 
 function Users() {
+  const { users: ctxUsers, loadUsers, refresh } = useAdminData();
   const [users, setUsers] = useState([]);
   const [botUsers, setBotUsers] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -136,7 +138,7 @@ function Users() {
       if (response.ok) {
         setShowAddModal(false);
         resetForm();
-        await loadUsers();
+        refresh('users');
         if (addMode === 'bot') {
           await loadBotUsers();
         }
@@ -157,7 +159,7 @@ function Users() {
       });
 
       if (response.ok) {
-        await loadUsers();
+        refresh('users');
       }
     } catch (error) {
       console.error('Error toggling status:', error);
@@ -175,7 +177,7 @@ function Users() {
       });
 
       if (response.ok) {
-        await loadUsers();
+        refresh('users');
       }
     } catch (error) {
       console.error('Error deleting user:', error);
