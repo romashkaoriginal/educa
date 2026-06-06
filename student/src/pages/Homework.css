@@ -683,3 +683,25 @@
 
 .correct-mark { color: #10b981; font-weight: 700; margin-left: auto; flex-shrink: 0; }
 .wrong-mark { color: #ef4444; font-weight: 700; margin-left: auto; flex-shrink: 0; }
+/* ===== ОБЪЯСНЕНИЕ ОТВЕТА ===== */
+.hw-explanation-box {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: #FFFBEB;
+  border: 1px solid #FDE68A;
+  border-radius: 10px;
+}
+
+.hw-explanation-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.hw-explanation-text {
+  font-size: 13px;
+  color: #92400E;
+  line-height: 1.5;
+}

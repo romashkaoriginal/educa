@@ -114,6 +114,9 @@ router.get('/stats/:studentId', practiceController.getStudentStats);
 // Получить статистику по топику
 router.get('/topic-stats/:studentId/:topicId', practiceController.getTopicStats);
 
+// Получить стрик (дней подряд)
+router.get('/streak/:studentId', practiceController.getStreak);
+
 // Получить вопросы с ошибками
 router.get('/incorrect/:studentId/:topicId', practiceController.getIncorrectQuestions);
 

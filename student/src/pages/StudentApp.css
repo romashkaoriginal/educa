@@ -1,13 +1,23 @@
+:root {
+  --kubik-pink: #FFBEBD;
+  --kubik-white: #FCFCFA;
+  --kubik-blue: #337BAE;
+  --kubik-navy: #1A405F;
+  --kubik-border: #ECEAE5;
+  --kubik-text: #2A3744;
+  --kubik-text-soft: #7B8794;
+}
+
 .student-app {
   max-width: 480px;
   width: 100%;
   margin: 0 auto;
   min-height: 100vh;
-  background: #ffffff;
-  box-shadow: 0 0 50px rgba(0, 0, 0, 0.1);
+  background: var(--kubik-white);
+  box-shadow: 0 0 50px rgba(26, 64, 95, 0.06);
   display: flex;
   flex-direction: column;
-  overflow-x: hidden; /* Убрать горизонтальный скролл */
+  overflow-x: hidden;
 }
 
 /* Header УДАЛЁН - каждая страница показывает свой */
@@ -36,8 +46,8 @@
   padding-bottom: 90px; /* Отступ для bottom navigation */
   overflow-x: hidden; /* Убрать горизонтальный скролл */
   overflow-y: auto;
-  background: #f9fafb;
-  max-width: 100%; /* Не шире контейнера */
+  background: var(--kubik-white);
+  max-width: 100%;
 }
 
 /* Bottom Navigation */
@@ -78,10 +88,22 @@
 }
 
 .nav-button.active {
-  background: linear-gradient(135deg, #1E40AF 0%, #3B82F6 100%);
+  background: var(--kubik-blue);
   color: #ffffff;
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(30, 64, 175, 0.3);
+  box-shadow: 0 4px 12px rgba(51, 123, 174, 0.28);
+  position: relative;
+}
+
+.nav-button.active::after {
+  content: '';
+  position: absolute;
+  top: 7px;
+  right: 14px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--kubik-pink);
 }
 
 .nav-icon {
@@ -111,20 +133,21 @@
 }
 
 .section-title {
-  font-size: 24px;
-  font-weight: 800;
-  color: #1E40AF;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--kubik-navy);
   margin-bottom: 20px;
   display: flex;
   align-items: center;
   gap: 10px;
+  letter-spacing: -0.3px;
 }
 
 .section-title::before {
   content: '';
   width: 4px;
-  height: 28px;
-  background: linear-gradient(180deg, #F59E0B 0%, #FBBF24 100%);
+  height: 24px;
+  background: var(--kubik-pink);
   border-radius: 2px;
 }
 
@@ -140,7 +163,7 @@
 }
 
 .card:hover {
-  box-shadow: 0 4px 16px rgba(30, 64, 175, 0.15);
+  box-shadow: 0 4px 16px rgba(51, 123, 174, 0.12);
   transform: translateY(-2px);
 }
 
@@ -159,12 +182,12 @@
 
 /* Button */
 .primary-button {
-  background: #3b82f6;
+  background: var(--kubik-blue);
   color: #ffffff;
   border: none;
   padding: 14px 24px;
   border-radius: 12px;
-  font-weight: 700;
+  font-weight: 600;
   font-size: 16px;
   cursor: pointer;
   transition: all 0.3s ease;
@@ -175,7 +198,7 @@
 
 .primary-button:hover {
   transform: translateY(-2px);
-  background: #2563eb;
+  background: var(--kubik-navy);
   box-shadow: none;
 }
 
@@ -203,11 +226,20 @@
 /* ========== STUDENT SELECTION SCREEN ========== */
 .student-selection {
   min-height: 100vh;
-  background: linear-gradient(135deg, #1E40AF 0%, #3B82F6 100%);
+  background: linear-gradient(150deg, var(--kubik-blue) 0%, var(--kubik-navy) 100%);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: 24px;
+}
+
+.kubik-selection-logo {
+  width: 150px;
+  height: auto;
+  margin: 0 auto 36px;
+  display: block;
+  filter: brightness(0) invert(1);
+  animation: kubikFadeUp 0.6s ease both;
 }
 
 .selection-container {
@@ -236,18 +268,15 @@
 }
 
 .selection-title {
-  font-size: 32px;
-  font-weight: 800;
+  font-size: 26px;
+  font-weight: 600;
   color: #ffffff;
-  margin-bottom: 8px;
-  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  margin-bottom: 28px;
+  letter-spacing: -0.5px;
 }
 
 .selection-subtitle {
-  font-size: 16px;
-  color: rgba(255, 255, 255, 0.9);
-  margin-bottom: 40px;
-  font-weight: 500;
+  display: none;
 }
 
 .students-loading,
@@ -260,21 +289,21 @@
 .student-select-card {
   background: #ffffff;
   border: none;
-  border-radius: 20px;
-  padding: 20px;
+  border-radius: 18px;
+  padding: 18px;
   display: flex;
   align-items: center;
   gap: 16px;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 8px 24px rgba(26, 64, 95, 0.2);
   text-align: left;
   width: 100%;
 }
 
 .student-select-card:hover {
-  transform: translateY(-4px) scale(1.02);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2);
+  transform: translateY(-4px);
+  box-shadow: 0 16px 32px rgba(26, 64, 95, 0.28);
 }
 
 .student-select-card:active {
@@ -282,18 +311,18 @@
 }
 
 .student-select-avatar {
-  width: 60px;
-  height: 60px;
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #3B82F6 0%, #60A5FA 100%);
+  background: linear-gradient(135deg, var(--kubik-blue) 0%, var(--kubik-navy) 100%);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 24px;
-  font-weight: 800;
+  font-size: 22px;
+  font-weight: 600;
   color: #ffffff;
   flex-shrink: 0;
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  box-shadow: 0 4px 12px rgba(51, 123, 174, 0.22);
 }
 
 .student-select-info {
@@ -301,9 +330,9 @@
 }
 
 .student-select-info h3 {
-  font-size: 18px;
-  font-weight: 700;
-  color: #1f2937;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--kubik-navy);
   margin: 0 0 4px 0;
 }
 
@@ -314,8 +343,8 @@
 }
 
 .student-select-arrow {
-  font-size: 24px;
-  color: #9ca3af;
+  font-size: 22px;
+  color: var(--kubik-blue);
   flex-shrink: 0;
 }
 
@@ -326,10 +355,10 @@
 }
 
 .student-select-card.skeleton .skeleton-avatar {
-  width: 60px;
-  height: 60px;
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
-  background: linear-gradient(90deg, #e5e7eb 0%, #f3f4f6 50%, #e5e7eb 100%);
+  background: linear-gradient(90deg, #F5E4E3 0%, #FCF0EF 50%, #F5E4E3 100%);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
 }
@@ -409,8 +438,8 @@
 .initial-loading .loading-spinner {
   width: 48px;
   height: 48px;
-  border: 4px solid #e5e7eb;
-  border-top-color: #3B82F6;
+  border: 4px solid var(--kubik-border);
+  border-top-color: var(--kubik-blue);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -433,4 +462,57 @@
 @keyframes pulseLogo {
   0%, 100% { opacity: 1; transform: scale(1); }
   50% { opacity: 0.8; transform: scale(1.05); }
+}
+
+/* ========== KUBIK LOADING SCREEN ========== */
+.loading-screen {
+  min-height: 100vh;
+  background: linear-gradient(150deg, var(--kubik-blue) 0%, var(--kubik-navy) 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 32px;
+}
+
+.loading-screen .kubik-loading-logo {
+  width: 160px;
+  height: auto;
+  filter: brightness(0) invert(1);
+  animation: kubikBreathe 2.4s ease-in-out infinite;
+}
+
+.kubik-loader {
+  width: 140px;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.25);
+  border-radius: 3px;
+  overflow: hidden;
+  position: relative;
+}
+
+.kubik-loader-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 40%;
+  background: linear-gradient(90deg, #ffffff 0%, var(--kubik-pink) 100%);
+  border-radius: 3px;
+  animation: kubikSlide 1.3s ease-in-out infinite;
+}
+
+@keyframes kubikSlide {
+  0% { left: -40%; }
+  100% { left: 100%; }
+}
+
+@keyframes kubikBreathe {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.04); opacity: 0.92; }
+}
+
+@keyframes kubikFadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
 }

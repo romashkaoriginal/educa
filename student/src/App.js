@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
+import kubikLogo from './assets/kubik-logo-transparent.png';
+import kubikIcon from './assets/kubik-icon.png';
 import StudentApp from './pages/StudentApp';
 
 import AdminPanel from './pages/AdminPanel';
@@ -121,12 +123,10 @@ function App() {
   if (loading) {
     return (
       <div className="loading-screen">
-        <div className="role-logo">
-          <span className="logo-ed">ED</span>
-          <span className="logo-me">me</span>
+        <img src={kubikLogo} alt="KUBIK" className="kubik-loading-logo" />
+        <div className="kubik-loader">
+          <div className="kubik-loader-fill"></div>
         </div>
-        <div className="loading-spinner"></div>
-        <p>Загрузка...</p>
       </div>
     );
   }
@@ -136,11 +136,7 @@ function App() {
     return (
       <div className="blocked-screen">
         <div className="blocked-container">
-          <div className="role-logo">
-            <span className="logo-ed">ED</span>
-            <span className="logo-me">me</span>
-          </div>
-
+          <img src={kubikIcon} alt="KUBIK" className="kubik-blocked-logo" />
           <div className="blocked-icon">🔒</div>
 
           <h1 className="blocked-title">Доступ через Telegram</h1>
@@ -174,10 +170,7 @@ function App() {
     return (
       <div className="role-selection">
         <div className="role-container">
-          <div className="role-logo">
-            <span className="logo-ed">ED</span>
-            <span className="logo-me">me</span>
-          </div>
+          <img src={kubikLogo} alt="KUBIK" className="kubik-role-logo" />
           
           <h1 className="role-title">Выберите раздел</h1>
           {userRole && userRole !== 'student' && (

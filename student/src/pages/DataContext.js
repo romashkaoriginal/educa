@@ -17,6 +17,7 @@ export const DataProvider = ({ children, studentId }) => {
   const [homeworks, setHomeworks] = useState([]);
   const [practiceStats, setPracticeStats] = useState(null);
   const [homeworkStats, setHomeworkStats] = useState(null);
+  const [streak, setStreak] = useState({ streak: 0, todayDone: false });
 
   const [loaded, setLoaded] = useState({
     subjects: false, practice: false, homework: false,
@@ -196,18 +197,30 @@ export const DataProvider = ({ children, studentId }) => {
     }));
   }, []);
 
+  const loadStreak = useCallback(async (force = false) => {
+    try {
+      const response = await apiFetch(`${API_URL}/practice/streak/${studentId}`);
+      const data = await response.json();
+      setStreak(data || { streak: 0, todayDone: false });
+      return data;
+    } catch (error) {
+      console.error('Error loading streak:', error);
+      return null;
+    }
+  }, [studentId]); // eslint-disable-line
+
   const preloadAllData = useCallback(async () => {
     // Сначала грузим то что видно сразу — subjects и practice
     await Promise.all([loadSubjects(), loadPractice()]);
     // Остальное фоново — не блокируем UI
-    Promise.all([loadHomeworks(), loadPracticeStats(), loadHomeworkStats()]);
+    Promise.all([loadHomeworks(), loadPracticeStats(), loadHomeworkStats(), loadStreak()]);
   }, [loadSubjects, loadPractice, loadHomeworks, loadPracticeStats, loadHomeworkStats]);
 
   const refreshAfterPractice = useCallback(async () => {
     loadedRef.current.practice = false;
     loadedRef.current.practiceStats = false;
-    await Promise.all([loadPractice(true), loadPracticeStats(true)]);
-  }, [loadPractice, loadPracticeStats]);
+    await Promise.all([loadPractice(true), loadPracticeStats(true), loadStreak(true)]);
+  }, [loadPractice, loadPracticeStats, loadStreak]);
 
   const refreshAfterHomework = useCallback(async () => {
     loadedRef.current.homework = false;
@@ -220,7 +233,8 @@ export const DataProvider = ({ children, studentId }) => {
     loaded, loading,
     loadSubjects, loadPractice, loadHomeworks, loadPracticeStats, loadHomeworkStats,
     preloadAllData, refreshAfterPractice, refreshAfterHomework,
-    prefetchQuestions, getQuestions, updatePracticeStatsOptimistic
+    prefetchQuestions, getQuestions, updatePracticeStatsOptimistic,
+    streak, loadStreak
   };
 
   return (

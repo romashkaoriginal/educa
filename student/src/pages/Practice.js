@@ -7,7 +7,7 @@ const API_URL = 'https://educa-production-a98e.up.railway.app/api';
 
 function Practice({ studentId }) {
   // Используем данные из контекста
-  const { practiceTopics, subjects, refreshAfterPractice, loading: contextLoading, prefetchQuestions, getQuestions, updatePracticeStatsOptimistic } = useData();
+  const { practiceTopics, subjects, refreshAfterPractice, loading: contextLoading, prefetchQuestions, getQuestions, updatePracticeStatsOptimistic, streak } = useData();
   
   const [selectedSubject, setSelectedSubject] = useState(null); // null = экран выбора предмета
   
@@ -26,8 +26,21 @@ function Practice({ studentId }) {
   const [showExplanationHint, setShowExplanationHint] = useState(false);
   
   const autoNextTimerRef = useRef(null);
+  const [confetti, setConfetti] = useState(false);
 
   const RESULT_DURATION = 1500; // 1.5 секунды показ результата
+
+  // Тактильная отдача через Telegram
+  const haptic = (type) => {
+    try {
+      const tg = window.Telegram?.WebApp;
+      if (tg?.HapticFeedback) {
+        if (type === 'success') tg.HapticFeedback.notificationOccurred('success');
+        else if (type === 'error') tg.HapticFeedback.notificationOccurred('error');
+        else tg.HapticFeedback.impactOccurred('light');
+      }
+    } catch (e) { /* ignore */ }
+  };
 
   // Автоматический выбор предмета если он один
   useEffect(() => {
@@ -156,6 +169,15 @@ function Practice({ studentId }) {
     setIsCorrect(correct);
     setShowExplanationHint(false);
 
+    // Дофамин: вибрация + конфетти
+    if (correct) {
+      haptic('success');
+      setConfetti(true);
+      setTimeout(() => setConfetti(false), 1200);
+    } else {
+      haptic('error');
+    }
+
     const newAnswers = [...userAnswers, {
       questionId: currentQuestion.id,
       selectedAnswer: answerIndex,
@@ -220,6 +242,23 @@ function Practice({ studentId }) {
     }).catch(e => console.error('Error saving attempt:', e));
   };
 
+  // Найти следующую тему для кнопки "Следующий тест"
+  const getNextTopic = () => {
+    const list = selectedSubject
+      ? practiceTopics.filter(t => t.subjectId === selectedSubject.id)
+      : practiceTopics;
+    const withQuestions = list.filter(t => t.questions && t.questions.length > 0);
+    if (withQuestions.length === 0) return null;
+    const idx = withQuestions.findIndex(t => t.id === activePractice?.id);
+    if (idx === -1) return withQuestions[0];
+    return withQuestions[(idx + 1) % withQuestions.length];
+  };
+
+  const goToNextTopic = () => {
+    const next = getNextTopic();
+    if (next) startPractice(next);
+  };
+
   const closePractice = () => {
     if (autoNextTimerRef.current) clearTimeout(autoNextTimerRef.current);
 
@@ -260,7 +299,7 @@ function Practice({ studentId }) {
     const progress = ((currentQuestionIndex + 1) / questions.length) * 100;
 
     return (
-      <div className="section practice-mode">
+      <div className="practice-mode">
         <div className="practice-header">
           <button className="back-button" onClick={closePractice}>
             ← Назад к списку
@@ -269,10 +308,21 @@ function Practice({ studentId }) {
             <h2>{activePractice.name}</h2>
             <p>Вопрос {currentQuestionIndex + 1} из {questions.length}</p>
           </div>
+          {streak?.streak > 0 && (
+            <div className="streak-badge-mini">🔥 {streak.streak}</div>
+          )}
         </div>
 
-        <div className="progress-bar">
-          <div className="progress-fill" style={{ width: `${progress}%` }}></div>
+        {confetti && (
+          <div className="confetti-layer">
+            {Array.from({ length: 18 }).map((_, i) => (
+              <span key={i} className={`confetti-piece c${i % 6}`} style={{ left: `${(i * 5.5) + 2}%`, animationDelay: `${(i % 5) * 0.05}s` }}></span>
+            ))}
+          </div>
+        )}
+
+        <div className="practice-progressbar">
+          <div className="practice-progressbar-fill" style={{ width: `${progress}%` }}></div>
         </div>
 
         <div className="question-container">
@@ -356,79 +406,58 @@ function Practice({ studentId }) {
 
   // ========== ЭКРАН РЕЗУЛЬТАТОВ ==========
   if (showResult && practiceResult) {
-    return (
-      <div className="section practice-result">
-        <div className="result-header">
-          <h1>Результаты практики</h1>
-          <p className="result-topic">{activePractice.name}</p>
-        </div>
+    const { correctCount, totalCount, scorePercentage } = practiceResult;
+    const rateClass = scorePercentage >= 70 ? 'good' : scorePercentage >= 50 ? 'medium' : 'low';
+    const nextTopic = getNextTopic();
+    const hasNext = nextTopic && nextTopic.id !== activePractice?.id;
 
-        <div className="result-score">
-          <div className="score-circle">
-            <div className="score-number">{practiceResult.scorePercentage}%</div>
-            <div className="score-label">
-              {practiceResult.correctCount} из {practiceResult.totalCount} правильно
-            </div>
+    return (
+      <div className="practice-screen">
+        <div className="practice-header">
+          <button className="back-button" onClick={closePractice}>← Назад</button>
+          <div className="practice-info">
+            <h2>{activePractice.name}</h2>
+            <p>Практика завершена</p>
           </div>
         </div>
 
-        <div className="result-details">
-          <h3>Разбор ответов</h3>
-          {questions.map((question, qIndex) => {
-            const userAnswer = practiceResult.answers[qIndex];
-            const isCorrect = userAnswer.isCorrect;
+        <div className="practice-result-body">
+          <div className="result-hero">
+            <div className="result-hero-emoji">
+              {scorePercentage >= 70 ? '🎉' : scorePercentage >= 50 ? '👍' : '💪'}
+            </div>
+            <h1 className="result-hero-title">
+              {scorePercentage >= 70 ? 'Отличная работа!' : scorePercentage >= 50 ? 'Хороший результат!' : 'Есть над чем поработать'}
+            </h1>
+            <p className="result-hero-subtitle">{activePractice.name}</p>
+          </div>
 
-            return (
-              <div key={question.id} className={`result-question ${isCorrect ? 'correct' : 'incorrect'}`}>
-                <div className="result-question-header">
-                  <span className="result-question-number">Вопрос {qIndex + 1}</span>
-                  <span className={`result-badge ${isCorrect ? 'correct' : 'incorrect'}`}>
-                    {isCorrect ? '✓ Правильно' : '✗ Неправильно'}
-                  </span>
-                </div>
+          <div className="result-numbers">
+            <div className="result-num-block">
+              <div className={`result-num ${rateClass}`}>{correctCount}<span className="result-num-total">/{totalCount}</span></div>
+              <div className="result-num-label">правильных ответов</div>
+            </div>
+            <div className="result-num-divider"></div>
+            <div className="result-num-block">
+              <div className={`result-num ${rateClass}`}>{scorePercentage}<span className="result-num-total">%</span></div>
+              <div className="result-num-label">точность</div>
+            </div>
+          </div>
 
-                <p className="result-question-text">{question.questionText}</p>
+          <div className="result-progress-track">
+            <div className={`result-progress-bar ${rateClass}`} style={{ width: `${scorePercentage}%` }}></div>
+          </div>
 
-                <div className="result-answers">
-                  {question.options.map((option, oIndex) => {
-                    const isUserAnswer = oIndex === userAnswer.selectedAnswer;
-                    const isCorrectAnswer = oIndex === question.correctAnswer;
-
-                    return (
-                      <div 
-                        key={oIndex}
-                        className={`result-answer ${
-                          isCorrectAnswer ? 'correct-answer' : ''
-                        } ${
-                          isUserAnswer && !isCorrect ? 'wrong-answer' : ''
-                        }`}
-                      >
-                        <span className="answer-letter">{String.fromCharCode(65 + oIndex)}</span>
-                        <span className="answer-text">{option}</span>
-                        {isCorrectAnswer && <span className="correct-mark">✓</span>}
-                        {isUserAnswer && !isCorrect && <span className="wrong-mark">✗</span>}
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {question.explanation && (
-                  <div className="result-explanation">
-                    <strong>💡 Объяснение:</strong> {question.explanation}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        <div className="result-actions">
-          <button className="primary-button" onClick={() => startPractice(activePractice)}>
-            Пройти заново
-          </button>
-          <button className="secondary-button" onClick={closePractice}>
-            К списку практик
-          </button>
+          <div className="result-actions">
+            <button className="primary-button" onClick={() => startPractice(activePractice)}>
+              🔄 Пройти снова
+            </button>
+            {hasNext && (
+              <button className="secondary-button" onClick={goToNextTopic}>
+                Следующий тест →
+              </button>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -438,10 +467,10 @@ function Practice({ studentId }) {
   if (subjects.length > 1 && !selectedSubject) {
     return (
       <div className="section">
-        <h1 className="section-title">💪 Практика</h1>
-        <p style={{ marginBottom: '24px', color: '#6b7280', fontSize: '14px' }}>
-          Выберите предмет для практики:
-        </p>
+        <div className="practice-topbar">
+          <h1 className="section-title"><span className="title-emoji">💪</span> Практика</h1>
+          <p className="practice-subtitle">Выберите предмет для практики</p>
+        </div>
 
         <div className="subjects-grid">
           {subjects.map(subject => {
@@ -473,20 +502,29 @@ function Practice({ studentId }) {
 
   return (
     <div className="section">
-      <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '20px' }}>
+      <div className="practice-topbar">
         {subjects.length > 1 && selectedSubject && (
           <button className="back-button" onClick={backToSubjects}>
             ← Назад к предметам
           </button>
         )}
-        <h1 className="section-title">
-          {selectedSubject ? `${selectedSubject.icon} ${selectedSubject.name}` : '💪 Практика'}
-        </h1>
+        <div className="topbar-title-row">
+          <h1 className="section-title">
+            {selectedSubject ? (
+              <><span className="title-emoji">{selectedSubject.icon}</span> {selectedSubject.name}</>
+            ) : (
+              <><span className="title-emoji">💪</span> Практика</>
+            )}
+          </h1>
+          {streak?.streak > 0 && (
+            <div className={`streak-badge ${streak.todayDone ? 'done' : 'pending'}`}>
+              <span className="streak-flame">🔥</span>
+              <span className="streak-count">{streak.streak}</span>
+            </div>
+          )}
+        </div>
+        <p className="practice-subtitle">Тренируйся в своём темпе и улучшай навыки</p>
       </div>
-      
-      <p style={{ marginBottom: '20px', color: '#6b7280', fontSize: '14px' }}>
-        💪 Тренируйся в свободное время и улучшай свои навыки!
-      </p>
 
       {filteredTopics.length === 0 ? (
         <div className="empty-state">
@@ -497,68 +535,47 @@ function Practice({ studentId }) {
         </div>
       ) : (
         <div className="practice-grid">
-          {filteredTopics.map(topic => (
-            <div key={topic.id} className="card practice-card">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '12px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <span style={{ fontSize: '32px' }}>{topic.icon || '📝'}</span>
-                  <div>
-                    <h3 className="card-title">{topic.name}</h3>
-                    <p style={{ fontSize: '12px', color: '#6b7280', margin: 0 }}>
-                      {topic.subject.name}
-                    </p>
+          {filteredTopics.map(topic => {
+            const hasStats = topic.stats && topic.stats.total > 0;
+            const rate = hasStats ? topic.stats.successRate : 0;
+            const rateClass = rate >= 70 ? 'good' : rate >= 50 ? 'medium' : 'low';
+            const qCount = topic.questions?.length || 0;
+            return (
+              <div key={topic.id} className="topic-card">
+                <div className="topic-card-top">
+                  <div className="topic-icon">{topic.icon || '📝'}</div>
+                  <div className="topic-head">
+                    <h3 className="topic-name">{topic.name}</h3>
+                    <span className="topic-qcount">{qCount} вопросов</span>
                   </div>
+                  {hasStats && (
+                    <div className={`topic-rate-chip ${rateClass}`}>{rate}%</div>
+                  )}
                 </div>
+
+                {topic.description && (
+                  <p className="topic-desc">{topic.description}</p>
+                )}
+
+                {hasStats && (
+                  <div className="topic-progress">
+                    <div className="topic-progress-track">
+                      <div className={`topic-progress-fill ${rateClass}`} style={{ width: `${rate}%` }}></div>
+                    </div>
+                    <span className="topic-progress-label">{topic.stats.correct}/{topic.stats.total}</span>
+                  </div>
+                )}
+
+                <button
+                  className="topic-start-btn"
+                  onClick={() => startPractice(topic)}
+                  disabled={qCount === 0}
+                >
+                  {hasStats ? 'Пройти снова' : 'Начать'} <span className="btn-arrow">→</span>
+                </button>
               </div>
-              <p className="card-description">
-                {topic.description || 'Попрактикуйся в этой теме'}
-              </p>
-              <p style={{ fontSize: '13px', color: '#9ca3af', marginTop: '8px' }}>
-                📚 Вопросов: {topic.questions?.length || 0}
-              </p>
-              
-              {topic.stats && topic.stats.total > 0 && (
-                <div style={{
-                  marginTop: '12px',
-                  padding: '12px',
-                  background: '#f9fafb',
-                  borderRadius: '8px',
-                  fontSize: '13px'
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-                    <span style={{ color: '#6b7280' }}>Ваш прогресс:</span>
-                    <span style={{ fontWeight: '600', color: '#1f2937' }}>
-                      {topic.stats.correct}/{topic.stats.total}
-                    </span>
-                  </div>
-                  <div style={{
-                    height: '6px',
-                    background: '#e5e7eb',
-                    borderRadius: '3px',
-                    overflow: 'hidden'
-                  }}>
-                    <div style={{
-                      height: '100%',
-                      width: `${topic.stats.successRate}%`,
-                      background: topic.stats.successRate >= 70 ? '#10b981' : topic.stats.successRate >= 50 ? '#f59e0b' : '#ef4444',
-                      transition: 'width 0.3s'
-                    }}></div>
-                  </div>
-                  <div style={{ marginTop: '6px', color: '#6b7280', fontSize: '12px' }}>
-                    Точность: {topic.stats.successRate}%
-                  </div>
-                </div>
-              )}
-              
-              <button 
-                className="primary-button"
-                onClick={() => startPractice(topic)}
-                disabled={!topic.questions || topic.questions.length === 0}
-              >
-                {topic.stats && topic.stats.total > 0 ? 'Пройти заново' : 'Начать практику'}
-              </button>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

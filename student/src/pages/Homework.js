@@ -301,9 +301,11 @@ function StudentHomework({ studentId }) {
   const handlePointerUp = useCallback(() => {
     if (!drag.active) return;
     const { questionIndex, fromIndex, overIndex, items } = drag;
-    if (fromIndex !== overIndex && overIndex !== null) {
+    if (fromIndex !== overIndex && overIndex !== null && overIndex >= 0) {
+      // Вставка (не свап) — убираем элемент с fromIndex и вставляем в overIndex
       const newItems = [...items];
-      [newItems[fromIndex], newItems[overIndex]] = [newItems[overIndex], newItems[fromIndex]];
+      const [moved] = newItems.splice(fromIndex, 1);
+      newItems.splice(overIndex, 0, moved);
       handleAnswer(questionIndex, newItems);
     }
     setDrag({
@@ -311,7 +313,8 @@ function StudentHomework({ studentId }) {
       questionIndex: null,
       fromIndex: null,
       startY: 0,
-      offsetY: 0,
+      currentY: 0,
+      itemHeight: 56,
       items: [],
       overIndex: null,
     });
@@ -931,6 +934,12 @@ function StudentHomework({ studentId }) {
                 </div>
                 <p className="result-question-text">{question.questionText}</p>
                 {renderAnswerReview(question, qIndex)}
+                {question.explanation && (
+                  <div className="hw-explanation-box">
+                    <span className="hw-explanation-icon">💡</span>
+                    <span className="hw-explanation-text">{question.explanation}</span>
+                  </div>
+                )}
               </div>
             );
           })}

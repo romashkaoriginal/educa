@@ -330,6 +330,62 @@ exports.getStudentStats = async (req, res) => {
   }
 };
 
+// Получить стрик студента — сколько дней подряд решал тесты
+exports.getStreak = async (req, res) => {
+  try {
+    const { studentId } = req.params;
+
+    // Берём все уникальные даты когда студент решал (из PracticeDailyLog)
+    const logs = await PracticeDailyLog.findAll({
+      where: { studentId: parseInt(studentId) },
+      attributes: ['date'],
+      group: ['date'],
+      order: [['date', 'DESC']]
+    });
+
+    if (logs.length === 0) {
+      return res.json({ streak: 0, todayDone: false });
+    }
+
+    // Уникальные даты в формате YYYY-MM-DD
+    const dates = [...new Set(logs.map(l => {
+      const d = l.date instanceof Date ? l.date : new Date(l.date);
+      return d.toISOString().slice(0, 10);
+    }))].sort().reverse();
+
+    const todayKey = new Date().toISOString().slice(0, 10);
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayKey = yesterday.toISOString().slice(0, 10);
+
+    const todayDone = dates[0] === todayKey;
+
+    // Стрик считается только если последний день — сегодня или вчера
+    // (иначе серия прервана)
+    if (dates[0] !== todayKey && dates[0] !== yesterdayKey) {
+      return res.json({ streak: 0, todayDone: false });
+    }
+
+    // Считаем подряд идущие дни
+    let streak = 1;
+    let cursor = new Date(dates[0]);
+    for (let i = 1; i < dates.length; i++) {
+      cursor.setDate(cursor.getDate() - 1);
+      const expected = cursor.toISOString().slice(0, 10);
+      if (dates[i] === expected) {
+        streak++;
+      } else {
+        break;
+      }
+    }
+
+    res.json({ streak, todayDone });
+  } catch (error) {
+    console.error('Get streak error:', error);
+    res.status(500).json({ error: 'Failed to get streak' });
+  }
+};
+
 // Получить вопросы с ошибками (упрощённо — все вопросы темы если не 100%)
 exports.getIncorrectQuestions = async (req, res) => {
   try {

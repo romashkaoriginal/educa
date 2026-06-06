@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './StudentApp.css';
+import kubikLogo from '../assets/kubik-logo-transparent.png';
 import Practice from './Practice';
 import Homework from './Homework';
 import Quiz from './Quiz';
@@ -117,21 +118,17 @@ function StudentApp() {
     // Пока грузим — не показываем ничего чтобы не было flash экрана выбора
     if (loading) return (
       <div className="loading-screen">
-        <div className="role-logo">
-          <span className="logo-ed">ED</span>
-          <span className="logo-me">me</span>
+        <img src={kubikLogo} alt="KUBIK" className="kubik-loading-logo" />
+        <div className="kubik-loader">
+          <div className="kubik-loader-fill"></div>
         </div>
-        <div className="loading-spinner"></div>
       </div>
     );
 
     return (
       <div className="student-selection">
         <div className="selection-container">
-          <div className="selection-logo">
-            <span className="logo-ed">ED</span>
-            <span className="logo-me">me</span>
-          </div>
+          <img src={kubikLogo} alt="KUBIK" className="kubik-selection-logo" />
           
           <h1 className="selection-title">Выберите ученика</h1>
           <p className="selection-subtitle"></p>

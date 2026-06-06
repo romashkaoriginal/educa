@@ -31,14 +31,34 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+
+:root {
+  --kubik-pink: #FFBEBD;
+  --kubik-white: #FCFCFA;
+  --kubik-blue: #337BAE;
+  --kubik-navy: #1A405F;
+  --kubik-border: #ECEAE5;
+  --kubik-text: #2A3744;
+  --kubik-text-soft: #7B8794;
+}
+
 /* ========== ROLE SELECTION SCREEN ========== */
 .role-selection {
   min-height: 100vh;
-  background: linear-gradient(135deg, #1E40AF 0%, #3B82F6 100%);
+  background: linear-gradient(150deg, var(--kubik-blue) 0%, var(--kubik-navy) 100%);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: 24px;
+}
+
+.kubik-role-logo {
+  width: 150px;
+  height: auto;
+  margin: 0 auto 40px;
+  display: block;
+  filter: brightness(0) invert(1);
+  animation: kubikFadeUp 0.6s ease both;
 }
 
 .role-container {
@@ -67,18 +87,18 @@ body {
 }
 
 .role-title {
-  font-size: 36px;
-  font-weight: 800;
+  font-size: 28px;
+  font-weight: 600;
   color: #ffffff;
-  margin-bottom: 12px;
-  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  margin-bottom: 10px;
+  letter-spacing: -0.5px;
 }
 
 .role-subtitle {
-  font-size: 18px;
-  color: rgba(255, 255, 255, 0.9);
-  margin-bottom: 48px;
-  font-weight: 500;
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.85);
+  margin-bottom: 40px;
+  font-weight: 400;
 }
 
 .role-buttons {
@@ -90,14 +110,14 @@ body {
 .role-button {
   background: #ffffff;
   border: none;
-  border-radius: 24px;
-  padding: 28px;
+  border-radius: 20px;
+  padding: 22px;
   display: flex;
   align-items: center;
-  gap: 24px;
+  gap: 18px;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 8px 28px rgba(26, 64, 95, 0.22);
   text-align: left;
   position: relative;
   overflow: hidden;
@@ -120,8 +140,8 @@ body {
 }
 
 .role-button:hover {
-  transform: translateY(-6px) scale(1.02);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.25);
+  transform: translateY(-4px);
+  box-shadow: 0 16px 36px rgba(26, 64, 95, 0.3);
 }
 
 .role-button:active {
@@ -142,12 +162,16 @@ body {
   z-index: 1;
 }
 
+.role-icon {
+  border-radius: 16px;
+}
+
 .role-student .role-icon {
-  background: linear-gradient(135deg, #3B82F6 0%, #60A5FA 100%);
+  background: linear-gradient(135deg, var(--kubik-blue) 0%, #4A93C4 100%);
 }
 
 .role-admin .role-icon {
-  background: linear-gradient(135deg, #F59E0B 0%, #FBBF24 100%);
+  background: linear-gradient(135deg, var(--kubik-navy) 0%, var(--kubik-blue) 100%);
 }
 
 .role-info {
@@ -157,10 +181,10 @@ body {
 }
 
 .role-info h2 {
-  font-size: 24px;
-  font-weight: 800;
-  color: #1f2937;
-  margin-bottom: 6px;
+  font-size: 19px;
+  font-weight: 600;
+  color: var(--kubik-navy);
+  margin-bottom: 4px;
 }
 
 .role-info p {
@@ -241,16 +265,16 @@ body {
 }
 
 .filter-button:hover {
-  border-color: #3B82F6;
-  background: #f0f9ff;
-  color: #1E40AF;
+  border-color: var(--kubik-blue);
+  background: #F2F8FC;
+  color: var(--kubik-navy);
 }
 
 .filter-button.active {
-  border-color: #3B82F6;
-  background: linear-gradient(135deg, #1E40AF 0%, #3B82F6 100%);
+  border-color: var(--kubik-blue);
+  background: var(--kubik-blue);
   color: #ffffff;
-  box-shadow: 0 4px 12px rgba(30, 64, 175, 0.3);
+  box-shadow: 0 4px 12px rgba(51, 123, 174, 0.25);
 }
 
 .filter-icon {
@@ -275,45 +299,78 @@ body {
 /* ========== LOADING SCREEN ========== */
 .loading-screen {
   min-height: 100vh;
-  background: linear-gradient(135deg, #1E40AF 0%, #3B82F6 100%);
+  background: linear-gradient(150deg, var(--kubik-blue) 0%, var(--kubik-navy) 100%);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 24px;
+  gap: 32px;
 }
 
-.loading-screen .role-logo {
-  margin-bottom: 24px;
+.kubik-loading-logo {
+  width: 160px;
+  height: auto;
+  /* Делаем логотип белым на синем фоне */
+  filter: brightness(0) invert(1);
+  animation: kubikBreathe 2.4s ease-in-out infinite;
 }
 
-.loading-spinner {
-  width: 48px;
-  height: 48px;
-  border: 4px solid rgba(255, 255, 255, 0.2);
-  border-top-color: #ffffff;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
+/* Тонкая линия-загрузчик вместо спиннера */
+.kubik-loader {
+  width: 140px;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.25);
+  border-radius: 3px;
+  overflow: hidden;
+  position: relative;
+}
+
+.kubik-loader-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 40%;
+  background: linear-gradient(90deg, #ffffff 0%, var(--kubik-pink) 100%);
+  border-radius: 3px;
+  animation: kubikSlide 1.3s ease-in-out infinite;
+}
+
+@keyframes kubikSlide {
+  0% { left: -40%; }
+  100% { left: 100%; }
+}
+
+@keyframes kubikBreathe {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.04); opacity: 0.92; }
+}
+
+@keyframes kubikFadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
 
-.loading-screen p {
-  color: #ffffff;
-  font-size: 16px;
-  font-weight: 600;
-}
-
 /* ========== BLOCKED SCREEN ========== */
 .blocked-screen {
   min-height: 100vh;
-  background: linear-gradient(135deg, #DC2626 0%, #EF4444 100%);
+  background: var(--kubik-white);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: 24px;
+}
+
+.kubik-blocked-logo {
+  width: 72px;
+  height: auto;
+  margin: 0 auto 8px;
+  display: block;
+  opacity: 0.9;
 }
 
 .blocked-container {
@@ -340,15 +397,16 @@ body {
 }
 
 .blocked-title {
-  font-size: 32px;
-  font-weight: 900;
-  color: #ffffff;
-  margin: 0 0 16px 0;
+  font-size: 26px;
+  font-weight: 600;
+  color: var(--kubik-navy);
+  margin: 0 0 14px 0;
+  letter-spacing: -0.5px;
 }
 
 .blocked-description {
-  font-size: 16px;
-  color: rgba(255, 255, 255, 0.9);
+  font-size: 15px;
+  color: var(--kubik-text-soft);
   line-height: 1.6;
   margin: 0 0 32px 0;
 }
@@ -356,16 +414,16 @@ body {
 .telegram-button {
   display: inline-flex;
   align-items: center;
-  gap: 12px;
-  background: #ffffff;
-  color: #DC2626;
-  padding: 16px 32px;
-  border-radius: 16px;
-  font-weight: 700;
-  font-size: 16px;
+  gap: 10px;
+  background: var(--kubik-blue);
+  color: #ffffff;
+  padding: 15px 30px;
+  border-radius: 14px;
+  font-weight: 600;
+  font-size: 15px;
   text-decoration: none;
   transition: all 0.3s ease;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 6px 18px rgba(51, 123, 174, 0.25);
 }
 
 .telegram-button:hover {
