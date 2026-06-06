@@ -123,6 +123,6 @@ module.exports = {
   Homework, HomeworkQuestion, HomeworkSubmission, HomeworkAnswer,
   PracticeTopic, PracticeQuestion, PracticeAttempt,
   PracticeBest, PracticeDailyLog,
-  NotificationLog, BotUser, BotTest,
+  NotificationLog, BotUser, BotTest, Application,
   syncDatabase
 };

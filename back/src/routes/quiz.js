@@ -7,7 +7,7 @@ const isAdmin = requireRole(['admin', 'teacher']);
 
 // Генерация уникального кода
 function generateAccessCode() {
-  return Math.random().toString(36).substring(2, 8).toUpperCase();
+  return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
 // Получить все викторины (admin)

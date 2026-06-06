@@ -195,7 +195,8 @@ function StudentHomework({ studentId }) {
     questionIndex: null,
     fromIndex: null,
     startY: 0,
-    offsetY: 0,
+    currentY: 0,
+    itemHeight: 56,
     items: [],
     overIndex: null,
   });
@@ -272,12 +273,15 @@ function StudentHomework({ studentId }) {
   const handlePointerDown = useCallback((e, questionIndex, itemIndex, items) => {
     e.preventDefault();
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    const el = e.currentTarget;
+    const itemHeight = el ? el.offsetHeight + 8 : 56;
     setDrag({
       active: true,
       questionIndex,
       fromIndex: itemIndex,
       startY: clientY,
-      offsetY: 0,
+      currentY: clientY,
+      itemHeight,
       items: [...items],
       overIndex: itemIndex,
     });
@@ -286,31 +290,13 @@ function StudentHomework({ studentId }) {
   const handlePointerMove = useCallback((e) => {
     if (!drag.active) return;
     e.preventDefault();
-    let clientX, clientY;
-    if (e.touches) {
-      clientX = e.touches[0].clientX;
-      clientY = e.touches[0].clientY;
-    } else {
-      clientX = e.clientX;
-      clientY = e.clientY;
-    }
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
     const offsetY = clientY - drag.startY;
-    const elementUnder = document.elementFromPoint(clientX, clientY);
-    if (elementUnder) {
-      const orderItem = elementUnder.closest('.ordering-item');
-      if (orderItem) {
-        const indexAttr = orderItem.getAttribute('data-index');
-        if (indexAttr !== null) {
-          const overIndex = parseInt(indexAttr, 10);
-          if (!isNaN(overIndex) && overIndex !== drag.overIndex) {
-            setDrag(prev => ({ ...prev, offsetY, overIndex }));
-            return;
-          }
-        }
-      }
-    }
-    setDrag(prev => ({ ...prev, offsetY }));
-  }, [drag.active, drag.startY, drag.overIndex]);
+    const itemH = drag.itemHeight;
+    const rawOver = drag.fromIndex + Math.round(offsetY / itemH);
+    const overIndex = Math.max(0, Math.min(drag.items.length - 1, rawOver));
+    setDrag(prev => ({ ...prev, currentY: clientY, overIndex }));
+  }, [drag.active, drag.startY, drag.fromIndex, drag.items.length, drag.itemHeight]);
 
   const handlePointerUp = useCallback(() => {
     if (!drag.active) return;
@@ -566,29 +552,56 @@ function StudentHomework({ studentId }) {
         }
         const items = answers[index] || initialOrderRef.current[index] || question.correctAnswer || [];
         const isActiveDrag = drag.active && drag.questionIndex === index;
+        const fromIdx = drag.fromIndex;
+        const overIdx = drag.overIndex;
+
+        const getItemStyle = (itemIndex) => {
+          if (!isActiveDrag) return { transition: 'transform 0.2s ease' };
+          if (itemIndex === fromIdx) {
+            const offsetY = drag.currentY - drag.startY;
+            return {
+              transform: `translateY(${offsetY}px)`,
+              zIndex: 100,
+              opacity: 0.9,
+              pointerEvents: 'none',
+              transition: 'none',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+              borderRadius: '12px',
+            };
+          }
+          let shift = 0;
+          const h = drag.itemHeight;
+          if (fromIdx < overIdx) {
+            if (itemIndex > fromIdx && itemIndex <= overIdx) shift = -h;
+          } else if (fromIdx > overIdx) {
+            if (itemIndex >= overIdx && itemIndex < fromIdx) shift = h;
+          }
+          return {
+            transform: `translateY(${shift}px)`,
+            transition: 'transform 0.18s cubic-bezier(0.2, 0, 0, 1)',
+          };
+        };
+
         return (
           <div className="ordering-container">
-            <p className="ordering-hint">Зажмите элемент и перетащите, чтобы изменить порядок:</p>
+            <p className="ordering-hint">Зажмите элемент и перетащите чтобы изменить порядок:</p>
             <div
               className="ordering-list"
               ref={(el) => (orderingListRefs.current[index] = el)}
-              style={{ touchAction: 'none' }}
+              style={{ touchAction: 'none', position: 'relative' }}
             >
               {items.map((item, itemIndex) => {
-                const isDragging = isActiveDrag && drag.fromIndex === itemIndex;
-                const isOver = isActiveDrag && drag.overIndex === itemIndex && drag.fromIndex !== itemIndex;
-                const style = isDragging
-                  ? { transform: `translateY(${drag.offsetY}px)`, zIndex: 100, opacity: 0.8, pointerEvents: 'none' }
-                  : {};
+                const isDragging = isActiveDrag && fromIdx === itemIndex;
+                const isTarget = isActiveDrag && overIdx === itemIndex && fromIdx !== itemIndex;
                 return (
                   <div
                     key={`${item}-${itemIndex}`}
-                    className={`ordering-item${isDragging ? ' dragging' : ''}${isOver ? ' drag-over' : ''}`}
-                    style={style}
+                    className={`ordering-item${isDragging ? ' dragging' : ''}${isTarget ? ' drag-target' : ''}`}
+                    style={getItemStyle(itemIndex)}
                     data-index={itemIndex}
                     onPointerDown={(e) => handlePointerDown(e, index, itemIndex, items)}
                   >
-                    <span className="drag-handle">☰</span>
+                    <span className="drag-handle">⠿</span>
                     <span className="item-number">{itemIndex + 1}</span>
                     <span className="item-text">{item}</span>
                   </div>
@@ -598,7 +611,6 @@ function StudentHomework({ studentId }) {
           </div>
         );
       }
-
       case 'fill_blanks':
       case 'fill_in_blank': {
         const text = question.questionText || '';

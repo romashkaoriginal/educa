@@ -1,4 +1,4 @@
-const { User, Subject, UserSubject, HomeworkSubmission, HomeworkAnswer, PracticeAttempt, BotUser, QuizAnswer, QuizParticipant } = require('../models');
+const { User, Subject, UserSubject, HomeworkSubmission, HomeworkAnswer, PracticeAttempt, PracticeBest, PracticeDailyLog, BotUser, QuizAnswer, QuizParticipant } = require('../models');
 const { Op } = require('sequelize');
 
 const webAppUrl = process.env.WEB_APP_URL;
@@ -456,8 +456,10 @@ exports.deleteStudent = async (req, res) => {
     // 3. Удаляем HomeworkSubmission
     await HomeworkSubmission.destroy({ where: { userId: studentId } });
 
-    // 4. Удаляем PracticeAttempt
+    // 4. Удаляем PracticeAttempt, PracticeBest, PracticeDailyLog
     await PracticeAttempt.destroy({ where: { studentId } });
+    await PracticeBest.destroy({ where: { studentId } });
+    await PracticeDailyLog.destroy({ where: { studentId } });
 
     // 5. Удаляем QuizAnswer и QuizParticipant
     await QuizAnswer.destroy({ where: { userId: studentId } });

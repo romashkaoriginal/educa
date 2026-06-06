@@ -114,6 +114,17 @@ function StudentApp() {
   }, []);
 
   if (!selectedStudent) {
+    // Пока грузим — не показываем ничего чтобы не было flash экрана выбора
+    if (loading) return (
+      <div className="loading-screen">
+        <div className="role-logo">
+          <span className="logo-ed">ED</span>
+          <span className="logo-me">me</span>
+        </div>
+        <div className="loading-spinner"></div>
+      </div>
+    );
+
     return (
       <div className="student-selection">
         <div className="selection-container">
@@ -125,7 +136,7 @@ function StudentApp() {
           <h1 className="selection-title">Выберите ученика</h1>
           <p className="selection-subtitle"></p>
 
-          {loading ? (
+          {false ? (
             <div className="students-loading">
               {[1, 2, 3].map(i => (
                 <div key={i} className="student-select-card skeleton">

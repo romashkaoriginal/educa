@@ -16,6 +16,8 @@ function Practice({ studentId }) {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState(null);
   const [userAnswers, setUserAnswers] = useState([]);
+  const [remainingQuestions, setRemainingQuestions] = useState([]);
+  const [sessionAnswers, setSessionAnswers] = useState([]); // для адаптивности
   const [showResult, setShowResult] = useState(false);
   const [practiceResult, setPracticeResult] = useState(null);
   
@@ -48,6 +50,73 @@ function Practice({ studentId }) {
     };
   }, []);
 
+  // Перемешиваем варианты ответов в вопросе
+  const shuffleOptions = (question) => {
+    const indices = question.options.map((_, i) => i);
+    // Fisher-Yates shuffle
+    for (let i = indices.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [indices[i], indices[j]] = [indices[j], indices[i]];
+    }
+    return {
+      ...question,
+      options: indices.map(i => question.options[i]),
+      correctAnswer: indices.indexOf(question.correctAnswer)
+    };
+  };
+
+  // Динамический выбор следующего вопроса на основе текущей сессии
+  const pickNextQuestion = (remaining, sessionAnswers) => {
+    if (remaining.length === 0) return null;
+    if (remaining.length === 1) return remaining[0];
+
+    const shuffle = arr => [...arr].sort(() => Math.random() - 0.5);
+
+    // Нет ответов ещё — рандом
+    if (sessionAnswers.length === 0) {
+      return shuffle(remaining)[0];
+    }
+
+    // Смотрим последние 3 ответа
+    const last3 = sessionAnswers.slice(-3);
+    const last3Correct = last3.filter(a => a.isCorrect).length;
+    const last3Rate = last3Correct / last3.length; // 0..1
+
+    // Смотрим последние 3 ответа только на лёгких
+    const last3Easy = sessionAnswers.filter(a => a.difficulty === 'easy').slice(-3);
+    const easyRate = last3Easy.length > 0
+      ? last3Easy.filter(a => a.isCorrect).length / last3Easy.length
+      : null;
+
+    const easy = remaining.filter(q => q.difficulty === 'easy');
+    const medium = remaining.filter(q => !q.difficulty || q.difficulty === 'medium');
+    const hard = remaining.filter(q => q.difficulty === 'hard');
+
+    let preferred = [];
+
+    if (last3Rate >= 0.8) {
+      // Хорошо справляется — подкидываем сложнее
+      preferred = hard.length > 0 ? hard : medium.length > 0 ? medium : remaining;
+    } else if (last3Rate >= 0.5) {
+      // Средне — medium или hard
+      preferred = medium.length > 0 ? medium : hard.length > 0 ? hard : remaining;
+    } else {
+      // Ошибается — возвращаем к лёгким
+      preferred = easy.length > 0 ? easy : medium.length > 0 ? medium : remaining;
+    }
+
+    // Если preferred пустой — берём из remaining
+    if (preferred.length === 0) preferred = remaining;
+    return shuffle(preferred)[0];
+  };
+
+  // Начальная раскладка — всё вперемешку
+  const getAdaptiveQuestions = (allQuestions) => {
+    return [...allQuestions]
+      .sort(() => Math.random() - 0.5)
+      .map(shuffleOptions);
+  };
+
   const startPractice = async (topic) => {
     try {
       const activeQuestions = await getQuestions(topic);
@@ -57,8 +126,13 @@ function Practice({ studentId }) {
         return;
       }
 
+      // Адаптивный подбор по текущей статистике темы
+      const adaptiveQuestions = getAdaptiveQuestions(activeQuestions);
+
       setActivePractice(topic);
-      setQuestions(activeQuestions);
+      setQuestions(adaptiveQuestions);
+      setRemainingQuestions(adaptiveQuestions.slice(1));
+      setSessionAnswers([]);
       setCurrentQuestionIndex(0);
       setSelectedAnswer(null);
       setUserAnswers([]);
@@ -90,13 +164,31 @@ function Practice({ studentId }) {
     }];
     setUserAnswers(newAnswers);
 
+    // Обновляем sessionAnswers для адаптивности
+    const newSessionAnswers = [...sessionAnswers, {
+      questionId: currentQuestion.id,
+      difficulty: currentQuestion.difficulty || 'medium',
+      isCorrect: correct
+    }];
+    setSessionAnswers(newSessionAnswers);
+
     // Автопереход через 1.5 секунды
     autoNextTimerRef.current = setTimeout(() => {
-      if (currentQuestionIndex < questions.length - 1) {
+      if (remainingQuestions.length > 0) {
+        // Динамически выбираем следующий вопрос
+        const nextQ = shuffleOptions(pickNextQuestion(remainingQuestions, newSessionAnswers));
+        const newRemaining = remainingQuestions.filter(q => q.id !== nextQ.id);
+        setRemainingQuestions(newRemaining);
         setCurrentQuestionIndex(currentQuestionIndex + 1);
         setSelectedAnswer(null);
         setAnswered(false);
         setIsCorrect(false);
+        // Подменяем вопрос в массиве questions для корректного отображения
+        setQuestions(prev => {
+          const updated = [...prev];
+          updated[currentQuestionIndex + 1] = nextQ;
+          return updated;
+        });
       } else {
         finishPractice(newAnswers);
       }
@@ -140,6 +232,8 @@ function Practice({ studentId }) {
     setPracticeResult(null);
     setAnswered(false);
     setShowExplanationHint(false);
+    setRemainingQuestions([]);
+    setSessionAnswers([]);
     
     // Обновляем данные через контекст
     refreshAfterPractice();
