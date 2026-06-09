@@ -6,6 +6,35 @@ const webAppUrl = process.env.WEB_APP_URL;
 
 let bot = null;
 
+function isHttpsWebAppUrl(url) {
+  return typeof url === 'string' && url.startsWith('https://');
+}
+
+async function safeSetChatMenuButton(chatId, button) {
+  try {
+    await bot.setChatMenuButton({
+      chat_id: chatId,
+      menu_button: JSON.stringify(button)
+    });
+  } catch (error) {
+    console.error('Ошибка setChatMenuButton:', error.message);
+  }
+}
+
+async function sendStartMessage(chatId, text, options = {}) {
+  try {
+    await bot.sendMessage(chatId, text, options);
+  } catch (error) {
+    console.error('Ошибка sendMessage (/start):', error.message);
+    const { reply_markup, ...plainOptions } = options;
+    if (reply_markup) {
+      await bot.sendMessage(chatId, `${text}\n\n⚠️ Кнопка приложения временно недоступна — нужен HTTPS-домен.`, plainOptions);
+      return;
+    }
+    throw error;
+  }
+}
+
 const testSessions = {};
 const lastTestResults = {};
 const applicationSessions = {};
@@ -214,46 +243,58 @@ function startBot() {
   bot = new TelegramBot(token, { polling: true });
   console.log('🤖 Telegram бот запущен');
 
+  bot.deleteWebHook().catch((error) => {
+    console.error('Не удалось удалить webhook:', error.message);
+  });
+
   // /start
   bot.onText(/\/start/, async (msg) => {
     const chatId = msg.chat.id;
     const user = msg.from;
     const firstName = user.first_name || 'Пользователь';
 
-    await registerBotUser(user);
-    const systemUser = await checkUserRole(user.id);
+    try {
+      await registerBotUser(user);
+      const systemUser = await checkUserRole(user.id);
 
-    if (systemUser) {
-      if (!systemUser.isActive) {
-        // Убираем кнопку меню
-        await bot.setChatMenuButton(chatId, { type: 'default' });
-        return bot.sendMessage(chatId, `❌ Ваш аккаунт деактивирован.\n\nОбратитесь к администратору.`);
+      if (systemUser) {
+        if (!systemUser.isActive) {
+          await safeSetChatMenuButton(chatId, { type: 'default' });
+          return sendStartMessage(chatId, `❌ Ваш аккаунт деактивирован.\n\nОбратитесь к администратору.`);
+        }
+
+        const roleEmoji = { admin: '👨‍💼', teacher: '👨‍🏫', manager: '📊', student: '👨‍🎓' };
+        const roleNames = { admin: 'Администратор', teacher: 'Преподаватель', manager: 'Менеджер', student: 'Ученик' };
+
+        const welcomeText = `👋 Привет, ${firstName}!\n\n${roleEmoji[systemUser.role]} Роль: ${roleNames[systemUser.role]}\n\n🎓 Добро пожаловать в EDme!`;
+
+        if (isHttpsWebAppUrl(webAppUrl)) {
+          await safeSetChatMenuButton(chatId, {
+            type: 'web_app',
+            text: '📚 Открыть приложение',
+            web_app: { url: webAppUrl }
+          });
+
+          return sendStartMessage(chatId, welcomeText, {
+            reply_markup: {
+              inline_keyboard: [[{ text: '📚 Открыть приложение', web_app: { url: webAppUrl } }]]
+            }
+          });
+        }
+
+        await safeSetChatMenuButton(chatId, { type: 'default' });
+        return sendStartMessage(
+          chatId,
+          `${welcomeText}\n\n🌐 Приложение: ${webAppUrl}\n\n⚠️ Для кнопки в Telegram нужен HTTPS-домен.`
+        );
       }
 
-      // Показываем кнопку меню с апкой
-      await bot.setChatMenuButton(chatId, {
-        type: 'web_app',
-        text: '📚 Открыть приложение',
-        web_app: { url: webAppUrl }
-      });
-
-      const roleEmoji = { admin: '👨‍💼', teacher: '👨‍🏫', manager: '📊', student: '👨‍🎓' };
-      const roleNames = { admin: 'Администратор', teacher: 'Преподаватель', manager: 'Менеджер', student: 'Ученик' };
-
-      return bot.sendMessage(
-        chatId,
-        `👋 Привет, ${firstName}!\n\n${roleEmoji[systemUser.role]} Роль: ${roleNames[systemUser.role]}\n\n🎓 Добро пожаловать в EDme!`,
-        {
-          reply_markup: {
-            inline_keyboard: [[{ text: '📚 Открыть приложение', web_app: { url: webAppUrl } }]]
-          }
-        }
-      );
+      await safeSetChatMenuButton(chatId, { type: 'default' });
+      await showSubjectPicker(chatId, firstName);
+    } catch (error) {
+      console.error('Ошибка /start:', error.message);
+      await bot.sendMessage(chatId, '❌ Не удалось обработать команду /start. Попробуйте ещё раз через минуту.');
     }
-
-    // Неавторизованный — убираем кнопку меню
-    await bot.setChatMenuButton(chatId, { type: 'default' });
-    await showSubjectPicker(chatId, firstName);
   });
 
   // /help
