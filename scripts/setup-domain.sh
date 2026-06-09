@@ -1,5 +1,5 @@
 #!/bin/bash
-set -euo pipefail
+set -eu
 
 if [ -z "${1:-}" ]; then
   echo "Использование: bash setup-domain.sh your-domain.by admin@email.com"
