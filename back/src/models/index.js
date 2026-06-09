@@ -18,6 +18,7 @@ const PracticeAttempt = require('./PracticeAttempt');
 const PracticeBest = require('./PracticeBest');
 const PracticeDailyLog = require('./PracticeDailyLog');
 const PracticeQuestionResult = require('./PracticeQuestionResult');
+const PracticeScoreHistory = require('./PracticeScoreHistory');
 const BotUser = require('./BotUser');
 const NotificationLog = require('./NotificationLog');
 const BotTest = require('./BotTest');
@@ -115,6 +116,12 @@ PracticeQuestionResult.belongsTo(Subject, { foreignKey: 'subjectId', as: 'subjec
 User.hasMany(PracticeQuestionResult, { foreignKey: 'studentId', as: 'questionResults' });
 PracticeTopic.hasMany(PracticeQuestionResult, { foreignKey: 'topicId', as: 'questionResults' });
 
+// ========== PRACTICE SCORE HISTORY ==========
+PracticeScoreHistory.belongsTo(User, { foreignKey: 'studentId', as: 'student' });
+PracticeScoreHistory.belongsTo(Subject, { foreignKey: 'subjectId', as: 'subject' });
+User.hasMany(PracticeScoreHistory, { foreignKey: 'studentId', as: 'scoreHistory' });
+Subject.hasMany(PracticeScoreHistory, { foreignKey: 'subjectId', as: 'scoreHistory' });
+
 // Синхронизация
 const syncDatabase = async () => {
   try {
@@ -131,7 +138,7 @@ module.exports = {
   Quiz, QuizQuestion, QuizParticipant, QuizAnswer,
   Homework, HomeworkQuestion, HomeworkSubmission, HomeworkAnswer,
   PracticeTopic, PracticeQuestion, PracticeAttempt,
-  PracticeBest, PracticeDailyLog, PracticeQuestionResult,
+  PracticeBest, PracticeDailyLog, PracticeQuestionResult, PracticeScoreHistory,
   NotificationLog, BotUser, BotTest, Application,
   syncDatabase
 };

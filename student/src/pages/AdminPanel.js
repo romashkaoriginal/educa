@@ -134,7 +134,7 @@ function AdminPanelContent() {
         <div style={{ display: activeSection === 'students' ? 'block' : 'none' }}><Students subjects={subjects} /></div>
         <div style={{ display: activeSection === 'practice' ? 'block' : 'none' }}><Practice subjects={subjects} /></div>
         <div style={{ display: activeSection === 'homework' ? 'block' : 'none' }}><Homework subjects={subjects} currentUserId={currentUser?.id} /></div>
-        <div style={{ display: activeSection === 'statistics' ? 'block' : 'none' }}><Statistics /></div>
+        <div style={{ display: activeSection === 'statistics' ? 'block' : 'none' }}><Statistics currentUser={currentUser} /></div>
         <div style={{ display: activeSection === 'quiz' ? 'block' : 'none' }}><Quiz subjects={subjects} currentUserId={currentUser?.id} /></div>
         <div style={{ display: activeSection === 'notifications' ? 'block' : 'none' }}><Notifications subjects={subjects} currentUser={currentUser} /></div>
         <div style={{ display: activeSection === 'bottest' ? 'block' : 'none' }}><BotTestEditor subjects={subjects} /></div>

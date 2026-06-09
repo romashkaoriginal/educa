@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import '../../styles/Statistics.css';
 import { adminFetch } from './adminApi';
-import { useAdminData } from './AdminDataContext';
-
 import { API_URL } from '../../config';
 
-function AdminStatistics() {
+function AdminStatistics({ currentUser }) {
+  const userRole = currentUser?.role || 'admin';
+  const isManager = userRole === 'manager';
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -22,6 +22,7 @@ function AdminStatistics() {
 
   // Данные для режима "ученик"
   const [studentPractice, setStudentPractice] = useState(null);
+  const [studentPredicted, setStudentPredicted] = useState(null);
   const [studentHomework, setStudentHomework] = useState(null);
   const [studentLoading, setStudentLoading] = useState(false);
 
@@ -123,8 +124,14 @@ function AdminStatistics() {
     setStudentLoading(true);
     try {
       if (activeTab === 'practice') {
-        const res = await adminFetch(`${API_URL}/practice/stats/${selectedStudent.id}`);
-        const data = await res.json();
+        const [statsRes, predictedRes] = await Promise.all([
+          adminFetch(`${API_URL}/practice/stats/${selectedStudent.id}`),
+          adminFetch(`${API_URL}/practice/admin-predicted/${selectedStudent.id}`)
+        ]);
+        const data = await statsRes.json();
+        const predictedData = await predictedRes.json();
+        setStudentPredicted(predictedData.subjects || []);
+
         // Группируем topicStats по предметам
         const bySubject = {};
         (data.topicStats || []).forEach(t => {
@@ -304,28 +311,137 @@ function AdminStatistics() {
           {studentLoading ? <p>Загрузка...</p> : (
             <>
               {/* ПРАКТИКА - ученик */}
-              {activeTab === 'practice' && studentPractice && (
-                studentPractice.length === 0
-                  ? <div className="empty-state"><div className="empty-icon">📚</div><p>Ещё не решал задания</p></div>
-                  : studentPractice.map((subj, si) => (
-                    <div key={si} className="stats-block">
-                      <h3>{subj.icon} {subj.name}</h3>
-                      <div className="topics-list">
-                        {subj.topics.map((t, ti) => (
-                          <div key={ti} className="topic-stat-row">
-                            <div className="topic-info">
-                              <span className="topic-icon">{t.icon}</span>
-                              <span className="topic-name">{t.name}</span>
-                            </div>
-                            <div className="topic-numbers">
-                              <span className="count">{t.correct}/{t.total}</span>
-                              <PercentBadge value={t.percent} />
-                            </div>
+              {activeTab === 'practice' && (
+                <>
+                  {studentPredicted && studentPredicted.length > 0 && (
+                    <div className="stats-block predicted-analytics-block">
+                      <h3>🎯 Прогнозный балл ЦТ</h3>
+                      {studentPredicted.map((subj, pi) => (
+                        <div key={pi} className="predicted-subject-card">
+                          <div className="predicted-subject-header">
+                            <span>{subj.subject?.icon} {subj.subject?.name}</span>
+                            {subj.unlocked ? (
+                              <span className="predicted-score-badge">{subj.score}/100</span>
+                            ) : (
+                              <span className="predicted-locked-badge">🔒 {subj.solved}/50</span>
+                            )}
                           </div>
-                        ))}
-                      </div>
+
+                          {isManager ? (
+                            <div className="predicted-manager-summary">
+                              Решено уникальных заданий: <strong>{subj.solved}</strong>
+                            </div>
+                          ) : subj.unlocked ? (
+                            <>
+                              <div className="predicted-summary-row">
+                                <span>Решено: {subj.solved}</span>
+                                <span>Точность: {subj.accuracy}%</span>
+                              </div>
+
+                              {subj.weakTopics?.length > 0 && (
+                                <div className="predicted-weak-block">
+                                  <div className="predicted-section-label">Слабые темы</div>
+                                  {subj.weakTopics.map(t => (
+                                    <div key={t.topicId} className="predicted-topic-row weak">
+                                      <span>{t.name}</span>
+                                      <PercentBadge value={t.progress} />
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+
+                              {subj.topics?.length > 0 && (
+                                <div className="predicted-topics-block">
+                                  <div className="predicted-section-label">Прогресс по темам</div>
+                                  {subj.topics.map(t => (
+                                    <div key={t.topicId} className="predicted-topic-row">
+                                      <span>{t.icon} {t.name}</span>
+                                      <PercentBadge value={t.progress} />
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+
+                              {subj.topics?.some(t => t.difficulties?.length) && (
+                                <div className="predicted-diff-block">
+                                  <div className="predicted-section-label">По сложности</div>
+                                  {subj.topics.map(t => (
+                                    <div key={`diff-${t.topicId}`} className="predicted-diff-topic">
+                                      <div className="predicted-diff-topic-name">{t.name}</div>
+                                      <div className="predicted-diff-grid">
+                                        {(t.difficulties || []).map(d => (
+                                          <div key={d.difficulty} className="predicted-diff-item">
+                                            <span className={`diff-tag ${d.difficulty}`}>
+                                              {d.difficulty === 'easy' ? '🟢' : d.difficulty === 'medium' ? '🟡' : '🔴'}
+                                              {' '}{d.solved}/{d.target}
+                                            </span>
+                                            <span>{d.accuracy}% · M {d.mastery}%</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+
+                              {subj.history?.length > 1 && (
+                                <div className="predicted-history-block">
+                                  <div className="predicted-section-label">
+                                    Динамика балла
+                                    {subj.history.length >= 2 && (
+                                      <span className={`history-growth ${subj.history[subj.history.length - 1].score >= subj.history[0].score ? 'up' : 'down'}`}>
+                                        {' '}{subj.history[subj.history.length - 1].score - subj.history[0].score >= 0 ? '+' : ''}
+                                        {subj.history[subj.history.length - 1].score - subj.history[0].score}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="predicted-history-list">
+                                    {subj.history.map((h, hi) => (
+                                      <div key={hi} className="predicted-history-item">
+                                        <span>{h.date}</span>
+                                        <span>{h.score} баллов ({h.solvedCount} зад.)</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </>
+                          ) : (
+                            <p className="predicted-unlock-hint">
+                              Нужно решить ещё {subj.needed ?? (50 - (subj.solved || 0))} заданий для прогноза
+                            </p>
+                          )}
+                        </div>
+                      ))}
                     </div>
-                  ))
+                  )}
+
+                  {studentPractice && (
+                    studentPractice.length === 0
+                      ? (!studentPredicted?.length && (
+                        <div className="empty-state"><div className="empty-icon">📚</div><p>Ещё не решал задания</p></div>
+                      ))
+                      : studentPractice.map((subj, si) => (
+                        <div key={si} className="stats-block">
+                          <h3>{subj.icon} {subj.name} — сессии по темам</h3>
+                          <div className="topics-list">
+                            {subj.topics.map((t, ti) => (
+                              <div key={ti} className="topic-stat-row">
+                                <div className="topic-info">
+                                  <span className="topic-icon">{t.icon}</span>
+                                  <span className="topic-name">{t.name}</span>
+                                </div>
+                                <div className="topic-numbers">
+                                  <span className="count">{t.correct}/{t.total}</span>
+                                  <PercentBadge value={t.percent} />
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))
+                  )}
+                </>
               )}
 
               {/* ДОМАШКА - ученик */}

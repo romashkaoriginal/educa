@@ -18,6 +18,10 @@ export const DataProvider = ({ children, studentId }) => {
   const [practiceStats, setPracticeStats] = useState(null);
   const [homeworkStats, setHomeworkStats] = useState(null);
   const [streak, setStreak] = useState({ streak: 0, todayDone: false });
+  const [predictedScore, setPredictedScore] = useState(null);
+  const [dailyGoal, setDailyGoal] = useState(null);
+  const [leaderboard, setLeaderboard] = useState(null);
+  const [scoreHistory, setScoreHistory] = useState(null);
 
   const [loaded, setLoaded] = useState({
     subjects: false, practice: false, homework: false,
@@ -209,6 +213,68 @@ export const DataProvider = ({ children, studentId }) => {
     }
   }, [studentId]); // eslint-disable-line
 
+  const loadPredictedScore = useCallback(async (subjectId) => {
+    if (!subjectId) return null;
+    try {
+      const response = await apiFetch(`${API_URL}/practice/predicted/${studentId}/${subjectId}`);
+      const data = await response.json();
+      setPredictedScore(data);
+      return data;
+    } catch (error) {
+      console.error('Error loading predicted score:', error);
+      return null;
+    }
+  }, [studentId]);
+
+  const loadDailyGoal = useCallback(async () => {
+    try {
+      const response = await apiFetch(`${API_URL}/practice/daily-goal/${studentId}`);
+      const data = await response.json();
+      setDailyGoal(data);
+      return data;
+    } catch (error) {
+      console.error('Error loading daily goal:', error);
+      return null;
+    }
+  }, [studentId]);
+
+  const loadLeaderboard = useCallback(async (subjectId, period = 'day') => {
+    if (!subjectId) return null;
+    try {
+      const response = await apiFetch(`${API_URL}/practice/leaderboard/${subjectId}?period=${period}&studentId=${studentId}`);
+      const data = await response.json();
+      setLeaderboard(data);
+      return data;
+    } catch (error) {
+      console.error('Error loading leaderboard:', error);
+      return null;
+    }
+  }, [studentId]);
+
+  const loadScoreHistory = useCallback(async (subjectId) => {
+    if (!subjectId) return null;
+    try {
+      const response = await apiFetch(`${API_URL}/practice/score-history/${studentId}/${subjectId}`);
+      const data = await response.json();
+      setScoreHistory(data);
+      return data;
+    } catch (error) {
+      console.error('Error loading score history:', error);
+      return null;
+    }
+  }, [studentId]);
+
+  const loadWeakTopicsQuestions = useCallback(async (subjectId) => {
+    if (!subjectId) return null;
+    try {
+      const response = await apiFetch(`${API_URL}/practice/weak-topics/${studentId}/${subjectId}`);
+      return await response.json();
+    } catch (error) {
+      console.error('Error loading weak topics:', error);
+      return null;
+    }
+  }, [studentId]);
+
   const preloadAllData = useCallback(async () => {
     // Сначала грузим то что видно сразу — subjects и practice
     await Promise.all([loadSubjects(), loadPractice()]);
@@ -216,11 +282,19 @@ export const DataProvider = ({ children, studentId }) => {
     Promise.all([loadHomeworks(), loadPracticeStats(), loadHomeworkStats(), loadStreak()]);
   }, [loadSubjects, loadPractice, loadHomeworks, loadPracticeStats, loadHomeworkStats]);
 
-  const refreshAfterPractice = useCallback(async () => {
+  const refreshAfterPractice = useCallback(async (subjectId, leaderboardPeriod = 'day') => {
     loadedRef.current.practice = false;
     loadedRef.current.practiceStats = false;
-    await Promise.all([loadPractice(true), loadPracticeStats(true), loadStreak(true)]);
-  }, [loadPractice, loadPracticeStats, loadStreak]);
+    await Promise.all([
+      loadPractice(true),
+      loadPracticeStats(true),
+      loadStreak(true),
+      loadDailyGoal(),
+      subjectId ? loadPredictedScore(subjectId) : Promise.resolve(),
+      subjectId ? loadScoreHistory(subjectId) : Promise.resolve(),
+      subjectId ? loadLeaderboard(subjectId, leaderboardPeriod) : Promise.resolve()
+    ]);
+  }, [loadPractice, loadPracticeStats, loadStreak, loadDailyGoal, loadPredictedScore, loadScoreHistory, loadLeaderboard]);
 
   const refreshAfterHomework = useCallback(async () => {
     loadedRef.current.homework = false;
@@ -234,7 +308,12 @@ export const DataProvider = ({ children, studentId }) => {
     loadSubjects, loadPractice, loadHomeworks, loadPracticeStats, loadHomeworkStats,
     preloadAllData, refreshAfterPractice, refreshAfterHomework,
     prefetchQuestions, getQuestions, updatePracticeStatsOptimistic,
-    streak, loadStreak
+    streak, loadStreak,
+    predictedScore, loadPredictedScore,
+    dailyGoal, loadDailyGoal,
+    leaderboard, loadLeaderboard,
+    scoreHistory, loadScoreHistory,
+    loadWeakTopicsQuestions
   };
 
   return (

@@ -21,7 +21,8 @@ function Practice() {
   const [topicForm, setTopicForm] = useState({
     name: '',
     description: '',
-    icon: '📝'
+    icon: '📝',
+    weight: ''
   });
   
   const [questionForm, setQuestionForm] = useState({
@@ -95,8 +96,37 @@ function Practice() {
     setTopicForm({
       name: '',
       description: '',
-      icon: '📝'
+      icon: '📝',
+      weight: ''
     });
+  };
+
+  const getTopicWeightSum = (excludeTopicId = null) => {
+    return topics.reduce((sum, t) => {
+      if (excludeTopicId && t.id === excludeTopicId) return sum;
+      const w = parseFloat(t.weight);
+      return sum + (Number.isFinite(w) ? w : 0);
+    }, 0);
+  };
+
+  const getProjectedWeightSum = () => {
+    const formWeight = parseFloat(topicForm.weight);
+    const currentWeight = Number.isFinite(formWeight) ? formWeight : 0;
+    const othersSum = getTopicWeightSum(editingTopic?.id || null);
+    return Math.round((othersSum + currentWeight) * 10) / 10;
+  };
+
+  const buildTopicPayload = () => {
+    const payload = {
+      name: topicForm.name,
+      description: topicForm.description,
+      icon: topicForm.icon
+    };
+    if (topicForm.weight !== '' && topicForm.weight != null) {
+      const w = parseFloat(topicForm.weight);
+      if (Number.isFinite(w)) payload.weight = w;
+    }
+    return payload;
   };
 
   const resetQuestionForm = () => {
@@ -116,7 +146,7 @@ function Practice() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...topicForm,
+          ...buildTopicPayload(),
           subjectId: selectedSubject.id
         })
       });
@@ -136,7 +166,8 @@ function Practice() {
     setTopicForm({
       name: topic.name,
       description: topic.description || '',
-      icon: topic.icon || '📝'
+      icon: topic.icon || '📝',
+      weight: topic.weight != null ? String(topic.weight) : ''
     });
     setShowTopicModal(true);
   };
@@ -147,7 +178,7 @@ function Practice() {
       const response = await adminFetch(`${API_URL}/practice/topics/${editingTopic.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(topicForm)
+        body: JSON.stringify(buildTopicPayload())
       });
 
       if (response.ok) {
@@ -322,6 +353,16 @@ function Practice() {
           <div>
             <h2 className="section-title">Разделы практики</h2>
             <p className="section-description">{selectedSubject.name}</p>
+            {(() => {
+              const sum = getTopicWeightSum();
+              if (sum <= 0) return null;
+              const ok = Math.abs(sum - 100) < 0.01;
+              return (
+                <p className={`weight-sum-banner ${ok ? 'ok' : 'warn'}`}>
+                  Сумма весов тем: {sum}% {ok ? '✓' : '— должно быть 100%'}
+                </p>
+              );
+            })()}
           </div>
           <button 
             className="btn-primary"
@@ -374,6 +415,9 @@ function Practice() {
                 <p>{topic.description}</p>
                 <div className="topic-meta">
                   <span>📝 {topic.questionCount || 0} вопросов</span>
+                  {topic.weight != null && (
+                    <span className="topic-weight-badge">⚖️ {topic.weight}%</span>
+                  )}
                 </div>
               </div>
             </div>
@@ -423,6 +467,28 @@ function Practice() {
                     onChange={(e) => setTopicForm({...topicForm, icon: e.target.value})}
                     placeholder="📝"
                   />
+                </div>
+
+                <div className="form-group">
+                  <label>Вес темы (%)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    value={topicForm.weight}
+                    onChange={(e) => setTopicForm({...topicForm, weight: e.target.value})}
+                    placeholder="Например: 25"
+                  />
+                  <p className="form-hint">
+                    Сумма весов всех тем предмета должна быть 100%.
+                    {topicForm.weight !== '' && (
+                      <> Итого будет: <strong>{getProjectedWeightSum()}%</strong></>
+                    )}
+                  </p>
+                  {topicForm.weight !== '' && Math.abs(getProjectedWeightSum() - 100) >= 0.01 && (
+                    <p className="weight-warning">⚠️ Сумма весов не равна 100%</p>
+                  )}
                 </div>
 
                 <div className="modal-actions">

@@ -9,6 +9,9 @@ package-lock.json
 .env.production
 back/.env.production
 
+# Docker secrets (root)
+!.env.example
+
 # Build outputs
 /admin/build/
 /admin/dist/

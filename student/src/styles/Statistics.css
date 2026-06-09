@@ -570,3 +570,133 @@
 .as-hw-row-header .as-hw-done {
   white-space: nowrap;
 }
+
+/* ========== ПРОГНОЗНЫЙ БАЛЛ (аналитика ученика) ========== */
+.predicted-analytics-block {
+  margin-bottom: 24px;
+}
+
+.predicted-subject-card {
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 12px;
+}
+
+.predicted-subject-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 700;
+  font-size: 15px;
+  color: #1f2937;
+  margin-bottom: 10px;
+}
+
+.predicted-score-badge {
+  background: linear-gradient(135deg, #1E40AF, #3B82F6);
+  color: white;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.predicted-locked-badge {
+  font-size: 13px;
+  color: #6b7280;
+  font-weight: 600;
+}
+
+.predicted-manager-summary,
+.predicted-summary-row {
+  font-size: 13px;
+  color: #4b5563;
+  margin-bottom: 8px;
+}
+
+.predicted-summary-row {
+  display: flex;
+  gap: 16px;
+}
+
+.predicted-section-label {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: #6b7280;
+  margin: 10px 0 6px;
+}
+
+.predicted-topic-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  background: white;
+  border-radius: 8px;
+  margin-bottom: 4px;
+  font-size: 13px;
+}
+
+.predicted-topic-row.weak {
+  background: #fef2f2;
+}
+
+.predicted-diff-topic {
+  margin-bottom: 8px;
+}
+
+.predicted-diff-topic-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 4px;
+}
+
+.predicted-diff-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.predicted-diff-item {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #6b7280;
+  padding: 4px 8px;
+  background: white;
+  border-radius: 6px;
+}
+
+.diff-tag.easy { color: #059669; }
+.diff-tag.medium { color: #d97706; }
+.diff-tag.hard { color: #dc2626; }
+
+.predicted-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.predicted-history-item {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #4b5563;
+  padding: 6px 8px;
+  background: white;
+  border-radius: 6px;
+}
+
+.history-growth.up { color: #059669; font-weight: 700; }
+.history-growth.down { color: #dc2626; font-weight: 700; }
+
+.predicted-unlock-hint {
+  font-size: 13px;
+  color: #6b7280;
+  margin: 0;
+}

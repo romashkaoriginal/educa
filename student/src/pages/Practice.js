@@ -7,9 +7,17 @@ import { API_URL } from '../config';
 
 function Practice({ studentId }) {
   // Используем данные из контекста
-  const { practiceTopics, subjects, refreshAfterPractice, loading: contextLoading, prefetchQuestions, getQuestions, updatePracticeStatsOptimistic, streak } = useData();
+  const {
+    practiceTopics, subjects, refreshAfterPractice, loading: contextLoading,
+    prefetchQuestions, getQuestions, updatePracticeStatsOptimistic, streak,
+    predictedScore, loadPredictedScore, dailyGoal, loadDailyGoal,
+    leaderboard, loadLeaderboard, scoreHistory, loadScoreHistory,
+    loadWeakTopicsQuestions
+  } = useData();
   
-  const [selectedSubject, setSelectedSubject] = useState(null); // null = экран выбора предмета
+  const [selectedSubject, setSelectedSubject] = useState(null);
+  const [leaderboardPeriod, setLeaderboardPeriod] = useState('day');
+  const [weakTopicsLoading, setWeakTopicsLoading] = useState(false);
   
   const [activePractice, setActivePractice] = useState(null);
   const [questions, setQuestions] = useState([]);
@@ -55,6 +63,16 @@ function Practice({ studentId }) {
       prefetchQuestions(practiceTopics);
     }
   }, [practiceTopics, prefetchQuestions]);
+
+  // Загрузка прогноза, целей и рейтинга при выборе предмета
+  useEffect(() => {
+    if (selectedSubject?.id) {
+      loadPredictedScore(selectedSubject.id);
+      loadDailyGoal();
+      loadScoreHistory(selectedSubject.id);
+      loadLeaderboard(selectedSubject.id, leaderboardPeriod);
+    }
+  }, [selectedSubject, leaderboardPeriod, loadPredictedScore, loadDailyGoal, loadScoreHistory, loadLeaderboard]);
 
   // Очистка таймера при размонтировании
   useEffect(() => {
@@ -130,31 +148,56 @@ function Practice({ studentId }) {
       .map(shuffleOptions);
   };
 
+  const startPracticeFromQuestions = (topic, activeQuestions, label) => {
+    if (activeQuestions.length === 0) {
+      alert('Нет доступных вопросов');
+      return;
+    }
+    const adaptiveQuestions = getAdaptiveQuestions(activeQuestions);
+    setActivePractice({ ...topic, name: label || topic.name });
+    setQuestions(adaptiveQuestions);
+    setRemainingQuestions(adaptiveQuestions.slice(1));
+    setSessionAnswers([]);
+    setCurrentQuestionIndex(0);
+    setSelectedAnswer(null);
+    setUserAnswers([]);
+    setShowResult(false);
+    setAnswered(false);
+    setShowExplanationHint(false);
+  };
+
   const startPractice = async (topic) => {
     try {
       const activeQuestions = await getQuestions(topic);
-      
-      if (activeQuestions.length === 0) {
-        alert('В этой практике пока нет вопросов');
-        return;
-      }
-
-      // Адаптивный подбор по текущей статистике темы
-      const adaptiveQuestions = getAdaptiveQuestions(activeQuestions);
-
-      setActivePractice(topic);
-      setQuestions(adaptiveQuestions);
-      setRemainingQuestions(adaptiveQuestions.slice(1));
-      setSessionAnswers([]);
-      setCurrentQuestionIndex(0);
-      setSelectedAnswer(null);
-      setUserAnswers([]);
-      setShowResult(false);
-      setAnswered(false);
-      setShowExplanationHint(false);
+      startPracticeFromQuestions(topic, activeQuestions);
     } catch (error) {
       console.error('Error loading questions:', error);
       alert('Ошибка загрузки вопросов');
+    }
+  };
+
+  const startWeakTopicsPractice = async () => {
+    if (!selectedSubject) return;
+    setWeakTopicsLoading(true);
+    try {
+      const data = await loadWeakTopicsQuestions(selectedSubject.id);
+      const questionsList = (data?.questions || []).map(shuffleOptions);
+      if (questionsList.length === 0) {
+        alert(data?.message || 'Нет заданий по слабым темам');
+        return;
+      }
+      const virtualTopic = {
+        id: `weak-${selectedSubject.id}`,
+        name: 'Слабые темы',
+        subjectId: selectedSubject.id,
+        icon: '🎯'
+      };
+      startPracticeFromQuestions(virtualTopic, questionsList, 'Тренировка слабых тем');
+    } catch (error) {
+      console.error('Error starting weak topics:', error);
+      alert('Не удалось загрузить задания');
+    } finally {
+      setWeakTopicsLoading(false);
     }
   };
 
@@ -226,18 +269,31 @@ function Practice({ studentId }) {
     setShowResult(true);
 
     // Оптимистично обновляем статистику темы
-    updatePracticeStatsOptimistic(activePractice.id, correctCount, totalCount);
+    if (typeof activePractice.id === 'number') {
+      updatePracticeStatsOptimistic(activePractice.id, correctCount, totalCount);
+    }
 
     // Отправляем итог теста на сервер (fire-and-forget)
+    const questionMap = {};
+    questions.forEach(q => { questionMap[q.id] = q; });
+
     apiFetch(`${API_URL}/practice/attempts`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         studentId,
-        topicId: activePractice.id,
+        topicId: typeof activePractice.id === 'number'
+          ? activePractice.id
+          : (answers.map(a => questionMap[a.questionId]?.topicId).find(id => id != null) || null),
         subjectId: activePractice.subjectId,
         correct: correctCount,
-        total: totalCount
+        total: totalCount,
+        answers: answers.map(a => ({
+          questionId: a.questionId,
+          difficulty: questionMap[a.questionId]?.difficulty || 'medium',
+          isCorrect: a.isCorrect,
+          topicId: questionMap[a.questionId]?.topicId || (typeof activePractice.id === 'number' ? activePractice.id : null)
+        })).filter(a => a.questionId && a.topicId)
       })
     }).catch(e => console.error('Error saving attempt:', e));
   };
@@ -275,7 +331,7 @@ function Practice({ studentId }) {
     setSessionAnswers([]);
     
     // Обновляем данные через контекст
-    refreshAfterPractice();
+    refreshAfterPractice(activePractice?.subjectId || selectedSubject?.id, leaderboardPeriod);
   };
 
   const backToSubjects = () => {
@@ -496,10 +552,15 @@ function Practice({ studentId }) {
     );
   }
 
-  // ========== ЭКРАН СПИСКА ПОДРАЗДЕЛОgВ ==========
   const filteredTopics = selectedSubject 
     ? practiceTopics.filter(topic => topic.subjectId === selectedSubject.id)
     : practiceTopics;
+
+  const subjectDailyGoal = dailyGoal?.goals?.find(g => g.subjectId === selectedSubject?.id);
+  const scoreDelta = predictedScore?.delta;
+  const remainingTo70 = predictedScore?.unlocked && predictedScore.score < 70
+    ? Math.max(1, Math.ceil((70 - predictedScore.score) / 2))
+    : null;
 
   return (
     <div className="section">
@@ -526,6 +587,145 @@ function Practice({ studentId }) {
         </div>
         <p className="practice-subtitle">Тренируйся в своём темпе и улучшай навыки</p>
       </div>
+
+      {selectedSubject && (
+        <div className="practice-dashboard">
+          {/* Прогнозный балл ЦТ */}
+          <div className="dash-card predicted-score-card">
+            {predictedScore?.unlocked ? (
+              <>
+                <div className="predicted-score-header">
+                  <span className="predicted-label">Ожидаемый балл на ЦТ</span>
+                  {scoreDelta != null && scoreDelta !== 0 && (
+                    <span className={`score-delta ${scoreDelta > 0 ? 'up' : 'down'}`}>
+                      {scoreDelta > 0 ? '+' : ''}{scoreDelta}
+                    </span>
+                  )}
+                </div>
+                <div className="predicted-score-value">
+                  {predictedScore.score}<span className="predicted-score-max">/100</span>
+                </div>
+                <div className="predicted-meta">
+                  Решено: {predictedScore.solved} · Точность: {predictedScore.accuracy}%
+                </div>
+                {remainingTo70 && (
+                  <p className="predicted-hint">
+                    Хотите поднять прогноз до 70+? Решите ещё ~{remainingTo70} заданий по слабым темам.
+                  </p>
+                )}
+              </>
+            ) : (
+              <>
+                <div className="predicted-locked-title">Прогнозный балл пока недоступен</div>
+                <div className="predicted-locked-progress">
+                  Решено: {predictedScore?.solved || 0} из {predictedScore?.minRequired || 50}
+                </div>
+                <div className="predicted-locked-bar">
+                  <div
+                    className="predicted-locked-fill"
+                    style={{ width: `${Math.min(100, ((predictedScore?.solved || 0) / (predictedScore?.minRequired || 50)) * 100)}%` }}
+                  />
+                </div>
+                <p className="predicted-locked-hint">
+                  Осталось: {predictedScore?.needed ?? 50} заданий. Решите первые 50, чтобы узнать прогноз.
+                </p>
+              </>
+            )}
+          </div>
+
+          {/* Ежедневная цель */}
+          {subjectDailyGoal && (
+            <div className="dash-card daily-goal-card">
+              <div className="daily-goal-header">
+                <span>🎯 Ежедневная цель</span>
+                <span className={subjectDailyGoal.completed ? 'goal-done' : ''}>
+                  {subjectDailyGoal.solved}/{subjectDailyGoal.goal}
+                </span>
+              </div>
+              <div className="daily-goal-bar">
+                <div
+                  className={`daily-goal-fill ${subjectDailyGoal.completed ? 'complete' : ''}`}
+                  style={{ width: `${subjectDailyGoal.percent}%` }}
+                />
+              </div>
+              {subjectDailyGoal.completed
+                ? <p className="goal-msg done">Цель на сегодня выполнена!</p>
+                : <p className="goal-msg">Осталось {subjectDailyGoal.remaining} заданий</p>}
+            </div>
+          )}
+
+          {/* Сильные / слабые темы */}
+          {predictedScore?.unlocked && (predictedScore.strongTopics?.length > 0 || predictedScore.weakTopics?.length > 0) && (
+            <div className="dash-card topics-insight-card">
+              {predictedScore.strongTopics?.length > 0 && (
+                <div className="topics-group">
+                  <div className="topics-group-title">Сильные темы</div>
+                  {predictedScore.strongTopics.map(t => (
+                    <div key={t.topicId} className="topic-insight strong">
+                      <span>{t.name}</span>
+                      <span className="topic-insight-pct">{t.progress}%</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {predictedScore.weakTopics?.length > 0 && (
+                <div className="topics-group">
+                  <div className="topics-group-title">Слабые темы</div>
+                  {predictedScore.weakTopics.map(t => (
+                    <div key={t.topicId} className="topic-insight weak">
+                      <span>{t.name}</span>
+                      <span className="topic-insight-pct">{t.progress}%</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <button
+                className="weak-topics-btn"
+                onClick={startWeakTopicsPractice}
+                disabled={weakTopicsLoading}
+              >
+                {weakTopicsLoading ? 'Загрузка...' : 'Потренировать слабые темы'}
+              </button>
+            </div>
+          )}
+
+          {/* Рейтинг */}
+          <div className="dash-card leaderboard-card">
+            <div className="leaderboard-header">
+              <span>🏆 Рейтинг</span>
+              <div className="leaderboard-tabs">
+                {['day', 'week', 'month'].map(p => (
+                  <button
+                    key={p}
+                    className={`lb-tab ${leaderboardPeriod === p ? 'active' : ''}`}
+                    onClick={() => setLeaderboardPeriod(p)}
+                  >
+                    {p === 'day' ? 'День' : p === 'week' ? 'Неделя' : 'Месяц'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {leaderboard?.myPosition && (
+              <div className="my-rank">
+                Ваше место: <strong>#{leaderboard.myPosition.rank}</strong>
+                {' '}({leaderboard.myPosition.totalSolved} заданий)
+              </div>
+            )}
+            <div className="leaderboard-list">
+              {(leaderboard?.top || []).slice(0, 10).map(entry => (
+                <div key={entry.studentId} className={`lb-row ${entry.studentId === studentId ? 'me' : ''}`}>
+                  <span className="lb-rank">{entry.rank}</span>
+                  <span className="lb-name">{entry.firstName} {entry.lastName?.[0]}.</span>
+                  <span className="lb-score">{entry.totalSolved}</span>
+                </div>
+              ))}
+              {(!leaderboard?.top || leaderboard.top.length === 0) && (
+                <p className="lb-empty">Пока нет данных за этот период</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {filteredTopics.length === 0 ? (
         <div className="empty-state">

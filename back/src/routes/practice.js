@@ -1,6 +1,7 @@
 const express = require('express');
 const { requireRole } = require('../middleware/telegramAuth');
 const isAdmin = requireRole(['admin', 'teacher']);
+const isStaff = requireRole(['admin', 'teacher', 'manager']);
 const router = express.Router();
 const practiceController = require('../controllers/practiceController');
 
@@ -119,5 +120,15 @@ router.get('/streak/:studentId', practiceController.getStreak);
 
 // Получить вопросы с ошибками
 router.get('/incorrect/:studentId/:topicId', practiceController.getIncorrectQuestions);
+
+// ========== ПРОГНОЗНЫЙ БАЛЛ, ЦЕЛИ, РЕЙТИНГ ==========
+
+router.get('/predicted/:studentId/:subjectId', practiceController.getPredictedScore);
+router.get('/predicted-all/:studentId', practiceController.getPredictedScoreAll);
+router.get('/daily-goal/:studentId', practiceController.getDailyGoal);
+router.get('/leaderboard/:subjectId', practiceController.getLeaderboard);
+router.get('/weak-topics/:studentId/:subjectId', practiceController.getWeakTopicsPractice);
+router.get('/score-history/:studentId/:subjectId', practiceController.getScoreHistory);
+router.get('/admin-predicted/:studentId', isStaff, practiceController.getAdminPredicted);
 
 module.exports = router;

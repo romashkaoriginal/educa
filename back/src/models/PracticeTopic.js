@@ -30,6 +30,11 @@ const PracticeTopic = sequelize.define('PracticeTopic', {
   isActive: {  
     type: DataTypes.BOOLEAN,
     defaultValue: true
+  },
+  weight: {
+    type: DataTypes.FLOAT,
+    allowNull: true,
+    comment: 'Вес темы в % для прогнозного балла (сумма по предмету = 100)'
   }
 }, {
   tableName: 'practice_topics',

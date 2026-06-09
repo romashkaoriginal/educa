@@ -1,20 +1,29 @@
 const { Sequelize } = require('sequelize');
 require('dotenv').config();
 
-const sequelize = new Sequelize(process.env.DATABASE_URL, {
+const databaseUrl = process.env.DATABASE_URL;
+const useSsl =
+  process.env.DATABASE_SSL === 'true' ||
+  /supabase\.co|sslmode=require/i.test(databaseUrl || '');
+
+const sequelize = new Sequelize(databaseUrl, {
   dialect: 'postgres',
-  dialectOptions: {
-    ssl: {
-      require: true,
-      rejectUnauthorized: false
-    }
-  },
+  ...(useSsl
+    ? {
+        dialectOptions: {
+          ssl: {
+            require: true,
+            rejectUnauthorized: false
+          }
+        }
+      }
+    : {}),
   logging: false,
   pool: {
-    max: 20,        // максимум соединений (было 5 по умолчанию)
-    min: 2,         // минимум держим открытыми
-    acquire: 30000, // ждём соединение максимум 30 секунд
-    idle: 10000     // закрываем соединение после 10 секунд простоя
+    max: 20,
+    min: 2,
+    acquire: 30000,
+    idle: 10000
   }
 });
 

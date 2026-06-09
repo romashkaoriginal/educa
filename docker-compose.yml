@@ -1,12 +1,36 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-educa}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-educa}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # Порт наружу не открываем — доступ только из docker-сети
+    expose:
+      - '5432'
+
   backend:
     build:
       context: ./back
     restart: unless-stopped
     env_file:
       - ./back/.env.production
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-educa}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-educa}
+      DATABASE_SSL: 'false'
     ports:
-      - "127.0.0.1:5000:5000"
+      - '127.0.0.1:5000:5000'
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   frontend:
     build:
@@ -15,6 +39,9 @@ services:
         REACT_APP_BACKEND_URL: ${REACT_APP_BACKEND_URL}
     restart: unless-stopped
     ports:
-      - "127.0.0.1:8080:80"
+      - '127.0.0.1:8080:80'
     depends_on:
       - backend
+
+volumes:
+  postgres_data:
