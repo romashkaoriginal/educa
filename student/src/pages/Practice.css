@@ -605,85 +605,6 @@
   padding-bottom: 16px;
 }
 
-/* ========== СТРИК (ОГОНЁК) ========== */
-.topbar-title-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  width: 100%;
-}
-
-.streak-badge {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 7px 13px 7px 11px;
-  border-radius: 20px;
-  flex-shrink: 0;
-  font-family: 'Manrope', sans-serif;
-  position: relative;
-  animation: streakPop 0.5s cubic-bezier(0.18, 0.89, 0.32, 1.28) both;
-}
-
-.streak-badge.done {
-  background: linear-gradient(135deg, #FFF1F0 0%, #FFE0DE 100%);
-  border: 1.5px solid var(--kubik-pink);
-}
-.streak-badge.pending {
-  background: #F5F3EF;
-  border: 1.5px solid var(--kubik-border);
-}
-
-.streak-flame {
-  font-size: 17px;
-  display: inline-block;
-  animation: flameFlicker 1.8s ease-in-out infinite;
-  transform-origin: center bottom;
-}
-
-.streak-badge.done .streak-flame {
-  filter: drop-shadow(0 0 4px rgba(255, 120, 90, 0.6));
-}
-
-.streak-count {
-  font-size: 16px;
-  font-weight: 800;
-  color: var(--kubik-navy);
-  letter-spacing: -0.5px;
-}
-.streak-badge.pending .streak-count { color: var(--kubik-text-soft); }
-
-/* Мини огонёк в шапке прохождения */
-.streak-badge-mini {
-  flex-shrink: 0;
-  padding: 6px 11px;
-  background: rgba(255,255,255,0.18);
-  border: 1px solid rgba(255,255,255,0.25);
-  border-radius: 16px;
-  color: #ffffff;
-  font-size: 14px;
-  font-weight: 800;
-  font-family: 'Manrope', sans-serif;
-  position: relative;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  gap: 3px;
-}
-
-@keyframes streakPop {
-  0% { opacity: 0; transform: scale(0.3) rotate(-15deg); }
-  100% { opacity: 1; transform: scale(1) rotate(0deg); }
-}
-
-@keyframes flameFlicker {
-  0%, 100% { transform: scale(1) rotate(-2deg); }
-  25% { transform: scale(1.12) rotate(2deg); }
-  50% { transform: scale(0.96) rotate(-1deg); }
-  75% { transform: scale(1.08) rotate(1deg); }
-}
-
 /* ========== КОНФЕТТИ ========== */
 .confetti-layer {
   position: absolute;
@@ -725,4 +646,122 @@
     opacity: 0;
     transform: translateY(340px) rotate(540deg) scale(0.7);
   }
+}
+
+/* ========== СТРИК — КРУЖОК ========== */
+.topbar-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+}
+
+.streak-circle {
+  flex-shrink: 0;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  font-family: 'Manrope', sans-serif;
+  position: relative;
+  animation: streakAppear 0.5s cubic-bezier(0.18, 0.89, 0.32, 1.28) both;
+  transition: transform 0.2s ease;
+}
+
+/* Активный — сегодня решал: тёплый розово-оранжевый, светится */
+.streak-circle.done {
+  background: radial-gradient(circle at 50% 35%, #FFE8E0 0%, #FFD4CE 100%);
+  border: 2px solid var(--kubik-pink);
+  box-shadow: 0 0 0 4px rgba(255, 190, 189, 0.18), 0 4px 12px rgba(255, 140, 110, 0.25);
+}
+
+/* Остывший — сегодня ещё не решал: серый */
+.streak-circle.pending {
+  background: #F2F0EC;
+  border: 2px solid var(--kubik-border);
+}
+
+/* В шапке прохождения (на синем фоне) */
+.streak-circle.on-blue {
+  width: 46px;
+  height: 46px;
+  position: relative;
+  z-index: 1;
+}
+.streak-circle.on-blue.done {
+  background: rgba(255,255,255,0.95);
+  border-color: var(--kubik-pink);
+}
+.streak-circle.on-blue.pending {
+  background: rgba(255,255,255,0.16);
+  border: 2px solid rgba(255,255,255,0.3);
+}
+
+.streak-circle-flame {
+  font-size: 18px;
+  line-height: 1;
+  display: block;
+  animation: flameFlicker 1.8s ease-in-out infinite;
+  transform-origin: center bottom;
+}
+.streak-circle.done .streak-circle-flame {
+  filter: drop-shadow(0 0 3px rgba(255, 120, 90, 0.7));
+}
+.streak-circle.pending .streak-circle-flame {
+  filter: grayscale(0.7) opacity(0.65);
+}
+
+.streak-circle-count {
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.5px;
+  color: var(--kubik-navy);
+  margin-top: 1px;
+}
+.streak-circle.pending .streak-circle-count { color: var(--kubik-text-soft); }
+.streak-circle.on-blue.pending .streak-circle-count { color: #ffffff; }
+.streak-circle.on-blue.done .streak-circle-count { color: var(--kubik-navy); }
+
+/* Анимация появления */
+@keyframes streakAppear {
+  0% { opacity: 0; transform: scale(0.4) rotate(-12deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0deg); }
+}
+
+/* Мерцание пламени */
+@keyframes flameFlicker {
+  0%, 100% { transform: scale(1) rotate(-2deg); }
+  25% { transform: scale(1.15) rotate(2deg); }
+  50% { transform: scale(0.95) rotate(-1deg); }
+  75% { transform: scale(1.1) rotate(1deg); }
+}
+
+/* Анимация продления (+1) — пульс + вспышка свечения */
+.streak-circle.bump {
+  animation: streakBumpAnim 1.4s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+}
+
+@keyframes streakBumpAnim {
+  0% { transform: scale(1); }
+  15% { transform: scale(1.4) rotate(-8deg); box-shadow: 0 0 0 10px rgba(255, 190, 189, 0.4), 0 6px 20px rgba(255, 140, 110, 0.5); }
+  35% { transform: scale(0.9) rotate(5deg); }
+  55% { transform: scale(1.18) rotate(-3deg); }
+  75% { transform: scale(0.98); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+
+.streak-circle.bump .streak-circle-flame {
+  animation: flameBurst 1.4s ease-out;
+}
+
+@keyframes flameBurst {
+  0% { transform: scale(1); }
+  20% { transform: scale(1.6); filter: drop-shadow(0 0 10px rgba(255, 120, 90, 1)); }
+  100% { transform: scale(1); }
 }

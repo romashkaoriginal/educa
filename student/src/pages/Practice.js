@@ -372,8 +372,6 @@ function Practice({ studentId }) {
                   <span className="answer-text">
                     {option}
                   </span>
-                  {showCorrect && <span className="answer-icon correct-icon">✓</span>}
-                  {showWrong && <span className="answer-icon wrong-icon">✗</span>}
                 </button>
               );
             })}
