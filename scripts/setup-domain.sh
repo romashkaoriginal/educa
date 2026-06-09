@@ -11,17 +11,19 @@ EMAIL="${2:-admin@${DOMAIN}}"
 
 echo "==> Domain: $DOMAIN"
 
-apt update
-apt install -y nginx certbot python3-certbot-nginx
-
 cd /opt/educa
 docker compose down || true
+
+apt update
+apt install -y nginx certbot python3-certbot-nginx
 
 sed "s/YOUR_DOMAIN/${DOMAIN}/g" /opt/educa/nginx/host-educa.conf > /etc/nginx/sites-available/educa
 ln -sf /etc/nginx/sites-available/educa /etc/nginx/sites-enabled/educa
 rm -f /etc/nginx/sites-enabled/default
 
 nginx -t
+systemctl enable nginx
+systemctl start nginx
 systemctl reload nginx
 
 certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos -m "$EMAIL" --redirect
