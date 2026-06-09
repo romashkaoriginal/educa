@@ -3,8 +3,7 @@ import { io } from 'socket.io-client';
 import { apiFetch } from './api';
 import './Quiz.css';
 
-const API_URL = 'https://educa-production-a98e.up.railway.app/api';
-const SOCKET_URL = 'https://educa-production-a98e.up.railway.app';
+import { API_URL, SOCKET_URL } from '../config';
 
 function Quiz({ studentId }) {
   const [view, setView] = useState('enter');

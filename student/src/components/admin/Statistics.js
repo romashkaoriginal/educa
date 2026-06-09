@@ -3,7 +3,7 @@ import '../../styles/Statistics.css';
 import { adminFetch } from './adminApi';
 import { useAdminData } from './AdminDataContext';
 
-const API_URL = 'https://educa-production-a98e.up.railway.app/api';
+import { API_URL } from '../../config';
 
 function AdminStatistics() {
   const [students, setStudents] = useState([]);

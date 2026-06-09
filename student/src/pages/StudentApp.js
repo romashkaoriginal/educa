@@ -8,7 +8,7 @@ import Statistics from './Statistics';
 import { DataProvider, useData } from './DataContext';
 import { apiFetch } from './api';
 
-const API_URL = 'https://educa-production-a98e.up.railway.app/api';
+import { API_URL } from '../config';
 
 function StudentAppContent({ selectedStudent }) {
   const [activeTab, setActiveTab] = useState('practice');

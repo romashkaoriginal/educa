@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import '../../styles/Notifications.css';
 import { adminFetch } from './adminApi';
 
-const API_URL = 'https://educa-production-a98e.up.railway.app/api';
+import { API_URL } from '../../config';
 
 const ACCESS_DAYS_OPTIONS = [
   { value: 'all', label: 'Любой срок' },

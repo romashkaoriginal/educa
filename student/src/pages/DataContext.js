@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
 import { apiFetch } from './api';
 
-const API_URL = 'https://educa-production-a98e.up.railway.app/api';
+import { API_URL } from '../config';
 
 const DataContext = createContext();
 

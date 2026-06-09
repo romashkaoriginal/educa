@@ -3,8 +3,7 @@ import { io } from 'socket.io-client';
 import '../../styles/Quiz.css';
 import { adminFetch } from './adminApi';
 
-const API_URL = 'https://educa-production-a98e.up.railway.app/api';
-const SOCKET_URL = 'https://educa-production-a98e.up.railway.app';
+import { API_URL, SOCKET_URL } from '../../config';
 
 function Quiz({ subjects, currentUserId }) {
   const [quizzes, setQuizzes] = useState([]);

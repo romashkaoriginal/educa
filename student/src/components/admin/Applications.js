@@ -3,7 +3,7 @@ import '../../styles/Applications.css';
 import { adminFetch } from './adminApi';
 import { useAdminData } from './AdminDataContext';
 
-const API_URL = 'https://educa-production-a98e.up.railway.app/api';
+import { API_URL } from '../../config';
 
 const STATUS_LABELS = {
   new: { label: 'Новая', color: '#3B82F6' },

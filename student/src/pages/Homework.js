@@ -3,7 +3,7 @@ import './Homework.css';
 import { useData } from './DataContext';
 import { apiFetch } from './api';
 
-const API_URL = 'https://educa-production-a98e.up.railway.app/api';
+import { API_URL } from '../config';
 
 function MatchingWire({ pairs, rightOrder, connections, colors, onChange }) {
   const containerRef = React.useRef(null);

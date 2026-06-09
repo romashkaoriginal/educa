@@ -12,7 +12,7 @@ import Applications from '../components/admin/Applications';
 import { adminFetch } from '../components/admin/adminApi';
 import { AdminDataProvider, useAdminData } from '../components/admin/AdminDataContext';
 
-const API_URL = 'https://educa-production-a98e.up.railway.app/api';
+import { API_URL } from '../config';
 
 // Доступные разделы по ролям
 const ROLE_SECTIONS = {

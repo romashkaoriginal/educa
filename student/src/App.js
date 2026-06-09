@@ -6,7 +6,7 @@ import StudentApp from './pages/StudentApp';
 
 import AdminPanel from './pages/AdminPanel';
 
-const API_URL = 'https://educa-production-a98e.up.railway.app/api';
+import { API_URL } from './config';
 
 function App() {
   const [selectedRole, setSelectedRole] = useState(null);

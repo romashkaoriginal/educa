@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import '../../styles/Homework.css';
 import { adminFetch } from './adminApi';
 
-const API_URL = 'https://educa-production-a98e.up.railway.app/api';
+import { API_URL } from '../../config';
 
 const QUESTION_TYPES = [
   { value: 'single_choice', label: 'Тест с одним правильным ответом', icon: '⭕' },

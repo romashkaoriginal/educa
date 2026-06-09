@@ -3,7 +3,7 @@ import './Practice.css';
 import { useData } from './DataContext';
 import { apiFetch } from './api';
 
-const API_URL = 'https://educa-production-a98e.up.railway.app/api';
+import { API_URL } from '../config';
 
 function Practice({ studentId }) {
   // Используем данные из контекста
