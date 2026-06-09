@@ -27,15 +27,23 @@ const { telegramAuth, requireUser, requireAdmin, requireRole } = require('./midd
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || process.env.WEB_APP_URL || '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+const defaultOrigins = [
+  'http://localhost:3000',
+  'https://web.telegram.org'
+];
+
+const corsOrigins = allowedOrigins.length > 0 ? allowedOrigins : defaultOrigins;
+
 const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: [
-      'https://educa-student.vercel.app',
-      'http://localhost:3000',
-      'https://web.telegram.org'
-    ],
+    origin: corsOrigins,
     methods: ['GET', 'POST'],
     credentials: true
   }
@@ -45,11 +53,7 @@ const io = new Server(server, {
 app.use(compression());
 
 app.use(cors({
-  origin: [
-    'https://educa-student.vercel.app',
-    'http://localhost:3000',
-    'https://web.telegram.org'
-  ],
+  origin: corsOrigins,
   credentials: true
 }));
 app.use(express.json());

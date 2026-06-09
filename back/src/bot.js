@@ -11,13 +11,8 @@ function isHttpsWebAppUrl(url) {
 }
 
 function getAppOpenButton() {
-  if (!webAppUrl) return null;
-
-  if (isHttpsWebAppUrl(webAppUrl)) {
-    return { text: '📚 Открыть приложение', web_app: { url: webAppUrl } };
-  }
-
-  return { text: '📚 Открыть приложение', url: webAppUrl };
+  if (!webAppUrl || !isHttpsWebAppUrl(webAppUrl)) return null;
+  return { text: '📚 Открыть приложение', web_app: { url: webAppUrl } };
 }
 
 function getAppOpenKeyboard() {
@@ -290,9 +285,14 @@ function startBot() {
 
         await setupAppMenuButton(chatId);
 
-        return sendStartMessage(chatId, welcomeText, {
-          ...(replyMarkup ? { reply_markup: replyMarkup } : {})
-        });
+        if (!replyMarkup) {
+          return sendStartMessage(
+            chatId,
+            `${welcomeText}\n\n⚠️ Web App пока недоступен: нужен HTTPS-домен на сервере.`
+          );
+        }
+
+        return sendStartMessage(chatId, welcomeText, { reply_markup: replyMarkup });
       }
 
       await safeSetChatMenuButton(chatId, { type: 'default' });
