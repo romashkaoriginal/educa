@@ -10,6 +10,35 @@ function isHttpsWebAppUrl(url) {
   return typeof url === 'string' && url.startsWith('https://');
 }
 
+function getAppOpenButton() {
+  if (!webAppUrl) return null;
+
+  if (isHttpsWebAppUrl(webAppUrl)) {
+    return { text: '📚 Открыть приложение', web_app: { url: webAppUrl } };
+  }
+
+  return { text: '📚 Открыть приложение', url: webAppUrl };
+}
+
+function getAppOpenKeyboard() {
+  const button = getAppOpenButton();
+  if (!button) return null;
+  return { inline_keyboard: [[button]] };
+}
+
+async function setupAppMenuButton(chatId) {
+  if (isHttpsWebAppUrl(webAppUrl)) {
+    await safeSetChatMenuButton(chatId, {
+      type: 'web_app',
+      text: '📚 Открыть приложение',
+      web_app: { url: webAppUrl }
+    });
+    return;
+  }
+
+  await safeSetChatMenuButton(chatId, { type: 'default' });
+}
+
 async function safeSetChatMenuButton(chatId, button) {
   try {
     await bot.setChatMenuButton({
@@ -22,17 +51,7 @@ async function safeSetChatMenuButton(chatId, button) {
 }
 
 async function sendStartMessage(chatId, text, options = {}) {
-  try {
-    await bot.sendMessage(chatId, text, options);
-  } catch (error) {
-    console.error('Ошибка sendMessage (/start):', error.message);
-    const { reply_markup, ...plainOptions } = options;
-    if (reply_markup) {
-      await bot.sendMessage(chatId, `${text}\n\n⚠️ Кнопка приложения временно недоступна — нужен HTTPS-домен.`, plainOptions);
-      return;
-    }
-    throw error;
-  }
+  await bot.sendMessage(chatId, text, options);
 }
 
 const testSessions = {};
@@ -267,26 +286,13 @@ function startBot() {
         const roleNames = { admin: 'Администратор', teacher: 'Преподаватель', manager: 'Менеджер', student: 'Ученик' };
 
         const welcomeText = `👋 Привет, ${firstName}!\n\n${roleEmoji[systemUser.role]} Роль: ${roleNames[systemUser.role]}\n\n🎓 Добро пожаловать в EDme!`;
+        const replyMarkup = getAppOpenKeyboard();
 
-        if (isHttpsWebAppUrl(webAppUrl)) {
-          await safeSetChatMenuButton(chatId, {
-            type: 'web_app',
-            text: '📚 Открыть приложение',
-            web_app: { url: webAppUrl }
-          });
+        await setupAppMenuButton(chatId);
 
-          return sendStartMessage(chatId, welcomeText, {
-            reply_markup: {
-              inline_keyboard: [[{ text: '📚 Открыть приложение', web_app: { url: webAppUrl } }]]
-            }
-          });
-        }
-
-        await safeSetChatMenuButton(chatId, { type: 'default' });
-        return sendStartMessage(
-          chatId,
-          `${welcomeText}\n\n🌐 Приложение: ${webAppUrl}\n\n⚠️ Для кнопки в Telegram нужен HTTPS-домен.`
-        );
+        return sendStartMessage(chatId, welcomeText, {
+          ...(replyMarkup ? { reply_markup: replyMarkup } : {})
+        });
       }
 
       await safeSetChatMenuButton(chatId, { type: 'default' });
