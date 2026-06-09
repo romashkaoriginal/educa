@@ -126,7 +126,7 @@ Subject.hasMany(PracticeScoreHistory, { foreignKey: 'subjectId', as: 'scoreHisto
 const syncDatabase = async () => {
   try {
     await sequelize.sync({ alter: true });
-    console.log('✅ Database connection established (sync disabled)');
+    console.log('✅ Database synced (alter mode)');
   } catch (error) {
     console.error('❌ Error connecting to database:', error);
   }
