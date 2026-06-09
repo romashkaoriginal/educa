@@ -496,7 +496,7 @@ function Practice({ studentId }) {
     );
   }
 
-  // ========== ЭКРАН СПИСКА ПОДРАЗДЕЛОВ ==========
+  // ========== ЭКРАН СПИСКА ПОДРАЗДЕЛОgВ ==========
   const filteredTopics = selectedSubject 
     ? practiceTopics.filter(topic => topic.subjectId === selectedSubject.id)
     : practiceTopics;
