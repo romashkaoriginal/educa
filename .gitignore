@@ -6,6 +6,8 @@ package-lock.json
 .env
 .env.local
 .env.*.local
+.env.production
+back/.env.production
 
 # Build outputs
 /admin/build/

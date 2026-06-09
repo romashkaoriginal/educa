@@ -309,7 +309,10 @@ function Practice({ studentId }) {
             <p>Вопрос {currentQuestionIndex + 1} из {questions.length}</p>
           </div>
           {streak?.streak > 0 && (
-            <div className="streak-badge-mini">🔥 {streak.streak}</div>
+            <div className={`streak-circle on-blue ${streak.todayDone ? 'done' : 'pending'}`}>
+              <span className="streak-circle-flame">🔥</span>
+              <span className="streak-circle-count">{streak.streak}</span>
+            </div>
           )}
         </div>
 
@@ -515,9 +518,9 @@ function Practice({ studentId }) {
             )}
           </h1>
           {streak?.streak > 0 && (
-            <div className={`streak-badge ${streak.todayDone ? 'done' : 'pending'}`}>
-              <span className="streak-flame">🔥</span>
-              <span className="streak-count">{streak.streak}</span>
+            <div className={`streak-circle ${streak.todayDone ? 'done' : 'pending'}`}>
+              <span className="streak-circle-flame">🔥</span>
+              <span className="streak-circle-count">{streak.streak}</span>
             </div>
           )}
         </div>
