@@ -56,7 +56,8 @@
   padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
   overflow-x: hidden;
   overflow-y: auto;
-  background: var(--kubik-white);
+  overscroll-behavior: none;
+  background: var(--kubik-blue-soft, #EAF3FA);
   max-width: 100%;
 }
 
@@ -711,7 +712,8 @@
   position: relative;
   width: 100%;
   min-height: 100%;
-  overflow: hidden;
+  overflow-x: clip;
+  background: var(--kubik-blue-soft, #EAF3FA);
 }
 
 .tab-panel {

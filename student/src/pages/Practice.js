@@ -535,14 +535,13 @@ function Practice({ studentId }) {
               <h1 className="practice-hero-title">Практика</h1>
               <p className="practice-hero-sub">Выберите предмет для практики</p>
             </div>
-            <div className={`hero-streak ${streak?.streak > 0 ? (streak.todayDone ? 'done' : 'active') : 'empty'}`}>
-              <span className="hero-streak-flame">🔥</span>
-              <span className="hero-streak-count">{streak?.streak || 0}</span>
-            </div>
+            {streak?.streak > 0 && (
+              <div className={`hero-streak ${streak.todayDone ? 'done' : 'pending'}`}>
+                <span className="hero-streak-flame">🔥</span>
+                <span className="hero-streak-count">{streak.streak}</span>
+              </div>
+            )}
           </div>
-          <svg className="practice-hero-wave" viewBox="0 0 400 40" preserveAspectRatio="none">
-            <path d="M0,40 L0,22 Q100,2 200,18 T400,15 L400,40 Z" />
-          </svg>
         </div>
 
         <div className="subjects-grid">
@@ -601,14 +600,13 @@ function Practice({ studentId }) {
                 : 'Тренируйся в своём темпе'}
             </p>
           </div>
-          <div className={`hero-streak ${streak?.streak > 0 ? (streak.todayDone ? 'done' : 'active') : 'empty'}`}>
-            <span className="hero-streak-flame">🔥</span>
-            <span className="hero-streak-count">{streak?.streak || 0}</span>
-          </div>
+          {streak?.streak > 0 && (
+            <div className={`hero-streak ${streak.todayDone ? 'done' : 'pending'}`}>
+              <span className="hero-streak-flame">🔥</span>
+              <span className="hero-streak-count">{streak.streak}</span>
+            </div>
+          )}
         </div>
-          <svg className="practice-hero-wave" viewBox="0 0 400 40" preserveAspectRatio="none">
-            <path d="M0,40 L0,22 Q100,2 200,18 T400,15 L400,40 Z" />
-          </svg>
       </div>
 
       {/* ТАБ-БАР — только внутри предмета */}

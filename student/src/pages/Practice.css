@@ -22,10 +22,10 @@
   background: var(--kubik-blue-soft, #EAF3FA);
   min-height: 100%;
   padding: 0 16px 28px;
-  overflow: hidden;
+  margin: 0;
 }
 
-/* Точечная сетка с затуханием — только в нижней зоне, не трогает hero */
+/* Точечная сетка с затуханием снизу */
 .section::before {
   content: '';
   position: absolute;
@@ -1137,7 +1137,7 @@
   overflow: hidden;
   background: linear-gradient(135deg, var(--kubik-blue) 0%, var(--kubik-navy) 100%);
   border-radius: 0;
-  padding: 24px 16px 40px;
+  padding: 24px 20px 42px;
   margin: 0 -16px 18px;
 }
 
