@@ -18,6 +18,33 @@
 /* ========== БАЗА (отступы страницы — в StudentApp.css) ========== */
 .section {
   font-family: 'Manrope', -apple-system, sans-serif;
+  position: relative;
+  background: var(--kubik-blue-soft, #EAF3FA);
+  min-height: 100%;
+  padding: 0 16px 28px;
+  overflow: hidden;
+}
+
+/* Точечная сетка с затуханием — только в нижней зоне, не трогает hero */
+.section::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 70%;
+  background-image: radial-gradient(circle, rgba(51, 123, 174, 0.09) 1px, transparent 1px);
+  background-size: 19px 19px;
+  -webkit-mask-image: linear-gradient(transparent, #000 55%);
+  mask-image: linear-gradient(transparent, #000 55%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Контент поверх точек */
+.section > * {
+  position: relative;
+  z-index: 1;
 }
 
 .practice-topbar {
@@ -1109,9 +1136,23 @@
   position: relative;
   overflow: hidden;
   background: linear-gradient(135deg, var(--kubik-blue) 0%, var(--kubik-navy) 100%);
-  border-radius: 20px;
-  padding: 22px;
-  margin-bottom: 22px;
+  border-radius: 0;
+  padding: 24px 16px 40px;
+  margin: 0 -16px 18px;
+}
+
+/* Волна снизу — переход hero в фон */
+.practice-hero-wave {
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  width: 100%;
+  height: 34px;
+  display: block;
+  pointer-events: none;
+}
+.practice-hero-wave path {
+  fill: var(--kubik-blue-soft, #EAF3FA);
 }
 
 .practice-hero-glow {
@@ -1187,9 +1228,17 @@
   animation: streakAppear 0.5s cubic-bezier(0.18, 0.89, 0.32, 1.28) both;
 }
 
-.hero-streak.pending {
+/* Есть стрик, но сегодня ещё не решал */
+.hero-streak.active {
+  background: rgba(255, 255, 255, 0.96);
+  border-color: var(--kubik-pink);
+}
+
+/* Стрика нет вообще — серый огонёк, 0 */
+.hero-streak.empty {
   background: rgba(255, 255, 255, 0.16);
-  border-color: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.35);
+  box-shadow: none;
 }
 
 .hero-streak-flame {
@@ -1201,8 +1250,8 @@
 .hero-streak.done .hero-streak-flame {
   filter: drop-shadow(0 0 3px rgba(255, 120, 90, 0.7));
 }
-.hero-streak.pending .hero-streak-flame {
-  filter: grayscale(0.5) opacity(0.8);
+.hero-streak.empty .hero-streak-flame {
+  filter: grayscale(1) opacity(0.55);
 }
 
 .hero-streak-count {
@@ -1212,8 +1261,8 @@
   color: var(--kubik-navy);
   margin-top: 1px;
 }
-.hero-streak.pending .hero-streak-count {
-  color: #ffffff;
+.hero-streak.empty .hero-streak-count {
+  color: rgba(255, 255, 255, 0.9);
 }
 
 /* Кнопка назад над hero */
