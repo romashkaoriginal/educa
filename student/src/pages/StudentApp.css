@@ -6,6 +6,16 @@
   --kubik-border: #ECEAE5;
   --kubik-text: #2A3744;
   --kubik-text-soft: #7B8794;
+
+  /* Отступы студенческого приложения */
+  --space-page-x: 20px;
+  --space-page-y: 28px;
+  --space-page-bottom: 44px;
+  --space-section: 26px;
+  --space-grid: 20px;
+  --space-card: 22px;
+  --space-stack: 16px;
+  --space-inline: 14px;
 }
 
 .student-app {
@@ -42,9 +52,9 @@
 /* Content */
 .content {
   flex: 1;
-  padding: 0; /* Каждая страница добавляет свой padding */
-  padding-bottom: 90px; /* Отступ для bottom navigation */
-  overflow-x: hidden; /* Убрать горизонтальный скролл */
+  padding: 0;
+  padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  overflow-x: hidden;
   overflow-y: auto;
   background: var(--kubik-white);
   max-width: 100%;
@@ -60,9 +70,9 @@
   width: 100%;
   display: flex;
   background: #ffffff;
-  padding: 12px;
-  gap: 8px;
-  border-top: 1px solid #e5e7eb;
+  padding: 14px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+  gap: 10px;
+  border-top: 1px solid var(--kubik-border);
   box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.08);
   z-index: 100;
 }
@@ -72,8 +82,8 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
-  padding: 12px 8px;
+  gap: 6px;
+  padding: 12px 10px;
   border: none;
   background: transparent;
   border-radius: 12px;
@@ -118,47 +128,227 @@
 
 /* Section Styles */
 .section {
-  animation: fadeIn 0.3s ease-in;
+  animation: none;
 }
 
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+/* ========== ОБЩИЕ ОТСТУПЫ СТУДЕНТА ========== */
+.student-app .section,
+.student-app .quiz-section {
+  padding: var(--space-page-y) var(--space-page-x) var(--space-page-bottom);
+  box-sizing: border-box;
 }
 
-.section-title {
-  font-size: 22px;
-  font-weight: 700;
+.student-app .section-title {
+  font-size: 26px;
+  font-weight: 800;
   color: var(--kubik-navy);
-  margin-bottom: 20px;
+  margin: 0 0 var(--space-section);
   display: flex;
   align-items: center;
-  gap: 10px;
-  letter-spacing: -0.3px;
+  gap: 12px;
+  letter-spacing: -0.5px;
+  line-height: 1.2;
 }
 
-.section-title::before {
+.student-app .section-title::before {
   content: '';
   width: 4px;
-  height: 24px;
+  height: 26px;
   background: var(--kubik-pink);
   border-radius: 2px;
+  flex-shrink: 0;
 }
 
-/* Card */
+.student-app .practice-topbar,
+.student-app .homework-topbar {
+  margin-bottom: var(--space-section);
+  gap: 10px;
+}
+
+.student-app .practice-subtitle,
+.student-app .homework-page-subtitle {
+  margin-top: 10px;
+}
+
+.student-app .subjects-grid,
+.student-app .practice-grid,
+.student-app .homeworks-grid,
+.student-app .practice-dashboard,
+.student-app .stats-content,
+.student-app .stats-summary {
+  gap: var(--space-grid);
+}
+
+.student-app .stats-tabs {
+  gap: 10px;
+  margin-bottom: var(--space-section);
+  padding-bottom: 6px;
+}
+
+.student-app .stats-block {
+  padding: var(--space-card);
+  margin-bottom: var(--space-grid);
+}
+
+.student-app .stat-card,
+.student-app .card,
+.student-app .dash-card,
+.student-app .topic-card,
+.student-app .homework-card,
+.student-app .homework-stat-card,
+.student-app .quiz-stat-card {
+  padding: var(--space-card);
+}
+
+.student-app .homework-card {
+  gap: var(--space-stack);
+}
+
+.student-app .topic-card,
+.student-app .subject-card {
+  padding: 20px 18px;
+}
+
+.student-app .topics-list,
+.student-app .subjects-list,
+.student-app .recent-list,
+.student-app .homework-stats-list,
+.student-app .quiz-stats-list {
+  gap: var(--space-stack);
+}
+
+.student-app .topic-stat-row,
+.student-app .subject-stat-row,
+.student-app .recent-item {
+  padding: 14px 12px;
+}
+
+.student-app .hw-metrics,
+.student-app .hw-progress-block,
+.student-app .predicted-score-header {
+  margin-top: 8px;
+}
+
+.student-app .empty-state {
+  padding: 72px 24px;
+  margin-top: var(--space-grid);
+}
+
+.student-app .empty-icon {
+  margin-bottom: 16px;
+}
+
+.student-app .primary-button {
+  margin-top: var(--space-stack);
+  padding: 15px 24px;
+}
+
+.student-app .back-button {
+  margin-bottom: 12px;
+}
+
+.student-app .main-tabs {
+  margin-bottom: var(--space-section);
+  padding: 8px;
+  gap: 10px;
+}
+
+.student-app .subject-tabs {
+  gap: 10px;
+  margin-bottom: var(--space-section);
+  padding: 8px 0 10px;
+}
+
+.student-app .leaderboard-list,
+.student-app .answers-list,
+.student-app .result-actions,
+.student-app .hw-stat-result {
+  gap: var(--space-stack);
+}
+
+.student-app .leader-row {
+  padding: 14px 12px;
+  margin-bottom: 10px;
+}
+
+.student-app .mini-leaderboard,
+.student-app .full-leaderboard,
+.student-app .code-generation {
+  padding: var(--space-card);
+  margin-bottom: var(--space-grid);
+}
+
+.student-app .card-title {
+  margin-bottom: 12px;
+}
+
+.student-app .card-description {
+  line-height: 1.65;
+}
+
+.student-app .page-header {
+  margin-bottom: var(--space-section);
+  padding: 16px 20px;
+}
+
+.student-app .global-header {
+  margin-bottom: var(--space-section);
+}
+
+.student-app .single-subject-banner {
+  margin-bottom: var(--space-section);
+  padding: 18px;
+}
+
+.student-app .quiz-stat-card {
+  margin-bottom: var(--space-grid);
+}
+
+.student-app .homework-stat-card {
+  gap: var(--space-stack);
+  padding: 18px;
+}
+
+.student-app .recent-item {
+  padding: 14px 12px;
+  gap: 12px;
+}
+
+.student-app .topic-card-top {
+  gap: 16px;
+}
+
+.student-app .topic-name {
+  margin-bottom: 6px;
+}
+
+.student-app .predicted-score-header {
+  margin-bottom: 14px;
+}
+
+.student-app .practice-dashboard {
+  margin-bottom: var(--space-section);
+}
+
+@media (max-width: 400px) {
+  .student-app .section,
+  .student-app .quiz-section {
+    padding: 24px 16px 36px;
+  }
+
+  .student-app .section-title {
+    font-size: 24px;
+    margin-bottom: 20px;
+  }
+}
+
 .card {
   background: #ffffff;
   border-radius: 16px;
-  padding: 20px;
-  margin-bottom: 16px;
+  padding: var(--space-card, 20px);
+  margin-bottom: var(--space-grid, 18px);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--kubik-border);
   transition: all 0.3s ease;
 }
 
@@ -283,14 +473,14 @@
 .students-select-list {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 18px;
 }
 
 .student-select-card {
   background: #ffffff;
   border: none;
   border-radius: 18px;
-  padding: 18px;
+  padding: 20px;
   display: flex;
   align-items: center;
   gap: 16px;

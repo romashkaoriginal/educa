@@ -18,15 +18,15 @@
 /* Вкладки */
 .stats-tabs {
   display: flex;
-  gap: 8px;
-  margin-bottom: 20px;
+  gap: 10px;
+  margin-bottom: 24px;
   overflow-x: auto;
-  padding-bottom: 4px;
+  padding-bottom: 6px;
   -webkit-overflow-scrolling: touch;
 }
 
 .stats-tab {
-  padding: 8px 16px;
+  padding: 10px 18px;
   border: 2px solid var(--kubik-border);
   background: white;
   border-radius: 10px;
@@ -54,21 +54,21 @@
 .stats-content {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding-bottom: 20px;
+  gap: 20px;
+  padding-bottom: 24px;
 }
 
 
 .stats-summary {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 14px;
 }
 
 .stat-card {
   background: white;
-  border-radius: 12px;
-  padding: 16px 20px;
+  border-radius: 14px;
+  padding: 18px 20px;
   display: flex;
   align-items: center;
   gap: 16px;
@@ -115,13 +115,13 @@
 /* Блоки */
 .stats-block {
   background: white;
-  border-radius: 12px;
-  padding: 16px;
+  border-radius: 14px;
+  padding: 20px;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
 }
 
 .stats-block h3 {
-  margin: 0 0 12px 0;
+  margin: 0 0 16px 0;
   font-size: 15px;
   font-weight: 600;
   color: var(--kubik-navy);
@@ -133,7 +133,7 @@
 .recent-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
   max-height: 400px;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
@@ -142,9 +142,9 @@
 .subject-stat-row {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 12px;
-  border-radius: 8px;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 10px;
   background: var(--kubik-white);
 }
 
@@ -225,8 +225,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px;
-  border-radius: 8px;
+  padding: 14px 12px;
+  border-radius: 10px;
   background: var(--kubik-white);
 }
 
@@ -272,10 +272,10 @@
 .recent-item {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  padding: 10px;
+  gap: 12px;
+  padding: 14px 12px;
   background: var(--kubik-white);
-  border-radius: 8px;
+  border-radius: 10px;
   border-left: 3px solid var(--kubik-border);
 }
 
@@ -402,17 +402,17 @@
 .homework-stats-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
 }
 
 .homework-stat-card {
   background: white;
   border: 1px solid var(--kubik-border);
-  border-radius: 12px;
-  padding: 16px;
+  border-radius: 14px;
+  padding: 18px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
 }
 
 .hw-stat-header {
@@ -556,8 +556,8 @@
   background: white;
   border: 2px solid var(--kubik-border);
   border-radius: 16px;
-  padding: 20px;
-  margin-bottom: 16px;
+  padding: 22px;
+  margin-bottom: 18px;
   transition: all 0.3s;
 }
 

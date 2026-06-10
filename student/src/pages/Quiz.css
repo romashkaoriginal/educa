@@ -17,10 +17,9 @@
 
 /* ========== ОБЩИЕ СТИЛИ ========== */
 .quiz-section {
-  padding: 20px;
   max-width: 800px;
   margin: 0 auto;
-  min-height: 100vh;
+  min-height: calc(100vh - 96px);
 }
 
 /* ========== ЭКРАН ВВОДА КОДА ========== */
@@ -646,12 +645,12 @@
   background: white;
   border: 2px solid var(--kubik-border);
   border-radius: 16px;
-  padding: 16px;
-  margin-top: 20px;
+  padding: 20px;
+  margin-top: 24px;
 }
 
 .mini-leaderboard h3 {
-  margin: 0 0 12px 0;
+  margin: 0 0 14px 0;
   font-size: 14px;
   font-weight: 700;
   color: var(--kubik-navy);
@@ -661,9 +660,9 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 8px 12px;
-  border-radius: 8px;
-  margin-bottom: 6px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  margin-bottom: 10px;
   background: var(--kubik-white);
 }
 
@@ -923,10 +922,10 @@
 .leader-row {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px;
+  gap: 14px;
+  padding: 14px 12px;
   border-radius: 12px;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
   transition: all 0.2s;
   background: var(--kubik-white);
 }
@@ -1144,10 +1143,10 @@
 /* ========== ГЛАВНЫЕ ВКЛАДКИ ========== */
 .main-tabs {
   display: flex;
-  gap: 8px;
+  gap: 10px;
   margin-bottom: 24px;
   background: var(--kubik-white);
-  padding: 6px;
+  padding: 8px;
   border-radius: 14px;
 }
 
@@ -1201,10 +1200,10 @@
 /* Вкладки предметов */
 .subject-tabs {
   display: flex;
-  gap: 8px;
+  gap: 10px;
   overflow-x: auto;
-  padding: 8px 0;
-  margin-bottom: 20px;
+  padding: 8px 0 10px;
+  margin-bottom: 24px;
   -webkit-overflow-scrolling: touch;
 }
 
@@ -1268,8 +1267,8 @@
 .leaderboard-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-top: 16px;
+  gap: 12px;
+  margin-top: 18px;
 }
 
 .leader-stats {
