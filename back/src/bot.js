@@ -1,3 +1,4 @@
+const axios = require('axios');
 const TelegramBot = require('node-telegram-bot-api');
 const { User, BotUser, BotTest, Subject, Application } = require('./models');
 
@@ -21,18 +22,14 @@ function getAppOpenKeyboard() {
   return { inline_keyboard: [[button]] };
 }
 
-async function setupAppMenuButton(chatId) {
-  await safeSetChatMenuButton(chatId, { type: 'default' });
-}
-
-async function safeSetChatMenuButton(chatId, button) {
+async function resetChatMenuButton(chatId) {
+  if (!token) return;
   try {
-    await bot.setChatMenuButton({
-      chat_id: chatId,
-      menu_button: JSON.stringify(button)
-    });
+    const payload = { menu_button: { type: 'default' } };
+    if (chatId != null) payload.chat_id = chatId;
+    await axios.post(`https://api.telegram.org/bot${token}/setChatMenuButton`, payload);
   } catch (error) {
-    console.error('Ошибка setChatMenuButton:', error.message);
+    console.error('Ошибка setChatMenuButton:', error.response?.data?.description || error.message);
   }
 }
 
@@ -252,6 +249,10 @@ function startBot() {
     console.error('Не удалось удалить webhook:', error.message);
   });
 
+  resetChatMenuButton().catch((error) => {
+    console.error('Не удалось сбросить menu button:', error.message);
+  });
+
   // /start
   bot.onText(/\/start/, async (msg) => {
     const chatId = msg.chat.id;
@@ -264,7 +265,7 @@ function startBot() {
 
       if (systemUser) {
         if (!systemUser.isActive) {
-          await safeSetChatMenuButton(chatId, { type: 'default' });
+          await resetChatMenuButton(chatId);
           return sendStartMessage(chatId, `❌ Ваш аккаунт деактивирован.\n\nОбратитесь к администратору.`);
         }
 
@@ -274,7 +275,7 @@ function startBot() {
         const welcomeText = `👋 Привет, ${firstName}!\n\n${roleEmoji[systemUser.role]} Роль: ${roleNames[systemUser.role]}\n\n🎓 Добро пожаловать в EDme!`;
         const replyMarkup = getAppOpenKeyboard();
 
-        await setupAppMenuButton(chatId);
+        await resetChatMenuButton(chatId);
 
         if (!replyMarkup) {
           return sendStartMessage(
@@ -286,7 +287,7 @@ function startBot() {
         return sendStartMessage(chatId, welcomeText, { reply_markup: replyMarkup });
       }
 
-      await safeSetChatMenuButton(chatId, { type: 'default' });
+      await resetChatMenuButton(chatId);
       await showSubjectPicker(chatId, firstName);
     } catch (error) {
       console.error('Ошибка /start:', error.message);
