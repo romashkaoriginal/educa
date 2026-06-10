@@ -44,7 +44,9 @@ grep -q '^ALLOWED_ORIGINS=' /opt/educa/back/.env.production \
   && sed -i "s|^ALLOWED_ORIGINS=.*|ALLOWED_ORIGINS=${APP_URL},https://web.telegram.org|" /opt/educa/back/.env.production \
   || echo "ALLOWED_ORIGINS=${APP_URL},https://web.telegram.org" >> /opt/educa/back/.env.production
 
-echo "REACT_APP_BACKEND_URL=${APP_URL}" > /opt/educa/.env
+grep -q '^REACT_APP_BACKEND_URL=' /opt/educa/.env \
+  && sed -i "s|^REACT_APP_BACKEND_URL=.*|REACT_APP_BACKEND_URL=${APP_URL}|" /opt/educa/.env \
+  || echo "REACT_APP_BACKEND_URL=${APP_URL}" >> /opt/educa/.env
 
 cd /opt/educa
 docker compose up -d --build
