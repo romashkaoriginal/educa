@@ -18,6 +18,7 @@ function Practice({ studentId }) {
   const [selectedSubject, setSelectedSubject] = useState(null);
   const [leaderboardPeriod, setLeaderboardPeriod] = useState('day');
   const [weakTopicsLoading, setWeakTopicsLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState('practice'); // 'practice' | 'rating'
   
   const [activePractice, setActivePractice] = useState(null);
   const [questions, setQuestions] = useState([]);
@@ -331,11 +332,13 @@ function Practice({ studentId }) {
     setSessionAnswers([]);
     
     // Обновляем данные через контекст
+    setActiveTab('practice');
     refreshAfterPractice(activePractice?.subjectId || selectedSubject?.id, leaderboardPeriod);
   };
 
   const backToSubjects = () => {
     setSelectedSubject(null);
+    setActiveTab('practice');
   };
 
   if (contextLoading.practice && practiceTopics.length === 0) {
@@ -585,10 +588,27 @@ function Practice({ studentId }) {
             </div>
           )}
         </div>
-        <p className="practice-subtitle">Тренируйся в своём темпе и улучшай навыки</p>
       </div>
 
+      {/* ТАБ-БАР — только внутри предмета */}
       {selectedSubject && (
+        <div className="practice-tabs">
+          <button
+            className={`practice-tab ${activeTab === 'practice' ? 'active' : ''}`}
+            onClick={() => setActiveTab('practice')}
+          >
+            📝 Практика
+          </button>
+          <button
+            className={`practice-tab ${activeTab === 'rating' ? 'active' : ''}`}
+            onClick={() => setActiveTab('rating')}
+          >
+            🏆 Рейтинг
+          </button>
+        </div>
+      )}
+
+      {selectedSubject && activeTab === 'rating' && (
         <div className="practice-dashboard">
           {/* Прогнозный балл ЦТ */}
           <div className="dash-card predicted-score-card">
@@ -727,14 +747,14 @@ function Practice({ studentId }) {
         </div>
       )}
 
-      {filteredTopics.length === 0 ? (
+      {(!selectedSubject || activeTab === 'practice') && filteredTopics.length === 0 ? (
         <div className="empty-state">
           <div className="empty-icon">📚</div>
           <p className="empty-text">
             Нет доступных заданий для практики по этому предмету.
           </p>
         </div>
-      ) : (
+      ) : (!selectedSubject || activeTab === 'practice') ? (
         <div className="practice-grid">
           {filteredTopics.map(topic => {
             const hasStats = topic.stats && topic.stats.total > 0;
@@ -778,7 +798,7 @@ function Practice({ studentId }) {
             );
           })}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

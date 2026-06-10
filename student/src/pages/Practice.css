@@ -1068,3 +1068,38 @@
   padding: 12px 0;
   margin: 0;
 }
+/* ========== ТАБЫ ПРАКТИКА / РЕЙТИНГ ========== */
+.practice-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 20px;
+  background: #F0EEEA;
+  border-radius: 14px;
+  padding: 4px;
+}
+
+.practice-tab {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 10px 8px;
+  border-radius: 11px;
+  font-family: 'Manrope', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--kubik-text-soft);
+  cursor: pointer;
+  transition: all 0.22s ease;
+  white-space: nowrap;
+}
+
+.practice-tab.active {
+  background: #ffffff;
+  color: var(--kubik-navy);
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(26, 64, 95, 0.10);
+}
+
+.practice-tab:not(.active):hover {
+  color: var(--kubik-navy);
+}
