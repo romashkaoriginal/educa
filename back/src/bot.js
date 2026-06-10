@@ -22,15 +22,6 @@ function getAppOpenKeyboard() {
 }
 
 async function setupAppMenuButton(chatId) {
-  if (isHttpsWebAppUrl(webAppUrl)) {
-    await safeSetChatMenuButton(chatId, {
-      type: 'web_app',
-      text: '📚 Открыть приложение',
-      web_app: { url: webAppUrl }
-    });
-    return;
-  }
-
   await safeSetChatMenuButton(chatId, { type: 'default' });
 }
 
