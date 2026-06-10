@@ -1,18 +1,35 @@
+﻿@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
+
+:root {
+  --kubik-pink: #FFBEBD;
+  --kubik-pink-soft: #FFF1F0;
+  --kubik-white: #FCFCFA;
+  --kubik-blue: #337BAE;
+  --kubik-blue-soft: #EAF3FA;
+  --kubik-navy: #1A405F;
+  --kubik-border: #ECEAE5;
+  --kubik-text: #2A3744;
+  --kubik-text-soft: #8A95A1;
+  --good: #2E9E6B;
+  --medium: #D9943B;
+  --low: #D75A5A;
+}
+
 .admin-panel {
   max-width: 1400px;
   margin: 0 auto;
   min-height: 100vh;
-  background: #f3f4f6;
+  background: var(--kubik-white);
 }
 
 /* ========== HEADER ========== */
 .admin-header {
-  background: linear-gradient(135deg, #F59E0B 0%, #FBBF24 100%);
+  background: linear-gradient(135deg, var(--kubik-navy) 0%, var(--kubik-blue) 100%);
   padding: 20px 32px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  box-shadow: 0 4px 20px rgba(245, 158, 11, 0.3);
+  box-shadow: 0 4px 20px rgba(26, 64, 95, 0.18);
   position: sticky;
   top: 0;
   z-index: 100;
@@ -32,7 +49,7 @@
 }
 
 .logo-me {
-  color: #1E40AF;
+  color: var(--kubik-pink);
 }
 
 .admin-title {
@@ -61,20 +78,22 @@
   border-radius: 12px;
   cursor: pointer;
   transition: all 0.3s ease;
+  font-family: 'Manrope', sans-serif;
   font-size: 15px;
-  color: #6b7280;
+  color: var(--kubik-text-soft);
   font-weight: 600;
   white-space: nowrap;
 }
 
 .admin-tab:hover {
-  background: #f3f4f6;
+  background: var(--kubik-blue-soft);
+  color: var(--kubik-navy);
 }
 
 .admin-tab.active {
-  background: linear-gradient(135deg, #1E40AF 0%, #3B82F6 100%);
+  background: linear-gradient(135deg, var(--kubik-navy) 0%, var(--kubik-blue) 100%);
   color: #ffffff;
-  box-shadow: 0 4px 12px rgba(30, 64, 175, 0.3);
+  box-shadow: 0 4px 12px rgba(26, 64, 95, 0.2);
 }
 
 .tab-icon {
@@ -101,7 +120,7 @@
 .coming-soon {
   text-align: center;
   padding: 60px 20px;
-  color: #9ca3af;
+  color: var(--kubik-text-soft);
   font-size: 16px;
 }
 
@@ -134,4 +153,10 @@
 }
 .admin-refresh-btn:active {
   transform: rotate(180deg);
+}
+
+/* ========== GLOBAL FONT ========== */
+.admin-panel * {
+  font-family: 'Manrope', -apple-system, BlinkMacSystemFont, sans-serif;
+  box-sizing: border-box;
 }

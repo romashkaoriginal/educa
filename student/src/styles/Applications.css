@@ -1,5 +1,19 @@
+﻿:root {
+  --kubik-pink: #FFBEBD;
+  --kubik-pink-soft: #FFF1F0;
+  --kubik-white: #FCFCFA;
+  --kubik-blue: #337BAE;
+  --kubik-blue-soft: #EAF3FA;
+  --kubik-navy: #1A405F;
+  --kubik-border: #ECEAE5;
+  --kubik-text: #2A3744;
+  --kubik-text-soft: #8A95A1;
+  --good: #2E9E6B;
+  --medium: #D9943B;
+  --low: #D75A5A;
+}
 .apps-count {
-  color: #6b7280;
+  color: var(--kubik-text-soft);
   font-size: 14px;
 }
 
@@ -12,20 +26,20 @@
 
 .apps-filter {
   padding: 8px 14px;
-  border: 1.5px solid #e5e7eb;
+  border: 1.5px solid var(--kubik-border);
   background: #fff;
   border-radius: 10px;
   font-size: 13px;
   font-weight: 600;
-  color: #6b7280;
+  color: var(--kubik-text-soft);
   cursor: pointer;
   transition: all 0.2s;
 }
 
-.apps-filter:hover { border-color: #3B82F6; color: #1E40AF; }
+.apps-filter:hover { border-color: var(--kubik-blue); color: var(--kubik-navy); }
 .apps-filter.active {
-  border-color: #3B82F6;
-  background: #1E40AF;
+  border-color: var(--kubik-blue);
+  background: var(--kubik-navy);
   color: #fff;
 }
 
@@ -36,7 +50,7 @@
 }
 
 .app-card {
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--kubik-border);
   border-radius: 12px;
   background: #fff;
   overflow: hidden;
@@ -51,7 +65,7 @@
   gap: 12px;
 }
 
-.app-card-header:hover { background: #f9fafb; }
+.app-card-header:hover { background: var(--kubik-white); }
 
 .app-main-info {
   display: flex;
@@ -60,18 +74,18 @@
 }
 
 .app-expand {
-  color: #9ca3af;
+  color: var(--kubik-text-soft);
   font-size: 12px;
 }
 
 .app-name {
   font-weight: 700;
-  color: #1f2937;
+  color: var(--kubik-navy);
   font-size: 15px;
 }
 
 .app-phone {
-  color: #6b7280;
+  color: var(--kubik-text-soft);
   font-size: 13px;
   margin-top: 2px;
 }
@@ -93,7 +107,7 @@
 
 .app-card-body {
   padding: 0 16px 16px;
-  border-top: 1px solid #f3f4f6;
+  border-top: 1px solid var(--kubik-white);
 }
 
 .app-detail-grid {
@@ -111,12 +125,12 @@
 
 .app-detail-label {
   font-size: 12px;
-  color: #9ca3af;
+  color: var(--kubik-text-soft);
   font-weight: 600;
 }
 
 .app-detail span:last-child {
-  color: #1f2937;
+  color: var(--kubik-navy);
   font-size: 14px;
 }
 
@@ -132,7 +146,7 @@
 
 .app-crm-lead {
   font-size: 13px;
-  color: #6b7280;
+  color: var(--kubik-text-soft);
   margin-bottom: 12px;
 }
 
@@ -151,13 +165,13 @@
 
 .app-status-select label {
   font-size: 13px;
-  color: #6b7280;
+  color: var(--kubik-text-soft);
   font-weight: 600;
 }
 
 .app-status-select select {
   padding: 8px 12px;
-  border: 1.5px solid #e5e7eb;
+  border: 1.5px solid var(--kubik-border);
   border-radius: 8px;
   font-size: 14px;
   cursor: pointer;
@@ -165,7 +179,7 @@
 
 .app-resend-btn {
   padding: 8px 16px;
-  background: #1E40AF;
+  background: var(--kubik-navy);
   color: #fff;
   border: none;
   border-radius: 8px;

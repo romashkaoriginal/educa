@@ -1,4 +1,4 @@
-:root {
+﻿:root {
   --kubik-pink: #FFBEBD;
   --kubik-white: #FCFCFA;
   --kubik-blue: #337BAE;
@@ -36,7 +36,7 @@
 }
 
 .logo-me {
-  color: #F59E0B;
+  color: var(--kubik-blue);
 }
 
 /* Content */
@@ -264,7 +264,7 @@
 }
 
 .selection-logo .logo-me {
-  color: #F59E0B; /* ОРАНЖЕВЫЙ */
+  color: var(--kubik-blue); /* ОРАНЖЕВЫЙ */
 }
 
 .selection-title {
@@ -430,7 +430,7 @@
 }
 
 .initial-loading .loading-logo .logo-me {
-  background: linear-gradient(135deg, #F59E0B 0%, #FBBF24 100%);
+  background: linear-gradient(135deg, var(--kubik-blue) 0%, var(--kubik-pink) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }

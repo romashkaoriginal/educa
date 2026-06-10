@@ -1,3 +1,5 @@
+﻿@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
+
 /* ========== USERS SECTION ========== */
 .users-section {
   animation: fadeIn 0.3s ease;
@@ -27,7 +29,7 @@
 .header-left h2 {
   font-size: 28px;
   font-weight: 800;
-  color: #1f2937;
+  color: var(--kubik-navy);
   margin: 0 0 12px 0;
 }
 
@@ -45,18 +47,18 @@
 }
 
 .role-stat.admin {
-  background: #fee2e2;
-  color: #991b1b;
+  background: var(--kubik-pink-soft);
+  color: var(--low);
 }
 
 .role-stat.teacher {
-  background: #dbeafe;
-  color: #1e40af;
+  background: var(--kubik-blue-soft);
+  color: var(--kubik-navy);
 }
 
 .role-stat.manager {
-  background: #d1fae5;
-  color: #065f46;
+  background: rgba(46, 158, 107, 0.12);
+  color: var(--good);
 }
 
 /* ========== FILTERS BAR ========== */
@@ -71,7 +73,7 @@
   flex: 1;
   min-width: 300px;
   padding: 12px 20px;
-  border: 2px solid #e5e7eb;
+  border: 2px solid var(--kubik-border);
   border-radius: 12px;
   font-size: 15px;
   transition: all 0.3s ease;
@@ -79,13 +81,13 @@
 
 .search-input:focus {
   outline: none;
-  border-color: #3B82F6;
+  border-color: var(--kubik-blue);
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
 .role-filter {
   padding: 12px 20px;
-  border: 2px solid #e5e7eb;
+  border: 2px solid var(--kubik-border);
   border-radius: 12px;
   font-size: 15px;
   font-weight: 600;
@@ -97,12 +99,12 @@
 
 .role-filter:focus {
   outline: none;
-  border-color: #3B82F6;
+  border-color: var(--kubik-blue);
 }
 
 /* ========== ADD BUTTON ========== */
 .add-button {
-  background: linear-gradient(135deg, #1E40AF 0%, #3B82F6 100%);
+  background: linear-gradient(135deg, var(--kubik-navy) 0%, var(--kubik-blue) 100%);
   color: #ffffff;
   border: none;
   padding: 12px 24px;
@@ -111,13 +113,13 @@
   font-size: 14px;
   cursor: pointer;
   transition: all 0.3s ease;
-  box-shadow: 0 4px 12px rgba(30, 64, 175, 0.3);
+  box-shadow: 0 4px 12px rgba(26, 64, 95, 0.2);
   white-space: nowrap;
 }
 
 .add-button:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(30, 64, 175, 0.4);
+  box-shadow: 0 6px 20px rgba(26, 64, 95, 0.25);
 }
 
 /* ========== USERS GRID ========== */
@@ -129,7 +131,7 @@
 
 .user-card {
   background: #ffffff;
-  border: 2px solid #e5e7eb;
+  border: 2px solid var(--kubik-border);
   border-radius: 16px;
   padding: 24px;
   transition: all 0.3s ease;
@@ -152,7 +154,7 @@
 }
 
 .user-card.manager {
-  border-left: 4px solid #059669;
+  border-left: 4px solid var(--good);
 }
 
 /* ========== USER CARD HEADER ========== */
@@ -183,7 +185,7 @@
 .user-main-info h3 {
   font-size: 18px;
   font-weight: 700;
-  color: #1f2937;
+  color: var(--kubik-navy);
   margin: 0 0 4px 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -192,13 +194,13 @@
 
 .user-username {
   font-size: 13px;
-  color: #6b7280;
+  color: var(--kubik-text-soft);
   margin: 0 0 2px 0;
 }
 
 .user-id {
   font-size: 12px;
-  color: #9ca3af;
+  color: var(--kubik-text-soft);
   margin: 0;
 }
 
@@ -221,7 +223,7 @@
 
 .role-description {
   font-size: 13px;
-  color: #6b7280;
+  color: var(--kubik-text-soft);
   line-height: 1.5;
   margin: 0;
 }
@@ -241,18 +243,18 @@
 }
 
 .status-badge.active {
-  background: #d1fae5;
-  color: #065f46;
+  background: rgba(46, 158, 107, 0.12);
+  color: var(--good);
 }
 
 .status-badge.inactive {
-  background: #fee2e2;
-  color: #991b1b;
+  background: var(--kubik-pink-soft);
+  color: var(--low);
 }
 
 .created-date {
   font-size: 12px;
-  color: #9ca3af;
+  color: var(--kubik-text-soft);
 }
 
 /* ========== USER CARD ACTIONS ========== */
@@ -260,13 +262,13 @@
   display: flex;
   gap: 8px;
   padding-top: 12px;
-  border-top: 2px solid #f3f4f6;
+  border-top: 2px solid var(--kubik-white);
 }
 
 .action-btn {
   flex: 1;
   padding: 10px;
-  border: 2px solid #e5e7eb;
+  border: 2px solid var(--kubik-border);
   background: #ffffff;
   border-radius: 10px;
   font-size: 18px;
@@ -279,12 +281,12 @@
 }
 
 .action-btn.edit:hover {
-  border-color: #3B82F6;
-  background: #eff6ff;
+  border-color: var(--kubik-blue);
+  background: var(--kubik-blue-soft);
 }
 
 .action-btn.toggle.active:hover {
-  border-color: #059669;
+  border-color: var(--good);
   background: #ecfdf5;
 }
 
@@ -317,7 +319,7 @@
   width: 64px;
   height: 64px;
   border-radius: 50%;
-  background: linear-gradient(90deg, #e5e7eb 0%, #f3f4f6 50%, #e5e7eb 100%);
+  background: linear-gradient(90deg, var(--kubik-border) 0%, var(--kubik-white) 50%, var(--kubik-border) 100%);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
 }
@@ -331,7 +333,7 @@
 
 .skeleton-line {
   height: 16px;
-  background: linear-gradient(90deg, #e5e7eb 0%, #f3f4f6 50%, #e5e7eb 100%);
+  background: linear-gradient(90deg, var(--kubik-border) 0%, var(--kubik-white) 50%, var(--kubik-border) 100%);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
   border-radius: 4px;
@@ -354,7 +356,7 @@
 .empty-state {
   text-align: center;
   padding: 60px 20px;
-  color: #9ca3af;
+  color: var(--kubik-text-soft);
   font-size: 16px;
 }
 
@@ -401,18 +403,18 @@
   justify-content: space-between;
   align-items: center;
   padding: 24px 32px;
-  border-bottom: 2px solid #e5e7eb;
+  border-bottom: 2px solid var(--kubik-border);
 }
 
 .modal-header h2 {
   font-size: 24px;
   font-weight: 800;
-  color: #1f2937;
+  color: var(--kubik-navy);
   margin: 0;
 }
 
 .modal-close {
-  background: #f3f4f6;
+  background: var(--kubik-white);
   border: none;
   width: 36px;
   height: 36px;
@@ -426,7 +428,7 @@
 }
 
 .modal-close:hover {
-  background: #e5e7eb;
+  background: var(--kubik-border);
   transform: rotate(90deg);
 }
 
@@ -442,7 +444,7 @@
 .form-section h3 {
   font-size: 16px;
   font-weight: 700;
-  color: #1f2937;
+  color: var(--kubik-navy);
   margin: 0 0 16px 0;
   display: flex;
   align-items: center;
@@ -464,12 +466,12 @@
 .form-group label {
   font-size: 13px;
   font-weight: 600;
-  color: #374151;
+  color: var(--kubik-text);
 }
 
 .form-group input {
   padding: 12px 16px;
-  border: 2px solid #e5e7eb;
+  border: 2px solid var(--kubik-border);
   border-radius: 10px;
   font-size: 15px;
   transition: all 0.3s ease;
@@ -477,19 +479,19 @@
 
 .form-group input:focus {
   outline: none;
-  border-color: #3B82F6;
+  border-color: var(--kubik-blue);
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
 .form-group input:disabled {
-  background: #f9fafb;
-  color: #9ca3af;
+  background: var(--kubik-white);
+  color: var(--kubik-text-soft);
   cursor: not-allowed;
 }
 
 .form-group small {
   font-size: 12px;
-  color: #9ca3af;
+  color: var(--kubik-text-soft);
 }
 
 /* ========== ROLE SELECTOR ========== */
@@ -513,20 +515,20 @@
   align-items: center;
   gap: 16px;
   padding: 16px;
-  border: 2px solid #e5e7eb;
+  border: 2px solid var(--kubik-border);
   border-radius: 12px;
   background: #ffffff;
   transition: all 0.3s ease;
 }
 
 .role-option:hover .role-option-content {
-  border-color: #3B82F6;
-  background: #f9fafb;
+  border-color: var(--kubik-blue);
+  background: var(--kubik-white);
 }
 
 .role-option.selected .role-option-content {
-  border-color: #3B82F6;
-  background: #eff6ff;
+  border-color: var(--kubik-blue);
+  background: var(--kubik-blue-soft);
   box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
 }
 
@@ -554,13 +556,13 @@
 .role-option-info h4 {
   font-size: 16px;
   font-weight: 700;
-  color: #1f2937;
+  color: var(--kubik-navy);
   margin: 0 0 4px 0;
 }
 
 .role-option-info p {
   font-size: 13px;
-  color: #6b7280;
+  color: var(--kubik-text-soft);
   margin: 0;
   line-height: 1.4;
 }
@@ -571,7 +573,7 @@
   gap: 12px;
   justify-content: flex-end;
   padding-top: 20px;
-  border-top: 2px solid #e5e7eb;
+  border-top: 2px solid var(--kubik-border);
   margin-top: 20px;
 }
 
@@ -587,23 +589,23 @@
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #1E40AF 0%, #3B82F6 100%);
+  background: linear-gradient(135deg, var(--kubik-navy) 0%, var(--kubik-blue) 100%);
   color: #ffffff;
-  box-shadow: 0 4px 12px rgba(30, 64, 175, 0.3);
+  box-shadow: 0 4px 12px rgba(26, 64, 95, 0.2);
 }
 
 .btn-primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(30, 64, 175, 0.4);
+  box-shadow: 0 6px 20px rgba(26, 64, 95, 0.25);
 }
 
 .btn-secondary {
-  background: #f3f4f6;
-  color: #374151;
+  background: var(--kubik-white);
+  color: var(--kubik-text);
 }
 
 .btn-secondary:hover {
-  background: #e5e7eb;
+  background: var(--kubik-border);
 }
 
 /* ========== RESPONSIVE ========== */
