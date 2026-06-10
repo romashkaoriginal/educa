@@ -178,6 +178,85 @@ function MatchingWire({ pairs, rightOrder, connections, colors, onChange }) {
   );
 }
 
+function formatDeadline(date) {
+  return new Date(date).toLocaleString('ru-RU', {
+    day: 'numeric',
+    month: 'long',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
+
+function getDeadlineHint(minutesLeft) {
+  if (minutesLeft <= 0) return { text: 'Срок сдачи истёк', tone: 'urgent' };
+  if (minutesLeft <= 60) return { text: `Осталось ${minutesLeft} мин`, tone: 'urgent' };
+  const hoursLeft = Math.floor(minutesLeft / 60);
+  if (minutesLeft <= 24 * 60) return { text: `Осталось ${hoursLeft} ч`, tone: 'warning' };
+  const daysLeft = Math.floor(hoursLeft / 24);
+  return { text: `Осталось ${daysLeft} дн`, tone: 'ok' };
+}
+
+function getHomeworkCardState(homework, now = new Date()) {
+  const closeDate = new Date(homework.closeDate);
+  const minutesLeft = Math.floor((closeDate - now) / (1000 * 60));
+  const questionCount = (homework.questions || []).length;
+  const maxScore = homework.stats?.maxScore
+    || (homework.questions || []).reduce((sum, q) => sum + (q.points || 0), 0);
+  const usedAttempts = homework.stats?.attempts || 0;
+  const bestScore = homework.stats?.bestScore || 0;
+  const hasResult = bestScore > 0;
+  const attemptsExhausted = homework.maxAttempts && usedAttempts >= homework.maxAttempts;
+  const isExpired = minutesLeft <= 0;
+  const progressPercent = maxScore > 0 && hasResult
+    ? Math.round((bestScore / maxScore) * 100)
+    : 0;
+
+  let status = 'new';
+  let statusLabel = 'Не начато';
+  if (isExpired && !hasResult) {
+    status = 'expired';
+    statusLabel = 'Просрочено';
+  } else if (attemptsExhausted && !hasResult) {
+    status = 'closed';
+    statusLabel = 'Попытки исчерпаны';
+  } else if (hasResult) {
+    status = 'done';
+    statusLabel = 'Выполнено';
+  } else if (usedAttempts > 0) {
+    status = 'progress';
+    statusLabel = 'В процессе';
+  }
+
+  let actionLabel = 'Начать выполнение';
+  if (attemptsExhausted) actionLabel = 'Попытки исчерпаны';
+  else if (isExpired) actionLabel = 'Срок истёк';
+  else if (hasResult) actionLabel = 'Пройти заново';
+
+  const attemptsText = homework.maxAttempts
+    ? `${usedAttempts} / ${homework.maxAttempts}`
+    : usedAttempts > 0 ? `${usedAttempts}` : '∞';
+
+  const bestResultText = hasResult ? `${bestScore} / ${maxScore}` : '—';
+
+  return {
+    questionCount,
+    maxScore,
+    usedAttempts,
+    bestScore,
+    hasResult,
+    attemptsExhausted,
+    isExpired,
+    progressPercent,
+    status,
+    statusLabel,
+    actionLabel,
+    attemptsText,
+    bestResultText,
+    deadlineHint: getDeadlineHint(minutesLeft),
+    disabled: isExpired || attemptsExhausted
+  };
+}
+
 function StudentHomework({ studentId }) {
   const { homeworks, subjects, refreshAfterHomework, loading: contextLoading } = useData();
 
@@ -1045,19 +1124,18 @@ function StudentHomework({ studentId }) {
     : homeworks;
 
   return (
-    <div className="section">
-      <div className={`page-header ${subjects.length === 1 ? 'single-subject' : ''}`}>
+    <div className="section homework-section">
+      <div className="homework-topbar">
         {subjects.length > 1 && selectedSubject && (
-          <button className="back-button-header" onClick={backToSubjects}>← Назад</button>
+          <button className="back-button" onClick={backToSubjects}>← Назад к предметам</button>
         )}
-        <div className="page-header-title">
-          <span className="page-header-icon">{selectedSubject?.icon || '📝'}</span>
-          <span className="page-header-text">{selectedSubject ? selectedSubject.name : 'Домашка'}</span>
-        </div>
+        <h1 className="homework-page-title">
+          <span className="homework-page-icon">{selectedSubject?.icon || '📝'}</span>
+          {selectedSubject ? selectedSubject.name : 'Домашка'}
+        </h1>
+        <p className="homework-page-subtitle">Выполняй задания в срок и улучшай лучший результат</p>
       </div>
-      <p style={{ margin: '12px 0 20px', color: '#6b7280', fontSize: '14px' }}>
-        📝 Выполняйте домашние задания в указанные сроки
-      </p>
+
       {filteredHomeworks.length === 0 ? (
         <div className="empty-state">
           <div className="empty-icon">📚</div>
@@ -1066,67 +1144,71 @@ function StudentHomework({ studentId }) {
       ) : (
         <div className="homeworks-grid">
           {filteredHomeworks.map(homework => {
-            const now = new Date();
-            const closeDate = new Date(homework.closeDate);
-            const minutesLeft = Math.floor((closeDate - now) / (1000 * 60));
-            const hoursLeft = Math.floor(minutesLeft / 60);
-            const isExpired = minutesLeft <= 0;
-            const maxScore = (homework.questions || []).reduce((sum, q) => sum + (q.points || 0), 0);
-            const usedAttempts = homework.stats?.attempts || homework.stats?.attemptsUsed || 0;
-            const attemptsLeft = homework.maxAttempts ? homework.maxAttempts - usedAttempts : null;
-            const attemptsExhausted = homework.maxAttempts && usedAttempts >= homework.maxAttempts;
+            const card = getHomeworkCardState(homework);
 
             return (
-              <div key={homework.id} className="homework-card">
-                <div className="card-header">
-                  <span className="subject-icon">{homework.subject?.icon}</span>
-                  <div>
-                    <h3 className="card-title">{homework.title}</h3>
-                    <p className="subject-name">{homework.subject?.name}</p>
+              <article key={homework.id} className={`homework-card hw-status-${card.status}`}>
+                <div className="hw-card-top">
+                  <div className="hw-card-heading">
+                    <h3 className="hw-card-title">{homework.title}</h3>
+                    <p className="hw-card-subject">
+                      <span className="hw-card-subject-icon">{homework.subject?.icon}</span>
+                      {homework.subject?.name}
+                    </p>
                   </div>
+                  <span className={`hw-status-badge ${card.status}`}>{card.statusLabel}</span>
                 </div>
-                {homework.description && <p className="card-description">{homework.description}</p>}
-                <div className="card-info">
-                  <div className="info-item"><span className="info-icon">📚</span>{(homework.questions || []).length} вопросов</div>
-                  <div className="info-item"><span className="info-icon">⭐</span>Макс. {maxScore} баллов</div>
-                  {homework.maxAttempts && (
-                    <div className="info-item">
-                      <span className="info-icon">🔄</span>
-                      {homework.stats ? `Осталось попыток: ${attemptsLeft} из ${homework.maxAttempts}` : `До ${homework.maxAttempts} попыток`}
-                    </div>
-                  )}
-                </div>
-                {homework.stats && homework.stats.bestScore > 0 && (
-                  <div className="homework-stats">
-                    <div className="stats-header">
-                      <span>Ваш лучший результат:</span>
-                      <span className="stats-score">{homework.stats.bestScore}/{homework.stats.maxScore}</span>
-                    </div>
-                    <div className="stats-bar">
-                      <div className="stats-fill" style={{ width: `${(homework.stats.bestScore / homework.stats.maxScore) * 100}%` }}></div>
-                    </div>
-                    <p className="attempts-count">Попыток использовано: {usedAttempts}{homework.maxAttempts && ` из ${homework.maxAttempts}`}</p>
-                  </div>
+
+                {homework.description && (
+                  <p className="hw-card-description">{homework.description}</p>
                 )}
-                <div className="deadline-info">
-                  {minutesLeft > 24 * 60 ? (
-                    <span className="deadline-ok">⏰ До сдачи: {Math.floor(hoursLeft / 24)} дн.</span>
-                  ) : minutesLeft > 60 ? (
-                    <span className="deadline-warning">⏰ До сдачи: {hoursLeft} ч.</span>
-                  ) : minutesLeft > 0 ? (
-                    <span className="deadline-warning">⏰ До сдачи: {minutesLeft} мин.</span>
-                  ) : (
-                    <span className="deadline-urgent">⏰ Срок истёк!</span>
-                  )}
+
+                <div className="hw-metrics">
+                  <div className="hw-metric">
+                    <span className="hw-metric-label">Вопросов</span>
+                    <span className="hw-metric-value">{card.questionCount}</span>
+                  </div>
+                  <div className="hw-metric">
+                    <span className="hw-metric-label">Макс. баллов</span>
+                    <span className="hw-metric-value">{card.maxScore}</span>
+                  </div>
+                  <div className="hw-metric">
+                    <span className="hw-metric-label">Попытки</span>
+                    <span className="hw-metric-value">{card.attemptsText}</span>
+                  </div>
+                  <div className="hw-metric">
+                    <span className="hw-metric-label">Лучший результат</span>
+                    <span className="hw-metric-value">{card.bestResultText}</span>
+                  </div>
                 </div>
+
+                <div className="hw-progress-block">
+                  <div className="hw-progress-header">
+                    <span>Прогресс</span>
+                    <span className="hw-progress-percent">{card.progressPercent}%</span>
+                  </div>
+                  <div className="hw-progress-bar">
+                    <div
+                      className={`hw-progress-fill ${card.progressPercent >= 70 ? 'good' : card.progressPercent >= 40 ? 'medium' : 'low'}`}
+                      style={{ width: `${card.progressPercent}%` }}
+                    />
+                  </div>
+                </div>
+
+                <div className={`hw-deadline ${card.deadlineHint.tone}`}>
+                  <span className="hw-deadline-label">Дедлайн</span>
+                  <span className="hw-deadline-date">{formatDeadline(homework.closeDate)}</span>
+                  <span className="hw-deadline-hint">{card.deadlineHint.text}</span>
+                </div>
+
                 <button
-                  className="primary-button"
+                  className="hw-action-btn"
                   onClick={() => startHomework(homework)}
-                  disabled={isExpired || attemptsExhausted}
+                  disabled={card.disabled}
                 >
-                  {attemptsExhausted ? 'Попытки исчерпаны' : homework.stats?.bestScore > 0 ? 'Пройти заново' : 'Начать выполнение'}
+                  {card.actionLabel}
                 </button>
-              </div>
+              </article>
             );
           })}
         </div>
