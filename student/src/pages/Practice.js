@@ -527,9 +527,21 @@ function Practice({ studentId }) {
   if (subjects.length > 1 && !selectedSubject) {
     return (
       <div className="section">
-        <div className="practice-topbar">
-          <h1 className="section-title"><span className="title-emoji">💪</span> Практика</h1>
-          <p className="practice-subtitle">Выберите предмет для практики</p>
+        <div className="practice-hero">
+          <div className="practice-hero-glow"></div>
+          <div className="practice-hero-content">
+            <div className="practice-hero-text">
+              <div className="practice-hero-eyebrow">РАЗДЕЛ</div>
+              <h1 className="practice-hero-title">Практика</h1>
+              <p className="practice-hero-sub">Выберите предмет для практики</p>
+            </div>
+            {streak?.streak > 0 && (
+              <div className={`hero-streak ${streak.todayDone ? 'done' : 'pending'}`}>
+                <span className="hero-streak-flame">🔥</span>
+                <span className="hero-streak-count">{streak.streak}</span>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="subjects-grid">
@@ -567,24 +579,31 @@ function Practice({ studentId }) {
 
   return (
     <div className="section">
-      <div className="practice-topbar">
-        {subjects.length > 1 && selectedSubject && (
-          <button className="back-button" onClick={backToSubjects}>
-            ← Назад к предметам
-          </button>
-        )}
-        <div className="topbar-title-row">
-          <h1 className="section-title">
-            {selectedSubject ? (
-              <><span className="title-emoji">{selectedSubject.icon}</span> {selectedSubject.name}</>
-            ) : (
-              <><span className="title-emoji">💪</span> Практика</>
-            )}
-          </h1>
+      {subjects.length > 1 && selectedSubject && (
+        <button className="back-button hero-back" onClick={backToSubjects}>
+          ← Назад к предметам
+        </button>
+      )}
+      <div className="practice-hero">
+        <div className="practice-hero-glow"></div>
+        <div className="practice-hero-content">
+          <div className="practice-hero-text">
+            <div className="practice-hero-eyebrow">{selectedSubject ? 'ПРЕДМЕТ' : 'РАЗДЕЛ'}</div>
+            <h1 className="practice-hero-title">
+              {selectedSubject ? (
+                <><span className="hero-title-emoji">{selectedSubject.icon}</span> {selectedSubject.name}</>
+              ) : 'Практика'}
+            </h1>
+            <p className="practice-hero-sub">
+              {selectedSubject
+                ? `${filteredTopics.length} подразделов · ${filteredTopics.reduce((s, t) => s + (t.questions?.length || 0), 0)} вопросов`
+                : 'Тренируйся в своём темпе'}
+            </p>
+          </div>
           {streak?.streak > 0 && (
-            <div className={`streak-circle ${streak.todayDone ? 'done' : 'pending'}`}>
-              <span className="streak-circle-flame">🔥</span>
-              <span className="streak-circle-count">{streak.streak}</span>
+            <div className={`hero-streak ${streak.todayDone ? 'done' : 'pending'}`}>
+              <span className="hero-streak-flame">🔥</span>
+              <span className="hero-streak-count">{streak.streak}</span>
             </div>
           )}
         </div>
