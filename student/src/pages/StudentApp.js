@@ -31,8 +31,24 @@ function StudentAppContent({ selectedStudent }) {
     };
   }, []);
 
+  const [prevTab, setPrevTab] = useState(null);
+  const [animating, setAnimating] = useState(false);
+
+  const tabOrder = ['practice', 'homework', 'quiz', 'stats'];
+
   const handleTabChange = (tabId) => {
+    if (tabId === activeTab || animating) return;
+    setPrevTab(activeTab);
+    setAnimating(true);
     setActiveTab(tabId);
+    setTimeout(() => {
+      setPrevTab(null);
+      setAnimating(false);
+    }, 320);
+  };
+
+  const getDirection = (from, to) => {
+    return tabOrder.indexOf(to) > tabOrder.indexOf(from) ? 'forward' : 'backward';
   };
 
   const tabs = [
@@ -45,10 +61,29 @@ function StudentAppContent({ selectedStudent }) {
   return (
     <div className="student-app">
       <main className="content">
-        <div style={{ display: activeTab === 'practice' ? 'block' : 'none' }}><Practice studentId={selectedStudent.id} /></div>
-        <div style={{ display: activeTab === 'homework' ? 'block' : 'none' }}><Homework studentId={selectedStudent.id} /></div>
-        <div style={{ display: activeTab === 'quiz' ? 'block' : 'none' }}><Quiz studentId={selectedStudent.id} /></div>
-        <div style={{ display: activeTab === 'stats' ? 'block' : 'none' }}><Statistics studentId={selectedStudent.id} /></div>
+        <div className="tab-viewport">
+          {[
+            { id: 'practice', el: <Practice studentId={selectedStudent.id} /> },
+            { id: 'homework', el: <Homework studentId={selectedStudent.id} /> },
+            { id: 'quiz', el: <Quiz studentId={selectedStudent.id} /> },
+            { id: 'stats', el: <Statistics studentId={selectedStudent.id} /> },
+          ].map(({ id, el }) => {
+            const isActive = id === activeTab;
+            const isPrev = id === prevTab;
+            if (!isActive && !isPrev) return null;
+            const dir = prevTab ? getDirection(prevTab, activeTab) : 'forward';
+            let cls = 'tab-panel';
+            if (isActive && animating) cls += ` tab-enter-${dir}`;
+            else if (isActive) cls += ' tab-visible';
+            else if (isPrev && animating) cls += ` tab-exit-${dir}`;
+            else cls += ' tab-hidden';
+            return (
+              <div key={id} className={cls}>
+                {el}
+              </div>
+            );
+          })}
+        </div>
       </main>
 
       <nav className="bottom-navigation">

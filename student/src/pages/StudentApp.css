@@ -516,3 +516,81 @@
   from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: translateY(0); }
 }
+/* ========== TAB TRANSITION ANIMATION ========== */
+.tab-viewport {
+  position: relative;
+  width: 100%;
+  min-height: 100%;
+  overflow: hidden;
+}
+
+.tab-panel {
+  width: 100%;
+  will-change: transform, opacity;
+}
+
+/* Активный таб — просто виден */
+.tab-visible {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* Скрытый — не в DOM через null, но на случай */
+.tab-hidden {
+  display: none;
+}
+
+/* Въезжает справа (вперёд) */
+.tab-enter-forward {
+  animation: slideInRight 0.30s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+/* Уезжает влево (вперёд) */
+.tab-exit-forward {
+  animation: slideOutLeft 0.30s cubic-bezier(0.4, 0, 0.2, 1) both;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+}
+
+/* Въезжает слева (назад) */
+.tab-enter-backward {
+  animation: slideInLeft 0.30s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+/* Уезжает вправо (назад) */
+.tab-exit-backward {
+  animation: slideOutRight 0.30s cubic-bezier(0.4, 0, 0.2, 1) both;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+}
+
+@keyframes slideInRight {
+  from { transform: translateX(40px); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+
+@keyframes slideOutLeft {
+  from { transform: translateX(0);     opacity: 1; }
+  to   { transform: translateX(-40px); opacity: 0; }
+}
+
+@keyframes slideInLeft {
+  from { transform: translateX(-40px); opacity: 0; }
+  to   { transform: translateX(0);     opacity: 1; }
+}
+
+@keyframes slideOutRight {
+  from { transform: translateX(0);    opacity: 1; }
+  to   { transform: translateX(40px); opacity: 0; }
+}
+
+/* Убираем старый fadeIn с .section — теперь анимирует viewport */
+.section {
+  animation: none;
+}
