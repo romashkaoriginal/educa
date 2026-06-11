@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import '../../styles/Students.css';
 import { adminFetch } from './adminApi';
 import { useAdminData } from './AdminDataContext';
+import { useSectionRefresh } from './useSectionRefresh';
 
 import { API_URL } from '../../config';
 
-function Students({ subjects }) {
+function Students({ subjects, dataRefreshKey = 0 }) {
   const { refresh } = useAdminData();
   const [students, setStudents] = useState([]);
   const [botUsers, setBotUsers] = useState([]);
@@ -71,6 +72,8 @@ const [editFormData, setEditFormData] = useState({
       setLoading(false);
     }
   };
+
+  useSectionRefresh(dataRefreshKey, loadStudents);
 
   const loadBotUsers = async () => {
     setLoadingBotUsers(true);

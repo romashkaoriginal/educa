@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import '../../styles/Applications.css';
 import { adminFetch } from './adminApi';
 import { useAdminData } from './AdminDataContext';
+import { useSectionRefresh } from './useSectionRefresh';
 
 import { API_URL } from '../../config';
 
@@ -18,7 +19,7 @@ const CRM_LABELS = {
   error: { label: '✗ Ошибка', color: '#EF4444' },
 };
 
-function Applications() {
+function Applications({ dataRefreshKey = 0 }) {
   const { refresh } = useAdminData();
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -40,6 +41,8 @@ function Applications() {
       setLoading(false);
     }
   };
+
+  useSectionRefresh(dataRefreshKey, loadApplications);
 
   const changeStatus = async (id, status) => {
     try {

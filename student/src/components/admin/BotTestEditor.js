@@ -3,8 +3,9 @@ import '../../styles/BotTestEditor.css';
 import { adminFetch } from './adminApi';
 
 import { API_URL } from '../../config';
+import { useSectionRefresh } from './useSectionRefresh';
 
-function BotTestEditor({ subjects }) {
+function BotTestEditor({ subjects, dataRefreshKey = 0 }) {
   const [questions, setQuestions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedSubject, setSelectedSubject] = useState(null);
@@ -32,6 +33,8 @@ function BotTestEditor({ subjects }) {
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   };
+
+  useSectionRefresh(dataRefreshKey, loadQuestions);
 
   const resetForm = () => setForm({
     subjectId: selectedSubject?.id || subjects[0]?.id || '',

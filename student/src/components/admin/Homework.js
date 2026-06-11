@@ -3,6 +3,7 @@ import '../../styles/Homework.css';
 import { adminFetch } from './adminApi';
 
 import { API_URL } from '../../config';
+import { useSectionRefresh } from './useSectionRefresh';
 
 const QUESTION_TYPES = [
   { value: 'single_choice', label: 'Тест с одним правильным ответом', icon: '⭕' },
@@ -20,7 +21,7 @@ const MONTHS_RU = [
   'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'
 ];
 
-function Homework({ subjects, currentUserId }) {
+function Homework({ subjects, currentUserId, dataRefreshKey = 0 }) {
   const [homeworks, setHomeworks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -65,6 +66,8 @@ function Homework({ subjects, currentUserId }) {
       setLoading(false);
     }
   };
+
+  useSectionRefresh(dataRefreshKey, loadHomeworks);
 
   const openCreateModal = () => {
     setFormData({

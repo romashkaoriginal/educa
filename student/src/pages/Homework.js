@@ -4,6 +4,7 @@ import { useData } from './DataContext';
 import { apiFetch } from './api';
 
 import { API_URL } from '../config';
+import StudentBrandMark from '../components/StudentBrandMark';
 
 function HomeworkHero({ eyebrow, title, subtitle, showBack, onBack, badgeCount, badgeUrgent }) {
   return (
@@ -15,10 +16,13 @@ function HomeworkHero({ eyebrow, title, subtitle, showBack, onBack, badgeCount, 
       )}
       <div className="section-hero-glow"></div>
       <div className="section-hero-content">
-        <div className="section-hero-text">
-          <div className="section-hero-eyebrow">{eyebrow}</div>
-          <h1 className="section-hero-title">{title}</h1>
-          {subtitle && <p className="section-hero-sub">{subtitle}</p>}
+        <div className="section-hero-main">
+          <StudentBrandMark variant="hero" />
+          <div className="section-hero-text">
+            <div className="section-hero-eyebrow">{eyebrow}</div>
+            <h1 className="section-hero-title">{title}</h1>
+            {subtitle && <p className="section-hero-sub">{subtitle}</p>}
+          </div>
         </div>
         {badgeCount > 0 && (
           <div className={`hero-count-badge ${badgeUrgent ? 'urgent' : ''}`}>

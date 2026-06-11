@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import '../../styles/Statistics.css';
 import { adminFetch } from './adminApi';
 import { API_URL } from '../../config';
+import { useSectionRefresh } from './useSectionRefresh';
 
-function AdminStatistics({ currentUser }) {
+function AdminStatistics({ currentUser, dataRefreshKey = 0 }) {
   const userRole = currentUser?.role || 'admin';
   const isManager = userRole === 'manager';
   const [students, setStudents] = useState([]);
@@ -35,6 +36,12 @@ function AdminStatistics({ currentUser }) {
   useEffect(() => {
     if (mode === 'student' && selectedStudent) loadStudentStats();
   }, [mode, selectedStudent, activeTab]);
+
+  useSectionRefresh(dataRefreshKey, () => {
+    loadStudents();
+    if (mode === 'all') loadAllStats();
+    else if (selectedStudent) loadStudentStats();
+  });
 
   const loadStudents = async () => {
     try {

@@ -1,16 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
 import kubikLogo from './assets/kubik-logo-transparent.png';
-import kubikIcon from './assets/kubik-icon.png';
 import StudentApp from './pages/StudentApp';
 
 import AdminPanel from './pages/AdminPanel';
 
 import { API_URL } from './config';
+import { apiFetch } from './pages/api';
 
 function App() {
   const [selectedRole, setSelectedRole] = useState(null);
   const [userRole, setUserRole] = useState(null);
+  const [authUser, setAuthUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isTelegramWebApp, setIsTelegramWebApp] = useState(false);
 
@@ -34,9 +35,7 @@ function App() {
         tg.BackButton.hide();
         
         // ОТКЛЮЧАЕМ вертикальные свайпы чтобы не закрывалась
-        if (tg.disableVerticalSwipes) {
-          tg.disableVerticalSwipes();
-        }
+        Promise.resolve(tg.disableVerticalSwipes?.()).catch(() => {});
 
         const user = tg.initDataUnsafe?.user;
         
@@ -94,14 +93,19 @@ function App() {
       if (response.ok) {
         const data = await response.json();
         const role = data.user?.role;
-        
+        setAuthUser(data.user || null);
+
         if (role === 'admin' || role === 'teacher' || role === 'manager') {
           setUserRole(role);
           setLoading(false);
-          // Prefetch студентов фоново пока показывается экран выбора роли
-          fetch(`${API_URL}/students`).then(r => r.json()).then(data => {
-            if (data.students) sessionStorage.setItem('prefetchedStudents', JSON.stringify(data.students));
-          }).catch(() => {});
+          apiFetch(`${API_URL}/students`)
+            .then((r) => (r.ok ? r.json() : null))
+            .then((payload) => {
+              if (payload?.students) {
+                sessionStorage.setItem('prefetchedStudents', JSON.stringify(payload.students));
+              }
+            })
+            .catch(() => {});
         } else {
           setUserRole('student');
           setSelectedRole('student');
@@ -123,7 +127,7 @@ function App() {
   if (loading) {
     return (
       <div className="loading-screen">
-        <img src={kubikLogo} alt="KUBIK" className="kubik-loading-logo" />
+        <img src={kubikLogo} alt="" className="kubik-loading-logo" />
         <div className="kubik-loader">
           <div className="kubik-loader-fill"></div>
         </div>
@@ -136,7 +140,7 @@ function App() {
     return (
       <div className="blocked-screen">
         <div className="blocked-container">
-          <img src={kubikIcon} alt="KUBIK" className="kubik-blocked-logo" />
+          <img src={kubikLogo} alt="" className="kubik-blocked-logo" />
           <div className="blocked-icon">🔒</div>
 
           <h1 className="blocked-title">Доступ через Telegram</h1>
@@ -163,14 +167,14 @@ function App() {
   if (!selectedRole) {
     // Автоматически переходим в раздел ученика для студентов
     if (userRole === 'student') {
-      return <StudentApp />;
+      return <StudentApp initialUser={authUser} />;
     }
 
     // Админ/учитель/менеджер - показываем выбор роли
     return (
       <div className="role-selection">
         <div className="role-container">
-          <img src={kubikLogo} alt="KUBIK" className="kubik-role-logo" />
+          <img src={kubikLogo} alt="" className="kubik-role-logo" />
           
           <h1 className="role-title">Выберите раздел</h1>
           {userRole && userRole !== 'student' && (
@@ -213,7 +217,7 @@ function App() {
 
   return (
     <>
-      {selectedRole === 'student' && <StudentApp />}
+      {selectedRole === 'student' && <StudentApp initialUser={authUser?.role === 'student' ? authUser : null} />}
       {selectedRole === 'admin' && <AdminPanel />}
     </>
   );

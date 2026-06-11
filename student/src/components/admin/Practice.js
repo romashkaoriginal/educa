@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import * as XLSX from 'xlsx';
 import '../../styles/Practice.css';
 import { adminFetch } from './adminApi';
 
 import { API_URL } from '../../config';
+import { useSectionRefresh } from './useSectionRefresh';
 
-function Practice() {
+function Practice({ dataRefreshKey = 0 }) {
   const [subjects, setSubjects] = useState([]);
   const [selectedSubject, setSelectedSubject] = useState(null);
   const [topics, setTopics] = useState([]);
@@ -17,7 +19,11 @@ function Practice() {
   
   const [editingQuestion, setEditingQuestion] = useState(null);
   const [editingTopic, setEditingTopic] = useState(null);
-  
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importFile, setImportFile] = useState(null);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importResult, setImportResult] = useState(null);
+
   const [topicForm, setTopicForm] = useState({
     name: '',
     description: '',
@@ -60,23 +66,94 @@ function Practice() {
   };
 
   const loadTopics = async () => {
+    if (!selectedSubject) return [];
     try {
       const response = await adminFetch(`${API_URL}/practice/topics/${selectedSubject.id}`);
       const data = await response.json();
-      setTopics(data.topics || []);
+      const list = data.topics || [];
+      setTopics(list);
+      return list;
     } catch (error) {
       console.error('Error loading topics:', error);
+      return [];
     }
   };
 
   const loadQuestions = async () => {
+    if (!selectedTopic) return [];
     try {
       const response = await adminFetch(`${API_URL}/practice/questions/${selectedTopic.id}`);
       const data = await response.json();
-      setQuestions(data.questions || []);
-      setExpandedQuestions(new Set()); // при загрузке все свёрнуты
+      const list = data.questions || [];
+      setQuestions(list);
+      setExpandedQuestions(new Set());
+      return list;
     } catch (error) {
       console.error('Error loading questions:', error);
+      return [];
+    }
+  };
+
+  const refreshQuestionsAndTopicCount = async () => {
+    const list = await loadQuestions();
+    const topicId = selectedTopic?.id;
+    if (!topicId) return list;
+
+    const updatedTopics = await loadTopics();
+    const updatedTopic = updatedTopics.find((t) => t.id === topicId);
+    if (updatedTopic) {
+      setSelectedTopic(updatedTopic);
+    } else {
+      setSelectedTopic((prev) => (
+        prev ? { ...prev, questionCount: list.length } : prev
+      ));
+    }
+    return list;
+  };
+
+  useSectionRefresh(dataRefreshKey, () => {
+    loadSubjects();
+    if (selectedSubject) loadTopics();
+    if (selectedTopic) loadQuestions();
+  });
+
+  const downloadTemplate = () => {
+    try {
+      const rows = [
+        ['question', 'a', 'b', 'c', 'd', 'correct', 'difficulty', 'explanation'],
+        ['Чему равно 2+2?', '3', '4', '5', '6', 'b', 'easy', 'Простое сложение'],
+      ];
+      const sheet = XLSX.utils.aoa_to_sheet(rows);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, sheet, 'Questions');
+      XLSX.writeFile(workbook, 'questions_template.xlsx');
+    } catch (e) {
+      alert('Ошибка скачивания шаблона');
+    }
+  };
+
+  const handleImport = async () => {
+    if (!importFile || !selectedTopic) return;
+    setImportLoading(true);
+    setImportResult(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', importFile);
+      const response = await adminFetch(
+        `${API_URL}/practice/questions/${selectedTopic.id}/import`,
+        { method: 'POST', body: formData }
+      );
+      const data = await response.json();
+      if (response.ok) {
+        setImportResult(data);
+        await refreshQuestionsAndTopicCount();
+      } else {
+        setImportResult({ error: data.message || 'Ошибка импорта' });
+      }
+    } catch (e) {
+      setImportResult({ error: 'Ошибка сети: ' + e.message });
+    } finally {
+      setImportLoading(false);
     }
   };
 
@@ -226,7 +303,7 @@ function Practice() {
       if (response.ok) {
         setShowQuestionModal(false);
         resetQuestionForm();
-        await loadQuestions();
+        await refreshQuestionsAndTopicCount();
       }
     } catch (error) {
       console.error('Error creating question:', error);
@@ -258,7 +335,7 @@ function Practice() {
         setShowQuestionModal(false);
         setEditingQuestion(null);
         resetQuestionForm();
-        await loadQuestions();
+        await refreshQuestionsAndTopicCount();
       }
     } catch (error) {
       console.error('Error updating question:', error);
@@ -272,7 +349,7 @@ function Practice() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isActive: !isActive })
       });
-      await loadQuestions();
+      await refreshQuestionsAndTopicCount();
     } catch (error) {
       console.error('Error toggling question:', error);
     }
@@ -287,7 +364,7 @@ function Practice() {
       });
 
       if (response.ok) {
-        await loadQuestions();
+        await refreshQuestionsAndTopicCount();
       }
     } catch (error) {
       console.error('Error deleting question:', error);
@@ -520,16 +597,30 @@ function Practice() {
           <h2 className="section-title">Вопросы</h2>
           <p className="section-description">{selectedTopic.name} · {questions.length} вопросов</p>
         </div>
-        <button 
-          className="btn-primary"
-          onClick={() => {
-            setEditingQuestion(null);
-            resetQuestionForm();
-            setShowQuestionModal(true);
-          }}
-        >
-          + Добавить вопрос
-        </button>
+        <div className="section-header-actions">
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={() => {
+              setShowImportModal(true);
+              setImportFile(null);
+              setImportResult(null);
+            }}
+          >
+            📥 Загрузить из Excel
+          </button>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => {
+              setEditingQuestion(null);
+              resetQuestionForm();
+              setShowQuestionModal(true);
+            }}
+          >
+            + Добавить вопрос
+          </button>
+        </div>
       </div>
 
       {/* Панель развернуть/свернуть */}
@@ -719,6 +810,77 @@ function Practice() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {showImportModal && (
+        <div className="modal-overlay" onClick={() => setShowImportModal(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>📥 Загрузка из Excel</h2>
+              <button className="modal-close" onClick={() => setShowImportModal(false)}>✕</button>
+            </div>
+            <div className="import-modal-body">
+              <div className="import-format-hint">
+                <strong>Формат файла (.xlsx):</strong><br />
+                Колонки: <code>question</code>, <code>a</code>, <code>b</code>, <code>c</code>, <code>d</code>, <code>correct</code>, <code>difficulty</code>, <code>explanation</code><br />
+                <span className="import-hint-key">correct</span> — строчная буква: a / b / c / d<br />
+                <span className="import-hint-key">difficulty</span> — easy / medium / hard (по умолчанию medium)<br />
+                <span className="import-hint-key">explanation</span> — необязательно, можно оставить пустым
+              </div>
+
+              <button type="button" className="btn-secondary import-template-btn" onClick={downloadTemplate}>
+                ⬇️ Скачать шаблон
+              </button>
+
+              <div className="form-group">
+                <label>Выберите файл .xlsx</label>
+                <input
+                  type="file"
+                  accept=".xlsx,.xls"
+                  className="import-file-input"
+                  onChange={(e) => {
+                    setImportFile(e.target.files[0]);
+                    setImportResult(null);
+                  }}
+                />
+              </div>
+
+              {importResult && !importResult.error && (
+                <div className="import-result-ok">
+                  ✅ Загружено: <strong>{importResult.imported}</strong> вопросов
+                  {importResult.skipped > 0 && (
+                    <>, пропущено: <strong>{importResult.skipped}</strong></>
+                  )}
+                  {importResult.errors?.length > 0 && (
+                    <div className="import-result-errors">
+                      {importResult.errors.map((e, i) => (
+                        <div key={i}>⚠️ Строка {e.row}: {e.reason}</div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {importResult?.error && (
+                <div className="import-result-error">❌ {importResult.error}</div>
+              )}
+
+              <div className="modal-actions">
+                <button type="button" className="btn-secondary" onClick={() => setShowImportModal(false)}>
+                  Закрыть
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={handleImport}
+                  disabled={!importFile || importLoading}
+                >
+                  {importLoading ? 'Загружаю...' : 'Загрузить'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './Statistics.css';
 import { useData } from './DataContext';
+import StudentBrandMark from '../components/StudentBrandMark';
 
 function Statistics({ studentId }) {
   const { practiceStats: stats, homeworkStats, loading: contextLoading, loadHomeworkStats, loadPracticeStats } = useData();
@@ -70,10 +71,13 @@ function Statistics({ studentId }) {
         <div className="section-hero">
           <div className="section-hero-glow"></div>
           <div className="section-hero-content">
-            <div className="section-hero-text">
-              <div className="section-hero-eyebrow">РАЗДЕЛ</div>
-              <h1 className="section-hero-title">Статистика</h1>
-              <p className="section-hero-sub">Загрузка данных...</p>
+            <div className="section-hero-main">
+              <StudentBrandMark variant="hero" />
+              <div className="section-hero-text">
+                <div className="section-hero-eyebrow">РАЗДЕЛ</div>
+                <h1 className="section-hero-title">Статистика</h1>
+                <p className="section-hero-sub">Загрузка данных...</p>
+              </div>
             </div>
           </div>
           <svg className="section-hero-wave" viewBox="0 0 400 40" preserveAspectRatio="none">
@@ -92,14 +96,17 @@ function Statistics({ studentId }) {
       <div className="section-hero">
         <div className="section-hero-glow"></div>
         <div className="section-hero-content">
-          <div className="section-hero-text">
-            <div className="section-hero-eyebrow">РАЗДЕЛ</div>
-            <h1 className="section-hero-title">Статистика</h1>
-            <p className="section-hero-sub">
-              {practiceSubjectCount + homeworkSubjectCount > 0
-                ? `${practiceSubjectCount} предм. в практике · ${homeworkSubjectCount} в домашке`
-                : 'Твой прогресс по предметам'}
-            </p>
+          <div className="section-hero-main">
+            <StudentBrandMark variant="hero" />
+            <div className="section-hero-text">
+              <div className="section-hero-eyebrow">РАЗДЕЛ</div>
+              <h1 className="section-hero-title">Статистика</h1>
+              <p className="section-hero-sub">
+                {practiceSubjectCount + homeworkSubjectCount > 0
+                  ? `${practiceSubjectCount} предм. в практике · ${homeworkSubjectCount} в домашке`
+                  : 'Твой прогресс по предметам'}
+              </p>
+            </div>
           </div>
         </div>
         <svg className="section-hero-wave" viewBox="0 0 400 40" preserveAspectRatio="none">

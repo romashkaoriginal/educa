@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './AdminPanel.css';
+import kubikLogo from '../assets/kubik-logo-transparent.png';
 import Students from '../components/admin/Students';
 import Users from '../components/admin/Users';
 import Practice from '../components/admin/Practice';
@@ -92,7 +93,24 @@ function AdminPanelContent() {
   };
 
   const { refresh } = useAdminData();
-  const refreshableSections = ['students', 'users', 'applications', 'statistics'];
+  const [dataRefreshKey, setDataRefreshKey] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleSectionRefresh = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      if (['students', 'users', 'applications', 'statistics'].includes(activeSection)) {
+        await refresh(activeSection);
+      }
+      if (['practice', 'homework', 'quiz', 'notifications', 'bottest'].includes(activeSection)) {
+        await loadSubjects();
+      }
+      setDataRefreshKey((k) => k + 1);
+    } finally {
+      setTimeout(() => setRefreshing(false), 500);
+    }
+  };
 
   // Фильтруем разделы по роли
   const availableSections = ALL_SECTIONS.filter(s =>
@@ -104,16 +122,20 @@ function AdminPanelContent() {
   return (
     <div className="admin-panel">
       <header className="admin-header">
-        <div className="logo">
-          <span className="logo-ed">ED</span>
-          <span className="logo-me">me</span>
+        <div className="admin-header-brand">
+          <img src={kubikLogo} alt="" className="admin-brand-logo" />
+          <span className="admin-title">Админ-панель</span>
         </div>
-        <div className="admin-title">Админ-панель</div>
-        {refreshableSections.includes(activeSection) && (
-          <button className="admin-refresh-btn" onClick={() => refresh(activeSection)} title="Обновить">
-            🔄
-          </button>
-        )}
+        <button
+          type="button"
+          className={`admin-refresh-btn ${refreshing ? 'spinning' : ''}`}
+          onClick={handleSectionRefresh}
+          title="Обновить раздел"
+          disabled={refreshing}
+        >
+          <span className="admin-refresh-icon" aria-hidden="true">↻</span>
+          <span className="admin-refresh-label">Обновить</span>
+        </button>
       </header>
 
       <nav className="admin-tabs">
@@ -130,15 +152,15 @@ function AdminPanelContent() {
       </nav>
 
       <main className="admin-content">
-        <div style={{ display: activeSection === 'users' ? 'block' : 'none' }}><Users /></div>
-        <div style={{ display: activeSection === 'students' ? 'block' : 'none' }}><Students subjects={subjects} /></div>
-        <div style={{ display: activeSection === 'practice' ? 'block' : 'none' }}><Practice subjects={subjects} /></div>
-        <div style={{ display: activeSection === 'homework' ? 'block' : 'none' }}><Homework subjects={subjects} currentUserId={currentUser?.id} /></div>
-        <div style={{ display: activeSection === 'statistics' ? 'block' : 'none' }}><Statistics currentUser={currentUser} /></div>
-        <div style={{ display: activeSection === 'quiz' ? 'block' : 'none' }}><Quiz subjects={subjects} currentUserId={currentUser?.id} /></div>
-        <div style={{ display: activeSection === 'notifications' ? 'block' : 'none' }}><Notifications subjects={subjects} currentUser={currentUser} /></div>
-        <div style={{ display: activeSection === 'bottest' ? 'block' : 'none' }}><BotTestEditor subjects={subjects} /></div>
-        <div style={{ display: activeSection === 'applications' ? 'block' : 'none' }}><Applications /></div>
+        <div style={{ display: activeSection === 'users' ? 'block' : 'none' }}><Users dataRefreshKey={dataRefreshKey} /></div>
+        <div style={{ display: activeSection === 'students' ? 'block' : 'none' }}><Students subjects={subjects} dataRefreshKey={dataRefreshKey} /></div>
+        <div style={{ display: activeSection === 'practice' ? 'block' : 'none' }}><Practice dataRefreshKey={dataRefreshKey} /></div>
+        <div style={{ display: activeSection === 'homework' ? 'block' : 'none' }}><Homework subjects={subjects} currentUserId={currentUser?.id} dataRefreshKey={dataRefreshKey} /></div>
+        <div style={{ display: activeSection === 'statistics' ? 'block' : 'none' }}><Statistics currentUser={currentUser} dataRefreshKey={dataRefreshKey} /></div>
+        <div style={{ display: activeSection === 'quiz' ? 'block' : 'none' }}><Quiz subjects={subjects} currentUserId={currentUser?.id} dataRefreshKey={dataRefreshKey} /></div>
+        <div style={{ display: activeSection === 'notifications' ? 'block' : 'none' }}><Notifications subjects={subjects} currentUser={currentUser} dataRefreshKey={dataRefreshKey} /></div>
+        <div style={{ display: activeSection === 'bottest' ? 'block' : 'none' }}><BotTestEditor subjects={subjects} dataRefreshKey={dataRefreshKey} /></div>
+        <div style={{ display: activeSection === 'applications' ? 'block' : 'none' }}><Applications dataRefreshKey={dataRefreshKey} /></div>
       </main>
     </div>
   );

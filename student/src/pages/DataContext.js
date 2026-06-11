@@ -285,7 +285,7 @@ export const DataProvider = ({ children, studentId }) => {
   const refreshAfterPractice = useCallback(async (subjectId, leaderboardPeriod = 'day') => {
     loadedRef.current.practice = false;
     loadedRef.current.practiceStats = false;
-    await Promise.all([
+    const [, , newStreak] = await Promise.all([
       loadPractice(true),
       loadPracticeStats(true),
       loadStreak(true),
@@ -294,6 +294,7 @@ export const DataProvider = ({ children, studentId }) => {
       subjectId ? loadScoreHistory(subjectId) : Promise.resolve(),
       subjectId ? loadLeaderboard(subjectId, leaderboardPeriod) : Promise.resolve()
     ]);
+    return newStreak;
   }, [loadPractice, loadPracticeStats, loadStreak, loadDailyGoal, loadPredictedScore, loadScoreHistory, loadLeaderboard]);
 
   const refreshAfterHomework = useCallback(async () => {

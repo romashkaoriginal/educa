@@ -1,9 +1,11 @@
 const express = require('express');
+const multer = require('multer');
 const { requireRole } = require('../middleware/telegramAuth');
 const isAdmin = requireRole(['admin', 'teacher']);
 const isStaff = requireRole(['admin', 'teacher', 'manager']);
 const router = express.Router();
 const practiceController = require('../controllers/practiceController');
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 // ========== ТОПИКИ (РАЗДЕЛЫ) ==========
 
@@ -21,11 +23,17 @@ router.delete('/topics/:topicId', isAdmin, practiceController.deleteTopic);
 
 // ========== ВОПРОСЫ ==========
 
+// Шаблон Excel (до /questions/:topicId, иначе import-template попадёт в :topicId)
+router.get('/questions/import-template', isAdmin, practiceController.getQuestionsImportTemplate);
+
 // Получить вопросы по топику
 router.get('/questions/:topicId', practiceController.getQuestionsByTopic);
 
 // Создать вопрос
 router.post('/questions', isAdmin, practiceController.createQuestion);
+
+// Импорт вопросов из Excel
+router.post('/questions/:topicId/import', isAdmin, upload.single('file'), practiceController.importQuestionsFromExcel);
 
 // Обновить вопрос
 router.put('/questions/:questionId', isAdmin, practiceController.updateQuestion);

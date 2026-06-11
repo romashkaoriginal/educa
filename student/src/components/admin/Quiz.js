@@ -4,8 +4,9 @@ import '../../styles/Quiz.css';
 import { adminFetch } from './adminApi';
 
 import { API_URL, SOCKET_URL } from '../../config';
+import { useSectionRefresh } from './useSectionRefresh';
 
-function Quiz({ subjects, currentUserId }) {
+function Quiz({ subjects, currentUserId, dataRefreshKey = 0 }) {
   const [quizzes, setQuizzes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState('list');
@@ -95,6 +96,8 @@ function Quiz({ subjects, currentUserId }) {
       setLoading(false);
     }
   };
+
+  useSectionRefresh(dataRefreshKey, loadQuizzes);
 
   const addQuestion = () => {
     if (!currentQ.questionText.trim()) { alert('Введите текст вопроса'); return; }

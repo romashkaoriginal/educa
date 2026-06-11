@@ -64,14 +64,14 @@ export function AdminDataProvider({ children, subjects }) {
   }, force), [load]);
 
   // Refresh конкретного раздела (для кнопки "Обновить")
-  const refresh = useCallback((section) => {
+  const refresh = useCallback(async (section) => {
     loadedRef.current[section] = false;
     switch (section) {
       case 'students': return loadStudents(true);
       case 'users': return loadUsers(true);
       case 'applications': return loadApplications(true);
       case 'statistics': return loadStatistics(true);
-      default: break;
+      default: return undefined;
     }
   }, [loadStudents, loadUsers, loadApplications, loadStatistics]);
 

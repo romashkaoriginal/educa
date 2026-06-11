@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import '../../styles/Users.css';
 import { adminFetch } from './adminApi';
 import { useAdminData } from './AdminDataContext';
+import { useSectionRefresh } from './useSectionRefresh';
 
 import { API_URL } from '../../config';
 
-function Users() {
+function Users({ dataRefreshKey = 0 }) {
   const { refresh } = useAdminData();
   const [users, setUsers] = useState([]);
   const [botUsers, setBotUsers] = useState([]);
@@ -58,6 +59,8 @@ function Users() {
       setLoading(false);
     }
   };
+
+  useSectionRefresh(dataRefreshKey, loadUsers);
 
   const loadBotUsers = async () => {
     setLoadingBotUsers(true);

@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import './Practice.css';
 import { useData } from './DataContext';
 import { apiFetch } from './api';
 
 import { API_URL } from '../config';
+import StudentBrandMark from '../components/StudentBrandMark';
 
 function Practice({ studentId }) {
   // Используем данные из контекста
@@ -38,6 +40,73 @@ function Practice({ studentId }) {
   const [confetti, setConfetti] = useState(false);
 
   const RESULT_DURATION = 1500; // 1.5 секунды показ результата
+  const [streakBump, setStreakBump] = useState(false);
+  const streakTodayDoneInitRef = useRef(false);
+  const prevStreakTodayDoneRef = useRef(false);
+
+  useEffect(() => {
+    const todayDone = !!streak?.todayDone;
+    if (!streakTodayDoneInitRef.current) {
+      streakTodayDoneInitRef.current = true;
+      prevStreakTodayDoneRef.current = todayDone;
+      return;
+    }
+    if (!prevStreakTodayDoneRef.current && todayDone) {
+      setStreakBump(true);
+      const timer = setTimeout(() => setStreakBump(false), 1500);
+      prevStreakTodayDoneRef.current = todayDone;
+      return () => clearTimeout(timer);
+    }
+    prevStreakTodayDoneRef.current = todayDone;
+  }, [streak?.todayDone]);
+
+  const getStreakVisualState = (value) => {
+    if (!value) return 'empty';
+    if (value.todayDone) return 'done';
+    if (value.streak > 0) return 'pending';
+    return 'empty';
+  };
+
+  const streakClassName = (extra = '') => {
+    const state = getStreakVisualState(streak);
+    return `hero-streak ${state}${streakBump ? ' bump' : ''}${extra ? ` ${extra}` : ''}`;
+  };
+
+  const streakCircleClassName = () => {
+    const state = getStreakVisualState(streak);
+    return `streak-circle on-blue ${state}${streakBump ? ' bump' : ''}`;
+  };
+
+  const renderPracticeOverlay = (content) => (
+    typeof document === 'undefined' ? content : createPortal(content, document.body)
+  );
+
+  const normalizeQuestion = (question) => {
+    if (!question) return null;
+    let options = question.options;
+    if (typeof options === 'string') {
+      try {
+        options = JSON.parse(options);
+      } catch {
+        options = [];
+      }
+    }
+    if (!Array.isArray(options)) options = [];
+    options = options.map((opt) => String(opt ?? '').trim()).filter(Boolean);
+    if (options.length < 2) return null;
+    const correctAnswer = Number.isInteger(question.correctAnswer)
+      ? question.correctAnswer
+      : parseInt(question.correctAnswer, 10);
+    if (!Number.isInteger(correctAnswer) || correctAnswer < 0 || correctAnswer >= options.length) {
+      return null;
+    }
+    return {
+      ...question,
+      questionText: String(question.questionText || '').trim(),
+      options,
+      correctAnswer,
+    };
+  };
 
   // Тактильная отдача через Telegram
   const haptic = (type) => {
@@ -84,16 +153,17 @@ function Practice({ studentId }) {
 
   // Перемешиваем варианты ответов в вопросе
   const shuffleOptions = (question) => {
-    const indices = question.options.map((_, i) => i);
-    // Fisher-Yates shuffle
+    const normalized = normalizeQuestion(question);
+    if (!normalized) return null;
+    const indices = normalized.options.map((_, i) => i);
     for (let i = indices.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [indices[i], indices[j]] = [indices[j], indices[i]];
     }
     return {
-      ...question,
-      options: indices.map(i => question.options[i]),
-      correctAnswer: indices.indexOf(question.correctAnswer)
+      ...normalized,
+      options: indices.map((i) => normalized.options[i]),
+      correctAnswer: indices.indexOf(normalized.correctAnswer),
     };
   };
 
@@ -145,16 +215,17 @@ function Practice({ studentId }) {
   // Начальная раскладка — всё вперемешку
   const getAdaptiveQuestions = (allQuestions) => {
     return [...allQuestions]
-      .sort(() => Math.random() - 0.5)
-      .map(shuffleOptions);
+      .map(shuffleOptions)
+      .filter(Boolean)
+      .sort(() => Math.random() - 0.5);
   };
 
   const startPracticeFromQuestions = (topic, activeQuestions, label) => {
-    if (activeQuestions.length === 0) {
+    const adaptiveQuestions = getAdaptiveQuestions(activeQuestions);
+    if (adaptiveQuestions.length === 0) {
       alert('Нет доступных вопросов');
       return;
     }
-    const adaptiveQuestions = getAdaptiveQuestions(activeQuestions);
     setActivePractice({ ...topic, name: label || topic.name });
     setQuestions(adaptiveQuestions);
     setRemainingQuestions(adaptiveQuestions.slice(1));
@@ -182,7 +253,7 @@ function Practice({ studentId }) {
     setWeakTopicsLoading(true);
     try {
       const data = await loadWeakTopicsQuestions(selectedSubject.id);
-      const questionsList = (data?.questions || []).map(shuffleOptions);
+      const questionsList = (data?.questions || []).map(shuffleOptions).filter(Boolean);
       if (questionsList.length === 0) {
         alert(data?.message || 'Нет заданий по слабым темам');
         return;
@@ -269,34 +340,41 @@ function Practice({ studentId }) {
     setPracticeResult({ correctCount, totalCount, scorePercentage, answers });
     setShowResult(true);
 
-    // Оптимистично обновляем статистику темы
     if (typeof activePractice.id === 'number') {
       updatePracticeStatsOptimistic(activePractice.id, correctCount, totalCount);
     }
 
-    // Отправляем итог теста на сервер (fire-and-forget)
     const questionMap = {};
     questions.forEach(q => { questionMap[q.id] = q; });
 
-    apiFetch(`${API_URL}/practice/attempts`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        studentId,
-        topicId: typeof activePractice.id === 'number'
-          ? activePractice.id
-          : (answers.map(a => questionMap[a.questionId]?.topicId).find(id => id != null) || null),
-        subjectId: activePractice.subjectId,
-        correct: correctCount,
-        total: totalCount,
-        answers: answers.map(a => ({
-          questionId: a.questionId,
-          difficulty: questionMap[a.questionId]?.difficulty || 'medium',
-          isCorrect: a.isCorrect,
-          topicId: questionMap[a.questionId]?.topicId || (typeof activePractice.id === 'number' ? activePractice.id : null)
-        })).filter(a => a.questionId && a.topicId)
-      })
-    }).catch(e => console.error('Error saving attempt:', e));
+    try {
+      const response = await apiFetch(`${API_URL}/practice/attempts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          studentId,
+          topicId: typeof activePractice.id === 'number'
+            ? activePractice.id
+            : (answers.map(a => questionMap[a.questionId]?.topicId).find(id => id != null) || null),
+          subjectId: activePractice.subjectId,
+          correct: correctCount,
+          total: totalCount,
+          answers: answers.map(a => ({
+            questionId: a.questionId,
+            difficulty: questionMap[a.questionId]?.difficulty || 'medium',
+            isCorrect: a.isCorrect,
+            topicId: questionMap[a.questionId]?.topicId || (typeof activePractice.id === 'number' ? activePractice.id : null)
+          })).filter(a => a.questionId && a.topicId)
+        })
+      });
+
+      if (response.ok) {
+        const subjectId = activePractice?.subjectId || selectedSubject?.id;
+        await refreshAfterPractice(subjectId, leaderboardPeriod);
+      }
+    } catch (e) {
+      console.error('Error saving attempt:', e);
+    }
   };
 
   // Найти следующую тему для кнопки "Следующий тест"
@@ -316,8 +394,10 @@ function Practice({ studentId }) {
     if (next) startPractice(next);
   };
 
-  const closePractice = () => {
+  const closePractice = async () => {
     if (autoNextTimerRef.current) clearTimeout(autoNextTimerRef.current);
+
+    const subjectId = activePractice?.subjectId || selectedSubject?.id;
 
     setActivePractice(null);
     setQuestions([]);
@@ -330,10 +410,10 @@ function Practice({ studentId }) {
     setShowExplanationHint(false);
     setRemainingQuestions([]);
     setSessionAnswers([]);
-    
-    // Обновляем данные через контекст
+
     setActiveTab('practice');
-    refreshAfterPractice(activePractice?.subjectId || selectedSubject?.id, leaderboardPeriod);
+
+    await refreshAfterPractice(subjectId, leaderboardPeriod);
   };
 
   const backToSubjects = () => {
@@ -354,10 +434,29 @@ function Practice({ studentId }) {
 
   // ========== ЭКРАН ПРОХОЖДЕНИЯ ==========
   if (activePractice && !showResult) {
-    const currentQuestion = questions[currentQuestionIndex];
-    const progress = ((currentQuestionIndex + 1) / questions.length) * 100;
+    const currentQuestion = normalizeQuestion(questions[currentQuestionIndex]);
+    const progress = questions.length > 0
+      ? ((currentQuestionIndex + 1) / questions.length) * 100
+      : 0;
 
-    return (
+    if (!currentQuestion) {
+      return renderPracticeOverlay(
+        <div className="practice-mode">
+          <div className="practice-header">
+            <button type="button" className="back-button" onClick={closePractice}>
+              ← Назад к списку
+            </button>
+            <div className="practice-info">
+              <h2>{activePractice.name}</h2>
+              <p>Загрузка вопросов...</p>
+            </div>
+          </div>
+          <div className="practice-loading-body">Подготавливаем тест...</div>
+        </div>
+      );
+    }
+
+    return renderPracticeOverlay(
       <div className="practice-mode">
         <div className="practice-header">
           <button className="back-button" onClick={closePractice}>
@@ -367,10 +466,10 @@ function Practice({ studentId }) {
             <h2>{activePractice.name}</h2>
             <p>Вопрос {currentQuestionIndex + 1} из {questions.length}</p>
           </div>
-          {streak?.streak > 0 && (
-            <div className={`streak-circle on-blue ${streak.todayDone ? 'done' : 'pending'}`}>
+          {streak && (
+            <div className={streakCircleClassName()}>
               <span className="streak-circle-flame">🔥</span>
-              <span className="streak-circle-count">{streak.streak}</span>
+              <span className="streak-circle-count">{streak.streak || 0}</span>
             </div>
           )}
         </div>
@@ -471,14 +570,20 @@ function Practice({ studentId }) {
     const nextTopic = getNextTopic();
     const hasNext = nextTopic && nextTopic.id !== activePractice?.id;
 
-    return (
-      <div className="practice-screen">
+    return renderPracticeOverlay(
+      <div className="practice-mode practice-mode--result">
         <div className="practice-header">
-          <button className="back-button" onClick={closePractice}>← Назад</button>
+          <button type="button" className="back-button" onClick={closePractice}>← Назад</button>
           <div className="practice-info">
             <h2>{activePractice.name}</h2>
             <p>Практика завершена</p>
           </div>
+          {streak && (
+            <div className={streakCircleClassName()}>
+              <span className="streak-circle-flame">🔥</span>
+              <span className="streak-circle-count">{streak.streak || 0}</span>
+            </div>
+          )}
         </div>
 
         <div className="practice-result-body">
@@ -530,12 +635,15 @@ function Practice({ studentId }) {
         <div className="practice-hero">
           <div className="practice-hero-glow"></div>
           <div className="practice-hero-content">
-            <div className="practice-hero-text">
-              <div className="practice-hero-eyebrow">РАЗДЕЛ</div>
-              <h1 className="practice-hero-title">Практика</h1>
-              <p className="practice-hero-sub">Выберите предмет для практики</p>
+            <div className="practice-hero-main">
+              <StudentBrandMark variant="hero" />
+              <div className="practice-hero-text">
+                <div className="practice-hero-eyebrow">РАЗДЕЛ</div>
+                <h1 className="practice-hero-title">Практика</h1>
+                <p className="practice-hero-sub">Выберите предмет для практики</p>
+              </div>
             </div>
-            <div className={`hero-streak ${streak?.streak > 0 ? (streak.todayDone ? 'done' : 'active') : 'empty'}`}>
+            <div className={streakClassName()}>
               <span className="hero-streak-flame">🔥</span>
               <span className="hero-streak-count">{streak?.streak || 0}</span>
             </div>
@@ -588,20 +696,23 @@ function Practice({ studentId }) {
         )}
         <div className="practice-hero-glow"></div>
         <div className="practice-hero-content">
-          <div className="practice-hero-text">
-            <div className="practice-hero-eyebrow">{selectedSubject ? 'ПРЕДМЕТ' : 'РАЗДЕЛ'}</div>
-            <h1 className="practice-hero-title">
-              {selectedSubject ? (
-                <><span className="hero-title-emoji">{selectedSubject.icon}</span> {selectedSubject.name}</>
-              ) : 'Практика'}
-            </h1>
-            <p className="practice-hero-sub">
-              {selectedSubject
-                ? `${filteredTopics.length} подразделов · ${filteredTopics.reduce((s, t) => s + (t.questions?.length || 0), 0)} вопросов`
-                : 'Тренируйся в своём темпе'}
-            </p>
+          <div className="practice-hero-main">
+            <StudentBrandMark variant="hero" />
+            <div className="practice-hero-text">
+              <div className="practice-hero-eyebrow">{selectedSubject ? 'ПРЕДМЕТ' : 'РАЗДЕЛ'}</div>
+              <h1 className="practice-hero-title">
+                {selectedSubject ? (
+                  <><span className="hero-title-emoji">{selectedSubject.icon}</span> {selectedSubject.name}</>
+                ) : 'Практика'}
+              </h1>
+              <p className="practice-hero-sub">
+                {selectedSubject
+                  ? `${filteredTopics.length} подразделов · ${filteredTopics.reduce((s, t) => s + (t.questions?.length || 0), 0)} вопросов`
+                  : 'Тренируйся в своём темпе'}
+              </p>
+            </div>
           </div>
-          <div className={`hero-streak ${streak?.streak > 0 ? (streak.todayDone ? 'done' : 'active') : 'empty'}`}>
+          <div className={streakClassName()}>
             <span className="hero-streak-flame">🔥</span>
             <span className="hero-streak-count">{streak?.streak || 0}</span>
           </div>

@@ -41,7 +41,7 @@ async function recordScoreHistory(studentId, subjectId, prediction) {
     return;
   }
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getLocalDateStr();
   await PracticeScoreHistory.create({
     studentId,
     subjectId,
@@ -51,22 +51,73 @@ async function recordScoreHistory(studentId, subjectId, prediction) {
   });
 }
 
+const APP_TIMEZONE = 'Europe/Minsk';
+
+function getLocalDateStr(date = new Date()) {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: APP_TIMEZONE }).format(date);
+}
+
+function getLocalDayBounds(dateStr) {
+  const start = new Date(`${dateStr}T00:00:00+03:00`);
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + 1);
+  return { start, end };
+}
+
 function getPeriodStart(period) {
   const now = new Date();
   if (period === 'day') {
-    return now.toISOString().slice(0, 10);
+    return getLocalDateStr(now);
   }
   if (period === 'week') {
     const d = new Date(now);
     d.setDate(d.getDate() - 6);
-    return d.toISOString().slice(0, 10);
+    return getLocalDateStr(d);
   }
   if (period === 'month') {
     const d = new Date(now);
     d.setDate(d.getDate() - 29);
-    return d.toISOString().slice(0, 10);
+    return getLocalDateStr(d);
   }
-  return now.toISOString().slice(0, 10);
+  return getLocalDateStr(now);
+}
+
+function formatLogDate(value) {
+  if (!value) return null;
+  if (typeof value === 'string') return value.slice(0, 10);
+  return getLocalDateStr(value);
+}
+
+function shiftLocalDateStr(dateStr, days) {
+  const { start } = getLocalDayBounds(dateStr);
+  start.setUTCDate(start.getUTCDate() + days);
+  return getLocalDateStr(start);
+}
+
+async function syncDailyUniqueLog(studentId, subjectId, dateStr) {
+  const { start, end } = getLocalDayBounds(dateStr);
+  const uniqueCount = await PracticeQuestionResult.count({
+    where: {
+      studentId,
+      subjectId,
+      updatedAt: { [Op.gte]: start, [Op.lt]: end }
+    },
+    distinct: true,
+    col: 'questionId'
+  });
+
+  if (uniqueCount <= 0) return 0;
+
+  const [log] = await PracticeDailyLog.findOrCreate({
+    where: { studentId, subjectId, date: dateStr },
+    defaults: { studentId, subjectId, date: dateStr, attemptsCount: uniqueCount }
+  });
+
+  if (log.attemptsCount !== uniqueCount) {
+    await log.update({ attemptsCount: uniqueCount });
+  }
+
+  return uniqueCount;
 }
 
 // ========== АДМИН ФУНКЦИИ ==========
@@ -260,7 +311,7 @@ exports.saveAttempt = async (req, res) => {
     }
 
     const percent = total > 0 ? Math.round(correct / total * 100) : 0;
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getLocalDateStr();
 
     if (Array.isArray(answers) && answers.length > 0) {
       for (const ans of answers) {
@@ -301,14 +352,7 @@ exports.saveAttempt = async (req, res) => {
       await best.update({ correct, total, percent });
     }
 
-    const [log, logCreated] = await PracticeDailyLog.findOrCreate({
-      where: { studentId, subjectId, date: today },
-      defaults: { studentId, subjectId, date: today, attemptsCount: total }
-    });
-
-    if (!logCreated) {
-      await log.increment('attemptsCount', { by: total });
-    }
+    await syncDailyUniqueLog(studentId, subjectId, today);
 
     invalidateCache(`stats_${studentId}`);
 
@@ -424,7 +468,10 @@ exports.getStreak = async (req, res) => {
 
     // Берём все уникальные даты когда студент решал (из PracticeDailyLog)
     const logs = await PracticeDailyLog.findAll({
-      where: { studentId: parseInt(studentId) },
+      where: {
+        studentId: parseInt(studentId),
+        attemptsCount: { [Op.gt]: 0 }
+      },
       attributes: ['date'],
       group: ['date'],
       order: [['date', 'DESC']]
@@ -434,16 +481,10 @@ exports.getStreak = async (req, res) => {
       return res.json({ streak: 0, todayDone: false });
     }
 
-    // Уникальные даты в формате YYYY-MM-DD
-    const dates = [...new Set(logs.map(l => {
-      const d = l.date instanceof Date ? l.date : new Date(l.date);
-      return d.toISOString().slice(0, 10);
-    }))].sort().reverse();
+    const dates = [...new Set(logs.map(l => formatLogDate(l.date)))].sort().reverse();
 
-    const todayKey = new Date().toISOString().slice(0, 10);
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayKey = yesterday.toISOString().slice(0, 10);
+    const todayKey = getLocalDateStr();
+    const yesterdayKey = shiftLocalDateStr(todayKey, -1);
 
     const todayDone = dates[0] === todayKey;
 
@@ -455,12 +496,11 @@ exports.getStreak = async (req, res) => {
 
     // Считаем подряд идущие дни
     let streak = 1;
-    let cursor = new Date(dates[0]);
+    let expected = shiftLocalDateStr(dates[0], -1);
     for (let i = 1; i < dates.length; i++) {
-      cursor.setDate(cursor.getDate() - 1);
-      const expected = cursor.toISOString().slice(0, 10);
       if (dates[i] === expected) {
         streak++;
+        expected = shiftLocalDateStr(dates[i], -1);
       } else {
         break;
       }
@@ -543,7 +583,7 @@ exports.getPredictedScoreAll = async (req, res) => {
 exports.getDailyGoal = async (req, res) => {
   try {
     const { studentId } = req.params;
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getLocalDateStr();
 
     const student = await User.findByPk(studentId, {
       include: [{ model: Subject, as: 'subjects', attributes: ['id', 'name', 'icon'] }]
@@ -570,7 +610,9 @@ exports.getDailyGoal = async (req, res) => {
       };
     });
 
-    res.json({ goals, dailyGoal: CONFIG.DAILY_GOAL });
+    const totalUniqueToday = goals.reduce((sum, g) => sum + g.solved, 0);
+
+    res.json({ goals, dailyGoal: CONFIG.DAILY_GOAL, totalUniqueToday });
   } catch (error) {
     console.error('Get daily goal error:', error);
     res.status(500).json({ error: 'Failed to get daily goal' });
@@ -742,5 +784,108 @@ exports.getAdminPredicted = async (req, res) => {
   } catch (error) {
     console.error('Get admin predicted error:', error);
     res.status(500).json({ error: 'Failed to get admin analytics' });
+  }
+};
+
+// ========== ИМПОРТ ВОПРОСОВ ИЗ EXCEL ==========
+
+exports.getQuestionsImportTemplate = async (req, res) => {
+  try {
+    const XLSX = require('xlsx');
+    const rows = [
+      ['question', 'a', 'b', 'c', 'd', 'correct', 'difficulty', 'explanation'],
+      ['Чему равно 2+2?', '3', '4', '5', '6', 'b', 'easy', 'Простое сложение'],
+    ];
+    const sheet = XLSX.utils.aoa_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, sheet, 'Questions');
+    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename=questions_template.xlsx');
+    res.send(buffer);
+  } catch (error) {
+    console.error('Import template error:', error);
+    res.status(500).json({ message: 'Не удалось сформировать шаблон' });
+  }
+};
+
+exports.importQuestionsFromExcel = async (req, res) => {
+  try {
+    const { topicId } = req.params;
+
+    if (!req.file) {
+      return res.status(400).json({ message: 'Файл не загружен' });
+    }
+
+    const topic = await PracticeTopic.findByPk(topicId);
+    if (!topic) {
+      return res.status(404).json({ message: 'Тема не найдена' });
+    }
+
+    const XLSX = require('xlsx');
+    const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+    const sheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+
+    if (rows.length === 0) {
+      return res.status(400).json({ message: 'Файл пустой или не содержит данных' });
+    }
+
+    const CORRECT_MAP = { a: 0, b: 1, c: 2, d: 3 };
+    const VALID_DIFFICULTY = ['easy', 'medium', 'hard'];
+
+    const toCreate = [];
+    const errors = [];
+
+    rows.forEach((row, i) => {
+      const rowNum = i + 2;
+      const q = String(row.question || '').trim();
+      const a = String(row.a || '').trim();
+      const b = String(row.b || '').trim();
+      const c = String(row.c || '').trim();
+      const d = String(row.d || '').trim();
+      const correct = String(row.correct || '').trim().toLowerCase();
+      const diffRaw = String(row.difficulty || '').trim().toLowerCase();
+      const explanation = String(row.explanation || '').trim() || null;
+
+      if (!q) {
+        errors.push({ row: rowNum, reason: 'пустой вопрос' });
+        return;
+      }
+      if (!a || !b || !c || !d) {
+        errors.push({ row: rowNum, reason: 'не все варианты ответов заполнены' });
+        return;
+      }
+      if (!(correct in CORRECT_MAP)) {
+        errors.push({
+          row: rowNum,
+          reason: `некорректное значение correct: "${correct}" (допустимо: a, b, c, d)`,
+        });
+        return;
+      }
+
+      toCreate.push({
+        topicId: parseInt(topicId, 10),
+        questionText: q,
+        options: [a, b, c, d],
+        correctAnswer: CORRECT_MAP[correct],
+        explanation,
+        difficulty: VALID_DIFFICULTY.includes(diffRaw) ? diffRaw : 'medium',
+        isActive: true,
+      });
+    });
+
+    let imported = 0;
+    if (toCreate.length > 0) {
+      await PracticeQuestion.bulkCreate(toCreate);
+      imported = toCreate.length;
+    }
+
+    res.json({ imported, skipped: errors.length, errors });
+  } catch (error) {
+    console.error('Import questions error:', error);
+    res.status(500).json({ message: 'Ошибка при импорте: ' + error.message });
   }
 };

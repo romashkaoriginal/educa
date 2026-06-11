@@ -4,6 +4,7 @@ import { apiFetch } from './api';
 import './Quiz.css';
 
 import { API_URL, SOCKET_URL } from '../config';
+import StudentBrandMark from '../components/StudentBrandMark';
 
 function Quiz({ studentId }) {
   const [view, setView] = useState('enter');
@@ -292,7 +293,10 @@ function Quiz({ studentId }) {
 
   // ========== ГЛАВНЫЙ ЭКРАН ==========
   return (
-    <div className="section quiz-section">
+    <div className="section section-quiz quiz-section">
+      <div className="quiz-brand-bar">
+        <StudentBrandMark variant="light" />
+      </div>
       <div className="quiz-enter">
         <div className="quiz-icon-big">🎯</div>
         <h1 className="quiz-title">Викторина</h1>

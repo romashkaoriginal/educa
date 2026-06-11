@@ -23,8 +23,8 @@ function StudentAppContent({ selectedStudent }) {
   useEffect(() => {
     const tg = window.Telegram?.WebApp;
     if (tg) {
-      tg.enableClosingConfirmation?.();
-      tg.disableVerticalSwipes?.();
+      Promise.resolve(tg.enableClosingConfirmation?.()).catch(() => {});
+      Promise.resolve(tg.disableVerticalSwipes?.()).catch(() => {});
     }
     return () => {
       tg?.disableClosingConfirmation?.();
@@ -102,58 +102,51 @@ function StudentAppContent({ selectedStudent }) {
   );
 }
 
-function StudentApp() {
+function StudentApp({ initialUser = null }) {
+  const initialStudent = initialUser?.role === 'student' && initialUser?.isActive !== false
+    ? initialUser
+    : null;
   const [students, setStudents] = useState([]);
-  const [selectedStudent, setSelectedStudent] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [selectedStudent, setSelectedStudent] = useState(initialStudent);
+  const [loading, setLoading] = useState(!initialStudent);
 
   useEffect(() => {
-    const fetchStudents = async () => {
+    if (initialStudent) return;
+
+    const resolveStudent = async () => {
       try {
-        // Пробуем найти себя по initData — безопасно и не требует прав админа
-        const meResponse = await apiFetch(`${API_URL}/auth/me`);
-        if (meResponse.ok) {
-          const meData = await meResponse.json();
-          if (meData.student) {
-            // Нашли себя — сразу заходим без экрана выбора
-            setSelectedStudent(meData.student);
-            setLoading(false);
-            return;
+        const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+        if (tgUser?.id) {
+          const tgResponse = await apiFetch(`${API_URL}/auth/telegram/${tgUser.id}`);
+          if (tgResponse.ok) {
+            const tgData = await tgResponse.json();
+            if (tgData.user?.role === 'student' && tgData.user?.isActive !== false) {
+              setSelectedStudent(tgData.user);
+              return;
+            }
           }
         }
 
-        // Fallback: если /me не сработал — показываем список (для admin входящего как студент)
         const cached = sessionStorage.getItem('prefetchedStudents');
-        let allStudents;
         if (cached) {
-          allStudents = JSON.parse(cached);
+          setStudents(JSON.parse(cached));
           sessionStorage.removeItem('prefetchedStudents');
-        } else {
-          const response = await apiFetch(`${API_URL}/students`);
-          if (!response.ok) {
-            // Нет прав на список — просто показываем пустой экран выбора
-            setLoading(false);
-            return;
-          }
-          const data = await response.json();
-          allStudents = data.students || [];
         }
-        setStudents(allStudents);
       } catch (error) {
-        console.error('Error fetching students:', error);
+        console.error('Error resolving student:', error);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchStudents();
-  }, []);
+    resolveStudent();
+  }, [initialStudent]);
 
   if (!selectedStudent) {
     // Пока грузим — не показываем ничего чтобы не было flash экрана выбора
     if (loading) return (
       <div className="loading-screen">
-        <img src={kubikLogo} alt="KUBIK" className="kubik-loading-logo" />
+        <img src={kubikLogo} alt="" className="kubik-loading-logo" />
         <div className="kubik-loader">
           <div className="kubik-loader-fill"></div>
         </div>
@@ -163,10 +156,16 @@ function StudentApp() {
     return (
       <div className="student-selection">
         <div className="selection-container">
-          <img src={kubikLogo} alt="KUBIK" className="kubik-selection-logo" />
-          
+          <img src={kubikLogo} alt="" className="kubik-selection-logo" />
+
           <h1 className="selection-title">Выберите ученика</h1>
           <p className="selection-subtitle"></p>
+
+          {students.length === 0 && (
+            <p className="selection-empty-hint">
+              Аккаунт не найден. Откройте бота и пройдите регистрацию, либо обратитесь к преподавателю.
+            </p>
+          )}
 
           {false ? (
             <div className="students-loading">

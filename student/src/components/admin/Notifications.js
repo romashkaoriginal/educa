@@ -3,6 +3,7 @@ import '../../styles/Notifications.css';
 import { adminFetch } from './adminApi';
 
 import { API_URL } from '../../config';
+import { useSectionRefresh } from './useSectionRefresh';
 
 const ACCESS_DAYS_OPTIONS = [
   { value: 'all', label: 'Любой срок' },
@@ -29,7 +30,7 @@ const ROLE_LABELS = {
   manager: '📊 Менеджер',
 };
 
-function Notifications({ subjects, currentUser }) {
+function Notifications({ subjects, currentUser, dataRefreshKey = 0 }) {
   const [tab, setTab] = useState('send'); // 'send' | 'history'
 
   // ===== Фильтры =====
@@ -115,6 +116,12 @@ function Notifications({ subjects, currentUser }) {
   useEffect(() => {
     if (tab === 'history') loadHistory();
   }, [tab]);
+
+  useSectionRefresh(dataRefreshKey, () => {
+    loadAllStudents();
+    loadPreview();
+    if (tab === 'history') loadHistory();
+  });
 
   const toggleSubject = (id) => {
     setSelectedSubjectIds(prev =>
