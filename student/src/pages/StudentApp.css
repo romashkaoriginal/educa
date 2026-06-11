@@ -1,4 +1,4 @@
-﻿:root {
+:root {
   --kubik-pink: #FFBEBD;
   --kubik-white: #FCFCFA;
   --kubik-blue: #337BAE;
@@ -508,8 +508,10 @@
 }
 
 .student-brand--hero .student-brand-logo {
+  height: 58px;
+  max-width: 72px;
   filter: brightness(0) invert(1);
-  opacity: 0.95;
+  opacity: 0.98;
 }
 
 .student-brand--light .student-brand-logo {

@@ -176,14 +176,20 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// Удалить викторину
-// Удалить викторину (мягкое удаление)
+// Удалить викторину каскадно (вопросы, участники, ответы)
 router.delete('/:id', isAdmin, async (req, res) => {
   try {
-    await Quiz.update(
-      { isDeleted: true },
-      { where: { id: req.params.id } }
-    );
+    const quizId = parseInt(req.params.id, 10);
+    const quiz = await Quiz.findByPk(quizId);
+    if (!quiz) {
+      return res.status(404).json({ message: 'Quiz not found' });
+    }
+
+    await QuizAnswer.destroy({ where: { quizId } });
+    await QuizParticipant.destroy({ where: { quizId } });
+    await QuizQuestion.destroy({ where: { quizId } });
+    await quiz.destroy();
+
     res.json({ message: 'Quiz deleted' });
   } catch (error) {
     console.error('Delete quiz error:', error);

@@ -12,7 +12,7 @@ import { API_URL } from '../config';
 
 function StudentAppContent({ selectedStudent }) {
   const [activeTab, setActiveTab] = useState('practice');
-  const { preloadAllData } = useData();
+  const { preloadAllData, loadStreak } = useData();
 
   // Грузим данные один раз при монтировании — без ожидания, сразу показываем UI
   useEffect(() => {
@@ -38,6 +38,9 @@ function StudentAppContent({ selectedStudent }) {
 
   const handleTabChange = (tabId) => {
     if (tabId === activeTab || animating) return;
+    if (tabId === 'practice') {
+      loadStreak();
+    }
     setPrevTab(activeTab);
     setAnimating(true);
     setActiveTab(tabId);

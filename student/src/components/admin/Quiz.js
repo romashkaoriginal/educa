@@ -5,8 +5,11 @@ import { adminFetch } from './adminApi';
 
 import { API_URL, SOCKET_URL } from '../../config';
 import { useSectionRefresh } from './useSectionRefresh';
+import { useConfirmDelete } from './useConfirmDelete';
+import { getDeleteConfirm } from './cascadeDeleteMessages';
 
 function Quiz({ subjects, currentUserId, dataRefreshKey = 0 }) {
+  const { confirmDelete, ConfirmDeleteDialog } = useConfirmDelete();
   const [quizzes, setQuizzes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState('list');
@@ -69,7 +72,6 @@ function Quiz({ subjects, currentUserId, dataRefreshKey = 0 }) {
 
       newSocket.on('quiz:finished', () => {
         setCurrentQuestion(null);
-        alert('Викторина завершена!');
       });
 
       setSocket(newSocket);
@@ -118,7 +120,6 @@ function Quiz({ subjects, currentUserId, dataRefreshKey = 0 }) {
         body: JSON.stringify({ ...formData, subjectId: parseInt(formData.subjectId), questions, createdBy: currentUserId || 1 })
       });
       if (response.ok) {
-        alert('Викторина создана!');
         setFormData({ title: '', description: '', subjectId: '' });
         setQuestions([]);
         setView('list');
@@ -182,10 +183,13 @@ function Quiz({ subjects, currentUserId, dataRefreshKey = 0 }) {
     }
   };
 
-  const deleteQuiz = async (id) => {
-    if (!window.confirm('Удалить викторину?')) return;
+  const deleteQuiz = async (quiz) => {
+    const confirmed = await confirmDelete(getDeleteConfirm('quiz', {
+      name: quiz.title,
+    }));
+    if (!confirmed) return;
     try {
-      await adminFetch(`${API_URL}/quiz/${id}`, { method: 'DELETE' });
+      await adminFetch(`${API_URL}/quiz/${quiz.id}`, { method: 'DELETE' });
       loadQuizzes();
     } catch (error) {
       console.error('Error:', error);
@@ -545,12 +549,13 @@ function Quiz({ subjects, currentUserId, dataRefreshKey = 0 }) {
                 {q.status !== 'finished' && (
                   <button onClick={() => startLiveQuiz(q)} className="live-btn">🎮 Лобби</button>
                 )}
-                <button onClick={() => deleteQuiz(q.id)} className="delete-btn">🗑</button>
+                <button onClick={() => deleteQuiz(q)} className="delete-btn">🗑</button>
               </div>
             </div>
           ))}
         </div>
       )}
+      {ConfirmDeleteDialog}
     </div>
   );
 }

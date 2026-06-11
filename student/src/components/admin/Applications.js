@@ -67,7 +67,6 @@ function Applications({ dataRefreshKey = 0 }) {
       const data = await response.json();
       if (response.ok) {
         setApplications(prev => prev.map(a => a.id === id ? data.application : a));
-        alert('Заявка отправлена в CRM');
       } else {
         if (data.application) {
           setApplications(prev => prev.map(a => a.id === id ? data.application : a));

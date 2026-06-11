@@ -5,9 +5,12 @@ import { useAdminData } from './AdminDataContext';
 import { useSectionRefresh } from './useSectionRefresh';
 
 import { API_URL } from '../../config';
+import { useConfirmDelete } from './useConfirmDelete';
+import { getDeleteConfirm } from './cascadeDeleteMessages';
 
 function Students({ subjects, dataRefreshKey = 0 }) {
   const { refresh } = useAdminData();
+  const { confirmDelete, ConfirmDeleteDialog } = useConfirmDelete();
   const [students, setStudents] = useState([]);
   const [botUsers, setBotUsers] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -254,13 +257,13 @@ const [editFormData, setEditFormData] = useState({
     }
   };
 
-  const handleDeleteStudent = async (studentId) => {
-    if (!window.confirm('Вы уверены, что хотите удалить этого ученика?')) {
-      return;
-    }
+  const handleDeleteStudent = async (student) => {
+    const name = `${student.firstName || ''} ${student.lastName || ''}`.trim() || 'Ученик';
+    const confirmed = await confirmDelete(getDeleteConfirm('student', { name }));
+    if (!confirmed) return false;
 
     try {
-      const response = await adminFetch(`${API_URL}/students/${studentId}`, {
+      const response = await adminFetch(`${API_URL}/students/${student.id}`, {
         method: 'DELETE'
       });
 
@@ -268,12 +271,13 @@ const [editFormData, setEditFormData] = useState({
         setSelectedStudent(null);
         setShowDetailModal(false);
         await loadStudents();
-      refresh('students');
         refresh('students');
+        return true;
       }
     } catch (error) {
       console.error('Error deleting student:', error);
     }
+    return false;
   };
 
   const handleExtendAccess = async (studentId, days) => {
@@ -952,10 +956,7 @@ const handleSaveEdit = async () => {
             </button>
             <button 
               className="btn-danger"
-              onClick={() => {
-                handleDeleteStudent(selectedStudent.id);
-                handleCloseDetail();
-              }}
+              onClick={() => handleDeleteStudent(selectedStudent)}
             >
               🗑️ Удалить ученика
             </button>
@@ -1068,6 +1069,7 @@ const handleSaveEdit = async () => {
   </div>
 )}
       
+      {ConfirmDeleteDialog}
     </div>
   );
 }

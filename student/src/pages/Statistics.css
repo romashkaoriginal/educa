@@ -1,4 +1,4 @@
-﻿@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
 
 :root {
   --kubik-pink: #FFBEBD;
@@ -192,6 +192,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
   padding: 14px 12px;
   border-radius: 10px;
   background: var(--kubik-white);
@@ -199,10 +200,15 @@
 
 .topic-info {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   flex: 1;
   min-width: 0;
+}
+
+.topic-info > div {
+  min-width: 0;
+  flex: 1;
 }
 
 .topic-icon {
@@ -214,9 +220,12 @@
   font-weight: 600;
   color: var(--kubik-navy);
   font-size: 13px;
-  white-space: nowrap;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
+  word-break: break-word;
 }
 
 .topic-subject {
@@ -233,6 +242,7 @@
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
+  margin-left: 4px;
 }
 
 /* Последние решения */

@@ -1,7 +1,7 @@
 const { PracticeTopic, PracticeQuestion, PracticeAttempt, PracticeBest, PracticeDailyLog, PracticeQuestionResult, PracticeScoreHistory, Subject, User } = require('../models');
 const { Op } = require('sequelize');
 const sequelize = require('../config/database');
-const { calculatePredictedScore, getWeakTopicIds, CONFIG } = require('../services/predictedScore');
+const { calculatePredictedScore, getGrowthTopicIds, CONFIG } = require('../services/predictedScore');
 
 // In-memory кэш статистики (TTL 60 секунд)
 const statsCache = new Map();
@@ -94,19 +94,80 @@ function shiftLocalDateStr(dateStr, days) {
   return getLocalDateStr(start);
 }
 
-async function syncDailyUniqueLog(studentId, subjectId, dateStr) {
-  const { start, end } = getLocalDayBounds(dateStr);
-  const uniqueCount = await PracticeQuestionResult.count({
+function getPeriodBounds(period) {
+  const today = getLocalDateStr();
+  const { end: todayEnd } = getLocalDayBounds(today);
+  const startDate = getPeriodStart(period);
+  const { start } = getLocalDayBounds(startDate);
+  return { start, end: todayEnd };
+}
+
+async function countCorrectUniqueInRange(studentId, subjectId, start, end) {
+  return PracticeQuestionResult.count({
     where: {
       studentId,
       subjectId,
+      isCorrect: true,
       updatedAt: { [Op.gte]: start, [Op.lt]: end }
     },
     distinct: true,
     col: 'questionId'
   });
+}
 
-  if (uniqueCount <= 0) return 0;
+async function getStudentPracticeDates(studentId) {
+  const rows = await PracticeQuestionResult.findAll({
+    where: { studentId: parseInt(studentId) },
+    attributes: ['updatedAt'],
+    raw: true
+  });
+  const dates = new Set();
+  rows.forEach((row) => {
+    if (row.updatedAt) dates.add(getLocalDateStr(new Date(row.updatedAt)));
+  });
+  return [...dates].sort().reverse();
+}
+
+function computeStreakFromDates(dates) {
+  if (dates.length === 0) return { streak: 0, todayDone: false };
+
+  const todayKey = getLocalDateStr();
+  const yesterdayKey = shiftLocalDateStr(todayKey, -1);
+  const todayDone = dates.includes(todayKey);
+
+  if (dates[0] !== todayKey && dates[0] !== yesterdayKey) {
+    return { streak: 0, todayDone };
+  }
+
+  let streak = 1;
+  let expected = shiftLocalDateStr(dates[0], -1);
+  for (let i = 1; i < dates.length; i++) {
+    if (dates[i] === expected) {
+      streak++;
+      expected = shiftLocalDateStr(dates[i], -1);
+    } else {
+      break;
+    }
+  }
+
+  return { streak, todayDone };
+}
+
+async function buildStreakForStudent(studentId) {
+  const dates = await getStudentPracticeDates(studentId);
+  return computeStreakFromDates(dates);
+}
+
+async function syncDailyUniqueLog(studentId, subjectId, dateStr) {
+  const { start, end } = getLocalDayBounds(dateStr);
+  const uniqueCount = await countCorrectUniqueInRange(studentId, subjectId, start, end);
+
+  if (uniqueCount <= 0) {
+    await PracticeDailyLog.destroy({
+      where: { studentId, subjectId, date: dateStr }
+    }).catch(() => {});
+    return 0;
+  }
 
   const [log] = await PracticeDailyLog.findOrCreate({
     where: { studentId, subjectId, date: dateStr },
@@ -359,7 +420,9 @@ exports.saveAttempt = async (req, res) => {
     const prediction = await buildPrediction(studentId, subjectId);
     await recordScoreHistory(studentId, subjectId, prediction);
 
-    res.json({ success: true, prediction });
+    const streak = await buildStreakForStudent(studentId);
+
+    res.json({ success: true, prediction, streak });
   } catch (error) {
     console.error('Save attempt error:', error);
     res.status(500).json({ error: 'Failed to save attempt' });
@@ -465,48 +528,8 @@ exports.getStudentStats = async (req, res) => {
 exports.getStreak = async (req, res) => {
   try {
     const { studentId } = req.params;
-
-    // Берём все уникальные даты когда студент решал (из PracticeDailyLog)
-    const logs = await PracticeDailyLog.findAll({
-      where: {
-        studentId: parseInt(studentId),
-        attemptsCount: { [Op.gt]: 0 }
-      },
-      attributes: ['date'],
-      group: ['date'],
-      order: [['date', 'DESC']]
-    });
-
-    if (logs.length === 0) {
-      return res.json({ streak: 0, todayDone: false });
-    }
-
-    const dates = [...new Set(logs.map(l => formatLogDate(l.date)))].sort().reverse();
-
-    const todayKey = getLocalDateStr();
-    const yesterdayKey = shiftLocalDateStr(todayKey, -1);
-
-    const todayDone = dates[0] === todayKey;
-
-    // Стрик считается только если последний день — сегодня или вчера
-    // (иначе серия прервана)
-    if (dates[0] !== todayKey && dates[0] !== yesterdayKey) {
-      return res.json({ streak: 0, todayDone: false });
-    }
-
-    // Считаем подряд идущие дни
-    let streak = 1;
-    let expected = shiftLocalDateStr(dates[0], -1);
-    for (let i = 1; i < dates.length; i++) {
-      if (dates[i] === expected) {
-        streak++;
-        expected = shiftLocalDateStr(dates[i], -1);
-      } else {
-        break;
-      }
-    }
-
-    res.json({ streak, todayDone });
+    const streak = await buildStreakForStudent(studentId);
+    res.json(streak);
   } catch (error) {
     console.error('Get streak error:', error);
     res.status(500).json({ error: 'Failed to get streak' });
@@ -584,20 +607,15 @@ exports.getDailyGoal = async (req, res) => {
   try {
     const { studentId } = req.params;
     const today = getLocalDateStr();
+    const { start, end } = getLocalDayBounds(today);
 
     const student = await User.findByPk(studentId, {
       include: [{ model: Subject, as: 'subjects', attributes: ['id', 'name', 'icon'] }]
     });
     if (!student) return res.status(404).json({ error: 'Student not found' });
 
-    const logs = await PracticeDailyLog.findAll({
-      where: { studentId, date: today }
-    });
-    const logMap = {};
-    logs.forEach(l => { logMap[l.subjectId] = l.attemptsCount; });
-
-    const goals = (student.subjects || []).map(subject => {
-      const solved = logMap[subject.id] || 0;
+    const goals = await Promise.all((student.subjects || []).map(async (subject) => {
+      const solved = await countCorrectUniqueInRange(studentId, subject.id, start, end);
       return {
         subjectId: subject.id,
         subjectName: subject.name,
@@ -608,7 +626,7 @@ exports.getDailyGoal = async (req, res) => {
         completed: solved >= CONFIG.DAILY_GOAL,
         percent: Math.min(100, Math.round(solved / CONFIG.DAILY_GOAL * 100))
       };
-    });
+    }));
 
     const totalUniqueToday = goals.reduce((sum, g) => sum + g.solved, 0);
 
@@ -625,22 +643,23 @@ exports.getLeaderboard = async (req, res) => {
   try {
     const { subjectId } = req.params;
     const { period = 'day', studentId } = req.query;
-    const startDate = getPeriodStart(period);
+    const { start, end } = getPeriodBounds(period);
 
-    const logs = await PracticeDailyLog.findAll({
+    const rows = await PracticeQuestionResult.findAll({
       where: {
         subjectId: parseInt(subjectId),
-        date: { [Op.gte]: startDate }
+        isCorrect: true,
+        updatedAt: { [Op.gte]: start, [Op.lt]: end }
       },
       attributes: [
         'studentId',
-        [sequelize.fn('SUM', sequelize.col('attemptsCount')), 'totalSolved']
+        [sequelize.fn('COUNT', sequelize.fn('DISTINCT', sequelize.col('questionId'))), 'totalSolved']
       ],
       group: ['studentId'],
       raw: true
     });
 
-    const studentIds = logs.map(l => l.studentId);
+    const studentIds = rows.map(l => l.studentId);
     const users = await User.findAll({
       where: { id: studentIds },
       attributes: ['id', 'firstName', 'lastName']
@@ -648,12 +667,12 @@ exports.getLeaderboard = async (req, res) => {
     const userMap = {};
     users.forEach(u => { userMap[u.id] = u; });
 
-    const ranked = logs
+    const ranked = rows
       .map(l => ({
         studentId: l.studentId,
         firstName: userMap[l.studentId]?.firstName || 'Ученик',
         lastName: userMap[l.studentId]?.lastName || '',
-        totalSolved: parseInt(l.totalSolved) || 0
+        totalSolved: parseInt(l.totalSolved, 10) || 0
       }))
       .sort((a, b) => b.totalSolved - a.totalSolved);
 
@@ -679,19 +698,23 @@ exports.getWeakTopicsPractice = async (req, res) => {
   try {
     const { studentId, subjectId } = req.params;
     const prediction = await buildPrediction(parseInt(studentId), parseInt(subjectId));
-    const weakIds = getWeakTopicIds(prediction, 3);
+    const growthIds = getGrowthTopicIds(prediction, 3);
 
-    if (weakIds.length === 0) {
-      return res.json({ topics: [], questions: [], message: 'Нет слабых тем — продолжайте практику!' });
+    if (growthIds.length === 0) {
+      return res.json({
+        topics: [],
+        questions: [],
+        message: 'Пока нет тем для подтягивания — решите задания в разных подразделах'
+      });
     }
 
     const topics = await PracticeTopic.findAll({
-      where: { id: weakIds, isActive: true },
+      where: { id: growthIds, isActive: true },
       attributes: ['id', 'name', 'icon', 'description']
     });
 
     const questions = await PracticeQuestion.findAll({
-      where: { topicId: weakIds, isActive: true },
+      where: { topicId: growthIds, isActive: true },
       attributes: ['id', 'questionText', 'options', 'correctAnswer', 'explanation', 'difficulty', 'topicId'],
       order: [['createdAt', 'ASC']]
     });
@@ -699,7 +722,8 @@ exports.getWeakTopicsPractice = async (req, res) => {
     res.json({
       topics: topics.map(t => t.toJSON()),
       questions: questions.map(q => q.toJSON()),
-      weakTopics: prediction.weakTopics
+      weakTopics: prediction.weakTopics,
+      newTopics: prediction.newTopics || []
     });
   } catch (error) {
     console.error('Get weak topics error:', error);

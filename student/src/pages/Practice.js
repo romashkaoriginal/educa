@@ -7,11 +7,77 @@ import { apiFetch } from './api';
 import { API_URL } from '../config';
 import StudentBrandMark from '../components/StudentBrandMark';
 
+function getNextScoreMilestone(score) {
+  if (score >= 100) return null;
+  return Math.floor(score / 10) * 10 + 10;
+}
+
+function estimateTasksToMilestone(currentScore, targetScore) {
+  return Math.max(1, Math.ceil((targetScore - currentScore) / 2));
+}
+
+function getScoreMilestoneHint(predictedScore) {
+  if (!predictedScore?.unlocked) return null;
+  const score = predictedScore.score ?? 0;
+  const target = getNextScoreMilestone(score);
+  if (target == null) return null;
+  const tasks = estimateTasksToMilestone(score, target);
+
+  const allTopics = predictedScore.topics || [];
+  const hasWeak = allTopics.some(t => t.solved > 0 && t.progress < 70);
+  const hasNew = allTopics.some(t => t.solved === 0);
+
+  let focusText = 'в разных подразделах';
+  if (hasWeak && hasNew) {
+    focusText = 'в слабых темах и новых подразделах, которые ещё не проходил';
+  } else if (hasWeak) {
+    focusText = 'в слабых темах';
+  } else if (hasNew) {
+    focusText = 'в новых подразделах, которые ещё не проходил';
+  }
+
+  return {
+    target,
+    tasks,
+    text: `До ${target}+ — ещё ~${tasks} заданий ${focusText}`,
+  };
+}
+
+function getPredictedEncouragement(predictedScore) {
+  if (!predictedScore) {
+    return 'Начни с любой темы — каждое задание приближает к цели 💪';
+  }
+
+  if (!predictedScore.unlocked) {
+    const solved = predictedScore.solved || 0;
+    const required = predictedScore.minRequired || 50;
+    const pct = required > 0 ? (solved / required) * 100 : 0;
+    if (solved === 0) return 'Первые задания — самые важные. Начни с любой темы!';
+    if (pct < 25) return 'Отличное начало! Каждое решённое задание открывает путь к прогнозу ✨';
+    if (pct < 50) return 'Уже на четверти пути — не останавливайся, ты молодец!';
+    if (pct < 75) return 'Почти откроется прогноз — ещё немного, и увидишь свой балл!';
+    return 'Совсем чуть-чуть до первого прогноза — финишная прямая! 🎯';
+  }
+
+  const score = predictedScore.score ?? 0;
+  if (score < 10) return 'Самое начало пути — каждое задание добавляет баллы! 📈';
+  if (score < 20) return 'Первые очки уже есть — продолжай, темп отличный!';
+  if (score < 30) return 'База формируется. Слабые темы — лучший способ быстро вырасти!';
+  if (score < 40) return 'Хороший прогресс! Ещё немного практики — и будет новая десятка 💪';
+  if (score < 50) return 'Ты на верном пути. Регулярность сейчас важнее всего!';
+  if (score < 60) return 'Уже середина пути — отличная работа, не сбавляй темп!';
+  if (score < 70) return 'Скоро уверенные 70+ — ты уже близко, держи ритм! 🔥';
+  if (score < 80) return 'Крепкий уровень! Закрепляй сильные темы и подтягивай остальное 👍';
+  if (score < 90) return 'Отличный результат — ты в числе сильных учеников! ⭐';
+  if (score < 100) return 'Почти максимум — осталось совсем чуть-чуть до вершины! 🏆';
+  return 'Блестяще! Ты на пике — держи форму! 🎉';
+}
+
 function Practice({ studentId }) {
   // Используем данные из контекста
   const {
     practiceTopics, subjects, refreshAfterPractice, loading: contextLoading,
-    prefetchQuestions, getQuestions, updatePracticeStatsOptimistic, streak,
+    prefetchQuestions, getQuestions, updatePracticeStatsOptimistic, streak, streakLoaded, setStreak, setStreakLoaded, loadStreak,
     predictedScore, loadPredictedScore, dailyGoal, loadDailyGoal,
     leaderboard, loadLeaderboard, scoreHistory, loadScoreHistory,
     loadWeakTopicsQuestions
@@ -61,7 +127,7 @@ function Practice({ studentId }) {
   }, [streak?.todayDone]);
 
   const getStreakVisualState = (value) => {
-    if (!value) return 'empty';
+    if (!streakLoaded || !value) return 'empty';
     if (value.todayDone) return 'done';
     if (value.streak > 0) return 'pending';
     return 'empty';
@@ -126,6 +192,11 @@ function Practice({ studentId }) {
       setSelectedSubject(subjects[0]);
     }
   }, [subjects, selectedSubject]);
+
+  // Стрик в hero — подгружаем сразу при входе в раздел (важно для мобильного Telegram)
+  useEffect(() => {
+    loadStreak();
+  }, [loadStreak]);
 
   // Prefetch вопросов фоново при входе в раздел практики
   useEffect(() => {
@@ -255,16 +326,16 @@ function Practice({ studentId }) {
       const data = await loadWeakTopicsQuestions(selectedSubject.id);
       const questionsList = (data?.questions || []).map(shuffleOptions).filter(Boolean);
       if (questionsList.length === 0) {
-        alert(data?.message || 'Нет заданий по слабым темам');
+        alert(data?.message || 'Нет заданий для тренировки');
         return;
       }
       const virtualTopic = {
-        id: `weak-${selectedSubject.id}`,
-        name: 'Слабые темы',
+        id: `growth-${selectedSubject.id}`,
+        name: 'Слабые и новые темы',
         subjectId: selectedSubject.id,
         icon: '🎯'
       };
-      startPracticeFromQuestions(virtualTopic, questionsList, 'Тренировка слабых тем');
+      startPracticeFromQuestions(virtualTopic, questionsList, 'Тренировка: слабые и новые темы');
     } catch (error) {
       console.error('Error starting weak topics:', error);
       alert('Не удалось загрузить задания');
@@ -369,6 +440,11 @@ function Practice({ studentId }) {
       });
 
       if (response.ok) {
+        const data = await response.json();
+        if (data.streak) {
+          setStreak(data.streak);
+          setStreakLoaded(true);
+        }
         const subjectId = activePractice?.subjectId || selectedSubject?.id;
         await refreshAfterPractice(subjectId, leaderboardPeriod);
       }
@@ -682,9 +758,22 @@ function Practice({ studentId }) {
 
   const subjectDailyGoal = dailyGoal?.goals?.find(g => g.subjectId === selectedSubject?.id);
   const scoreDelta = predictedScore?.delta;
-  const remainingTo70 = predictedScore?.unlocked && predictedScore.score < 70
-    ? Math.max(1, Math.ceil((70 - predictedScore.score) / 2))
-    : null;
+  const scoreMilestoneHint = getScoreMilestoneHint(predictedScore);
+  const predictedEncouragement = getPredictedEncouragement(predictedScore);
+  const actionableWeakTopics = (predictedScore?.weakTopics || []).filter(t => t.solved > 0);
+  const actionableNewTopics = predictedScore?.newTopics || [];
+  const actionableStrongTopics = (predictedScore?.strongTopics || []).filter(t => t.solved > 0);
+  const hasGrowthTopics = actionableWeakTopics.length > 0 || actionableNewTopics.length > 0;
+  const unlockPercent = predictedScore?.minRequired
+    ? Math.min(100, Math.round(((predictedScore?.solved || 0) / predictedScore.minRequired) * 100))
+    : 0;
+  const scoreRingClass = !predictedScore?.unlocked
+    ? 'locked'
+    : predictedScore.score >= 70
+      ? 'score-high'
+      : predictedScore.score >= 40
+        ? 'score-mid'
+        : 'score-low';
 
   return (
     <div className="section section-practice">
@@ -749,42 +838,64 @@ function Practice({ studentId }) {
         <div className="practice-panel">
           <div className="practice-stats-row">
             <div className="dash-card predicted-score-card">
+              <div className="predicted-score-header">
+                <span className="predicted-label">Прогноз на ЦТ</span>
+                {predictedScore?.unlocked && scoreDelta != null && scoreDelta !== 0 && (
+                  <span className={`score-delta ${scoreDelta > 0 ? 'up' : 'down'}`}>
+                    {scoreDelta > 0 ? '+' : ''}{scoreDelta}
+                  </span>
+                )}
+                {!predictedScore?.unlocked && (
+                  <span className="predicted-unlock-count">
+                    {predictedScore?.solved || 0}/{predictedScore?.minRequired || 50}
+                  </span>
+                )}
+              </div>
+
+              <div className="predicted-score-ring-wrap">
+                <div
+                  className={`predicted-score-ring ${scoreRingClass}`}
+                  style={{
+                    '--score-pct': predictedScore?.unlocked
+                      ? `${predictedScore.score}%`
+                      : `${unlockPercent}%`
+                  }}
+                >
+                  {predictedScore?.unlocked ? (
+                    <span className="predicted-score-ring-inner">
+                      <span className="predicted-score-ring-value">{predictedScore.score}</span>
+                      <span className="predicted-score-ring-max">/100</span>
+                    </span>
+                  ) : (
+                    <span className="predicted-score-ring-inner locked">
+                      <span className="predicted-score-ring-value">{unlockPercent}%</span>
+                    </span>
+                  )}
+                </div>
+              </div>
+
               {predictedScore?.unlocked ? (
                 <>
-                  <div className="predicted-score-header">
-                    <span className="predicted-label">Прогноз на ЦТ</span>
-                    {scoreDelta != null && scoreDelta !== 0 && (
-                      <span className={`score-delta ${scoreDelta > 0 ? 'up' : 'down'}`}>
-                        {scoreDelta > 0 ? '+' : ''}{scoreDelta}
-                      </span>
-                    )}
-                  </div>
-                  <div className="predicted-score-value">
-                    {predictedScore.score}<span className="predicted-score-max">/100</span>
-                  </div>
                   <div className="predicted-meta">
                     Решено {predictedScore.solved} · Точность {predictedScore.accuracy}%
                   </div>
-                  {remainingTo70 && (
-                    <p className="predicted-hint">
-                      До 70+ — ещё ~{remainingTo70} заданий по слабым темам
+                  {scoreMilestoneHint && (
+                    <p className="predicted-action-hint">
+                      {scoreMilestoneHint.text}
                     </p>
                   )}
+                  <p className="predicted-hint predicted-encouragement">
+                    {predictedEncouragement}
+                  </p>
                 </>
               ) : (
                 <>
-                  <div className="predicted-locked-title">Прогноз пока недоступен</div>
-                  <div className="predicted-locked-progress">
-                    {predictedScore?.solved || 0} / {predictedScore?.minRequired || 50} заданий
-                  </div>
-                  <div className="predicted-locked-bar">
-                    <div
-                      className="predicted-locked-fill"
-                      style={{ width: `${Math.min(100, ((predictedScore?.solved || 0) / (predictedScore?.minRequired || 50)) * 100)}%` }}
-                    />
-                  </div>
+                  <p className="predicted-locked-title">Прогноз пока недоступен</p>
+                  <p className="predicted-hint predicted-encouragement">
+                    {predictedEncouragement}
+                  </p>
                   <p className="predicted-locked-hint">
-                    Осталось {predictedScore?.needed ?? 50} до открытия прогноза
+                    Осталось {predictedScore?.needed ?? 50} уникальных заданий
                   </p>
                 </>
               )}
@@ -815,12 +926,12 @@ function Practice({ studentId }) {
             )}
           </div>
 
-          {predictedScore?.unlocked && (predictedScore.strongTopics?.length > 0 || predictedScore.weakTopics?.length > 0) && (
+          {predictedScore?.unlocked && (actionableStrongTopics.length > 0 || hasGrowthTopics) && (
             <div className="dash-card topics-insight-card">
-              {predictedScore.strongTopics?.length > 0 && (
+              {actionableStrongTopics.length > 0 && (
                 <div className="topics-group">
                   <div className="topics-group-title">Сильные темы</div>
-                  {predictedScore.strongTopics.map(t => (
+                  {actionableStrongTopics.map(t => (
                     <div key={t.topicId} className="topic-insight strong">
                       <span>{t.name}</span>
                       <span className="topic-insight-pct">{t.progress}%</span>
@@ -828,10 +939,10 @@ function Practice({ studentId }) {
                   ))}
                 </div>
               )}
-              {predictedScore.weakTopics?.length > 0 && (
+              {actionableWeakTopics.length > 0 && (
                 <div className="topics-group">
                   <div className="topics-group-title">Слабые темы</div>
-                  {predictedScore.weakTopics.map(t => (
+                  {actionableWeakTopics.map(t => (
                     <div key={t.topicId} className="topic-insight weak">
                       <span>{t.name}</span>
                       <span className="topic-insight-pct">{t.progress}%</span>
@@ -839,14 +950,27 @@ function Practice({ studentId }) {
                   ))}
                 </div>
               )}
-              <button
-                type="button"
-                className="weak-topics-btn"
-                onClick={startWeakTopicsPractice}
-                disabled={weakTopicsLoading}
-              >
-                {weakTopicsLoading ? 'Загрузка...' : 'Потренировать слабые темы'}
-              </button>
+              {actionableNewTopics.length > 0 && (
+                <div className="topics-group">
+                  <div className="topics-group-title">Новые темы</div>
+                  {actionableNewTopics.map(t => (
+                    <div key={t.topicId} className="topic-insight new">
+                      <span>{t.name}</span>
+                      <span className="topic-insight-pct">не начато</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {hasGrowthTopics && (
+                <button
+                  type="button"
+                  className="weak-topics-btn"
+                  onClick={startWeakTopicsPractice}
+                  disabled={weakTopicsLoading}
+                >
+                  {weakTopicsLoading ? 'Загрузка...' : 'Потренировать слабые и новые темы'}
+                </button>
+              )}
             </div>
           )}
 

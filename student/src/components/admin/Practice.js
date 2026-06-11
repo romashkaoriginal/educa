@@ -5,8 +5,11 @@ import { adminFetch } from './adminApi';
 
 import { API_URL } from '../../config';
 import { useSectionRefresh } from './useSectionRefresh';
+import { useConfirmDelete } from './useConfirmDelete';
+import { getDeleteConfirm } from './cascadeDeleteMessages';
 
 function Practice({ dataRefreshKey = 0 }) {
+  const { confirmDelete, ConfirmDeleteDialog } = useConfirmDelete();
   const [subjects, setSubjects] = useState([]);
   const [selectedSubject, setSelectedSubject] = useState(null);
   const [topics, setTopics] = useState([]);
@@ -269,16 +272,20 @@ function Practice({ dataRefreshKey = 0 }) {
     }
   };
 
-  const handleDeleteTopic = async (topicId) => {
-    if (!window.confirm('Удалить раздел? Все вопросы в нём будут удалены!')) return;
+  const handleDeleteTopic = async (topic) => {
+    const confirmed = await confirmDelete(getDeleteConfirm('topic', {
+      name: topic.name,
+      questionCount: topic.questionCount,
+    }));
+    if (!confirmed) return;
 
     try {
-      const response = await adminFetch(`${API_URL}/practice/topics/${topicId}`, {
+      const response = await adminFetch(`${API_URL}/practice/topics/${topic.id}`, {
         method: 'DELETE'
       });
 
       if (response.ok) {
-        if (selectedTopic && selectedTopic.id === topicId) {
+        if (selectedTopic && selectedTopic.id === topic.id) {
           setSelectedTopic(null);
         }
         await loadTopics();
@@ -356,8 +363,6 @@ function Practice({ dataRefreshKey = 0 }) {
   };
 
   const handleDeleteQuestion = async (questionId) => {
-    if (!window.confirm('Удалить вопрос?')) return;
-
     try {
       const response = await adminFetch(`${API_URL}/practice/questions/${questionId}`, {
         method: 'DELETE'
@@ -475,7 +480,7 @@ function Practice({ dataRefreshKey = 0 }) {
                     className="btn-icon danger"
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleDeleteTopic(topic.id);
+                      handleDeleteTopic(topic);
                     }}
                     title="Удалить"
                   >
@@ -884,6 +889,7 @@ function Practice({ dataRefreshKey = 0 }) {
           </div>
         </div>
       )}
+      {ConfirmDeleteDialog}
     </div>
   );
 }

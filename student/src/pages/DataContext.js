@@ -18,6 +18,7 @@ export const DataProvider = ({ children, studentId }) => {
   const [practiceStats, setPracticeStats] = useState(null);
   const [homeworkStats, setHomeworkStats] = useState(null);
   const [streak, setStreak] = useState({ streak: 0, todayDone: false });
+  const [streakLoaded, setStreakLoaded] = useState(false);
   const [predictedScore, setPredictedScore] = useState(null);
   const [dailyGoal, setDailyGoal] = useState(null);
   const [leaderboard, setLeaderboard] = useState(null);
@@ -206,9 +207,11 @@ export const DataProvider = ({ children, studentId }) => {
       const response = await apiFetch(`${API_URL}/practice/streak/${studentId}`);
       const data = await response.json();
       setStreak(data || { streak: 0, todayDone: false });
+      setStreakLoaded(true);
       return data;
     } catch (error) {
       console.error('Error loading streak:', error);
+      setStreakLoaded(true);
       return null;
     }
   }, [studentId]); // eslint-disable-line
@@ -276,11 +279,11 @@ export const DataProvider = ({ children, studentId }) => {
   }, [studentId]);
 
   const preloadAllData = useCallback(async () => {
-    // Сначала грузим то что видно сразу — subjects и practice
-    await Promise.all([loadSubjects(), loadPractice()]);
+    // Сначала грузим то что видно сразу — subjects, practice и streak (огонёк в hero)
+    await Promise.all([loadSubjects(), loadPractice(), loadStreak()]);
     // Остальное фоново — не блокируем UI
-    Promise.all([loadHomeworks(), loadPracticeStats(), loadHomeworkStats(), loadStreak()]);
-  }, [loadSubjects, loadPractice, loadHomeworks, loadPracticeStats, loadHomeworkStats]);
+    Promise.all([loadHomeworks(), loadPracticeStats(), loadHomeworkStats()]);
+  }, [loadSubjects, loadPractice, loadStreak, loadHomeworks, loadPracticeStats, loadHomeworkStats]);
 
   const refreshAfterPractice = useCallback(async (subjectId, leaderboardPeriod = 'day') => {
     loadedRef.current.practice = false;
@@ -309,7 +312,7 @@ export const DataProvider = ({ children, studentId }) => {
     loadSubjects, loadPractice, loadHomeworks, loadPracticeStats, loadHomeworkStats,
     preloadAllData, refreshAfterPractice, refreshAfterHomework,
     prefetchQuestions, getQuestions, updatePracticeStatsOptimistic,
-    streak, loadStreak,
+    streak, streakLoaded, setStreak, setStreakLoaded, loadStreak,
     predictedScore, loadPredictedScore,
     dailyGoal, loadDailyGoal,
     leaderboard, loadLeaderboard,

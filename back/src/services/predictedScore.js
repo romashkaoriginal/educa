@@ -81,7 +81,8 @@ function calculatePredictedScore(topics, results) {
         : 0,
       topics: [],
       strongTopics: [],
-      weakTopics: []
+      weakTopics: [],
+      newTopics: []
     };
   }
 
@@ -114,10 +115,13 @@ function calculatePredictedScore(topics, results) {
   const accuracy = results.length > 0 ? Math.round(correct / results.length * 100) : 0;
 
   const sorted = [...topicDetails].sort((a, b) => b.progress - a.progress);
-  const strongTopics = sorted.filter(t => t.progress >= 60).slice(0, 3);
+  const strongTopics = sorted.filter(t => t.solved > 0 && t.progress >= 60).slice(0, 3);
   const weakTopics = [...topicDetails]
+    .filter(t => t.solved > 0 && t.progress < 70)
     .sort((a, b) => a.progress - b.progress)
-    .filter(t => t.progress < 70)
+    .slice(0, 3);
+  const newTopics = [...topicDetails]
+    .filter(t => t.solved === 0)
     .slice(0, 3);
 
   return {
@@ -129,16 +133,38 @@ function calculatePredictedScore(topics, results) {
     accuracy,
     topics: topicDetails,
     strongTopics,
-    weakTopics
+    weakTopics,
+    newTopics
   };
 }
 
 function getWeakTopicIds(prediction, limit = 3) {
   if (!prediction?.topics?.length) return [];
   return [...prediction.topics]
+    .filter(t => t.solved > 0 && t.progress < 70)
     .sort((a, b) => a.progress - b.progress)
     .slice(0, limit)
     .map(t => t.topicId);
+}
+
+function getNewTopicIds(prediction, limit = 3) {
+  if (!prediction?.topics?.length) return [];
+  return prediction.topics
+    .filter(t => t.solved === 0)
+    .slice(0, limit)
+    .map(t => t.topicId);
+}
+
+function getGrowthTopicIds(prediction, limit = 3) {
+  if (!prediction?.topics?.length) return [];
+  const ids = [];
+  const push = (id) => {
+    if (ids.length >= limit) return;
+    if (!ids.includes(id)) ids.push(id);
+  };
+  getWeakTopicIds(prediction, limit).forEach(push);
+  getNewTopicIds(prediction, limit).forEach(push);
+  return ids;
 }
 
 module.exports = {
@@ -146,5 +172,7 @@ module.exports = {
   calculatePredictedScore,
   getDifficultyBreakdown,
   getWeakTopicIds,
+  getNewTopicIds,
+  getGrowthTopicIds,
   calcTopicProgress
 };

@@ -136,7 +136,6 @@ function Homework({ subjects, currentUserId, dataRefreshKey = 0 }) {
         })
       });
       if (response.ok) {
-        alert(editingHomework ? 'Домашка обновлена!' : 'Домашка создана!');
         setShowCreateModal(false);
         loadHomeworks();
       } else {
