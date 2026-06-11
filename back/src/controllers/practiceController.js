@@ -102,6 +102,22 @@ function getPeriodBounds(period) {
   return { start, end: todayEnd };
 }
 
+async function countCorrectTotalInRange(studentId, subjectId, start, end) {
+  const attemptCount = await PracticeAttempt.count({
+    where: {
+      studentId,
+      subjectId,
+      isCorrect: true,
+      createdAt: { [Op.gte]: start, [Op.lt]: end }
+    }
+  });
+
+  if (attemptCount > 0) return attemptCount;
+
+  // Fallback для данных до поштучного сохранения ответов
+  return countCorrectUniqueInRange(studentId, subjectId, start, end);
+}
+
 async function countCorrectUniqueInRange(studentId, subjectId, start, end) {
   return PracticeQuestionResult.count({
     where: {
@@ -115,15 +131,42 @@ async function countCorrectUniqueInRange(studentId, subjectId, start, end) {
   });
 }
 
-async function getStudentPracticeDates(studentId) {
+async function getCorrectUniqueQuestionIdsInRange(studentId, subjectId, start, end) {
   const rows = await PracticeQuestionResult.findAll({
-    where: { studentId: parseInt(studentId) },
-    attributes: ['updatedAt'],
+    where: {
+      studentId,
+      subjectId,
+      isCorrect: true,
+      updatedAt: { [Op.gte]: start, [Op.lt]: end }
+    },
+    attributes: ['questionId'],
+    group: ['questionId'],
+    raw: true
+  });
+  return rows.map(r => r.questionId);
+}
+
+async function getDailyGoalCompletionDates(studentId, subjectId = null) {
+  const where = {
+    studentId: parseInt(studentId),
+    attemptsCount: { [Op.gte]: CONFIG.DAILY_GOAL }
+  };
+  if (subjectId != null && subjectId !== '') {
+    where.subjectId = parseInt(subjectId, 10);
+  }
+  const rows = await PracticeDailyLog.findAll({
+    where,
+    attributes: ['date'],
+    order: [['date', 'DESC']],
     raw: true
   });
   const dates = new Set();
   rows.forEach((row) => {
-    if (row.updatedAt) dates.add(getLocalDateStr(new Date(row.updatedAt)));
+    if (!row.date) return;
+    const key = typeof row.date === 'string'
+      ? row.date.slice(0, 10)
+      : getLocalDateStr(new Date(row.date));
+    dates.add(key);
   });
   return [...dates].sort().reverse();
 }
@@ -153,16 +196,16 @@ function computeStreakFromDates(dates) {
   return { streak, todayDone };
 }
 
-async function buildStreakForStudent(studentId) {
-  const dates = await getStudentPracticeDates(studentId);
+async function buildStreakForStudent(studentId, subjectId = null) {
+  const dates = await getDailyGoalCompletionDates(studentId, subjectId);
   return computeStreakFromDates(dates);
 }
 
-async function syncDailyUniqueLog(studentId, subjectId, dateStr) {
+async function syncDailyGoalLog(studentId, subjectId, dateStr) {
   const { start, end } = getLocalDayBounds(dateStr);
-  const uniqueCount = await countCorrectUniqueInRange(studentId, subjectId, start, end);
+  const totalCorrect = await countCorrectTotalInRange(studentId, subjectId, start, end);
 
-  if (uniqueCount <= 0) {
+  if (totalCorrect <= 0) {
     await PracticeDailyLog.destroy({
       where: { studentId, subjectId, date: dateStr }
     }).catch(() => {});
@@ -171,14 +214,80 @@ async function syncDailyUniqueLog(studentId, subjectId, dateStr) {
 
   const [log] = await PracticeDailyLog.findOrCreate({
     where: { studentId, subjectId, date: dateStr },
-    defaults: { studentId, subjectId, date: dateStr, attemptsCount: uniqueCount }
+    defaults: { studentId, subjectId, date: dateStr, attemptsCount: totalCorrect }
   });
 
-  if (log.attemptsCount !== uniqueCount) {
-    await log.update({ attemptsCount: uniqueCount });
+  if (log.attemptsCount !== totalCorrect) {
+    await log.update({ attemptsCount: totalCorrect });
   }
 
-  return uniqueCount;
+  return totalCorrect;
+}
+
+async function buildDailyGoalEntry(studentId, subject, start, end) {
+  const solved = await countCorrectTotalInRange(studentId, subject.id, start, end);
+  return {
+    subjectId: subject.id,
+    subjectName: subject.name,
+    subjectIcon: subject.icon,
+    goal: CONFIG.DAILY_GOAL,
+    solved,
+    remaining: Math.max(0, CONFIG.DAILY_GOAL - solved),
+    completed: solved >= CONFIG.DAILY_GOAL,
+    percent: Math.min(100, Math.round(solved / CONFIG.DAILY_GOAL * 100))
+  };
+}
+
+async function persistPracticeAnswer({
+  studentId,
+  topicId,
+  subjectId,
+  questionId,
+  isCorrect,
+  difficulty,
+  selectedAnswer = 0
+}) {
+  await PracticeAttempt.create({
+    studentId: parseInt(studentId),
+    topicId: parseInt(topicId),
+    subjectId: parseInt(subjectId),
+    questionId: parseInt(questionId),
+    selectedAnswer: Number.isInteger(selectedAnswer) ? selectedAnswer : 0,
+    isCorrect: !!isCorrect
+  });
+
+  const [record, created] = await PracticeQuestionResult.findOrCreate({
+    where: { studentId: parseInt(studentId), questionId: parseInt(questionId) },
+    defaults: {
+      studentId: parseInt(studentId),
+      questionId: parseInt(questionId),
+      topicId: parseInt(topicId),
+      subjectId: parseInt(subjectId),
+      difficulty: difficulty || 'medium',
+      isCorrect: !!isCorrect,
+      attempts: 1
+    }
+  });
+
+  if (!created) {
+    await record.update({
+      isCorrect: !!isCorrect,
+      attempts: (record.attempts || 1) + 1,
+      difficulty: difficulty || record.difficulty,
+      topicId: parseInt(topicId),
+      subjectId: parseInt(subjectId)
+    });
+  }
+
+  const today = getLocalDateStr();
+  if (isCorrect) {
+    await syncDailyGoalLog(studentId, subjectId, today);
+  }
+}
+
+/** @deprecated use syncDailyGoalLog — kept for callers migrating from unique counts */
+async function syncDailyUniqueLog(studentId, subjectId, dateStr) {
+  return syncDailyGoalLog(studentId, subjectId, dateStr);
 }
 
 // ========== АДМИН ФУНКЦИИ ==========
@@ -377,31 +486,19 @@ exports.saveAttempt = async (req, res) => {
     if (Array.isArray(answers) && answers.length > 0) {
       for (const ans of answers) {
         if (!ans.questionId) continue;
-
         const qTopicId = ans.topicId || topicId;
-        const [record, created] = await PracticeQuestionResult.findOrCreate({
-          where: { studentId, questionId: ans.questionId },
-          defaults: {
-            studentId,
-            questionId: ans.questionId,
-            topicId: qTopicId,
-            subjectId,
-            difficulty: ans.difficulty || 'medium',
-            isCorrect: !!ans.isCorrect,
-            attempts: 1
-          }
+        await persistPracticeAnswer({
+          studentId,
+          topicId: qTopicId,
+          subjectId,
+          questionId: ans.questionId,
+          isCorrect: !!ans.isCorrect,
+          difficulty: ans.difficulty || 'medium',
+          selectedAnswer: ans.selectedAnswer ?? 0
         });
-
-        if (!created) {
-          await record.update({
-            isCorrect: !!ans.isCorrect,
-            attempts: (record.attempts || 1) + 1,
-            difficulty: ans.difficulty || record.difficulty,
-            topicId: qTopicId,
-            subjectId
-          });
-        }
       }
+    } else {
+      await syncDailyGoalLog(studentId, subjectId, today);
     }
 
     const [best, created] = await PracticeBest.findOrCreate({
@@ -413,19 +510,97 @@ exports.saveAttempt = async (req, res) => {
       await best.update({ correct, total, percent });
     }
 
-    await syncDailyUniqueLog(studentId, subjectId, today);
-
     invalidateCache(`stats_${studentId}`);
 
     const prediction = await buildPrediction(studentId, subjectId);
     await recordScoreHistory(studentId, subjectId, prediction);
 
-    const streak = await buildStreakForStudent(studentId);
+    const streak = await buildStreakForStudent(studentId, subjectId);
 
     res.json({ success: true, prediction, streak });
   } catch (error) {
     console.error('Save attempt error:', error);
     res.status(500).json({ error: 'Failed to save attempt' });
+  }
+};
+
+// Сохранить один ответ (сразу после вопроса)
+exports.savePracticeAnswer = async (req, res) => {
+  try {
+    const {
+      studentId,
+      topicId,
+      subjectId,
+      questionId,
+      isCorrect,
+      difficulty,
+      selectedAnswer
+    } = req.body;
+
+    if (!studentId || !topicId || !subjectId || !questionId || isCorrect === undefined) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    await persistPracticeAnswer({
+      studentId,
+      topicId,
+      subjectId,
+      questionId,
+      isCorrect,
+      difficulty,
+      selectedAnswer
+    });
+
+    invalidateCache(`stats_${studentId}`);
+
+    const subject = await Subject.findByPk(subjectId, { attributes: ['id', 'name', 'icon'] });
+    if (!subject) return res.status(404).json({ error: 'Subject not found' });
+
+    const today = getLocalDateStr();
+    const { start, end } = getLocalDayBounds(today);
+    const goal = await buildDailyGoalEntry(studentId, subject, start, end);
+    const streak = await buildStreakForStudent(studentId, subjectId);
+
+    res.json({ success: true, goal, streak });
+  } catch (error) {
+    console.error('Save practice answer error:', error);
+    res.status(500).json({ error: 'Failed to save answer' });
+  }
+};
+
+// Итог сессии — только лучший результат по теме (ответы уже сохранены по одному)
+exports.saveSessionSummary = async (req, res) => {
+  try {
+    const { studentId, topicId, subjectId, correct, total } = req.body;
+
+    if (!studentId || !subjectId || correct === undefined || !total) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const percent = total > 0 ? Math.round(correct / total * 100) : 0;
+    const numericTopicId = parseInt(topicId, 10);
+
+    if (Number.isInteger(numericTopicId)) {
+      const [best, created] = await PracticeBest.findOrCreate({
+        where: { studentId, topicId: numericTopicId },
+        defaults: { studentId, topicId: numericTopicId, subjectId, correct, total, percent }
+      });
+
+      if (!created && percent > best.percent) {
+        await best.update({ correct, total, percent });
+      }
+    }
+
+    invalidateCache(`stats_${studentId}`);
+
+    const prediction = await buildPrediction(studentId, subjectId);
+    await recordScoreHistory(studentId, subjectId, prediction);
+    const streak = await buildStreakForStudent(studentId, subjectId);
+
+    res.json({ success: true, prediction, streak });
+  } catch (error) {
+    console.error('Save session summary error:', error);
+    res.status(500).json({ error: 'Failed to save session summary' });
   }
 };
 
@@ -524,11 +699,12 @@ exports.getStudentStats = async (req, res) => {
   }
 };
 
-// Получить стрик студента — сколько дней подряд решал тесты
+// Получить стрик — дни подряд с выполненной дневной целью
 exports.getStreak = async (req, res) => {
   try {
     const { studentId } = req.params;
-    const streak = await buildStreakForStudent(studentId);
+    const { subjectId } = req.query;
+    const streak = await buildStreakForStudent(studentId, subjectId || null);
     res.json(streak);
   } catch (error) {
     console.error('Get streak error:', error);
@@ -614,23 +790,13 @@ exports.getDailyGoal = async (req, res) => {
     });
     if (!student) return res.status(404).json({ error: 'Student not found' });
 
-    const goals = await Promise.all((student.subjects || []).map(async (subject) => {
-      const solved = await countCorrectUniqueInRange(studentId, subject.id, start, end);
-      return {
-        subjectId: subject.id,
-        subjectName: subject.name,
-        subjectIcon: subject.icon,
-        goal: CONFIG.DAILY_GOAL,
-        solved,
-        remaining: Math.max(0, CONFIG.DAILY_GOAL - solved),
-        completed: solved >= CONFIG.DAILY_GOAL,
-        percent: Math.min(100, Math.round(solved / CONFIG.DAILY_GOAL * 100))
-      };
-    }));
+    const goals = await Promise.all((student.subjects || []).map(async (subject) =>
+      buildDailyGoalEntry(studentId, subject, start, end)
+    ));
 
-    const totalUniqueToday = goals.reduce((sum, g) => sum + g.solved, 0);
+    const totalCorrectToday = goals.reduce((sum, g) => sum + g.solved, 0);
 
-    res.json({ goals, dailyGoal: CONFIG.DAILY_GOAL, totalUniqueToday });
+    res.json({ goals, dailyGoal: CONFIG.DAILY_GOAL, totalCorrectToday, totalUniqueToday: totalCorrectToday });
   } catch (error) {
     console.error('Get daily goal error:', error);
     res.status(500).json({ error: 'Failed to get daily goal' });
@@ -697,33 +863,42 @@ exports.getLeaderboard = async (req, res) => {
 exports.getWeakTopicsPractice = async (req, res) => {
   try {
     const { studentId, subjectId } = req.params;
-    const prediction = await buildPrediction(parseInt(studentId), parseInt(subjectId));
-    const growthIds = getGrowthTopicIds(prediction, 3);
 
-    if (growthIds.length === 0) {
+    const wrongRows = await PracticeQuestionResult.findAll({
+      where: {
+        studentId: parseInt(studentId),
+        subjectId: parseInt(subjectId),
+        isCorrect: false
+      },
+      attributes: ['topicId'],
+      group: ['topicId'],
+      raw: true
+    });
+
+    const errorTopicIds = [...new Set(wrongRows.map(r => r.topicId).filter(Boolean))];
+
+    if (errorTopicIds.length === 0) {
       return res.json({
         topics: [],
         questions: [],
-        message: 'Пока нет тем для подтягивания — решите задания в разных подразделах'
+        message: 'Пока нет слабых тем — ошибок в практике ещё не было'
       });
     }
 
     const topics = await PracticeTopic.findAll({
-      where: { id: growthIds, isActive: true },
+      where: { id: errorTopicIds, isActive: true },
       attributes: ['id', 'name', 'icon', 'description']
     });
 
     const questions = await PracticeQuestion.findAll({
-      where: { topicId: growthIds, isActive: true },
+      where: { topicId: errorTopicIds, isActive: true },
       attributes: ['id', 'questionText', 'options', 'correctAnswer', 'explanation', 'difficulty', 'topicId'],
       order: [['createdAt', 'ASC']]
     });
 
     res.json({
       topics: topics.map(t => t.toJSON()),
-      questions: questions.map(q => q.toJSON()),
-      weakTopics: prediction.weakTopics,
-      newTopics: prediction.newTopics || []
+      questions: questions.map(q => q.toJSON())
     });
   } catch (error) {
     console.error('Get weak topics error:', error);

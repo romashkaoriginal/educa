@@ -1,16 +1,29 @@
 import React, { useState, useEffect } from 'react';
 import './Statistics.css';
+import '../pages/Practice.css';
 import { useData } from './DataContext';
 import StudentBrandMark from '../components/StudentBrandMark';
+import PredictedScoreCard from '../components/PredictedScoreCard';
 
 function Statistics({ studentId }) {
-  const { practiceStats: stats, homeworkStats, loading: contextLoading, loadHomeworkStats, loadPracticeStats } = useData();
+  const { practiceStats: stats, homeworkStats, subjects, loading: contextLoading, loadHomeworkStats, loadPracticeStats, loadPredictedScore } = useData();
   const [activeTab, setActiveTab] = useState('practice');
+  const [predictionsBySubject, setPredictionsBySubject] = useState({});
 
   useEffect(() => {
     loadPracticeStats(true);
     loadHomeworkStats(true);
   }, []);
+
+  useEffect(() => {
+    if (activeTab !== 'practice' || !subjects.length) return;
+    subjects.forEach(async (subject) => {
+      const data = await loadPredictedScore(subject.id);
+      if (data) {
+        setPredictionsBySubject(prev => ({ ...prev, [subject.id]: data }));
+      }
+    });
+  }, [activeTab, subjects, loadPredictedScore]);
 
   const practiceBySubject = {};
   if (stats?.topicStats) {
@@ -135,6 +148,23 @@ function Statistics({ studentId }) {
 
       {activeTab === 'practice' && (
         <div className="stats-panel stats-content">
+          {subjects.length > 0 && (
+            <div className="stats-predicted-section">
+              <h3 className="stats-section-title">Прогноз на ЦТ</h3>
+              <div className="stats-predicted-grid">
+                {subjects.map(subject => (
+                  predictionsBySubject[subject.id] ? (
+                    <PredictedScoreCard
+                      key={subject.id}
+                      predictedScore={predictionsBySubject[subject.id]}
+                      subjectName={subject.name}
+                    />
+                  ) : null
+                ))}
+              </div>
+            </div>
+          )}
+
           {Object.keys(practiceBySubject).length === 0 ? (
             <div className="empty-state">
               <div className="empty-icon">📚</div>

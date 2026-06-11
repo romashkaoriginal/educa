@@ -6,71 +6,290 @@ import { apiFetch } from './api';
 
 import { API_URL } from '../config';
 import StudentBrandMark from '../components/StudentBrandMark';
+import mathSubjectBg from '../assets/math.png';
+import physSubjectBg from '../assets/phys.png';
+import russSubjectBg from '../assets/russ.png';
+import englishSubjectBg from '../assets/english.png';
 
-function getNextScoreMilestone(score) {
-  if (score >= 100) return null;
-  return Math.floor(score / 10) * 10 + 10;
+const SUBJECT_CARD_BACKGROUNDS = [
+  { match: ['математ', 'math'], image: mathSubjectBg },
+  { match: ['физик', 'phys'], image: physSubjectBg },
+  { match: ['русск', 'russ'], image: russSubjectBg },
+  { match: ['англ', 'english'], image: englishSubjectBg },
+];
+
+function getPracticeSubjectCardBg(subject) {
+  const haystack = `${subject?.name || ''} ${subject?.icon || ''}`.toLowerCase();
+  const found = SUBJECT_CARD_BACKGROUNDS.find(({ match }) =>
+    match.some((token) => haystack.includes(token))
+  );
+  return found?.image || null;
 }
 
-function estimateTasksToMilestone(currentScore, targetScore) {
-  return Math.max(1, Math.ceil((targetScore - currentScore) / 2));
+const PROBE_CHANCE = 0.12;
+const RECENT_WINDOW = 10;
+const CALIBRATION_LIMIT = 50;
+const CALIBRATION_ERROR_MEDIUM = 6;
+const CALIBRATION_ERROR_EASY = 14;
+
+function shuffleArr(arr) {
+  return [...arr].sort(() => Math.random() - 0.5);
 }
 
-function getScoreMilestoneHint(predictedScore) {
-  if (!predictedScore?.unlocked) return null;
-  const score = predictedScore.score ?? 0;
-  const target = getNextScoreMilestone(score);
-  if (target == null) return null;
-  const tasks = estimateTasksToMilestone(score, target);
-
-  const allTopics = predictedScore.topics || [];
-  const hasWeak = allTopics.some(t => t.solved > 0 && t.progress < 70);
-  const hasNew = allTopics.some(t => t.solved === 0);
-
-  let focusText = 'в разных подразделах';
-  if (hasWeak && hasNew) {
-    focusText = 'в слабых темах и новых подразделах, которые ещё не проходил';
-  } else if (hasWeak) {
-    focusText = 'в слабых темах';
-  } else if (hasNew) {
-    focusText = 'в новых подразделах, которые ещё не проходил';
-  }
-
-  return {
-    target,
-    tasks,
-    text: `До ${target}+ — ещё ~${tasks} заданий ${focusText}`,
-  };
+function questionDifficulty(q) {
+  if (q?.difficulty === 'hard') return 'hard';
+  if (q?.difficulty === 'easy') return 'easy';
+  return 'medium';
 }
 
-function getPredictedEncouragement(predictedScore) {
-  if (!predictedScore) {
-    return 'Начни с любой темы — каждое задание приближает к цели 💪';
+function filterByTier(questions, tier) {
+  return questions.filter((q) => questionDifficulty(q) === tier);
+}
+
+function tierToLevel(tier) {
+  if (tier === 'hard') return 2;
+  if (tier === 'easy') return 0;
+  return 1;
+}
+
+function levelToTier(level) {
+  if (level < 0.45) return 'easy';
+  if (level < 1.45) return 'medium';
+  return 'hard';
+}
+
+function getTrailingStreak(answers) {
+  let correctStreak = 0;
+  let wrongStreak = 0;
+  for (let i = answers.length - 1; i >= 0; i -= 1) {
+    if (answers[i].isCorrect) {
+      if (wrongStreak > 0) break;
+      correctStreak += 1;
+    } else {
+      if (correctStreak > 0) break;
+      wrongStreak += 1;
+    }
+  }
+  return { correctStreak, wrongStreak };
+}
+
+function statsForTier(answers, tier) {
+  const slice = answers.slice(-RECENT_WINDOW);
+  let total = 0;
+  let correct = 0;
+  slice.forEach((a) => {
+    const d = a.difficulty || 'medium';
+    if (d !== tier) return;
+    total += 1;
+    if (a.isCorrect) correct += 1;
+  });
+  return { total, correct, rate: total ? correct / total : null };
+}
+
+/** Умный уровень сложности 0 (easy) … 2 (hard) по истории ответов */
+function computeAdaptiveLevel(sessionAnswers) {
+  const n = sessionAnswers.length;
+  if (n === 0) return 0.85;
+
+  const recent = sessionAnswers.slice(-8);
+  const accuracy = recent.filter((a) => a.isCorrect).length / recent.length;
+  const { correctStreak, wrongStreak } = getTrailingStreak(sessionAnswers);
+
+  let level = 1;
+  if (accuracy >= 0.88) level = 1.85;
+  else if (accuracy >= 0.7) level = 1.45;
+  else if (accuracy >= 0.5) level = 1.05;
+  else if (accuracy >= 0.35) level = 0.65;
+  else level = 0.25;
+
+  if (correctStreak >= 5) level += 0.55;
+  else if (correctStreak >= 3) level += 0.35;
+  else if (correctStreak >= 2) level += 0.18;
+
+  if (wrongStreak >= 3) level -= 0.75;
+  else if (wrongStreak >= 2) level -= 0.48;
+  else if (wrongStreak === 1) level -= 0.12;
+
+  const easyStats = statsForTier(sessionAnswers, 'easy');
+  const hardStats = statsForTier(sessionAnswers, 'hard');
+
+  if (easyStats.total >= 2 && easyStats.rate === 1 && correctStreak >= 2) {
+    level += 0.42;
+  }
+  if (hardStats.total >= 2 && hardStats.rate !== null && hardStats.rate <= 0.34) {
+    level -= 0.55;
+  }
+  if (hardStats.total >= 1 && hardStats.rate === 1 && correctStreak >= 2) {
+    level += 0.25;
   }
 
-  if (!predictedScore.unlocked) {
-    const solved = predictedScore.solved || 0;
-    const required = predictedScore.minRequired || 50;
-    const pct = required > 0 ? (solved / required) * 100 : 0;
-    if (solved === 0) return 'Первые задания — самые важные. Начни с любой темы!';
-    if (pct < 25) return 'Отличное начало! Каждое решённое задание открывает путь к прогнозу ✨';
-    if (pct < 50) return 'Уже на четверти пути — не останавливайся, ты молодец!';
-    if (pct < 75) return 'Почти откроется прогноз — ещё немного, и увидишь свой балл!';
-    return 'Совсем чуть-чуть до первого прогноза — финишная прямая! 🎯';
+  const last = sessionAnswers[n - 1];
+  const lastTier = last?.difficulty || 'medium';
+  const lastLevel = tierToLevel(lastTier);
+  if (!last.isCorrect && lastLevel > level + 0.35) {
+    level -= 0.22;
+  }
+  if (last.isCorrect && lastLevel < level - 0.35) {
+    level += 0.18;
   }
 
-  const score = predictedScore.score ?? 0;
-  if (score < 10) return 'Самое начало пути — каждое задание добавляет баллы! 📈';
-  if (score < 20) return 'Первые очки уже есть — продолжай, темп отличный!';
-  if (score < 30) return 'База формируется. Слабые темы — лучший способ быстро вырасти!';
-  if (score < 40) return 'Хороший прогресс! Ещё немного практики — и будет новая десятка 💪';
-  if (score < 50) return 'Ты на верном пути. Регулярность сейчас важнее всего!';
-  if (score < 60) return 'Уже середина пути — отличная работа, не сбавляй темп!';
-  if (score < 70) return 'Скоро уверенные 70+ — ты уже близко, держи ритм! 🔥';
-  if (score < 80) return 'Крепкий уровень! Закрепляй сильные темы и подтягивай остальное 👍';
-  if (score < 90) return 'Отличный результат — ты в числе сильных учеников! ⭐';
-  if (score < 100) return 'Почти максимум — осталось совсем чуть-чуть до вершины! 🏆';
-  return 'Блестяще! Ты на пике — держи форму! 🎉';
+  return Math.max(0, Math.min(2, level));
+}
+
+function pickTierForNext(sessionAnswers) {
+  const n = sessionAnswers.length;
+
+  if (n < 3) {
+    return Math.random() < 0.55 ? 'easy' : 'medium';
+  }
+
+  if (n >= 5 && Math.random() < PROBE_CHANCE) {
+    const roll = Math.random();
+    if (roll < 0.28) return 'easy';
+    if (roll < 0.62) return 'medium';
+    return 'hard';
+  }
+
+  const level = computeAdaptiveLevel(sessionAnswers);
+  let tier = levelToTier(level);
+
+  const fraction = level - tierToLevel(tier);
+  if (fraction > 0.28 && Math.random() < 0.38) {
+    if (tier === 'easy') tier = 'medium';
+    else if (tier === 'medium') tier = fraction > 0.55 ? 'hard' : 'easy';
+    else if (tier === 'hard') tier = 'medium';
+  }
+
+  return tier;
+}
+
+function pickWeightedFromPools(candidates, primaryTier, level) {
+  const tiers = ['easy', 'medium', 'hard'];
+  const primary = filterByTier(candidates, primaryTier);
+  const pools = tiers
+    .map((tier) => ({
+      tier,
+      items: filterByTier(candidates, tier),
+      weight: tier === primaryTier ? 0.68 : Math.abs(tierToLevel(tier) - level) <= 1 ? 0.16 : 0.04,
+    }))
+    .filter((p) => p.items.length > 0);
+
+  if (pools.length === 0) return null;
+
+  const totalWeight = pools.reduce((sum, p) => sum + p.weight, 0);
+  let roll = Math.random() * totalWeight;
+  for (const pool of pools) {
+    roll -= pool.weight;
+    if (roll <= 0) return shuffleArr(pool.items)[0];
+  }
+  return shuffleArr(pools[pools.length - 1].items)[0];
+}
+
+/** Калибровка: пока нет прогнозного балла — оцениваем уровень (~50 уникальных заданий) */
+function getCalibrationTier(sessionAnswers) {
+  const n = sessionAnswers.length;
+  const errors = sessionAnswers.filter((a) => !a.isCorrect).length;
+  const recent = sessionAnswers.slice(-8);
+  const recentErrors = recent.filter((a) => !a.isCorrect).length;
+
+  if (recentErrors >= 4 || errors >= CALIBRATION_ERROR_EASY) return 'easy';
+  if (recentErrors >= 2 || errors >= CALIBRATION_ERROR_MEDIUM) return 'medium';
+
+  if (n < 6) return Math.random() < 0.7 ? 'hard' : 'medium';
+  return 'hard';
+}
+
+function pickCalibrationFromPool(candidates, sessionAnswers) {
+  const n = sessionAnswers.length;
+
+  let tier = getCalibrationTier(sessionAnswers);
+  if (n >= 10 && Math.random() < 0.14) {
+    const roll = Math.random();
+    tier = roll < 0.3 ? 'easy' : roll < 0.65 ? 'medium' : 'hard';
+  }
+
+  let source = filterByTier(candidates, tier);
+  if (source.length === 0) source = candidates;
+
+  const seenTopics = new Set(sessionAnswers.map((a) => a.topicId));
+  const freshTopicPool = source.filter((q) => !seenTopics.has(q.topicId));
+  if (freshTopicPool.length > 0 && Math.random() < 0.45) {
+    source = freshTopicPool;
+  } else {
+    const recentTopics = new Set(sessionAnswers.slice(-2).map((a) => a.topicId));
+    const diverse = source.filter((q) => !recentTopics.has(q.topicId));
+    if (diverse.length > 0) source = diverse;
+  }
+
+  if (n < CALIBRATION_LIMIT) {
+    const tierPool = filterByTier(source, tier);
+    if (tierPool.length > 0 && Math.random() < 0.78) source = tierPool;
+  }
+
+  return shuffleArr(source)[0];
+}
+
+function pickAdaptiveFromPool(candidates, sessionAnswers) {
+  const targetTier = pickTierForNext(sessionAnswers);
+  const level = computeAdaptiveLevel(sessionAnswers);
+
+  let picked = pickWeightedFromPools(candidates, targetTier, level);
+  if (!picked) {
+    const tierPool = filterByTier(candidates, targetTier);
+    picked = tierPool.length > 0 ? shuffleArr(tierPool)[0] : shuffleArr(candidates)[0];
+  }
+
+  const recentTopics = new Set(sessionAnswers.slice(-3).map((a) => a.topicId));
+  const diverse = candidates.filter(
+    (q) => q.id !== picked.id && !recentTopics.has(q.topicId) && questionDifficulty(q) === questionDifficulty(picked)
+  );
+  if (diverse.length > 0 && Math.random() < 0.55) {
+    return shuffleArr(diverse)[0];
+  }
+
+  return picked;
+}
+
+function pickFromPool(pool, sessionAnswers, mode, options = {}) {
+  if (!pool.length) return null;
+
+  const answeredIds = new Set(sessionAnswers.map((a) => a.questionId));
+  let candidates = pool.filter((q) => !answeredIds.has(q.id));
+  if (candidates.length === 0) candidates = pool;
+
+  if (mode === 'general') {
+    if (options.hasPredictedScore) {
+      return pickAdaptiveFromPool(candidates, sessionAnswers);
+    }
+    return pickCalibrationFromPool(candidates, sessionAnswers);
+  }
+
+  return shuffleArr(candidates)[0];
+}
+
+const GOAL_HINT = 'Решайте любые задания — новые правильные ответы заполняют цель';
+const STREAK_HINT = 'Выполните ежедневную цель, чтобы продлить серию';
+
+function HeroMetricHint({ id, openId, onToggle, hint, children, align = 'center' }) {
+  const active = openId === id;
+  return (
+    <div className={`hero-metric-hint-wrap hero-metric-hint-wrap--${align}`}>
+      {active && (
+        <div className="hero-metric-hint-popover" role="tooltip">
+          {hint}
+        </div>
+      )}
+      <button
+        type="button"
+        className="hero-metric-hint-trigger"
+        onClick={() => onToggle(id)}
+        aria-expanded={active}
+        aria-label={active ? undefined : 'Подсказка'}
+      >
+        {children}
+      </button>
+    </div>
+  );
 }
 
 function Practice({ studentId }) {
@@ -78,15 +297,17 @@ function Practice({ studentId }) {
   const {
     practiceTopics, subjects, refreshAfterPractice, loading: contextLoading,
     prefetchQuestions, getQuestions, updatePracticeStatsOptimistic, streak, streakLoaded, setStreak, setStreakLoaded, loadStreak,
-    predictedScore, loadPredictedScore, dailyGoal, loadDailyGoal,
-    leaderboard, loadLeaderboard, scoreHistory, loadScoreHistory,
+    dailyGoal, loadDailyGoal, patchDailyGoal,
+    predictedScore, loadPredictedScore,
+    leaderboard, loadLeaderboard,
     loadWeakTopicsQuestions
   } = useData();
   
   const [selectedSubject, setSelectedSubject] = useState(null);
   const [leaderboardPeriod, setLeaderboardPeriod] = useState('day');
-  const [weakTopicsLoading, setWeakTopicsLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState('practice'); // 'practice' | 'rating'
+  const [practiceLoading, setPracticeLoading] = useState(false);
+  const [showTopicPicker, setShowTopicPicker] = useState(false);
+  const [activeTab, setActiveTab] = useState('practice');
   
   const [activePractice, setActivePractice] = useState(null);
   const [questions, setQuestions] = useState([]);
@@ -94,9 +315,7 @@ function Practice({ studentId }) {
   const [selectedAnswer, setSelectedAnswer] = useState(null);
   const [userAnswers, setUserAnswers] = useState([]);
   const [remainingQuestions, setRemainingQuestions] = useState([]);
-  const [sessionAnswers, setSessionAnswers] = useState([]); // для адаптивности
-  const [showResult, setShowResult] = useState(false);
-  const [practiceResult, setPracticeResult] = useState(null);
+  const [sessionAnswers, setSessionAnswers] = useState([]);
   
   const [answered, setAnswered] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
@@ -105,13 +324,39 @@ function Practice({ studentId }) {
   const autoNextTimerRef = useRef(null);
   const [confetti, setConfetti] = useState(false);
 
+  // Светящаяся сфера, летящая к дневной цели
+  const [orbs, setOrbs] = useState([]); // {id, x0, y0, x1, y1}
+  const [goalPeek, setGoalPeek] = useState(false); // кольцо выехало
+  const [goalPulse, setGoalPulse] = useState(false); // кольцо пульсит
+  const [sessionSolved, setSessionSolved] = useState(0); // оптимистичный прирост до ответа сервера
+  const goalRingRef = useRef(null);
+  const orbIdRef = useRef(0);
+  const goalHideTimerRef = useRef(null);
+  const pendingSavesRef = useRef([]);
+  const orbFlushQueueRef = useRef([]);
+  const practiceModeRef = useRef('general');
+  const questionPoolRef = useRef([]);
+  const questionsRef = useRef([]);
+
   const RESULT_DURATION = 1500; // 1.5 секунды показ результата
   const [streakBump, setStreakBump] = useState(false);
+  const [openMetricHint, setOpenMetricHint] = useState(null);
   const streakTodayDoneInitRef = useRef(false);
   const prevStreakTodayDoneRef = useRef(false);
 
+  const subjectDailyGoal = dailyGoal?.goals?.find(g => g.subjectId === selectedSubject?.id);
+
+  const getEffectiveTodayDone = () => {
+    if (activePractice?.subjectId) {
+      const goal = dailyGoal?.goals?.find(g => g.subjectId === activePractice.subjectId);
+      if (goal) return goal.completed || (goal.solved + sessionSolved >= goal.goal);
+    }
+    if (subjectDailyGoal) return subjectDailyGoal.completed;
+    return !!streak?.todayDone;
+  };
+
   useEffect(() => {
-    const todayDone = !!streak?.todayDone;
+    const todayDone = getEffectiveTodayDone();
     if (!streakTodayDoneInitRef.current) {
       streakTodayDoneInitRef.current = true;
       prevStreakTodayDoneRef.current = todayDone;
@@ -124,22 +369,38 @@ function Practice({ studentId }) {
       return () => clearTimeout(timer);
     }
     prevStreakTodayDoneRef.current = todayDone;
-  }, [streak?.todayDone]);
+  }, [subjectDailyGoal?.completed, streak?.todayDone, activePractice?.subjectId, sessionSolved, dailyGoal]);
 
-  const getStreakVisualState = (value) => {
+  useEffect(() => {
+    if (!openMetricHint) return undefined;
+    const close = (e) => {
+      if (!e.target.closest('.hero-metric-hint-wrap')) {
+        setOpenMetricHint(null);
+      }
+    };
+    document.addEventListener('pointerdown', close);
+    return () => document.removeEventListener('pointerdown', close);
+  }, [openMetricHint]);
+
+  const toggleMetricHint = (id) => {
+    setOpenMetricHint((prev) => (prev === id ? null : id));
+  };
+
+  const getStreakVisualState = (value, todayDoneOverride = null) => {
     if (!streakLoaded || !value) return 'empty';
-    if (value.todayDone) return 'done';
+    const todayDone = todayDoneOverride != null ? todayDoneOverride : value.todayDone;
+    if (todayDone) return 'done';
     if (value.streak > 0) return 'pending';
     return 'empty';
   };
 
   const streakClassName = (extra = '') => {
-    const state = getStreakVisualState(streak);
+    const state = getStreakVisualState(streak, getEffectiveTodayDone());
     return `hero-streak ${state}${streakBump ? ' bump' : ''}${extra ? ` ${extra}` : ''}`;
   };
 
   const streakCircleClassName = () => {
-    const state = getStreakVisualState(streak);
+    const state = getStreakVisualState(streak, getEffectiveTodayDone());
     return `streak-circle on-blue ${state}${streakBump ? ' bump' : ''}`;
   };
 
@@ -193,10 +454,10 @@ function Practice({ studentId }) {
     }
   }, [subjects, selectedSubject]);
 
-  // Стрик в hero — подгружаем сразу при входе в раздел (важно для мобильного Telegram)
+  // Стрик привязан к дневной цели выбранного предмета
   useEffect(() => {
-    loadStreak();
-  }, [loadStreak]);
+    loadStreak(selectedSubject?.id ?? null);
+  }, [loadStreak, selectedSubject?.id]);
 
   // Prefetch вопросов фоново при входе в раздел практики
   useEffect(() => {
@@ -205,20 +466,24 @@ function Practice({ studentId }) {
     }
   }, [practiceTopics, prefetchQuestions]);
 
-  // Загрузка прогноза, целей и рейтинга при выборе предмета
+  // Загрузка целей, рейтинга и прогноза при выборе предмета
   useEffect(() => {
     if (selectedSubject?.id) {
-      loadPredictedScore(selectedSubject.id);
       loadDailyGoal();
-      loadScoreHistory(selectedSubject.id);
       loadLeaderboard(selectedSubject.id, leaderboardPeriod);
+      loadPredictedScore(selectedSubject.id);
     }
-  }, [selectedSubject, leaderboardPeriod, loadPredictedScore, loadDailyGoal, loadScoreHistory, loadLeaderboard]);
+  }, [selectedSubject, leaderboardPeriod, loadDailyGoal, loadLeaderboard, loadPredictedScore]);
+
+  const getGeneralPickOptions = () => ({
+    hasPredictedScore: !!predictedScore?.unlocked,
+  });
 
   // Очистка таймера при размонтировании
   useEffect(() => {
     return () => {
       if (autoNextTimerRef.current) clearTimeout(autoNextTimerRef.current);
+      if (goalHideTimerRef.current) clearTimeout(goalHideTimerRef.current);
     };
   }, []);
 
@@ -238,81 +503,134 @@ function Practice({ studentId }) {
     };
   };
 
-  // Динамический выбор следующего вопроса на основе текущей сессии
-  const pickNextQuestion = (remaining, sessionAnswers) => {
-    if (remaining.length === 0) return null;
-    if (remaining.length === 1) return remaining[0];
+  const persistPracticeAnswerRemote = async (question, answerPayload, practiceSnapshot) => {
+    if (!question?.id || !question?.topicId || !practiceSnapshot?.subjectId) return null;
 
-    const shuffle = arr => [...arr].sort(() => Math.random() - 0.5);
+    const task = (async () => {
+      try {
+        const response = await apiFetch(`${API_URL}/practice/answer`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            studentId,
+            topicId: question.topicId,
+            subjectId: practiceSnapshot.subjectId,
+            questionId: question.id,
+            isCorrect: !!answerPayload.isCorrect,
+            difficulty: question.difficulty || 'medium',
+            selectedAnswer: answerPayload.selectedAnswer,
+          }),
+        });
 
-    // Нет ответов ещё — рандом
-    if (sessionAnswers.length === 0) {
-      return shuffle(remaining)[0];
-    }
+        if (!response.ok) return null;
 
-    // Смотрим последние 3 ответа
-    const last3 = sessionAnswers.slice(-3);
-    const last3Correct = last3.filter(a => a.isCorrect).length;
-    const last3Rate = last3Correct / last3.length; // 0..1
+        const data = await response.json();
+        if (data.goal) patchDailyGoal(data.goal);
+        if (data.streak) {
+          setStreak(data.streak);
+          setStreakLoaded(true);
+        }
+        setSessionSolved((s) => Math.max(0, s - 1));
+        if (answerPayload.isCorrect && practiceSnapshot?.subjectId) {
+          loadPredictedScore(practiceSnapshot.subjectId);
+        }
+        return data;
+      } catch (error) {
+        console.error('Error saving practice answer:', error);
+        return null;
+      }
+    })();
 
-    // Смотрим последние 3 ответа только на лёгких
-    const last3Easy = sessionAnswers.filter(a => a.difficulty === 'easy').slice(-3);
-    const easyRate = last3Easy.length > 0
-      ? last3Easy.filter(a => a.isCorrect).length / last3Easy.length
-      : null;
-
-    const easy = remaining.filter(q => q.difficulty === 'easy');
-    const medium = remaining.filter(q => !q.difficulty || q.difficulty === 'medium');
-    const hard = remaining.filter(q => q.difficulty === 'hard');
-
-    let preferred = [];
-
-    if (last3Rate >= 0.8) {
-      // Хорошо справляется — подкидываем сложнее
-      preferred = hard.length > 0 ? hard : medium.length > 0 ? medium : remaining;
-    } else if (last3Rate >= 0.5) {
-      // Средне — medium или hard
-      preferred = medium.length > 0 ? medium : hard.length > 0 ? hard : remaining;
-    } else {
-      // Ошибается — возвращаем к лёгким
-      preferred = easy.length > 0 ? easy : medium.length > 0 ? medium : remaining;
-    }
-
-    // Если preferred пустой — берём из remaining
-    if (preferred.length === 0) preferred = remaining;
-    return shuffle(preferred)[0];
+    pendingSavesRef.current.push(task);
+    task.finally(() => {
+      pendingSavesRef.current = pendingSavesRef.current.filter((p) => p !== task);
+    });
+    return task;
   };
 
-  // Начальная раскладка — всё вперемешку
-  const getAdaptiveQuestions = (allQuestions) => {
-    return [...allQuestions]
-      .map(shuffleOptions)
-      .filter(Boolean)
-      .sort(() => Math.random() - 0.5);
+  const flushPendingGoalSaves = async () => {
+    const queued = [...orbFlushQueueRef.current];
+    orbFlushQueueRef.current = [];
+    for (const item of queued) {
+      await persistPracticeAnswerRemote(item.question, item.answerPayload, item.practiceSnapshot);
+    }
+    await Promise.all([...pendingSavesRef.current]);
   };
 
-  const startPracticeFromQuestions = (topic, activeQuestions, label) => {
-    const adaptiveQuestions = getAdaptiveQuestions(activeQuestions);
-    if (adaptiveQuestions.length === 0) {
+  const loadAllSubjectQuestions = async (topics) => {
+    const all = [];
+    for (const topic of topics) {
+      const qs = await getQuestions(topic);
+      for (const q of qs) {
+        all.push({ ...q, topicId: q.topicId || topic.id });
+      }
+    }
+    return all;
+  };
+
+  const startPracticeFromQuestions = (topic, activeQuestions, label, goalData, mode = 'topic') => {
+    const pool = activeQuestions.map(shuffleOptions).filter(Boolean);
+    if (pool.length === 0) {
       alert('Нет доступных вопросов');
       return;
     }
+
+    practiceModeRef.current = mode;
+    questionPoolRef.current = pool;
+    setSessionSolved(0);
+    setGoalPeek(false);
+    setGoalPulse(false);
+    setOrbs([]);
+    orbFlushQueueRef.current = [];
+
+    const firstRaw = pickFromPool(pool, [], mode, mode === 'general' ? getGeneralPickOptions() : {});
+    const first = shuffleOptions(firstRaw) || pool[0];
+
     setActivePractice({ ...topic, name: label || topic.name });
-    setQuestions(adaptiveQuestions);
-    setRemainingQuestions(adaptiveQuestions.slice(1));
+    setQuestions([first]);
+    questionsRef.current = [first];
+    setRemainingQuestions([]);
     setSessionAnswers([]);
     setCurrentQuestionIndex(0);
     setSelectedAnswer(null);
     setUserAnswers([]);
-    setShowResult(false);
     setAnswered(false);
     setShowExplanationHint(false);
   };
 
+  const startGeneralPractice = async () => {
+    if (!selectedSubject) return;
+    setPracticeLoading(true);
+    try {
+      const goalData = await loadDailyGoal();
+      const topics = practiceTopics.filter(t => t.subjectId === selectedSubject.id);
+      const allQuestions = await loadAllSubjectQuestions(topics);
+      if (allQuestions.length === 0) {
+        alert('Нет доступных заданий');
+        return;
+      }
+      startPracticeFromQuestions(
+        { id: `general-${selectedSubject.id}`, name: 'Практика', subjectId: selectedSubject.id },
+        allQuestions,
+        'Практика',
+        goalData,
+        'general'
+      );
+    } catch (error) {
+      console.error('Error starting general practice:', error);
+      alert('Не удалось загрузить задания');
+    } finally {
+      setPracticeLoading(false);
+    }
+  };
+
   const startPractice = async (topic) => {
     try {
+      setShowTopicPicker(false);
+      const goalData = await loadDailyGoal();
       const activeQuestions = await getQuestions(topic);
-      startPracticeFromQuestions(topic, activeQuestions);
+      const withTopic = activeQuestions.map(q => ({ ...q, topicId: q.topicId || topic.id }));
+      startPracticeFromQuestions(topic, withTopic, topic.name, goalData, 'topic');
     } catch (error) {
       console.error('Error loading questions:', error);
       alert('Ошибка загрузки вопросов');
@@ -321,27 +639,68 @@ function Practice({ studentId }) {
 
   const startWeakTopicsPractice = async () => {
     if (!selectedSubject) return;
-    setWeakTopicsLoading(true);
+    setPracticeLoading(true);
     try {
+      const goalData = await loadDailyGoal();
       const data = await loadWeakTopicsQuestions(selectedSubject.id);
-      const questionsList = (data?.questions || []).map(shuffleOptions).filter(Boolean);
+      const questionsList = (data?.questions || []).map(q => shuffleOptions(q)).filter(Boolean);
       if (questionsList.length === 0) {
         alert(data?.message || 'Нет заданий для тренировки');
         return;
       }
-      const virtualTopic = {
-        id: `growth-${selectedSubject.id}`,
-        name: 'Слабые и новые темы',
-        subjectId: selectedSubject.id,
-        icon: '🎯'
-      };
-      startPracticeFromQuestions(virtualTopic, questionsList, 'Тренировка: слабые и новые темы');
+      startPracticeFromQuestions(
+        { id: `weak-${selectedSubject.id}`, name: 'Слабые темы', subjectId: selectedSubject.id },
+        questionsList,
+        'Слабые темы',
+        goalData,
+        'weak'
+      );
     } catch (error) {
       console.error('Error starting weak topics:', error);
       alert('Не удалось загрузить задания');
     } finally {
-      setWeakTopicsLoading(false);
+      setPracticeLoading(false);
     }
+  };
+
+  // Запуск светящейся сферы от кнопки ответа к кольцу дневной цели
+  const launchOrbToGoal = (answerIndex, question, answerPayload, practiceSnapshot) => {
+    const orbItem = { question, answerPayload, practiceSnapshot };
+    orbFlushQueueRef.current.push(orbItem);
+
+    const btn = document.querySelectorAll('.answer-option')[answerIndex];
+    if (!btn) {
+      orbFlushQueueRef.current = orbFlushQueueRef.current.filter((x) => x !== orbItem);
+      persistPracticeAnswerRemote(question, answerPayload, practiceSnapshot);
+      return;
+    }
+    const br = btn.getBoundingClientRect();
+    const x0 = br.left + br.width / 2;
+    const y0 = br.top + br.height / 2;
+
+    if (goalHideTimerRef.current) clearTimeout(goalHideTimerRef.current);
+    setGoalPeek(true);
+
+    setTimeout(() => {
+      const ring = goalRingRef.current;
+      const rr = ring ? ring.getBoundingClientRect() : { left: 24, top: 90, width: 48, height: 48 };
+      const x1 = rr.left + rr.width / 2;
+      const y1 = rr.top + rr.height / 2;
+
+      const id = ++orbIdRef.current;
+      setOrbs(prev => [...prev, { id, x0, y0, x1, y1 }]);
+
+      setTimeout(() => {
+        orbFlushQueueRef.current = orbFlushQueueRef.current.filter((x) => x !== orbItem);
+        setSessionSolved((s) => s + 1);
+        setGoalPulse(true);
+        haptic('light');
+        setTimeout(() => setGoalPulse(false), 450);
+        setOrbs(prev => prev.filter(o => o.id !== id));
+        persistPracticeAnswerRemote(question, answerPayload, practiceSnapshot);
+        goalHideTimerRef.current = setTimeout(() => setGoalPeek(false), 1200);
+      }, 650);
+    }, 300);
   };
 
   const submitAnswer = async (answerIndex) => {
@@ -355,88 +714,90 @@ function Practice({ studentId }) {
     setIsCorrect(correct);
     setShowExplanationHint(false);
 
-    // Дофамин: вибрация + конфетти
+    const practiceSnapshot = activePractice;
+
+    const answerPayload = {
+      questionId: currentQuestion.id,
+      selectedAnswer: answerIndex,
+      correctAnswer: currentQuestion.correctAnswer,
+      isCorrect: correct,
+    };
+
+    // Дофамин: вибрация + конфетти; шкала и сохранение — когда орб долетит
     if (correct) {
       haptic('success');
       setConfetti(true);
       setTimeout(() => setConfetti(false), 1200);
+      launchOrbToGoal(answerIndex, currentQuestion, answerPayload, practiceSnapshot);
     } else {
       haptic('error');
+      persistPracticeAnswerRemote(currentQuestion, answerPayload, practiceSnapshot);
     }
 
-    const newAnswers = [...userAnswers, {
-      questionId: currentQuestion.id,
-      selectedAnswer: answerIndex,
-      correctAnswer: currentQuestion.correctAnswer,
-      isCorrect: correct
-    }];
+    const newAnswers = [...userAnswers, answerPayload];
     setUserAnswers(newAnswers);
 
     // Обновляем sessionAnswers для адаптивности
     const newSessionAnswers = [...sessionAnswers, {
       questionId: currentQuestion.id,
+      topicId: currentQuestion.topicId,
       difficulty: currentQuestion.difficulty || 'medium',
       isCorrect: correct
     }];
     setSessionAnswers(newSessionAnswers);
 
-    // Автопереход через 1.5 секунды
     autoNextTimerRef.current = setTimeout(() => {
-      if (remainingQuestions.length > 0) {
-        // Динамически выбираем следующий вопрос
-        const nextQ = shuffleOptions(pickNextQuestion(remainingQuestions, newSessionAnswers));
-        const newRemaining = remainingQuestions.filter(q => q.id !== nextQ.id);
-        setRemainingQuestions(newRemaining);
-        setCurrentQuestionIndex(currentQuestionIndex + 1);
-        setSelectedAnswer(null);
-        setAnswered(false);
-        setIsCorrect(false);
-        // Подменяем вопрос в массиве questions для корректного отображения
-        setQuestions(prev => {
-          const updated = [...prev];
-          updated[currentQuestionIndex + 1] = nextQ;
-          return updated;
-        });
-      } else {
-        finishPractice(newAnswers);
-      }
+      const nextRaw = pickFromPool(
+        questionPoolRef.current,
+        newSessionAnswers,
+        practiceModeRef.current,
+        practiceModeRef.current === 'general' ? getGeneralPickOptions() : {}
+      );
+      const nextQ = nextRaw ? shuffleOptions(nextRaw) : null;
+      if (!nextQ) return;
+
+      setCurrentQuestionIndex(prev => prev + 1);
+      setQuestions(prev => {
+        const updated = [...prev, nextQ];
+        questionsRef.current = updated;
+        return updated;
+      });
+      setSelectedAnswer(null);
+      setAnswered(false);
+      setIsCorrect(false);
     }, RESULT_DURATION);
   };
 
-  const finishPractice = async (answers) => {
+  const savePracticeSession = async (answers, practiceSnapshot = activePractice) => {
+    if (!answers.length || !practiceSnapshot) return;
+
+    await flushPendingGoalSaves();
+
     const correctCount = answers.filter(a => a.isCorrect).length;
     const totalCount = answers.length;
-    const scorePercentage = Math.round((correctCount / totalCount) * 100);
 
-    setPracticeResult({ correctCount, totalCount, scorePercentage, answers });
-    setShowResult(true);
-
-    if (typeof activePractice.id === 'number') {
-      updatePracticeStatsOptimistic(activePractice.id, correctCount, totalCount);
+    if (typeof practiceSnapshot.id === 'number') {
+      updatePracticeStatsOptimistic(practiceSnapshot.id, correctCount, totalCount);
     }
 
     const questionMap = {};
-    questions.forEach(q => { questionMap[q.id] = q; });
+    questionsRef.current.forEach(q => { questionMap[q.id] = q; });
+
+    const topicId = typeof practiceSnapshot.id === 'number'
+      ? practiceSnapshot.id
+      : (answers.map(a => questionMap[a.questionId]?.topicId).find(id => id != null) || null);
 
     try {
-      const response = await apiFetch(`${API_URL}/practice/attempts`, {
+      const response = await apiFetch(`${API_URL}/practice/session-summary`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           studentId,
-          topicId: typeof activePractice.id === 'number'
-            ? activePractice.id
-            : (answers.map(a => questionMap[a.questionId]?.topicId).find(id => id != null) || null),
-          subjectId: activePractice.subjectId,
+          topicId,
+          subjectId: practiceSnapshot.subjectId,
           correct: correctCount,
           total: totalCount,
-          answers: answers.map(a => ({
-            questionId: a.questionId,
-            difficulty: questionMap[a.questionId]?.difficulty || 'medium',
-            isCorrect: a.isCorrect,
-            topicId: questionMap[a.questionId]?.topicId || (typeof activePractice.id === 'number' ? activePractice.id : null)
-          })).filter(a => a.questionId && a.topicId)
-        })
+        }),
       });
 
       if (response.ok) {
@@ -445,51 +806,46 @@ function Practice({ studentId }) {
           setStreak(data.streak);
           setStreakLoaded(true);
         }
-        const subjectId = activePractice?.subjectId || selectedSubject?.id;
-        await refreshAfterPractice(subjectId, leaderboardPeriod);
       }
     } catch (e) {
-      console.error('Error saving attempt:', e);
+      console.error('Error saving session summary:', e);
     }
-  };
 
-  // Найти следующую тему для кнопки "Следующий тест"
-  const getNextTopic = () => {
-    const list = selectedSubject
-      ? practiceTopics.filter(t => t.subjectId === selectedSubject.id)
-      : practiceTopics;
-    const withQuestions = list.filter(t => t.questions && t.questions.length > 0);
-    if (withQuestions.length === 0) return null;
-    const idx = withQuestions.findIndex(t => t.id === activePractice?.id);
-    if (idx === -1) return withQuestions[0];
-    return withQuestions[(idx + 1) % withQuestions.length];
-  };
-
-  const goToNextTopic = () => {
-    const next = getNextTopic();
-    if (next) startPractice(next);
+    const subjectId = practiceSnapshot.subjectId || selectedSubject?.id;
+    await refreshAfterPractice(subjectId, leaderboardPeriod);
   };
 
   const closePractice = async () => {
     if (autoNextTimerRef.current) clearTimeout(autoNextTimerRef.current);
 
-    const subjectId = activePractice?.subjectId || selectedSubject?.id;
+    await flushPendingGoalSaves();
+
+    const answersToSave = [...userAnswers];
+    const practiceSnapshot = activePractice;
+    const subjectId = practiceSnapshot?.subjectId || selectedSubject?.id;
 
     setActivePractice(null);
     setQuestions([]);
+    questionsRef.current = [];
+    questionPoolRef.current = [];
     setCurrentQuestionIndex(0);
     setSelectedAnswer(null);
     setUserAnswers([]);
-    setShowResult(false);
-    setPracticeResult(null);
     setAnswered(false);
     setShowExplanationHint(false);
     setRemainingQuestions([]);
     setSessionAnswers([]);
+    setSessionSolved(0);
+    setGoalPeek(false);
+    setOrbs([]);
 
     setActiveTab('practice');
 
-    await refreshAfterPractice(subjectId, leaderboardPeriod);
+    if (answersToSave.length > 0) {
+      await savePracticeSession(answersToSave, practiceSnapshot);
+    } else {
+      await refreshAfterPractice(subjectId, leaderboardPeriod);
+    }
   };
 
   const backToSubjects = () => {
@@ -509,11 +865,15 @@ function Practice({ studentId }) {
   }
 
   // ========== ЭКРАН ПРОХОЖДЕНИЯ ==========
-  if (activePractice && !showResult) {
+  if (activePractice) {
     const currentQuestion = normalizeQuestion(questions[currentQuestionIndex]);
-    const progress = questions.length > 0
-      ? ((currentQuestionIndex + 1) / questions.length) * 100
-      : 0;
+    const showTopicInQuestion = practiceModeRef.current === 'topic' || practiceModeRef.current === 'weak';
+    const sessionTopicTitle = showTopicInQuestion && currentQuestion
+      ? (practiceTopics.find(t => t.id === currentQuestion.topicId)?.name || activePractice.name)
+      : null;
+    const headerTitle = practiceModeRef.current === 'general'
+      ? 'Практика'
+      : (selectedSubject?.name || activePractice.name);
 
     if (!currentQuestion) {
       return renderPracticeOverlay(
@@ -523,7 +883,7 @@ function Practice({ studentId }) {
               ← Назад к списку
             </button>
             <div className="practice-info">
-              <h2>{activePractice.name}</h2>
+              <h2>{headerTitle}</h2>
               <p>Загрузка вопросов...</p>
             </div>
           </div>
@@ -534,19 +894,62 @@ function Practice({ studentId }) {
 
     return renderPracticeOverlay(
       <div className="practice-mode">
+        {/* Выезжающее кольцо дневной цели + летящие сферы */}
+        {(() => {
+          const goal = dailyGoal?.goals?.find(g => g.subjectId === activePractice?.subjectId);
+          const baseSolved = goal?.solved || 0;
+          const target = goal?.goal || 50;
+          const liveSolved = baseSolved + sessionSolved;
+          const pct = Math.min(100, Math.round((liveSolved / target) * 100));
+          const complete = liveSolved >= target;
+          return (
+            <div className={`goal-peek ${goalPeek ? 'show' : ''} ${goalPulse ? 'pulse' : ''}`}>
+              <div
+                ref={goalRingRef}
+                className={`goal-peek-ring ${complete ? 'complete' : ''}`}
+                style={{ '--goal-pct': `${pct}%` }}
+              >
+                <span className="goal-peek-value">{pct}%</span>
+              </div>
+              <div className="goal-peek-label">
+                <span className="goal-peek-title">🎯 Цель дня</span>
+                <span className="goal-peek-count">{liveSolved}/{target}</span>
+              </div>
+            </div>
+          );
+        })()}
+
+        {orbs.map(orb => (
+          <span
+            key={orb.id}
+            className="light-orb"
+            style={{
+              '--x0': `${orb.x0}px`, '--y0': `${orb.y0}px`,
+              '--x1': `${orb.x1}px`, '--y1': `${orb.y1}px`,
+            }}
+          />
+        ))}
+
         <div className="practice-header">
           <button className="back-button" onClick={closePractice}>
             ← Назад к списку
           </button>
           <div className="practice-info">
-            <h2>{activePractice.name}</h2>
-            <p>Вопрос {currentQuestionIndex + 1} из {questions.length}</p>
+            <h2>{headerTitle}</h2>
           </div>
           {streak && (
-            <div className={streakCircleClassName()}>
-              <span className="streak-circle-flame">🔥</span>
-              <span className="streak-circle-count">{streak.streak || 0}</span>
-            </div>
+            <HeroMetricHint
+              id="streak-session"
+              openId={openMetricHint}
+              onToggle={toggleMetricHint}
+              hint={STREAK_HINT}
+              align="end"
+            >
+              <div className={streakCircleClassName()}>
+                <span className="streak-circle-flame">🔥</span>
+                <span className="streak-circle-count">{streak.streak || 0}</span>
+              </div>
+            </HeroMetricHint>
           )}
         </div>
 
@@ -558,27 +961,28 @@ function Practice({ studentId }) {
           </div>
         )}
 
-        <div className="practice-progressbar">
-          <div className="practice-progressbar-fill" style={{ width: `${progress}%` }}></div>
-        </div>
-
         <div className="question-container">
-          <div className="question-header">
-            {currentQuestion.difficulty && (
-              <span className={`difficulty-badge ${currentQuestion.difficulty}`}>
-                {currentQuestion.difficulty === 'easy' && '🟢 Легкий'}
-                {currentQuestion.difficulty === 'medium' && '🟡 Средний'}
-                {currentQuestion.difficulty === 'hard' && '🔴 Сложный'}
-              </span>
+          <div className="question-meta-row">
+            {sessionTopicTitle && (
+              <div className="practice-session-topic">{sessionTopicTitle}</div>
             )}
-            {currentQuestion.explanation && !answered && (
-              <button 
-                className="hint-button"
-                onClick={() => setShowExplanationHint(!showExplanationHint)}
-              >
-                💡 {showExplanationHint ? 'Скрыть подсказку' : 'Подсказка'}
-              </button>
-            )}
+            <div className="question-header">
+              {currentQuestion.difficulty && (
+                <span className={`difficulty-badge ${currentQuestion.difficulty}`}>
+                  {currentQuestion.difficulty === 'easy' && '🟢 Легкий'}
+                  {currentQuestion.difficulty === 'medium' && '🟡 Средний'}
+                  {currentQuestion.difficulty === 'hard' && '🔴 Сложный'}
+                </span>
+              )}
+              {currentQuestion.explanation && !answered && (
+                <button
+                  className="hint-button"
+                  onClick={() => setShowExplanationHint(!showExplanationHint)}
+                >
+                  💡 {showExplanationHint ? 'Скрыть подсказку' : 'Подсказка'}
+                </button>
+              )}
+            </div>
           </div>
 
           <h3 className="question-text">{currentQuestion.questionText}</h3>
@@ -639,90 +1043,29 @@ function Practice({ studentId }) {
     );
   }
 
-  // ========== ЭКРАН РЕЗУЛЬТАТОВ ==========
-  if (showResult && practiceResult) {
-    const { correctCount, totalCount, scorePercentage } = practiceResult;
-    const rateClass = scorePercentage >= 70 ? 'good' : scorePercentage >= 50 ? 'medium' : 'low';
-    const nextTopic = getNextTopic();
-    const hasNext = nextTopic && nextTopic.id !== activePractice?.id;
-
-    return renderPracticeOverlay(
-      <div className="practice-mode practice-mode--result">
-        <div className="practice-header">
-          <button type="button" className="back-button" onClick={closePractice}>← Назад</button>
-          <div className="practice-info">
-            <h2>{activePractice.name}</h2>
-            <p>Практика завершена</p>
-          </div>
-          {streak && (
-            <div className={streakCircleClassName()}>
-              <span className="streak-circle-flame">🔥</span>
-              <span className="streak-circle-count">{streak.streak || 0}</span>
-            </div>
-          )}
-        </div>
-
-        <div className="practice-result-body">
-          <div className="result-hero">
-            <div className="result-hero-emoji">
-              {scorePercentage >= 70 ? '🎉' : scorePercentage >= 50 ? '👍' : '💪'}
-            </div>
-            <h1 className="result-hero-title">
-              {scorePercentage >= 70 ? 'Отличная работа!' : scorePercentage >= 50 ? 'Хороший результат!' : 'Есть над чем поработать'}
-            </h1>
-            <p className="result-hero-subtitle">{activePractice.name}</p>
-          </div>
-
-          <div className="result-numbers">
-            <div className="result-num-block">
-              <div className={`result-num ${rateClass}`}>{correctCount}<span className="result-num-total">/{totalCount}</span></div>
-              <div className="result-num-label">правильных ответов</div>
-            </div>
-            <div className="result-num-divider"></div>
-            <div className="result-num-block">
-              <div className={`result-num ${rateClass}`}>{scorePercentage}<span className="result-num-total">%</span></div>
-              <div className="result-num-label">точность</div>
-            </div>
-          </div>
-
-          <div className="result-progress-track">
-            <div className={`result-progress-bar ${rateClass}`} style={{ width: `${scorePercentage}%` }}></div>
-          </div>
-
-          <div className="result-actions">
-            <button className="primary-button" onClick={() => startPractice(activePractice)}>
-              🔄 Пройти снова
-            </button>
-            {hasNext && (
-              <button className="secondary-button" onClick={goToNextTopic}>
-                Следующий тест →
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   // ========== ЭКРАН ВЫБОРА ПРЕДМЕТА (если их несколько) ==========
   if (subjects.length > 1 && !selectedSubject) {
     return (
       <div className="section section-practice">
         <div className="practice-hero">
           <div className="practice-hero-glow"></div>
-          <div className="practice-hero-content">
-            <div className="practice-hero-main">
-              <StudentBrandMark variant="hero" />
-              <div className="practice-hero-text">
-                <div className="practice-hero-eyebrow">РАЗДЕЛ</div>
-                <h1 className="practice-hero-title">Практика</h1>
-                <p className="practice-hero-sub">Выберите предмет для практики</p>
+          <div className="practice-hero-content practice-hero-row">
+            <StudentBrandMark variant="hero" />
+            <div className="practice-hero-text practice-hero-text--compact">
+              <h1 className="practice-hero-title practice-hero-title--plain">Практика</h1>
+            </div>
+            <HeroMetricHint
+              id="streak-list"
+              openId={openMetricHint}
+              onToggle={toggleMetricHint}
+              hint={STREAK_HINT}
+              align="end"
+            >
+              <div className={streakClassName()}>
+                <span className="hero-streak-flame">🔥</span>
+                <span className="hero-streak-count">{streak?.streak || 0}</span>
               </div>
-            </div>
-            <div className={streakClassName()}>
-              <span className="hero-streak-flame">🔥</span>
-              <span className="hero-streak-count">{streak?.streak || 0}</span>
-            </div>
+            </HeroMetricHint>
           </div>
           <svg className="practice-hero-wave" viewBox="0 0 400 40" preserveAspectRatio="none">
             <path d="M0,40 L0,22 Q100,2 200,18 T400,15 L400,40 Z" />
@@ -731,20 +1074,17 @@ function Practice({ studentId }) {
 
         <div className="subjects-grid">
           {subjects.map(subject => {
-            const subjectTopics = practiceTopics.filter(t => t.subjectId === subject.id);
-            const totalQuestions = subjectTopics.reduce((sum, t) => sum + (t.questions?.length || 0), 0);
+            const cardBg = getPracticeSubjectCardBg(subject);
 
             return (
               <button
                 key={subject.id}
-                className="subject-card"
+                type="button"
+                className="subject-card practice-subject-card"
+                style={cardBg ? { backgroundImage: `url(${cardBg})` } : undefined}
                 onClick={() => setSelectedSubject(subject)}
-              >
-                <span className="subject-icon-big">{subject.icon}</span>
-                <h3>{subject.name}</h3>
-                <p>{subjectTopics.length} подразделов</p>
-                <p className="subject-meta">📚 {totalQuestions} вопросов</p>
-              </button>
+                aria-label={subject.name}
+              />
             );
           })}
         </div>
@@ -756,25 +1096,6 @@ function Practice({ studentId }) {
     ? practiceTopics.filter(topic => topic.subjectId === selectedSubject.id)
     : practiceTopics;
 
-  const subjectDailyGoal = dailyGoal?.goals?.find(g => g.subjectId === selectedSubject?.id);
-  const scoreDelta = predictedScore?.delta;
-  const scoreMilestoneHint = getScoreMilestoneHint(predictedScore);
-  const predictedEncouragement = getPredictedEncouragement(predictedScore);
-  const actionableWeakTopics = (predictedScore?.weakTopics || []).filter(t => t.solved > 0);
-  const actionableNewTopics = predictedScore?.newTopics || [];
-  const actionableStrongTopics = (predictedScore?.strongTopics || []).filter(t => t.solved > 0);
-  const hasGrowthTopics = actionableWeakTopics.length > 0 || actionableNewTopics.length > 0;
-  const unlockPercent = predictedScore?.minRequired
-    ? Math.min(100, Math.round(((predictedScore?.solved || 0) / predictedScore.minRequired) * 100))
-    : 0;
-  const scoreRingClass = !predictedScore?.unlocked
-    ? 'locked'
-    : predictedScore.score >= 70
-      ? 'score-high'
-      : predictedScore.score >= 40
-        ? 'score-mid'
-        : 'score-low';
-
   return (
     <div className="section section-practice">
       <div className="practice-hero">
@@ -784,34 +1105,51 @@ function Practice({ studentId }) {
           </button>
         )}
         <div className="practice-hero-glow"></div>
-        <div className="practice-hero-content">
-          <div className="practice-hero-main">
-            <StudentBrandMark variant="hero" />
-            <div className="practice-hero-text">
-              <div className="practice-hero-eyebrow">{selectedSubject ? 'ПРЕДМЕТ' : 'РАЗДЕЛ'}</div>
-              <h1 className="practice-hero-title">
-                {selectedSubject ? (
-                  <><span className="hero-title-emoji">{selectedSubject.icon}</span> {selectedSubject.name}</>
-                ) : 'Практика'}
-              </h1>
-              <p className="practice-hero-sub">
-                {selectedSubject
-                  ? `${filteredTopics.length} подразделов · ${filteredTopics.reduce((s, t) => s + (t.questions?.length || 0), 0)} вопросов`
-                  : 'Тренируйся в своём темпе'}
-              </p>
+        <div className="practice-hero-content practice-hero-row">
+          <StudentBrandMark variant="hero" />
+          <h1 className="practice-hero-title practice-hero-title--plain">
+            {selectedSubject ? selectedSubject.name : 'Практика'}
+          </h1>
+          {subjectDailyGoal && (
+            <div className="hero-goal-col">
+              <span className={`hero-goal-caption ${subjectDailyGoal.completed ? 'goal-done' : ''}`}>
+                {subjectDailyGoal.solved} из {subjectDailyGoal.goal}
+              </span>
+              <HeroMetricHint
+                id="goal"
+                openId={openMetricHint}
+                onToggle={toggleMetricHint}
+                hint={GOAL_HINT}
+                align="center"
+              >
+                <div
+                  className={`daily-goal-ring hero-daily-goal-ring ${subjectDailyGoal.completed ? 'complete' : ''}`}
+                  style={{ '--goal-pct': `${subjectDailyGoal.percent}%` }}
+                  aria-label={`Цель на сегодня: ${subjectDailyGoal.solved} из ${subjectDailyGoal.goal}`}
+                >
+                  <span className="daily-goal-ring-value">{subjectDailyGoal.percent}%</span>
+                </div>
+              </HeroMetricHint>
             </div>
-          </div>
-          <div className={streakClassName()}>
-            <span className="hero-streak-flame">🔥</span>
-            <span className="hero-streak-count">{streak?.streak || 0}</span>
-          </div>
+          )}
+          <HeroMetricHint
+            id="streak"
+            openId={openMetricHint}
+            onToggle={toggleMetricHint}
+            hint={STREAK_HINT}
+            align="end"
+          >
+            <div className={streakClassName()}>
+              <span className="hero-streak-flame">🔥</span>
+              <span className="hero-streak-count">{streak?.streak || 0}</span>
+            </div>
+          </HeroMetricHint>
         </div>
           <svg className="practice-hero-wave" viewBox="0 0 400 40" preserveAspectRatio="none">
             <path d="M0,40 L0,22 Q100,2 200,18 T400,15 L400,40 Z" />
           </svg>
       </div>
 
-      {/* ТАБ-БАР — только внутри предмета */}
       {selectedSubject && (
         <div className="practice-tabs">
           <button
@@ -833,198 +1171,71 @@ function Practice({ studentId }) {
         </div>
       )}
 
-      {/* ===== ВКЛАДКА ПРАКТИКА ===== */}
       {selectedSubject && activeTab === 'practice' && (
         <div className="practice-panel">
-          <div className="practice-stats-row">
-            <div className="dash-card predicted-score-card">
-              <div className="predicted-score-header">
-                <span className="predicted-label">Прогноз на ЦТ</span>
-                {predictedScore?.unlocked && scoreDelta != null && scoreDelta !== 0 && (
-                  <span className={`score-delta ${scoreDelta > 0 ? 'up' : 'down'}`}>
-                    {scoreDelta > 0 ? '+' : ''}{scoreDelta}
-                  </span>
-                )}
-                {!predictedScore?.unlocked && (
-                  <span className="predicted-unlock-count">
-                    {predictedScore?.solved || 0}/{predictedScore?.minRequired || 50}
-                  </span>
-                )}
-              </div>
-
-              <div className="predicted-score-ring-wrap">
-                <div
-                  className={`predicted-score-ring ${scoreRingClass}`}
-                  style={{
-                    '--score-pct': predictedScore?.unlocked
-                      ? `${predictedScore.score}%`
-                      : `${unlockPercent}%`
-                  }}
-                >
-                  {predictedScore?.unlocked ? (
-                    <span className="predicted-score-ring-inner">
-                      <span className="predicted-score-ring-value">{predictedScore.score}</span>
-                      <span className="predicted-score-ring-max">/100</span>
-                    </span>
-                  ) : (
-                    <span className="predicted-score-ring-inner locked">
-                      <span className="predicted-score-ring-value">{unlockPercent}%</span>
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {predictedScore?.unlocked ? (
-                <>
-                  <div className="predicted-meta">
-                    Решено {predictedScore.solved} · Точность {predictedScore.accuracy}%
-                  </div>
-                  {scoreMilestoneHint && (
-                    <p className="predicted-action-hint">
-                      {scoreMilestoneHint.text}
-                    </p>
-                  )}
-                  <p className="predicted-hint predicted-encouragement">
-                    {predictedEncouragement}
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p className="predicted-locked-title">Прогноз пока недоступен</p>
-                  <p className="predicted-hint predicted-encouragement">
-                    {predictedEncouragement}
-                  </p>
-                  <p className="predicted-locked-hint">
-                    Осталось {predictedScore?.needed ?? 50} уникальных заданий
-                  </p>
-                </>
-              )}
-            </div>
-
-            {subjectDailyGoal && (
-              <div className="dash-card daily-goal-card">
-                <div className="daily-goal-header">
-                  <span>🎯 Цель на сегодня</span>
-                  <span className={subjectDailyGoal.completed ? 'goal-done' : ''}>
-                    {subjectDailyGoal.solved}/{subjectDailyGoal.goal}
-                  </span>
-                </div>
-                <div className="daily-goal-ring-wrap">
-                  <div
-                    className={`daily-goal-ring ${subjectDailyGoal.completed ? 'complete' : ''}`}
-                    style={{ '--goal-pct': `${subjectDailyGoal.percent}%` }}
-                  >
-                    <span className="daily-goal-ring-value">{subjectDailyGoal.percent}%</span>
-                  </div>
-                </div>
-                <p className={`goal-msg ${subjectDailyGoal.completed ? 'done' : ''}`}>
-                  {subjectDailyGoal.completed
-                    ? 'Цель выполнена!'
-                    : `Осталось ${subjectDailyGoal.remaining}`}
-                </p>
-              </div>
-            )}
+          <div className="practice-mode-buttons">
+            <button
+              type="button"
+              className="practice-mode-btn"
+              onClick={startGeneralPractice}
+              disabled={practiceLoading}
+            >
+              <span className="practice-mode-btn-icon">💪</span>
+              <span className="practice-mode-btn-text">
+                <span className="practice-mode-btn-title">Практиковаться</span>
+                <span className="practice-mode-btn-sub">Адаптивная подборка — бесконечно</span>
+              </span>
+              <span className="practice-mode-btn-arrow">→</span>
+            </button>
+            <button
+              type="button"
+              className="practice-mode-btn"
+              onClick={startWeakTopicsPractice}
+              disabled={practiceLoading}
+            >
+              <span className="practice-mode-btn-icon">🎯</span>
+              <span className="practice-mode-btn-text">
+                <span className="practice-mode-btn-title">Слабые темы</span>
+                <span className="practice-mode-btn-sub">Только темы, где были ошибки</span>
+              </span>
+              <span className="practice-mode-btn-arrow">→</span>
+            </button>
+            <button
+              type="button"
+              className="practice-mode-btn"
+              onClick={() => setShowTopicPicker(true)}
+              disabled={practiceLoading || filteredTopics.length === 0}
+            >
+              <span className="practice-mode-btn-icon">📚</span>
+              <span className="practice-mode-btn-text">
+                <span className="practice-mode-btn-title">Конкретная тема</span>
+                <span className="practice-mode-btn-sub">Выберите подраздел сами</span>
+              </span>
+              <span className="practice-mode-btn-arrow">→</span>
+            </button>
           </div>
 
-          {predictedScore?.unlocked && (actionableStrongTopics.length > 0 || hasGrowthTopics) && (
-            <div className="dash-card topics-insight-card">
-              {actionableStrongTopics.length > 0 && (
-                <div className="topics-group">
-                  <div className="topics-group-title">Сильные темы</div>
-                  {actionableStrongTopics.map(t => (
-                    <div key={t.topicId} className="topic-insight strong">
-                      <span>{t.name}</span>
-                      <span className="topic-insight-pct">{t.progress}%</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {actionableWeakTopics.length > 0 && (
-                <div className="topics-group">
-                  <div className="topics-group-title">Слабые темы</div>
-                  {actionableWeakTopics.map(t => (
-                    <div key={t.topicId} className="topic-insight weak">
-                      <span>{t.name}</span>
-                      <span className="topic-insight-pct">{t.progress}%</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {actionableNewTopics.length > 0 && (
-                <div className="topics-group">
-                  <div className="topics-group-title">Новые темы</div>
-                  {actionableNewTopics.map(t => (
-                    <div key={t.topicId} className="topic-insight new">
-                      <span>{t.name}</span>
-                      <span className="topic-insight-pct">не начато</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {hasGrowthTopics && (
-                <button
-                  type="button"
-                  className="weak-topics-btn"
-                  onClick={startWeakTopicsPractice}
-                  disabled={weakTopicsLoading}
-                >
-                  {weakTopicsLoading ? 'Загрузка...' : 'Потренировать слабые и новые темы'}
-                </button>
-              )}
-            </div>
-          )}
-
-          <h2 className="practice-section-heading">Подразделы</h2>
-
-          {filteredTopics.length === 0 ? (
-            <div className="empty-state">
-              <div className="empty-icon">📚</div>
-              <p className="empty-text">Нет доступных заданий по этому предмету</p>
-            </div>
-          ) : (
-            <div className="practice-grid">
-              {filteredTopics.map(topic => {
-                const hasStats = topic.stats && topic.stats.total > 0;
-                const rate = hasStats ? topic.stats.successRate : 0;
-                const rateClass = rate >= 70 ? 'good' : rate >= 50 ? 'medium' : 'low';
-                const qCount = topic.questions?.length || 0;
-                return (
-                  <div key={topic.id} className="topic-card">
-                    <div className="topic-card-top">
-                      <div className="topic-icon">{topic.icon || '📝'}</div>
-                      <div className="topic-head">
-                        <h3 className="topic-name">{topic.name}</h3>
-                        <span className="topic-qcount">{qCount} вопросов</span>
-                      </div>
-                      {hasStats && (
-                        <div className={`topic-rate-chip ${rateClass}`}>{rate}%</div>
-                      )}
-                    </div>
-
-                    {topic.description && (
-                      <p className="topic-desc">{topic.description}</p>
-                    )}
-
-                    {hasStats && (
-                      <div className="topic-progress">
-                        <div className="topic-progress-track">
-                          <div className={`topic-progress-fill ${rateClass}`} style={{ width: `${rate}%` }}></div>
-                        </div>
-                        <span className="topic-progress-label">{topic.stats.correct}/{topic.stats.total}</span>
-                      </div>
-                    )}
-
+          {showTopicPicker && (
+            <div className="topic-picker-overlay" onClick={() => setShowTopicPicker(false)}>
+              <div className="topic-picker" onClick={(e) => e.stopPropagation()}>
+                <h3 className="topic-picker-title">Выберите тему</h3>
+                <div className="topic-picker-list">
+                  {filteredTopics.map(topic => (
                     <button
+                      key={topic.id}
                       type="button"
-                      className="topic-start-btn"
+                      className="topic-picker-item"
                       onClick={() => startPractice(topic)}
-                      disabled={qCount === 0}
                     >
-                      {hasStats ? 'Пройти снова' : 'Начать'} <span className="btn-arrow">→</span>
+                      <span className="topic-picker-icon">{topic.icon || '📝'}</span>
+                      <span className="topic-picker-name">{topic.name}</span>
                     </button>
-                  </div>
-                );
-              })}
+                  ))}
+                </div>
+                <button type="button" className="topic-picker-cancel" onClick={() => setShowTopicPicker(false)}>
+                  Отмена
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -1089,59 +1300,6 @@ function Practice({ studentId }) {
           </div>
         </div>
       )}
-
-      {/* Без выбранного предмета (один предмет — табы выше, этот блок не нужен) */}
-      {!selectedSubject && filteredTopics.length === 0 ? (
-        <div className="empty-state">
-          <div className="empty-icon">📚</div>
-          <p className="empty-text">Нет доступных заданий для практики</p>
-        </div>
-      ) : !selectedSubject ? (
-        <div className="practice-grid">
-          {filteredTopics.map(topic => {
-            const hasStats = topic.stats && topic.stats.total > 0;
-            const rate = hasStats ? topic.stats.successRate : 0;
-            const rateClass = rate >= 70 ? 'good' : rate >= 50 ? 'medium' : 'low';
-            const qCount = topic.questions?.length || 0;
-            return (
-              <div key={topic.id} className="topic-card">
-                <div className="topic-card-top">
-                  <div className="topic-icon">{topic.icon || '📝'}</div>
-                  <div className="topic-head">
-                    <h3 className="topic-name">{topic.name}</h3>
-                    <span className="topic-qcount">{qCount} вопросов</span>
-                  </div>
-                  {hasStats && (
-                    <div className={`topic-rate-chip ${rateClass}`}>{rate}%</div>
-                  )}
-                </div>
-
-                {topic.description && (
-                  <p className="topic-desc">{topic.description}</p>
-                )}
-
-                {hasStats && (
-                  <div className="topic-progress">
-                    <div className="topic-progress-track">
-                      <div className={`topic-progress-fill ${rateClass}`} style={{ width: `${rate}%` }}></div>
-                    </div>
-                    <span className="topic-progress-label">{topic.stats.correct}/{topic.stats.total}</span>
-                  </div>
-                )}
-
-                <button
-                  type="button"
-                  className="topic-start-btn"
-                  onClick={() => startPractice(topic)}
-                  disabled={qCount === 0}
-                >
-                  {hasStats ? 'Пройти снова' : 'Начать'} <span className="btn-arrow">→</span>
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      ) : null}
     </div>
   );
 }

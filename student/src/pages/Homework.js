@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import './Homework.css';
 import { useData } from './DataContext';
 import { apiFetch } from './api';
@@ -102,49 +103,30 @@ function MatchingWire({ pairs, rightOrder, connections, colors, onChange }) {
   }, [dragging, activeLeft, connections, onChange]);
 
   return (
-    <div ref={containerRef} style={{ position: 'relative', userSelect: 'none', touchAction: 'none', padding: '8px 0' }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start' }}>
-        {/* Левая колонка */}
-        <div style={{ width: '44%', display: 'flex', flexDirection: 'column', gap: 10, zIndex: 2, position: 'relative' }}>
+    <div ref={containerRef} className="matching-wire">
+      <div className="matching-wire-columns">
+        <div className="matching-wire-col matching-wire-col--left">
           {pairs.map((p, li) => {
             const isActive = dragging && activeLeft === li;
             const isConnected = connections[li] !== undefined;
             const color = colors[li % colors.length];
+            const stateClass = isActive ? 'mw-block--active' : isConnected ? 'mw-block--connected' : 'mw-block--idle';
             return (
               <div
                 key={li}
-                className="mw-left"
+                className={`mw-block mw-left ${stateClass}`}
                 data-idx={li}
                 onPointerDown={(e) => onLeftDown(e, li)}
-                style={{
-                  padding: '10px 12px',
-                  borderRadius: '8px 0 0 8px',
-                  border: `2px solid ${isActive ? color : isConnected ? color + 'aa' : 'var(--color-border-primary)'}`,
-                  borderRight: 'none',
-                  background: isActive ? color + '20' : isConnected ? color + '12' : 'var(--color-background-secondary)',
-                  fontSize: 14,
-                  cursor: 'grab',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 8,
-                  minHeight: 44,
-                  transition: 'border-color 0.15s, background 0.15s',
-                }}
+                style={{ '--mw-color': color }}
               >
-                <span style={{ color: 'var(--color-text-primary)' }}>{p.left}</span>
-                <span style={{
-                  width: 10, height: 10, borderRadius: '50%', flexShrink: 0,
-                  background: isConnected || isActive ? color : 'var(--color-text-tertiary)',
-                  transition: 'background 0.15s',
-                }} />
+                <span className="mw-block-text">{p.left}</span>
+                <span className={`mw-dot ${isConnected || isActive ? 'mw-dot--on' : ''}`} style={{ '--mw-color': color }} />
               </div>
             );
           })}
         </div>
 
-        {/* SVG проводов */}
-        <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: svgH, pointerEvents: 'none', overflow: 'visible', zIndex: 1 }} height={svgH}>
+        <svg className="matching-wire-svg" height={svgH}>
           {Object.entries(connections).map(([li, ri]) => {
             li = +li;
             const from = getDotPos('left', li);
@@ -167,8 +149,7 @@ function MatchingWire({ pairs, rightOrder, connections, colors, onChange }) {
           })()}
         </svg>
 
-        {/* Правая колонка */}
-        <div style={{ width: '44%', marginLeft: 'auto', display: 'flex', flexDirection: 'column', gap: 10, zIndex: 2, position: 'relative' }}>
+        <div className="matching-wire-col matching-wire-col--right">
           {rightOrder.map(ri => {
             const li = Object.keys(connections).find(k => +connections[k] === ri);
             const isConnected = li !== undefined;
@@ -176,37 +157,18 @@ function MatchingWire({ pairs, rightOrder, connections, colors, onChange }) {
             return (
               <div
                 key={ri}
-                className="mw-right"
+                className={`mw-block mw-right ${isConnected ? 'mw-block--connected' : 'mw-block--idle'}`}
                 data-idx={ri}
-                style={{
-                  padding: '10px 12px',
-                  borderRadius: '0 8px 8px 0',
-                  border: `2px solid ${isConnected ? color + 'aa' : 'var(--color-border-primary)'}`,
-                  borderLeft: 'none',
-                  background: isConnected ? color + '12' : 'var(--color-background-secondary)',
-                  fontSize: 14,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  minHeight: 44,
-                  cursor: 'crosshair',
-                  transition: 'border-color 0.15s, background 0.15s',
-                }}
+                style={isConnected ? { '--mw-color': color } : undefined}
               >
-                <span style={{
-                  width: 10, height: 10, borderRadius: '50%', flexShrink: 0,
-                  background: isConnected ? color : 'var(--color-text-tertiary)',
-                  transition: 'background 0.15s',
-                }} />
-                <span style={{ color: 'var(--color-text-primary)' }}>{pairs[ri].right}</span>
+                <span className={`mw-dot ${isConnected ? 'mw-dot--on' : ''}`} style={isConnected ? { '--mw-color': color } : undefined} />
+                <span className="mw-block-text">{pairs[ri].right}</span>
               </div>
             );
           })}
         </div>
       </div>
-      <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 8, marginBottom: 0 }}>
-        Зажмите левый блок и проведите к правому чтобы соединить
-      </p>
+      <p className="matching-wire-hint">Зажмите левый блок и проведите к правому</p>
     </div>
   );
 }
@@ -330,6 +292,10 @@ function StudentHomework({ studentId }) {
     tg.disableVerticalSwipes?.();
     if (selectedHomework && !showResult) tg.expand?.();
   }, [selectedHomework, showResult]);
+
+  const renderHomeworkOverlay = (content) => (
+    typeof document === 'undefined' ? content : createPortal(content, document.body)
+  );
 
   const backToSubjects = () => setSelectedSubject(null);
 
@@ -1029,9 +995,9 @@ function StudentHomework({ studentId }) {
           <p className="result-homework-title">{selectedHomework?.title}</p>
         </div>
         <div className="result-score-display">
-          <div className="score-circle">
-            <div className="score-value">{percentage}%</div>
-            <div className="score-label">{result.totalScore} из {result.maxScore} баллов</div>
+          <div className="result-score-block">
+            <div className="result-score-main">{result.correctAnswers ?? 0} из {questions.length}</div>
+            <div className="result-score-sub">{result.totalScore} из {result.maxScore} баллов</div>
           </div>
         </div>
         <div className="result-message">
@@ -1084,52 +1050,59 @@ function StudentHomework({ studentId }) {
     const isLastQuestion = currentQuestionIndex === questions.length - 1;
     const canProceed = answers[currentQuestionIndex] !== undefined;
 
-    return (
-      <div className="section homework-mode">
-        <div className="homework-header">
-          <button className="back-button" onClick={closeHomework}>← Назад</button>
+    return renderHomeworkOverlay(
+      <div className="homework-mode">
+        <div className="homework-mode-header">
+          <button type="button" className="back-button" onClick={closeHomework}>← Назад</button>
           <div className="homework-info">
             <h2>{selectedHomework.title}</h2>
             <p>Вопрос {currentQuestionIndex + 1} из {questions.length}</p>
           </div>
         </div>
-        <div className="progress-bar">
-          <div className="progress-fill" style={{ width: `${progress}%` }}></div>
+        <div className="homework-mode-progress">
+          <div className="homework-mode-progress-fill" style={{ width: `${progress}%` }}></div>
         </div>
-        <div className="question-container">
-          <div className="question-header">
-            <span className="question-number">Вопрос {currentQuestionIndex + 1}</span>
-            <span className="question-points">{currentQuestion.points} баллов</span>
+        <div className="homework-mode-body">
+          <div className="question-container">
+            <div className="question-header">
+              <span className="question-number">Вопрос {currentQuestionIndex + 1}</span>
+              <span className="question-points">{currentQuestion.points} баллов</span>
+            </div>
+            <h3 className="question-text">{currentQuestion.questionText}</h3>
+            <div className={`homework-mode-answer homework-mode-answer--${currentQuestion.questionType || 'default'}`}>
+              {renderQuestion(currentQuestion, currentQuestionIndex)}
+            </div>
           </div>
-          <h3 className="question-text">{currentQuestion.questionText}</h3>
-          {renderQuestion(currentQuestion, currentQuestionIndex)}
-          <div className="navigation-buttons">
+        </div>
+        <div className="homework-mode-footer">
+          <div className="hw-nav-row">
             {currentQuestionIndex > 0 && (
-              <button className="secondary-button" onClick={() => setCurrentQuestionIndex(currentQuestionIndex - 1)}>
+              <button type="button" className="hw-nav-btn hw-nav-btn--back" onClick={() => setCurrentQuestionIndex(currentQuestionIndex - 1)}>
                 ← Назад
               </button>
             )}
             {!isLastQuestion ? (
-              <button className="primary-button" disabled={!canProceed} onClick={() => setCurrentQuestionIndex(currentQuestionIndex + 1)}>
+              <button type="button" className="hw-nav-btn hw-nav-btn--next" disabled={!canProceed} onClick={() => setCurrentQuestionIndex(currentQuestionIndex + 1)}>
                 Далее →
               </button>
             ) : (
-              <button className="primary-button submit" disabled={!canProceed} onClick={submitHomework}>
-                Отправить домашку
+              <button type="button" className="hw-nav-btn hw-nav-btn--submit" disabled={!canProceed} onClick={submitHomework}>
+                Отправить
               </button>
             )}
           </div>
-        </div>
-        <div className="questions-nav">
-          {questions.map((_, i) => (
-            <button
-              key={i}
-              className={`q-nav-btn ${i === currentQuestionIndex ? 'active' : ''} ${answers[i] !== undefined ? 'answered' : ''}`}
-              onClick={() => setCurrentQuestionIndex(i)}
-            >
-              {i + 1}
-            </button>
-          ))}
+          <div className="questions-nav homework-mode-nav">
+            {questions.map((_, i) => (
+              <button
+                key={i}
+                type="button"
+                className={`q-nav-btn ${i === currentQuestionIndex ? 'active' : ''} ${answers[i] !== undefined ? 'answered' : ''}`}
+                onClick={() => setCurrentQuestionIndex(i)}
+              >
+                {i + 1}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     );

@@ -117,6 +117,12 @@ router.get('/student/:studentId', async (req, res) => {
 // Сохранить попытку
 router.post('/attempts', practiceController.saveAttempt);
 
+// Сохранить один ответ сразу после вопроса
+router.post('/answer', practiceController.savePracticeAnswer);
+
+// Итог сессии (лучший результат по теме)
+router.post('/session-summary', practiceController.saveSessionSummary);
+
 // Получить статистику студента
 router.get('/stats/:studentId', practiceController.getStudentStats);
 

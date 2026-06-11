@@ -126,6 +126,34 @@
   font-family: 'Manrope', sans-serif;
 }
 
+/* Карточки предметов в практике — только фон-картинка */
+.section-practice .practice-subject-card {
+  aspect-ratio: 16 / 10;
+  width: 100%;
+  padding: 0;
+  border: none;
+  border-radius: 18px;
+  background-color: var(--kubik-navy);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  box-shadow: 0 6px 18px rgba(26, 64, 95, 0.12);
+}
+
+.section-practice .practice-subject-card::before {
+  display: none;
+}
+
+.section-practice .practice-subject-card:hover {
+  transform: translateY(-3px) scale(1.01);
+  box-shadow: 0 14px 28px rgba(26, 64, 95, 0.22);
+  border-color: transparent;
+}
+
+.section-practice .subjects-grid {
+  gap: 14px;
+}
+
 /* декоративный блик розовым в углу */
 .subject-card::before {
   content: '';
@@ -283,7 +311,7 @@
   top: 0;
   left: 0;
   right: 0;
-  bottom: calc(74px + env(safe-area-inset-bottom, 0px));
+  bottom: var(--student-bottom-nav-offset);
   width: 100%;
   max-width: 480px;
   margin: 0 auto;
@@ -382,9 +410,11 @@
   flex: 1;
   min-height: 0;
   padding: 16px 16px 18px;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
+  -webkit-overflow-scrolling: touch;
 }
 
 .question-header {
@@ -643,7 +673,7 @@
 
 
 .practice-mode .question-container {
-  padding-bottom: 16px;
+  padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
 }
 
 /* ========== КОНФЕТТИ ========== */
@@ -736,10 +766,13 @@
 .streak-circle.on-blue.done {
   background: rgba(255,255,255,0.95);
   border-color: var(--kubik-pink);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
 }
-.streak-circle.on-blue.pending {
-  background: rgba(255,255,255,0.16);
-  border: 2px solid rgba(255,255,255,0.3);
+.streak-circle.on-blue.pending,
+.streak-circle.on-blue.empty {
+  background: rgba(255, 255, 255, 0.92);
+  border: 2px solid rgba(255, 190, 189, 0.55);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
 }
 
 .streak-circle-flame {
@@ -750,12 +783,14 @@
 }
 .streak-circle.done .streak-circle-flame {
   animation: flameFlicker 1.8s ease-in-out infinite;
-  filter: drop-shadow(0 0 3px rgba(255, 120, 90, 0.7));
+  filter: drop-shadow(0 0 4px rgba(255, 120, 50, 0.85)) drop-shadow(0 0 8px rgba(255, 90, 40, 0.45));
+  opacity: 1;
 }
 .streak-circle.pending .streak-circle-flame,
 .streak-circle.empty .streak-circle-flame {
   animation: none;
-  filter: grayscale(0.7) opacity(0.65);
+  filter: grayscale(1) brightness(0.72) contrast(0.95);
+  opacity: 0.88;
 }
 
 .streak-circle-count {
@@ -767,7 +802,8 @@
   margin-top: 1px;
 }
 .streak-circle.pending .streak-circle-count { color: var(--kubik-text-soft); }
-.streak-circle.on-blue.pending .streak-circle-count { color: #ffffff; }
+.streak-circle.on-blue.pending .streak-circle-count,
+.streak-circle.on-blue.empty .streak-circle-count { color: var(--kubik-text-soft); }
 .streak-circle.on-blue.done .streak-circle-count { color: var(--kubik-navy); }
 
 /* Анимация появления */
@@ -1500,4 +1536,369 @@
   color: var(--kubik-navy);
   font-weight: 700;
   box-shadow: 0 2px 8px rgba(26, 64, 95, 0.10);
+}
+
+/* ========== HERO ПРАКТИКИ — одна строка, компактные только цель и огонёк ========== */
+.practice-hero-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.practice-hero-title--plain {
+  flex: 1;
+  min-width: 0;
+  font-size: 22px;
+  letter-spacing: -0.3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+}
+
+.practice-hero-text--compact {
+  flex: 1;
+  min-width: 0;
+}
+
+.hero-goal-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.hero-goal-caption {
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.9);
+  white-space: nowrap;
+  line-height: 1;
+  letter-spacing: 0.01em;
+}
+
+.hero-goal-caption.goal-done {
+  color: #bbf7d0;
+}
+
+.hero-daily-goal-ring {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.12);
+}
+
+.hero-daily-goal-ring::before {
+  inset: 5px;
+  background: #ffffff;
+}
+
+.hero-daily-goal-ring .daily-goal-ring-value {
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.practice-hero-row .hero-streak {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-width: 1.5px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.14);
+}
+
+.practice-hero-row .hero-streak-flame {
+  font-size: 15px;
+}
+
+.practice-hero-row .hero-streak-count {
+  font-size: 11px;
+}
+
+/* ========== ПОДСКАЗКИ У ЦЕЛИ И ОГОНЬКА ========== */
+.hero-metric-hint-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.hero-metric-hint-trigger {
+  border: none;
+  background: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  display: flex;
+  font: inherit;
+  color: inherit;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.hero-metric-hint-trigger:focus-visible {
+  outline: 2px solid rgba(255, 190, 189, 0.85);
+  outline-offset: 3px;
+  border-radius: 50%;
+}
+
+.hero-metric-hint-popover {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  width: max-content;
+  max-width: min(168px, 52vw);
+  padding: 8px 10px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.98);
+  color: var(--kubik-navy);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.38;
+  text-align: center;
+  box-shadow: 0 8px 22px rgba(26, 64, 95, 0.16);
+  border: 1px solid rgba(255, 190, 189, 0.45);
+  z-index: 30;
+  pointer-events: none;
+  animation: heroHintPop 0.18s ease-out;
+}
+
+.hero-metric-hint-wrap--center .hero-metric-hint-popover {
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.hero-metric-hint-wrap--end .hero-metric-hint-popover {
+  right: 0;
+}
+
+.hero-metric-hint-popover::after {
+  content: '';
+  position: absolute;
+  bottom: -5px;
+  width: 10px;
+  height: 10px;
+  background: #ffffff;
+  border-right: 1px solid rgba(255, 190, 189, 0.45);
+  border-bottom: 1px solid rgba(255, 190, 189, 0.45);
+  transform: rotate(45deg);
+}
+
+.hero-metric-hint-wrap--center .hero-metric-hint-popover::after {
+  left: 50%;
+  margin-left: -5px;
+}
+
+.hero-metric-hint-wrap--end .hero-metric-hint-popover::after {
+  right: 14px;
+}
+
+@keyframes heroHintPop {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.hero-metric-hint-wrap--center .hero-metric-hint-popover {
+  animation-name: heroHintPopCenter;
+}
+
+@keyframes heroHintPopCenter {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.practice-header .hero-metric-hint-wrap {
+  z-index: 2;
+}
+
+.practice-header .hero-metric-hint-popover {
+  max-width: min(176px, 58vw);
+}
+
+/* Название темы в прохождении */
+.question-meta-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 12px;
+  flex-shrink: 0;
+}
+
+.practice-session-topic {
+  text-align: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--kubik-blue);
+  line-height: 1.35;
+  padding: 0 12px;
+  letter-spacing: -0.1px;
+}
+
+.question-meta-row .question-header {
+  margin-bottom: 0;
+}
+
+/* ========== КНОПКИ РЕЖИМОВ ПРАКТИКИ ========== */
+.practice-mode-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.practice-mode-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 16px;
+  background: #ffffff;
+  border: 1.5px solid var(--kubik-border);
+  border-radius: 14px;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.1s;
+  box-shadow: 0 2px 8px rgba(26, 64, 95, 0.04);
+}
+
+.practice-mode-btn:hover:not(:disabled) {
+  border-color: var(--kubik-blue);
+  box-shadow: 0 4px 14px rgba(26, 64, 95, 0.08);
+}
+
+.practice-mode-btn:active:not(:disabled) {
+  transform: scale(0.985);
+}
+
+.practice-mode-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.practice-mode-btn-icon {
+  font-size: 26px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.practice-mode-btn-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.practice-mode-btn-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--kubik-navy);
+}
+
+.practice-mode-btn-sub {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--kubik-text-soft);
+  line-height: 1.3;
+}
+
+.practice-mode-btn-arrow {
+  font-size: 18px;
+  color: var(--kubik-blue);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* ========== ВЫБОР ТЕМЫ ========== */
+.topic-picker-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(26, 64, 95, 0.45);
+  z-index: 1300;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.topic-picker {
+  width: 100%;
+  max-width: 480px;
+  max-height: 70vh;
+  background: #ffffff;
+  border-radius: 18px 18px 14px 14px;
+  padding: 18px 16px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: hidden;
+}
+
+.topic-picker-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--kubik-navy);
+  text-align: center;
+}
+
+.topic-picker-list {
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-height: 0;
+}
+
+.topic-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--kubik-blue-soft, #EAF3FA);
+  border: 1px solid var(--kubik-border);
+  border-radius: 12px;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.topic-picker-item:hover {
+  border-color: var(--kubik-blue);
+  background: #ffffff;
+}
+
+.topic-picker-icon {
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.topic-picker-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--kubik-navy);
+}
+
+.topic-picker-cancel {
+  padding: 12px;
+  background: transparent;
+  border: none;
+  color: var(--kubik-text-soft);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
 }

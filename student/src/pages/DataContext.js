@@ -202,9 +202,14 @@ export const DataProvider = ({ children, studentId }) => {
     }));
   }, []);
 
-  const loadStreak = useCallback(async (force = false) => {
+  const loadStreak = useCallback(async (subjectId = null, force = false) => {
+    if (typeof subjectId === 'boolean') {
+      force = subjectId;
+      subjectId = null;
+    }
     try {
-      const response = await apiFetch(`${API_URL}/practice/streak/${studentId}`);
+      const qs = subjectId ? `?subjectId=${subjectId}` : '';
+      const response = await apiFetch(`${API_URL}/practice/streak/${studentId}${qs}`);
       const data = await response.json();
       setStreak(data || { streak: 0, todayDone: false });
       setStreakLoaded(true);
@@ -240,6 +245,18 @@ export const DataProvider = ({ children, studentId }) => {
       return null;
     }
   }, [studentId]);
+
+  const patchDailyGoal = useCallback((goalEntry) => {
+    if (!goalEntry?.subjectId) return;
+    setDailyGoal((prev) => {
+      if (!prev?.goals) return prev;
+      const goals = prev.goals.map((g) =>
+        g.subjectId === goalEntry.subjectId ? { ...g, ...goalEntry } : g
+      );
+      const totalCorrectToday = goals.reduce((sum, g) => sum + (g.solved || 0), 0);
+      return { ...prev, goals, totalCorrectToday, totalUniqueToday: totalCorrectToday };
+    });
+  }, []);
 
   const loadLeaderboard = useCallback(async (subjectId, period = 'day') => {
     if (!subjectId) return null;
@@ -291,7 +308,7 @@ export const DataProvider = ({ children, studentId }) => {
     const [, , newStreak] = await Promise.all([
       loadPractice(true),
       loadPracticeStats(true),
-      loadStreak(true),
+      loadStreak(subjectId, true),
       loadDailyGoal(),
       subjectId ? loadPredictedScore(subjectId) : Promise.resolve(),
       subjectId ? loadScoreHistory(subjectId) : Promise.resolve(),
@@ -314,7 +331,7 @@ export const DataProvider = ({ children, studentId }) => {
     prefetchQuestions, getQuestions, updatePracticeStatsOptimistic,
     streak, streakLoaded, setStreak, setStreakLoaded, loadStreak,
     predictedScore, loadPredictedScore,
-    dailyGoal, loadDailyGoal,
+    dailyGoal, loadDailyGoal, patchDailyGoal,
     leaderboard, loadLeaderboard,
     scoreHistory, loadScoreHistory,
     loadWeakTopicsQuestions

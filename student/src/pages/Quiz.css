@@ -1497,3 +1497,123 @@
 .quiz-sidebar .mini-name { font-size: 10px; color: var(--kubik-text); text-align: center; font-weight: 600; word-break: break-word; }
 .quiz-sidebar .mini-score { font-size: 11px; color: var(--kubik-navy); font-weight: 700; }
 .quiz-sidebar .my-rank-info { font-size: 10px; color: var(--kubik-text-soft); text-align: center; margin-top: 4px; }
+/* ========== СВЕТЯЩАЯСЯ СФЕРА → ЦЕЛЬ ========== */
+
+/* Сфера летит от кнопки к кольцу по дуге */
+.light-orb {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #ffffff 0%, #FFE3DD 35%, var(--kubik-pink) 70%, rgba(255,190,189,0) 100%);
+  box-shadow: 0 0 12px 4px rgba(255, 190, 189, 0.85),
+              0 0 24px 8px rgba(51, 123, 174, 0.4);
+  pointer-events: none;
+  z-index: 200;
+  transform: translate(var(--x0), var(--y0)) translate(-50%, -50%) scale(1);
+  animation: orbFly 0.65s cubic-bezier(0.45, 0, 0.55, 1) forwards;
+  will-change: transform, opacity;
+}
+
+@keyframes orbFly {
+  0% {
+    transform: translate(var(--x0), var(--y0)) translate(-50%, -50%) scale(0.4);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+    transform: translate(var(--x0), var(--y0)) translate(-50%, -50%) scale(1.15);
+  }
+  /* Дуга: середина пути приподнята вверх */
+  55% {
+    transform: translate(
+      calc((var(--x0) + var(--x1)) / 2),
+      calc((var(--y0) + var(--y1)) / 2 - 50px)
+    ) translate(-50%, -50%) scale(0.95);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--x1), var(--y1)) translate(-50%, -50%) scale(0.5);
+    opacity: 0.9;
+  }
+}
+
+/* ========== ВЫЕЗЖАЮЩЕЕ КОЛЬЦО ЦЕЛИ ========== */
+.goal-peek {
+  position: fixed;
+  left: 0;
+  top: 86px;
+  z-index: 150;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px 8px 10px;
+  background: rgba(255, 255, 255, 0.97);
+  border: 1px solid var(--kubik-border);
+  border-left: none;
+  border-radius: 0 16px 16px 0;
+  box-shadow: 0 6px 20px rgba(26, 64, 95, 0.16);
+  transform: translateX(-120%);
+  transition: transform 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
+  pointer-events: none;
+}
+.goal-peek.show {
+  transform: translateX(0);
+}
+.goal-peek.pulse .goal-peek-ring {
+  animation: goalRingPulse 0.45s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+}
+
+@keyframes goalRingPulse {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.18); box-shadow: 0 0 0 6px rgba(255, 190, 189, 0.35); }
+  100% { transform: scale(1); }
+}
+
+/* Кольцо-диаграмма */
+.goal-peek-ring {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background:
+    radial-gradient(closest-side, #ffffff 76%, transparent 77% 100%),
+    conic-gradient(var(--kubik-pink) var(--goal-pct, 0%), #F0EEEA 0);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.goal-peek-ring.complete {
+  background:
+    radial-gradient(closest-side, #ffffff 76%, transparent 77% 100%),
+    conic-gradient(var(--good) var(--goal-pct, 0%), #F0EEEA 0);
+}
+.goal-peek-value {
+  font-family: 'Manrope', sans-serif;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--kubik-navy);
+  letter-spacing: -0.4px;
+}
+
+.goal-peek-label {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.goal-peek-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--kubik-text-soft);
+  white-space: nowrap;
+}
+.goal-peek-count {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--kubik-navy);
+  letter-spacing: -0.4px;
+}

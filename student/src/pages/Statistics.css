@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
+﻿@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
 
 :root {
   --kubik-pink: #FFBEBD;
@@ -690,6 +690,29 @@
   font-size: 13px;
   color: var(--kubik-text-soft);
   margin-top: 8px;
+}
+
+/* Прогноз ЦТ */
+.stats-predicted-section {
+  margin-bottom: 20px;
+}
+
+.stats-section-title {
+  margin: 0 0 12px 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--kubik-navy, #1A405F);
+}
+
+.stats-predicted-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.stats-predicted-grid .predicted-score-card {
+  margin: 0;
+  text-align: center;
 }
 
 /* Адаптив */
