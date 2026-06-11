@@ -790,6 +790,256 @@
   100% { transform: scale(1); }
 }
 
+/* Вкладки и hero — в StudentApp.css */
+
+/* ========== ПАНЕЛЬ ПРАКТИКИ ========== */
+.practice-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.practice-stats-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+@media (min-width: 340px) {
+  .practice-stats-row:has(.daily-goal-card) {
+    grid-template-columns: 1.4fr 1fr;
+    align-items: stretch;
+  }
+}
+
+.practice-stats-row .predicted-score-card,
+.practice-stats-row .daily-goal-card {
+  margin: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.practice-stats-row .predicted-score-value {
+  font-size: 36px;
+}
+
+.daily-goal-card {
+  text-align: center;
+}
+
+.daily-goal-ring-wrap {
+  display: flex;
+  justify-content: center;
+  margin: 4px 0 8px;
+  flex: 1;
+  align-items: center;
+}
+
+.daily-goal-ring {
+  --goal-pct: 0%;
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  background: conic-gradient(var(--kubik-pink) var(--goal-pct), rgba(26, 64, 95, 0.08) 0);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.daily-goal-ring::before {
+  content: '';
+  position: absolute;
+  inset: 7px;
+  border-radius: 50%;
+  background: #ffffff;
+}
+
+.daily-goal-ring.complete {
+  background: conic-gradient(var(--good) var(--goal-pct), rgba(26, 64, 95, 0.08) 0);
+}
+
+.daily-goal-ring-value {
+  position: relative;
+  z-index: 1;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--kubik-navy);
+}
+
+.daily-goal-card .goal-msg {
+  margin: 0;
+  font-size: 12px;
+}
+
+.practice-section-heading {
+  font-family: 'Manrope', sans-serif;
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--kubik-navy);
+  margin: 4px 0 0;
+  letter-spacing: -0.3px;
+}
+
+/* ========== ПАНЕЛЬ РЕЙТИНГА ========== */
+.rating-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.rating-period-tabs {
+  display: flex;
+  gap: 0;
+  padding: 4px;
+  background: #ffffff;
+  border: 1.5px solid var(--kubik-border);
+  border-radius: 14px;
+  box-shadow: 0 2px 10px rgba(26, 64, 95, 0.05);
+}
+
+.rating-period-tab {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 11px 8px;
+  border-radius: 11px;
+  font-family: 'Manrope', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--kubik-text-soft);
+  cursor: pointer;
+  transition: all 0.22s ease;
+}
+
+.rating-period-tab.active {
+  background: var(--kubik-blue-soft);
+  color: var(--kubik-navy);
+  font-weight: 700;
+  box-shadow: inset 0 0 0 1px rgba(51, 123, 174, 0.15);
+}
+
+.my-rank-card {
+  text-align: center;
+  padding: 22px 20px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, var(--kubik-navy) 0%, var(--kubik-blue) 100%);
+  color: #ffffff;
+  box-shadow: 0 8px 24px rgba(26, 64, 95, 0.22);
+}
+
+.my-rank-label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  opacity: 0.85;
+  margin-bottom: 6px;
+}
+
+.my-rank-value {
+  font-size: 44px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -2px;
+  margin-bottom: 8px;
+}
+
+.my-rank-meta {
+  font-size: 13px;
+  opacity: 0.88;
+  font-weight: 500;
+}
+
+.rating-list-card {
+  background: #ffffff;
+  border: 1.5px solid var(--kubik-border);
+  border-radius: 18px;
+  padding: 18px 16px;
+  box-shadow: 0 2px 10px rgba(26, 64, 95, 0.05);
+}
+
+.rating-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--kubik-border);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--kubik-navy);
+}
+
+.rating-list-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--kubik-text-soft);
+  background: var(--kubik-blue-soft);
+  padding: 4px 10px;
+  border-radius: 20px;
+}
+
+.rating-panel .leaderboard-list {
+  gap: 8px;
+}
+
+.rating-panel .lb-row {
+  grid-template-columns: 36px 1fr auto;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--kubik-white);
+  border: 1px solid transparent;
+  font-size: 14px;
+  transition: border-color 0.15s ease;
+}
+
+.rating-panel .lb-row.top3 {
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+  border-color: rgba(217, 148, 59, 0.2);
+}
+
+.rating-panel .lb-row.me {
+  background: linear-gradient(135deg, var(--kubik-blue-soft) 0%, rgba(51, 123, 174, 0.12) 100%);
+  border-color: rgba(51, 123, 174, 0.35);
+  font-weight: 700;
+}
+
+.rating-panel .lb-rank {
+  font-size: 18px;
+  font-weight: 800;
+  text-align: center;
+  color: var(--kubik-navy);
+}
+
+.rating-panel .lb-row.top3 .lb-rank {
+  font-size: 22px;
+}
+
+.rating-panel .lb-name {
+  font-weight: 600;
+  color: var(--kubik-navy);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rating-panel .lb-score {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--kubik-blue);
+  min-width: 28px;
+  text-align: right;
+}
+
+.rating-panel .lb-empty {
+  padding: 28px 12px;
+}
+
 /* ========== DASHBOARD (прогноз, цели, рейтинг) ========== */
 .practice-dashboard {
   display: flex;
@@ -1130,142 +1380,4 @@
   color: var(--kubik-navy);
   font-weight: 700;
   box-shadow: 0 2px 8px rgba(26, 64, 95, 0.10);
-}
-/* ========== HERO ЗАГОЛОВОК РАЗДЕЛА ========== */
-.practice-hero {
-  position: relative;
-  overflow: hidden;
-  background: linear-gradient(135deg, var(--kubik-blue) 0%, var(--kubik-navy) 100%);
-  border-radius: 0;
-  padding: 24px 20px 42px;
-  margin: 0 -16px 18px;
-}
-
-/* Волна снизу — переход hero в фон */
-.practice-hero-wave {
-  position: absolute;
-  bottom: -1px;
-  left: 0;
-  width: 100%;
-  height: 34px;
-  display: block;
-  pointer-events: none;
-}
-.practice-hero-wave path {
-  fill: var(--kubik-blue-soft, #EAF3FA);
-}
-
-.practice-hero-glow {
-  position: absolute;
-  top: -30px;
-  right: -20px;
-  width: 140px;
-  height: 140px;
-  background: radial-gradient(circle, rgba(255, 190, 189, 0.4) 0%, transparent 70%);
-  pointer-events: none;
-}
-
-.practice-hero-content {
-  position: relative;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 14px;
-}
-
-.practice-hero-text {
-  min-width: 0;
-}
-
-.practice-hero-eyebrow {
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.5px;
-  color: var(--kubik-pink);
-  margin-bottom: 7px;
-}
-
-.practice-hero-title {
-  font-family: 'Manrope', sans-serif;
-  font-size: 29px;
-  font-weight: 800;
-  color: #ffffff;
-  letter-spacing: -1px;
-  line-height: 1.05;
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  word-break: break-word;
-}
-
-.hero-title-emoji {
-  font-size: 26px;
-  flex-shrink: 0;
-}
-
-.practice-hero-sub {
-  font-size: 13.5px;
-  color: rgba(255, 255, 255, 0.82);
-  margin: 9px 0 0 0;
-  font-weight: 500;
-  line-height: 1.4;
-}
-
-/* Стрик-кружок в hero */
-.hero-streak {
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  width: 54px;
-  height: 54px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.96);
-  border: 2px solid var(--kubik-pink);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
-  animation: streakAppear 0.5s cubic-bezier(0.18, 0.89, 0.32, 1.28) both;
-}
-
-/* Есть стрик, но сегодня ещё не решал */
-.hero-streak.active {
-  background: rgba(255, 255, 255, 0.96);
-  border-color: var(--kubik-pink);
-}
-
-/* Стрика нет вообще — серый огонёк, 0 */
-.hero-streak.empty {
-  background: rgba(255, 255, 255, 0.16);
-  border-color: rgba(255, 255, 255, 0.35);
-  box-shadow: none;
-}
-
-.hero-streak-flame {
-  font-size: 18px;
-  line-height: 1;
-  animation: flameFlicker 1.8s ease-in-out infinite;
-  transform-origin: center bottom;
-}
-.hero-streak.done .hero-streak-flame {
-  filter: drop-shadow(0 0 3px rgba(255, 120, 90, 0.7));
-}
-.hero-streak.empty .hero-streak-flame {
-  filter: grayscale(1) opacity(0.55);
-}
-
-.hero-streak-count {
-  font-size: 14px;
-  font-weight: 800;
-  line-height: 1;
-  color: var(--kubik-navy);
-  margin-top: 1px;
-}
-.hero-streak.empty .hero-streak-count {
-  color: rgba(255, 255, 255, 0.9);
-}
-
-/* Кнопка назад над hero */
-.hero-back {
-  margin-bottom: 14px;
 }

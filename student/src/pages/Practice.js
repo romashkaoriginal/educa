@@ -526,7 +526,7 @@ function Practice({ studentId }) {
   // ========== ЭКРАН ВЫБОРА ПРЕДМЕТА (если их несколько) ==========
   if (subjects.length > 1 && !selectedSubject) {
     return (
-      <div className="section">
+      <div className="section section-practice">
         <div className="practice-hero">
           <div className="practice-hero-glow"></div>
           <div className="practice-hero-content">
@@ -535,13 +535,14 @@ function Practice({ studentId }) {
               <h1 className="practice-hero-title">Практика</h1>
               <p className="practice-hero-sub">Выберите предмет для практики</p>
             </div>
-            {streak?.streak > 0 && (
-              <div className={`hero-streak ${streak.todayDone ? 'done' : 'pending'}`}>
-                <span className="hero-streak-flame">🔥</span>
-                <span className="hero-streak-count">{streak.streak}</span>
-              </div>
-            )}
+            <div className={`hero-streak ${streak?.streak > 0 ? (streak.todayDone ? 'done' : 'active') : 'empty'}`}>
+              <span className="hero-streak-flame">🔥</span>
+              <span className="hero-streak-count">{streak?.streak || 0}</span>
+            </div>
           </div>
+          <svg className="practice-hero-wave" viewBox="0 0 400 40" preserveAspectRatio="none">
+            <path d="M0,40 L0,22 Q100,2 200,18 T400,15 L400,40 Z" />
+          </svg>
         </div>
 
         <div className="subjects-grid">
@@ -578,13 +579,13 @@ function Practice({ studentId }) {
     : null;
 
   return (
-    <div className="section">
-      {subjects.length > 1 && selectedSubject && (
-        <button className="back-button hero-back" onClick={backToSubjects}>
-          ← Назад к предметам
-        </button>
-      )}
+    <div className="section section-practice">
       <div className="practice-hero">
+        {subjects.length > 1 && selectedSubject && (
+          <button className="back-button hero-back-inset" onClick={backToSubjects}>
+            ← Назад к предметам
+          </button>
+        )}
         <div className="practice-hero-glow"></div>
         <div className="practice-hero-content">
           <div className="practice-hero-text">
@@ -600,100 +601,109 @@ function Practice({ studentId }) {
                 : 'Тренируйся в своём темпе'}
             </p>
           </div>
-          {streak?.streak > 0 && (
-            <div className={`hero-streak ${streak.todayDone ? 'done' : 'pending'}`}>
-              <span className="hero-streak-flame">🔥</span>
-              <span className="hero-streak-count">{streak.streak}</span>
-            </div>
-          )}
+          <div className={`hero-streak ${streak?.streak > 0 ? (streak.todayDone ? 'done' : 'active') : 'empty'}`}>
+            <span className="hero-streak-flame">🔥</span>
+            <span className="hero-streak-count">{streak?.streak || 0}</span>
+          </div>
         </div>
+          <svg className="practice-hero-wave" viewBox="0 0 400 40" preserveAspectRatio="none">
+            <path d="M0,40 L0,22 Q100,2 200,18 T400,15 L400,40 Z" />
+          </svg>
       </div>
 
       {/* ТАБ-БАР — только внутри предмета */}
       {selectedSubject && (
         <div className="practice-tabs">
           <button
+            type="button"
             className={`practice-tab ${activeTab === 'practice' ? 'active' : ''}`}
             onClick={() => setActiveTab('practice')}
           >
-            📝 Практика
+            <span className="practice-tab-icon">📝</span>
+            <span className="practice-tab-label">Практика</span>
           </button>
           <button
+            type="button"
             className={`practice-tab ${activeTab === 'rating' ? 'active' : ''}`}
             onClick={() => setActiveTab('rating')}
           >
-            🏆 Рейтинг
+            <span className="practice-tab-icon">🏆</span>
+            <span className="practice-tab-label">Рейтинг</span>
           </button>
         </div>
       )}
 
-      {selectedSubject && activeTab === 'rating' && (
-        <div className="practice-dashboard">
-          {/* Прогнозный балл ЦТ */}
-          <div className="dash-card predicted-score-card">
-            {predictedScore?.unlocked ? (
-              <>
-                <div className="predicted-score-header">
-                  <span className="predicted-label">Ожидаемый балл на ЦТ</span>
-                  {scoreDelta != null && scoreDelta !== 0 && (
-                    <span className={`score-delta ${scoreDelta > 0 ? 'up' : 'down'}`}>
-                      {scoreDelta > 0 ? '+' : ''}{scoreDelta}
-                    </span>
+      {/* ===== ВКЛАДКА ПРАКТИКА ===== */}
+      {selectedSubject && activeTab === 'practice' && (
+        <div className="practice-panel">
+          <div className="practice-stats-row">
+            <div className="dash-card predicted-score-card">
+              {predictedScore?.unlocked ? (
+                <>
+                  <div className="predicted-score-header">
+                    <span className="predicted-label">Прогноз на ЦТ</span>
+                    {scoreDelta != null && scoreDelta !== 0 && (
+                      <span className={`score-delta ${scoreDelta > 0 ? 'up' : 'down'}`}>
+                        {scoreDelta > 0 ? '+' : ''}{scoreDelta}
+                      </span>
+                    )}
+                  </div>
+                  <div className="predicted-score-value">
+                    {predictedScore.score}<span className="predicted-score-max">/100</span>
+                  </div>
+                  <div className="predicted-meta">
+                    Решено {predictedScore.solved} · Точность {predictedScore.accuracy}%
+                  </div>
+                  {remainingTo70 && (
+                    <p className="predicted-hint">
+                      До 70+ — ещё ~{remainingTo70} заданий по слабым темам
+                    </p>
                   )}
-                </div>
-                <div className="predicted-score-value">
-                  {predictedScore.score}<span className="predicted-score-max">/100</span>
-                </div>
-                <div className="predicted-meta">
-                  Решено: {predictedScore.solved} · Точность: {predictedScore.accuracy}%
-                </div>
-                {remainingTo70 && (
-                  <p className="predicted-hint">
-                    Хотите поднять прогноз до 70+? Решите ещё ~{remainingTo70} заданий по слабым темам.
+                </>
+              ) : (
+                <>
+                  <div className="predicted-locked-title">Прогноз пока недоступен</div>
+                  <div className="predicted-locked-progress">
+                    {predictedScore?.solved || 0} / {predictedScore?.minRequired || 50} заданий
+                  </div>
+                  <div className="predicted-locked-bar">
+                    <div
+                      className="predicted-locked-fill"
+                      style={{ width: `${Math.min(100, ((predictedScore?.solved || 0) / (predictedScore?.minRequired || 50)) * 100)}%` }}
+                    />
+                  </div>
+                  <p className="predicted-locked-hint">
+                    Осталось {predictedScore?.needed ?? 50} до открытия прогноза
                   </p>
-                )}
-              </>
-            ) : (
-              <>
-                <div className="predicted-locked-title">Прогнозный балл пока недоступен</div>
-                <div className="predicted-locked-progress">
-                  Решено: {predictedScore?.solved || 0} из {predictedScore?.minRequired || 50}
+                </>
+              )}
+            </div>
+
+            {subjectDailyGoal && (
+              <div className="dash-card daily-goal-card">
+                <div className="daily-goal-header">
+                  <span>🎯 Цель на сегодня</span>
+                  <span className={subjectDailyGoal.completed ? 'goal-done' : ''}>
+                    {subjectDailyGoal.solved}/{subjectDailyGoal.goal}
+                  </span>
                 </div>
-                <div className="predicted-locked-bar">
+                <div className="daily-goal-ring-wrap">
                   <div
-                    className="predicted-locked-fill"
-                    style={{ width: `${Math.min(100, ((predictedScore?.solved || 0) / (predictedScore?.minRequired || 50)) * 100)}%` }}
-                  />
+                    className={`daily-goal-ring ${subjectDailyGoal.completed ? 'complete' : ''}`}
+                    style={{ '--goal-pct': `${subjectDailyGoal.percent}%` }}
+                  >
+                    <span className="daily-goal-ring-value">{subjectDailyGoal.percent}%</span>
+                  </div>
                 </div>
-                <p className="predicted-locked-hint">
-                  Осталось: {predictedScore?.needed ?? 50} заданий. Решите первые 50, чтобы узнать прогноз.
+                <p className={`goal-msg ${subjectDailyGoal.completed ? 'done' : ''}`}>
+                  {subjectDailyGoal.completed
+                    ? 'Цель выполнена!'
+                    : `Осталось ${subjectDailyGoal.remaining}`}
                 </p>
-              </>
+              </div>
             )}
           </div>
 
-          {/* Ежедневная цель */}
-          {subjectDailyGoal && (
-            <div className="dash-card daily-goal-card">
-              <div className="daily-goal-header">
-                <span>🎯 Ежедневная цель</span>
-                <span className={subjectDailyGoal.completed ? 'goal-done' : ''}>
-                  {subjectDailyGoal.solved}/{subjectDailyGoal.goal}
-                </span>
-              </div>
-              <div className="daily-goal-bar">
-                <div
-                  className={`daily-goal-fill ${subjectDailyGoal.completed ? 'complete' : ''}`}
-                  style={{ width: `${subjectDailyGoal.percent}%` }}
-                />
-              </div>
-              {subjectDailyGoal.completed
-                ? <p className="goal-msg done">Цель на сегодня выполнена!</p>
-                : <p className="goal-msg">Осталось {subjectDailyGoal.remaining} заданий</p>}
-            </div>
-          )}
-
-          {/* Сильные / слабые темы */}
           {predictedScore?.unlocked && (predictedScore.strongTopics?.length > 0 || predictedScore.weakTopics?.length > 0) && (
             <div className="dash-card topics-insight-card">
               {predictedScore.strongTopics?.length > 0 && (
@@ -719,6 +729,7 @@ function Practice({ studentId }) {
                 </div>
               )}
               <button
+                type="button"
                 className="weak-topics-btn"
                 onClick={startWeakTopicsPractice}
                 disabled={weakTopicsLoading}
@@ -728,52 +739,129 @@ function Practice({ studentId }) {
             </div>
           )}
 
-          {/* Рейтинг */}
-          <div className="dash-card leaderboard-card">
-            <div className="leaderboard-header">
-              <span>🏆 Рейтинг</span>
-              <div className="leaderboard-tabs">
-                {['day', 'week', 'month'].map(p => (
-                  <button
-                    key={p}
-                    className={`lb-tab ${leaderboardPeriod === p ? 'active' : ''}`}
-                    onClick={() => setLeaderboardPeriod(p)}
-                  >
-                    {p === 'day' ? 'День' : p === 'week' ? 'Неделя' : 'Месяц'}
-                  </button>
-                ))}
-              </div>
+          <h2 className="practice-section-heading">Подразделы</h2>
+
+          {filteredTopics.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-icon">📚</div>
+              <p className="empty-text">Нет доступных заданий по этому предмету</p>
             </div>
-            {leaderboard?.myPosition && (
-              <div className="my-rank">
-                Ваше место: <strong>#{leaderboard.myPosition.rank}</strong>
-                {' '}({leaderboard.myPosition.totalSolved} заданий)
+          ) : (
+            <div className="practice-grid">
+              {filteredTopics.map(topic => {
+                const hasStats = topic.stats && topic.stats.total > 0;
+                const rate = hasStats ? topic.stats.successRate : 0;
+                const rateClass = rate >= 70 ? 'good' : rate >= 50 ? 'medium' : 'low';
+                const qCount = topic.questions?.length || 0;
+                return (
+                  <div key={topic.id} className="topic-card">
+                    <div className="topic-card-top">
+                      <div className="topic-icon">{topic.icon || '📝'}</div>
+                      <div className="topic-head">
+                        <h3 className="topic-name">{topic.name}</h3>
+                        <span className="topic-qcount">{qCount} вопросов</span>
+                      </div>
+                      {hasStats && (
+                        <div className={`topic-rate-chip ${rateClass}`}>{rate}%</div>
+                      )}
+                    </div>
+
+                    {topic.description && (
+                      <p className="topic-desc">{topic.description}</p>
+                    )}
+
+                    {hasStats && (
+                      <div className="topic-progress">
+                        <div className="topic-progress-track">
+                          <div className={`topic-progress-fill ${rateClass}`} style={{ width: `${rate}%` }}></div>
+                        </div>
+                        <span className="topic-progress-label">{topic.stats.correct}/{topic.stats.total}</span>
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      className="topic-start-btn"
+                      onClick={() => startPractice(topic)}
+                      disabled={qCount === 0}
+                    >
+                      {hasStats ? 'Пройти снова' : 'Начать'} <span className="btn-arrow">→</span>
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ===== ВКЛАДКА РЕЙТИНГ ===== */}
+      {selectedSubject && activeTab === 'rating' && (
+        <div className="rating-panel">
+          <div className="rating-period-tabs">
+            {[
+              { id: 'day', label: 'День' },
+              { id: 'week', label: 'Неделя' },
+              { id: 'month', label: 'Месяц' },
+            ].map(({ id, label }) => (
+              <button
+                key={id}
+                type="button"
+                className={`rating-period-tab ${leaderboardPeriod === id ? 'active' : ''}`}
+                onClick={() => setLeaderboardPeriod(id)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {leaderboard?.myPosition && (
+            <div className="my-rank-card">
+              <div className="my-rank-label">Ваше место</div>
+              <div className="my-rank-value">#{leaderboard.myPosition.rank}</div>
+              <div className="my-rank-meta">{leaderboard.myPosition.totalSolved} заданий за период</div>
+            </div>
+          )}
+
+          <div className="rating-list-card">
+            <div className="rating-list-header">
+              <span>Топ учеников</span>
+              <span className="rating-list-count">
+                {(leaderboard?.top || []).length} чел.
+              </span>
+            </div>
+
+            {(leaderboard?.top || []).length === 0 ? (
+              <p className="lb-empty">Пока нет данных за этот период</p>
+            ) : (
+              <div className="leaderboard-list">
+                {(leaderboard?.top || []).slice(0, 20).map(entry => {
+                  const isMe = entry.studentId === studentId;
+                  const rankMedal = entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : entry.rank === 3 ? '🥉' : null;
+                  return (
+                    <div
+                      key={entry.studentId}
+                      className={`lb-row ${isMe ? 'me' : ''} ${entry.rank <= 3 ? 'top3' : ''}`}
+                    >
+                      <span className="lb-rank">{rankMedal || entry.rank}</span>
+                      <span className="lb-name">{entry.firstName} {entry.lastName?.[0]}.</span>
+                      <span className="lb-score">{entry.totalSolved}</span>
+                    </div>
+                  );
+                })}
               </div>
             )}
-            <div className="leaderboard-list">
-              {(leaderboard?.top || []).slice(0, 10).map(entry => (
-                <div key={entry.studentId} className={`lb-row ${entry.studentId === studentId ? 'me' : ''}`}>
-                  <span className="lb-rank">{entry.rank}</span>
-                  <span className="lb-name">{entry.firstName} {entry.lastName?.[0]}.</span>
-                  <span className="lb-score">{entry.totalSolved}</span>
-                </div>
-              ))}
-              {(!leaderboard?.top || leaderboard.top.length === 0) && (
-                <p className="lb-empty">Пока нет данных за этот период</p>
-              )}
-            </div>
           </div>
         </div>
       )}
 
-      {(!selectedSubject || activeTab === 'practice') && filteredTopics.length === 0 ? (
+      {/* Без выбранного предмета (один предмет — табы выше, этот блок не нужен) */}
+      {!selectedSubject && filteredTopics.length === 0 ? (
         <div className="empty-state">
           <div className="empty-icon">📚</div>
-          <p className="empty-text">
-            Нет доступных заданий для практики по этому предмету.
-          </p>
+          <p className="empty-text">Нет доступных заданий для практики</p>
         </div>
-      ) : (!selectedSubject || activeTab === 'practice') ? (
+      ) : !selectedSubject ? (
         <div className="practice-grid">
           {filteredTopics.map(topic => {
             const hasStats = topic.stats && topic.stats.total > 0;
@@ -807,6 +895,7 @@ function Practice({ studentId }) {
                 )}
 
                 <button
+                  type="button"
                   className="topic-start-btn"
                   onClick={() => startPractice(topic)}
                   disabled={qCount === 0}

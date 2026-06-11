@@ -1,12 +1,9 @@
 ﻿@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
 
-/* ========== ГЛОБАЛЬНЫЙ ФИКС: УБРАТЬ ГОРИЗОНТАЛЬНЫЙ СКРОЛЛ ========== */
-* {
-  max-width: 100%;
-}
-
+/* ========== ГЛОБАЛЬНЫЙ ФИКС: без горизонтального скролла ========== */
 html {
-  overflow-x: hidden;
+  height: 100%;
+  overflow: hidden;
   width: 100%;
 }
 
@@ -17,26 +14,23 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  overflow-x: hidden;
+  height: 100%;
+  overflow: hidden;
   width: 100%;
-  position: relative;
+  overscroll-behavior: none;
 }
 
 #root {
-  overflow-x: hidden;
+  height: 100%;
+  overflow: hidden;
   width: 100%;
 }
 
-/* Все секции и контейнеры */
-.section,
+/* Контейнеры приложения — один скролл внутри .content */
 .student-app,
 .content,
-.quiz-section,
-.practice-section,
-.homework-section,
-.statistics-section {
-  overflow-x: hidden !important;
-  max-width: 100% !important;
+.tab-viewport {
+  max-width: 100%;
 }
 
 /* Таблицы */

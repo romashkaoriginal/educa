@@ -10,7 +10,7 @@ if (tg) {
   tg.disableVerticalSwipes(); // Блокировка свайпа вниз
   tg.enableClosingConfirmation(); // Подтверждение при закрытии
   tg.setHeaderColor('#1E40AF'); // Цвет header (синий)
-  tg.setBackgroundColor('#ffffff'); // Цвет фона (белый)
+  tg.setBackgroundColor('#EAF3FA'); // Фон как у контента — без белой полосы при overscroll
   
   console.log('✅ Telegram Web App инициализирован');
 }

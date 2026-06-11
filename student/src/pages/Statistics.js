@@ -6,22 +6,11 @@ function Statistics({ studentId }) {
   const { practiceStats: stats, homeworkStats, loading: contextLoading, loadHomeworkStats, loadPracticeStats } = useData();
   const [activeTab, setActiveTab] = useState('practice');
 
-  // Обновляем данные при открытии раздела
   useEffect(() => {
     loadPracticeStats(true);
     loadHomeworkStats(true);
   }, []);
 
-  if ((contextLoading.practiceStats || contextLoading.homeworkStats) && !stats && !homeworkStats) {
-    return (
-      <div className="section">
-        <h1 className="section-title">Статистика</h1>
-        <p style={{ textAlign: 'center', padding: '40px' }}>Загрузка...</p>
-      </div>
-    );
-  }
-
-  // Группируем topicStats по предметам для практики
   const practiceBySubject = {};
   if (stats?.topicStats) {
     stats.topicStats.forEach(topic => {
@@ -40,16 +29,15 @@ function Statistics({ studentId }) {
     });
   }
 
-  // Группируем домашки по предметам
   const homeworkBySubject = {};
   if (homeworkStats?.homeworks) {
     homeworkStats.homeworks.forEach(hw => {
       const subjectName = hw.subject?.name || 'Без предмета';
       const subjectIcon = hw.subject?.icon || '📖';
       if (!homeworkBySubject[subjectName]) {
-        homeworkBySubject[subjectName] = { 
-          icon: subjectIcon, 
-          total: 0, 
+        homeworkBySubject[subjectName] = {
+          icon: subjectIcon,
+          total: 0,
           completed: 0,
           totalScore: 0,
           maxScore: 0,
@@ -58,15 +46,13 @@ function Statistics({ studentId }) {
         };
       }
       homeworkBySubject[subjectName].total += 1;
-      // Считаем все вопросы во всех ДЗ по предмету
       const questionsInHw = (hw.questions || []).length;
       homeworkBySubject[subjectName].totalQuestions += questionsInHw;
-      
+
       if (hw.bestSubmission) {
         homeworkBySubject[subjectName].completed += 1;
         homeworkBySubject[subjectName].totalScore += hw.bestSubmission.totalScore || 0;
         homeworkBySubject[subjectName].maxScore += hw.bestSubmission.maxScore || 0;
-        // Фоллбэк: если correctAnswers нет в ответе, считаем по проценту от вопросов
         const correct = hw.bestSubmission.correctAnswers !== undefined
           ? hw.bestSubmission.correctAnswers
           : Math.round((hw.bestSubmission.totalScore / hw.bestSubmission.maxScore) * questionsInHw);
@@ -75,33 +61,77 @@ function Statistics({ studentId }) {
     });
   }
 
-  return (
-    <div className="section">
-      <h1 className="section-title">📊 Моя статистика</h1>
+  const practiceSubjectCount = Object.keys(practiceBySubject).length;
+  const homeworkSubjectCount = Object.keys(homeworkBySubject).length;
 
-      <div className="stats-tabs">
+  if ((contextLoading.practiceStats || contextLoading.homeworkStats) && !stats && !homeworkStats) {
+    return (
+      <div className="section section-stats">
+        <div className="section-hero">
+          <div className="section-hero-glow"></div>
+          <div className="section-hero-content">
+            <div className="section-hero-text">
+              <div className="section-hero-eyebrow">РАЗДЕЛ</div>
+              <h1 className="section-hero-title">Статистика</h1>
+              <p className="section-hero-sub">Загрузка данных...</p>
+            </div>
+          </div>
+          <svg className="section-hero-wave" viewBox="0 0 400 40" preserveAspectRatio="none">
+            <path d="M0,40 L0,22 Q100,2 200,18 T400,15 L400,40 Z" />
+          </svg>
+        </div>
+        <div className="stats-panel">
+          <p style={{ textAlign: 'center', padding: '32px 0', color: '#6b7280' }}>Загрузка...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="section section-stats">
+      <div className="section-hero">
+        <div className="section-hero-glow"></div>
+        <div className="section-hero-content">
+          <div className="section-hero-text">
+            <div className="section-hero-eyebrow">РАЗДЕЛ</div>
+            <h1 className="section-hero-title">Статистика</h1>
+            <p className="section-hero-sub">
+              {practiceSubjectCount + homeworkSubjectCount > 0
+                ? `${practiceSubjectCount} предм. в практике · ${homeworkSubjectCount} в домашке`
+                : 'Твой прогресс по предметам'}
+            </p>
+          </div>
+        </div>
+        <svg className="section-hero-wave" viewBox="0 0 400 40" preserveAspectRatio="none">
+          <path d="M0,40 L0,22 Q100,2 200,18 T400,15 L400,40 Z" />
+        </svg>
+      </div>
+
+      <div className="practice-tabs">
         <button
-          className={`stats-tab ${activeTab === 'practice' ? 'active' : ''}`}
+          type="button"
+          className={`practice-tab ${activeTab === 'practice' ? 'active' : ''}`}
           onClick={() => setActiveTab('practice')}
         >
-          💪 Практика
+          <span className="practice-tab-icon">💪</span>
+          <span className="practice-tab-label">Практика</span>
         </button>
         <button
-          className={`stats-tab ${activeTab === 'homework' ? 'active' : ''}`}
+          type="button"
+          className={`practice-tab ${activeTab === 'homework' ? 'active' : ''}`}
           onClick={() => setActiveTab('homework')}
         >
-          📝 Домашка
+          <span className="practice-tab-icon">📝</span>
+          <span className="practice-tab-label">Домашка</span>
         </button>
       </div>
 
-      {/* ===== ПРАКТИКА ===== */}
       {activeTab === 'practice' && (
-        <div className="stats-content">
+        <div className="stats-panel stats-content">
           {Object.keys(practiceBySubject).length === 0 ? (
             <div className="empty-state">
               <div className="empty-icon">📚</div>
-              <p>Вы ещё не решали задания.</p>
-              <p>Перейдите в раздел Практика!</p>
+              <p className="empty-text">Вы ещё не решали задания в практике</p>
             </div>
           ) : (
             Object.entries(practiceBySubject).map(([subjectName, data]) => (
@@ -131,21 +161,20 @@ function Statistics({ studentId }) {
         </div>
       )}
 
-      {/* ===== ДОМАШКА ===== */}
       {activeTab === 'homework' && (
-        <div className="stats-content">
+        <div className="stats-panel stats-content">
           {Object.keys(homeworkBySubject).length === 0 ? (
             <div className="empty-state">
               <div className="empty-icon">📝</div>
-              <p>У вас пока нет домашних заданий.</p>
+              <p className="empty-text">У вас пока нет домашних заданий</p>
             </div>
           ) : (
             <div className="stats-block">
               <h3>📝 По предметам</h3>
               <div className="subjects-list">
                 {Object.entries(homeworkBySubject).map(([subjectName, data]) => {
-                  const scorePercent = data.maxScore > 0 
-                    ? Math.round((data.totalScore / data.maxScore) * 100) 
+                  const scorePercent = data.maxScore > 0
+                    ? Math.round((data.totalScore / data.maxScore) * 100)
                     : 0;
                   return (
                     <div key={subjectName} className="subject-stat-row">

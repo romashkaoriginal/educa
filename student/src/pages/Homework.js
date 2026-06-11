@@ -5,6 +5,35 @@ import { apiFetch } from './api';
 
 import { API_URL } from '../config';
 
+function HomeworkHero({ eyebrow, title, subtitle, showBack, onBack, badgeCount, badgeUrgent }) {
+  return (
+    <div className="section-hero">
+      {showBack && (
+        <button type="button" className="back-button hero-back-inset" onClick={onBack}>
+          ← Назад к предметам
+        </button>
+      )}
+      <div className="section-hero-glow"></div>
+      <div className="section-hero-content">
+        <div className="section-hero-text">
+          <div className="section-hero-eyebrow">{eyebrow}</div>
+          <h1 className="section-hero-title">{title}</h1>
+          {subtitle && <p className="section-hero-sub">{subtitle}</p>}
+        </div>
+        {badgeCount > 0 && (
+          <div className={`hero-count-badge ${badgeUrgent ? 'urgent' : ''}`}>
+            <span className="hero-count-badge-num">{badgeCount}</span>
+            <span className="hero-count-badge-label">новых</span>
+          </div>
+        )}
+      </div>
+      <svg className="section-hero-wave" viewBox="0 0 400 40" preserveAspectRatio="none">
+        <path d="M0,40 L0,22 Q100,2 200,18 T400,15 L400,40 Z" />
+      </svg>
+    </div>
+  );
+}
+
 function MatchingWire({ pairs, rightOrder, connections, colors, onChange }) {
   const containerRef = React.useRef(null);
   const [activeLeft, setActiveLeft] = React.useState(null);
@@ -744,9 +773,15 @@ function StudentHomework({ studentId }) {
 
   if (contextLoading.homework && homeworks.length === 0) {
     return (
-      <div className="section">
-        <h1 className="section-title">Домашние задания</h1>
-        <p style={{ textAlign: 'center', color: '#6b7280', padding: '40px' }}>Загрузка...</p>
+      <div className="section section-homework homework-section">
+        <HomeworkHero
+          eyebrow="РАЗДЕЛ"
+          title="Домашка"
+          subtitle="Загрузка заданий..."
+        />
+        <div className="homework-panel">
+          <p style={{ textAlign: 'center', color: '#6b7280', padding: '32px 0' }}>Загрузка...</p>
+        </div>
       </div>
     );
   }
@@ -1097,16 +1132,23 @@ function StudentHomework({ studentId }) {
   }
 
   if (!selectedSubject && subjects.length > 1) {
+    const totalUnfinished = homeworks.filter(hw => !hw.stats || hw.stats.bestScore === 0).length;
+
     return (
-      <div className="section">
-        <h1 className="section-title">📝 Домашние задания</h1>
-        <p style={{ marginBottom: '16px', color: '#6b7280', fontSize: '14px' }}>Выберите предмет:</p>
+      <div className="section section-homework homework-section">
+        <HomeworkHero
+          eyebrow="РАЗДЕЛ"
+          title="Домашка"
+          subtitle="Выберите предмет"
+          badgeCount={totalUnfinished}
+          badgeUrgent={totalUnfinished > 0}
+        />
         <div className="subjects-grid">
           {subjects.map(subject => {
             const subjectHomeworks = homeworks.filter(hw => hw.subjectId === subject.id);
             const unfinishedCount = subjectHomeworks.filter(hw => !hw.stats || hw.stats.bestScore === 0).length;
             return (
-              <button key={subject.id} className="subject-card" onClick={() => setSelectedSubject(subject)}>
+              <button key={subject.id} type="button" className="subject-card" onClick={() => setSelectedSubject(subject)}>
                 <span className="subject-icon-big">{subject.icon}</span>
                 <h3>{subject.name}</h3>
                 <p>{subjectHomeworks.length} заданий</p>
@@ -1123,19 +1165,29 @@ function StudentHomework({ studentId }) {
     ? homeworks.filter(hw => hw.subjectId === selectedSubject.id)
     : homeworks;
 
-  return (
-    <div className="section homework-section">
-      <div className="homework-topbar">
-        {subjects.length > 1 && selectedSubject && (
-          <button className="back-button" onClick={backToSubjects}>← Назад к предметам</button>
-        )}
-        <h1 className="homework-page-title">
-          <span className="homework-page-icon">{selectedSubject?.icon || '📝'}</span>
-          {selectedSubject ? selectedSubject.name : 'Домашка'}
-        </h1>
-        <p className="homework-page-subtitle">Выполняй задания в срок и улучшай лучший результат</p>
-      </div>
+  const unfinishedInView = filteredHomeworks.filter(hw => !hw.stats || hw.stats.bestScore === 0).length;
 
+  return (
+    <div className="section section-homework homework-section">
+      <HomeworkHero
+        showBack={subjects.length > 1 && !!selectedSubject}
+        onBack={backToSubjects}
+        eyebrow={selectedSubject ? 'ПРЕДМЕТ' : 'РАЗДЕЛ'}
+        title={
+          selectedSubject ? (
+            <><span className="hero-title-emoji">{selectedSubject.icon}</span> {selectedSubject.name}</>
+          ) : 'Домашка'
+        }
+        subtitle={
+          selectedSubject
+            ? `${filteredHomeworks.length} заданий · выполняй в срок`
+            : 'Все домашние задания'
+        }
+        badgeCount={unfinishedInView}
+        badgeUrgent={unfinishedInView > 0}
+      />
+
+      <div className="homework-panel">
       {filteredHomeworks.length === 0 ? (
         <div className="empty-state">
           <div className="empty-icon">📚</div>
@@ -1213,6 +1265,7 @@ function StudentHomework({ studentId }) {
           })}
         </div>
       )}
+      </div>
     </div>
   );
 }
