@@ -3,6 +3,16 @@ import { apiFetch } from './api';
 
 import { API_URL } from '../config';
 
+const parseOkJson = async (response, label) => {
+  if (!response.ok) {
+    console.error(`${label} failed:`, response.status);
+    return null;
+  }
+  return response.json();
+};
+
+const sameId = (a, b) => Number(a) === Number(b);
+
 const DataContext = createContext();
 
 export const useData = () => {
@@ -23,6 +33,9 @@ export const DataProvider = ({ children, studentId }) => {
   const [dailyGoal, setDailyGoal] = useState(null);
   const [leaderboard, setLeaderboard] = useState(null);
   const [scoreHistory, setScoreHistory] = useState(null);
+  const [subjectDashboard, setSubjectDashboard] = useState(null);
+  const [practiceIntent, setPracticeIntent] = useState(null);
+  const [dashboardRefreshKey, setDashboardRefreshKey] = useState(0);
 
   const [loaded, setLoaded] = useState({
     subjects: false, practice: false, homework: false,
@@ -46,7 +59,8 @@ export const DataProvider = ({ children, studentId }) => {
     setLoading(prev => ({ ...prev, subjects: true }));
     try {
       const response = await apiFetch(`${API_URL}/subjects/student/${studentId}`);
-      const data = await response.json();
+      const data = await parseOkJson(response, 'loadSubjects');
+      if (!data) return [];
       setSubjects(data.subjects || []);
       loadedRef.current.subjects = true;
       setLoaded(prev => ({ ...prev, subjects: true }));
@@ -67,7 +81,8 @@ export const DataProvider = ({ children, studentId }) => {
     setLoading(prev => ({ ...prev, practice: true }));
     try {
       const response = await apiFetch(`${API_URL}/practice/student/${studentId}`);
-      const data = await response.json();
+      const data = await parseOkJson(response, 'loadPractice');
+      if (!data) return [];
       const topics = data.practiceTopics || [];
       setPracticeTopics(topics);
       loadedRef.current.practice = true;
@@ -94,7 +109,8 @@ export const DataProvider = ({ children, studentId }) => {
       topicsToLoad.map(async (topic) => {
         try {
           const res = await apiFetch(`${API_URL}/practice/questions/${topic.id}`);
-          const data = await res.json();
+          const data = await parseOkJson(res, 'prefetchQuestions');
+          if (!data) return;
           const active = (data.questions || []).filter(q => q.isActive);
           if (active.length > 0) {
             questionsCache.current[topic.id] = active;
@@ -112,7 +128,8 @@ export const DataProvider = ({ children, studentId }) => {
       return questionsCache.current[topic.id];
     }
     const res = await apiFetch(`${API_URL}/practice/questions/${topic.id}`);
-    const data = await res.json();
+    const data = await parseOkJson(res, 'getQuestions');
+    if (!data) return [];
     const active = (data.questions || []).filter(q => q.isActive);
     questionsCache.current[topic.id] = active;
     return active;
@@ -125,7 +142,8 @@ export const DataProvider = ({ children, studentId }) => {
     setLoading(prev => ({ ...prev, homework: true }));
     try {
       const response = await apiFetch(`${API_URL}/homework/student/${studentId}`);
-      const data = await response.json();
+      const data = await parseOkJson(response, 'loadHomeworks');
+      if (!data) return [];
       setHomeworks(data.homeworks || []);
       loadedRef.current.homework = true;
       setLoaded(prev => ({ ...prev, homework: true }));
@@ -146,7 +164,8 @@ export const DataProvider = ({ children, studentId }) => {
     setLoading(prev => ({ ...prev, practiceStats: true }));
     try {
       const response = await apiFetch(`${API_URL}/practice/stats/${studentId}`);
-      const data = await response.json();
+      const data = await parseOkJson(response, 'loadPracticeStats');
+      if (!data) return null;
       setPracticeStats(data);
       loadedRef.current.practiceStats = true;
       setLoaded(prev => ({ ...prev, practiceStats: true }));
@@ -167,7 +186,8 @@ export const DataProvider = ({ children, studentId }) => {
     setLoading(prev => ({ ...prev, homeworkStats: true }));
     try {
       const response = await apiFetch(`${API_URL}/homework/student/${studentId}/stats`);
-      const data = await response.json();
+      const data = await parseOkJson(response, 'loadHomeworkStats');
+      if (!data) return null;
       setHomeworkStats(data);
       loadedRef.current.homeworkStats = true;
       setLoaded(prev => ({ ...prev, homeworkStats: true }));
@@ -185,7 +205,7 @@ export const DataProvider = ({ children, studentId }) => {
   // newResult: { topicId, correct, total }
   const updatePracticeStatsOptimistic = useCallback((topicId, correct, total) => {
     setPracticeTopics(prev => prev.map(topic => {
-      if (topic.id !== topicId) return topic;
+      if (Number(topic.id) !== Number(topicId)) return topic;
       const prevStats = topic.stats || { correct: 0, total: 0, successRate: 0 };
       const newRate = total > 0 ? Math.round(correct / total * 100) : 0;
       const prevRate = prevStats.successRate || 0;
@@ -210,7 +230,7 @@ export const DataProvider = ({ children, studentId }) => {
     try {
       const qs = subjectId ? `?subjectId=${subjectId}` : '';
       const response = await apiFetch(`${API_URL}/practice/streak/${studentId}${qs}`);
-      const data = await response.json();
+      const data = await parseOkJson(response, 'loadStreak');
       setStreak(data || { streak: 0, todayDone: false });
       setStreakLoaded(true);
       return data;
@@ -225,7 +245,8 @@ export const DataProvider = ({ children, studentId }) => {
     if (!subjectId) return null;
     try {
       const response = await apiFetch(`${API_URL}/practice/predicted/${studentId}/${subjectId}`);
-      const data = await response.json();
+      const data = await parseOkJson(response, 'loadPredictedScore');
+      if (!data) return null;
       setPredictedScore(data);
       return data;
     } catch (error) {
@@ -237,7 +258,8 @@ export const DataProvider = ({ children, studentId }) => {
   const loadDailyGoal = useCallback(async () => {
     try {
       const response = await apiFetch(`${API_URL}/practice/daily-goal/${studentId}`);
-      const data = await response.json();
+      const data = await parseOkJson(response, 'loadDailyGoal');
+      if (!data) return null;
       setDailyGoal(data);
       return data;
     } catch (error) {
@@ -251,7 +273,7 @@ export const DataProvider = ({ children, studentId }) => {
     setDailyGoal((prev) => {
       if (!prev?.goals) return prev;
       const goals = prev.goals.map((g) =>
-        g.subjectId === goalEntry.subjectId ? { ...g, ...goalEntry } : g
+        sameId(g.subjectId, goalEntry.subjectId) ? { ...g, ...goalEntry } : g
       );
       const totalCorrectToday = goals.reduce((sum, g) => sum + (g.solved || 0), 0);
       return { ...prev, goals, totalCorrectToday, totalUniqueToday: totalCorrectToday };
@@ -262,7 +284,8 @@ export const DataProvider = ({ children, studentId }) => {
     if (!subjectId) return null;
     try {
       const response = await apiFetch(`${API_URL}/practice/leaderboard/${subjectId}?period=${period}&studentId=${studentId}`);
-      const data = await response.json();
+      const data = await parseOkJson(response, 'loadLeaderboard');
+      if (!data) return null;
       setLeaderboard(data);
       return data;
     } catch (error) {
@@ -275,7 +298,8 @@ export const DataProvider = ({ children, studentId }) => {
     if (!subjectId) return null;
     try {
       const response = await apiFetch(`${API_URL}/practice/score-history/${studentId}/${subjectId}`);
-      const data = await response.json();
+      const data = await parseOkJson(response, 'loadScoreHistory');
+      if (!data) return null;
       setScoreHistory(data);
       return data;
     } catch (error) {
@@ -288,12 +312,48 @@ export const DataProvider = ({ children, studentId }) => {
     if (!subjectId) return null;
     try {
       const response = await apiFetch(`${API_URL}/practice/weak-topics/${studentId}/${subjectId}`);
+      if (!response.ok) {
+        console.error('loadWeakTopicsQuestions failed:', response.status);
+        return null;
+      }
       return await response.json();
     } catch (error) {
       console.error('Error loading weak topics:', error);
       return null;
     }
   }, [studentId]);
+
+  const loadSubjectDashboard = useCallback(async (subjectId) => {
+    if (!subjectId) return null;
+    try {
+      let response = await apiFetch(`${API_URL}/practice/dashboard/${studentId}/${subjectId}`);
+      if (response.status === 404) {
+        response = await apiFetch(`${API_URL}/practice/predicted/${studentId}/${subjectId}?dashboard=1`);
+      }
+      if (!response.ok) {
+        console.error('Dashboard load failed:', response.status, subjectId);
+        return null;
+      }
+      const data = await response.json();
+      setSubjectDashboard(data);
+      return data;
+    } catch (error) {
+      console.error('Error loading subject dashboard:', error);
+      return null;
+    }
+  }, [studentId]);
+
+  const refreshDashboard = useCallback(() => {
+    setDashboardRefreshKey((k) => k + 1);
+  }, []);
+
+  const requestPractice = useCallback((intent) => {
+    setPracticeIntent(intent);
+  }, []);
+
+  const clearPracticeIntent = useCallback(() => {
+    setPracticeIntent(null);
+  }, []);
 
   const preloadAllData = useCallback(async () => {
     // Сначала грузим то что видно сразу — subjects, practice и streak (огонёк в hero)
@@ -312,10 +372,11 @@ export const DataProvider = ({ children, studentId }) => {
       loadDailyGoal(),
       subjectId ? loadPredictedScore(subjectId) : Promise.resolve(),
       subjectId ? loadScoreHistory(subjectId) : Promise.resolve(),
-      subjectId ? loadLeaderboard(subjectId, leaderboardPeriod) : Promise.resolve()
+      subjectId ? loadLeaderboard(subjectId, leaderboardPeriod) : Promise.resolve(),
+      subjectId ? loadSubjectDashboard(subjectId) : Promise.resolve(),
     ]);
     return newStreak;
-  }, [loadPractice, loadPracticeStats, loadStreak, loadDailyGoal, loadPredictedScore, loadScoreHistory, loadLeaderboard]);
+  }, [loadPractice, loadPracticeStats, loadStreak, loadDailyGoal, loadPredictedScore, loadScoreHistory, loadLeaderboard, loadSubjectDashboard]);
 
   const refreshAfterHomework = useCallback(async () => {
     loadedRef.current.homework = false;
@@ -334,7 +395,9 @@ export const DataProvider = ({ children, studentId }) => {
     dailyGoal, loadDailyGoal, patchDailyGoal,
     leaderboard, loadLeaderboard,
     scoreHistory, loadScoreHistory,
-    loadWeakTopicsQuestions
+    loadWeakTopicsQuestions,
+    subjectDashboard, loadSubjectDashboard, refreshDashboard, dashboardRefreshKey,
+    practiceIntent, requestPractice, clearPracticeIntent
   };
 
   return (

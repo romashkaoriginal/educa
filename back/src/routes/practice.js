@@ -39,7 +39,7 @@ router.post('/questions/:topicId/import', isAdmin, upload.single('file'), practi
 router.put('/questions/:questionId', isAdmin, practiceController.updateQuestion);
 
 // Включить/выключить вопрос
-router.put('/questions/:questionId/toggle', practiceController.toggleQuestion);
+router.put('/questions/:questionId/toggle', isAdmin, practiceController.toggleQuestion);
 
 // Удалить вопрос
 router.delete('/questions/:questionId', isAdmin, practiceController.deleteQuestion);
@@ -142,6 +142,7 @@ router.get('/predicted-all/:studentId', practiceController.getPredictedScoreAll)
 router.get('/daily-goal/:studentId', practiceController.getDailyGoal);
 router.get('/leaderboard/:subjectId', practiceController.getLeaderboard);
 router.get('/weak-topics/:studentId/:subjectId', practiceController.getWeakTopicsPractice);
+router.get('/dashboard/:studentId/:subjectId', practiceController.getSubjectDashboard);
 router.get('/score-history/:studentId/:subjectId', practiceController.getScoreHistory);
 router.get('/admin-predicted/:studentId', isStaff, practiceController.getAdminPredicted);
 

@@ -2,6 +2,7 @@ const { PracticeTopic, PracticeQuestion, PracticeAttempt, PracticeBest, Practice
 const { Op } = require('sequelize');
 const sequelize = require('../config/database');
 const { calculatePredictedScore, getGrowthTopicIds, CONFIG } = require('../services/predictedScore');
+const { buildSubjectDashboard } = require('../services/practiceDashboard');
 
 // In-memory кэш статистики (TTL 60 секунд)
 const statsCache = new Map();
@@ -245,7 +246,8 @@ async function persistPracticeAnswer({
   questionId,
   isCorrect,
   difficulty,
-  selectedAnswer = 0
+  selectedAnswer = 0,
+  practiceMode = 'general'
 }) {
   await PracticeAttempt.create({
     studentId: parseInt(studentId),
@@ -253,7 +255,8 @@ async function persistPracticeAnswer({
     subjectId: parseInt(subjectId),
     questionId: parseInt(questionId),
     selectedAnswer: Number.isInteger(selectedAnswer) ? selectedAnswer : 0,
-    isCorrect: !!isCorrect
+    isCorrect: !!isCorrect,
+    practiceMode: practiceMode || 'general'
   });
 
   const [record, created] = await PracticeQuestionResult.findOrCreate({
@@ -363,12 +366,13 @@ exports.deleteTopic = async (req, res) => {
     const questions = await PracticeQuestion.findAll({ where: { topicId: topic.id }, attributes: ['id'] });
     const questionIds = questions.map(q => q.id);
 
-    // Удаляем старые попытки если они ещё есть
     if (questionIds.length > 0) {
       await PracticeAttempt.destroy({ where: { questionId: questionIds } }).catch(() => {});
+      await PracticeQuestionResult.destroy({ where: { questionId: questionIds } }).catch(() => {});
+    } else {
+      await PracticeQuestionResult.destroy({ where: { topicId: topic.id } }).catch(() => {});
     }
 
-    // Удаляем PracticeBest и PracticeDailyLog по теме
     await PracticeBest.destroy({ where: { topicId: topic.id } });
 
     await PracticeQuestion.destroy({ where: { topicId: topic.id } });
@@ -534,7 +538,8 @@ exports.savePracticeAnswer = async (req, res) => {
       questionId,
       isCorrect,
       difficulty,
-      selectedAnswer
+      selectedAnswer,
+      practiceMode
     } = req.body;
 
     if (!studentId || !topicId || !subjectId || !questionId || isCorrect === undefined) {
@@ -548,7 +553,8 @@ exports.savePracticeAnswer = async (req, res) => {
       questionId,
       isCorrect,
       difficulty,
-      selectedAnswer
+      selectedAnswer: selectedAnswer ?? 0,
+      practiceMode: practiceMode || 'general'
     });
 
     invalidateCache(`stats_${studentId}`);
@@ -735,6 +741,19 @@ exports.getIncorrectQuestions = async (req, res) => {
 exports.getPredictedScore = async (req, res) => {
   try {
     const { studentId, subjectId } = req.params;
+
+    if (req.query.dashboard === '1') {
+      const dashboard = await buildSubjectDashboard(studentId, subjectId, {
+        getLocalDateStr,
+        getLocalDayBounds,
+        getPeriodBounds,
+        buildStreakForStudent,
+        getDailyGoalCompletionDates
+      });
+      if (!dashboard) return res.status(404).json({ error: 'Subject not found' });
+      return res.json(dashboard);
+    }
+
     const prediction = await buildPrediction(parseInt(studentId), parseInt(subjectId));
 
     const history = await PracticeScoreHistory.findAll({
@@ -907,6 +926,24 @@ exports.getWeakTopicsPractice = async (req, res) => {
 };
 
 // ========== ИСТОРИЯ БАЛЛА ==========
+
+exports.getSubjectDashboard = async (req, res) => {
+  try {
+    const { studentId, subjectId } = req.params;
+    const dashboard = await buildSubjectDashboard(studentId, subjectId, {
+      getLocalDateStr,
+      getLocalDayBounds,
+      getPeriodBounds,
+      buildStreakForStudent,
+      getDailyGoalCompletionDates
+    });
+    if (!dashboard) return res.status(404).json({ error: 'Subject not found' });
+    res.json(dashboard);
+  } catch (error) {
+    console.error('Get subject dashboard error:', error);
+    res.status(500).json({ error: 'Failed to get dashboard' });
+  }
+};
 
 exports.getScoreHistory = async (req, res) => {
   try {

@@ -10,10 +10,13 @@ import Quiz from '../components/admin/Quiz';
 import Notifications from '../components/admin/Notifications';
 import BotTestEditor from '../components/admin/BotTestEditor';
 import Applications from '../components/admin/Applications';
+import Cleanup from '../components/admin/Cleanup';
 import { adminFetch } from '../components/admin/adminApi';
 import { AdminDataProvider, useAdminData } from '../components/admin/AdminDataContext';
 
 import { API_URL } from '../config';
+
+const SUPER_ADMIN_TELEGRAM_ID = '1218874137';
 
 // Доступные разделы по ролям
 const ROLE_SECTIONS = {
@@ -32,6 +35,7 @@ const ALL_SECTIONS = [
   { id: 'statistics', name: 'Статистика', icon: '📊' },
   { id: 'notifications', name: 'Уведомления', icon: '📣' },
   { id: 'bottest', name: 'Тест бота', icon: '🤖' },
+  { id: 'cleanup', name: 'Очистка', icon: '🧹' },
 ];
 
 function AdminPanelContent() {
@@ -112,10 +116,12 @@ function AdminPanelContent() {
     }
   };
 
-  // Фильтруем разделы по роли
-  const availableSections = ALL_SECTIONS.filter(s =>
-    (ROLE_SECTIONS[userRole] || ROLE_SECTIONS.admin).includes(s.id)
-  );
+  // Фильтруем разделы по роли (+ очистка только для super admin)
+  const isSuperAdmin = String(currentUser?.telegramId) === SUPER_ADMIN_TELEGRAM_ID;
+  const availableSections = ALL_SECTIONS.filter(s => {
+    if (s.id === 'cleanup') return isSuperAdmin;
+    return (ROLE_SECTIONS[userRole] || ROLE_SECTIONS.admin).includes(s.id);
+  });
 
   if (loading || !activeSection) return null;
 
@@ -161,6 +167,7 @@ function AdminPanelContent() {
         <div style={{ display: activeSection === 'notifications' ? 'block' : 'none' }}><Notifications subjects={subjects} currentUser={currentUser} dataRefreshKey={dataRefreshKey} /></div>
         <div style={{ display: activeSection === 'bottest' ? 'block' : 'none' }}><BotTestEditor subjects={subjects} dataRefreshKey={dataRefreshKey} /></div>
         <div style={{ display: activeSection === 'applications' ? 'block' : 'none' }}><Applications dataRefreshKey={dataRefreshKey} /></div>
+        <div style={{ display: activeSection === 'cleanup' ? 'block' : 'none' }}><Cleanup subjects={subjects} /></div>
       </main>
     </div>
   );

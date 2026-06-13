@@ -492,7 +492,7 @@ function Homework({ subjects, currentUserId, dataRefreshKey = 0 }) {
                     </div>
                     <div className="result-score">
                       <span className="score">{result.totalScore}/{result.maxScore}</span>
-                      <span className="percentage">{Math.round((result.totalScore / result.maxScore) * 100)}%</span>
+                      <span className="percentage">{result.maxScore > 0 ? Math.round((result.totalScore / result.maxScore) * 100) : 0}%</span>
                     </div>
                   </div>
                   <div className="result-meta">

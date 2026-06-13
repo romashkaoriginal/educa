@@ -1,5 +1,7 @@
 const express = require('express');
 const { User, Subject } = require('../models');
+const { requireSuperAdmin } = require('../middleware/superAdmin');
+const cleanupController = require('../controllers/cleanupController');
 
 const router = express.Router();
 
@@ -31,5 +33,8 @@ router.get('/dashboard', async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 });
+
+router.post('/cleanup/answers', requireSuperAdmin, cleanupController.clearStudentAnswersBySubject);
+router.post('/cleanup/streak', requireSuperAdmin, cleanupController.clearStudentStreak);
 
 module.exports = router;

@@ -6,6 +6,25 @@ import { apiFetch } from './api';
 
 import { API_URL } from '../config';
 import StudentBrandMark from '../components/StudentBrandMark';
+import homeworkMathBg from '../assets/homework-math.png';
+import homeworkPhysBg from '../assets/homework-phys.png';
+import homeworkRussBg from '../assets/homework-russ.png';
+import homeworkEnglishBg from '../assets/homework-english.png';
+
+const HOMEWORK_SUBJECT_CARD_BACKGROUNDS = [
+  { match: ['математ', 'math'], image: homeworkMathBg },
+  { match: ['физик', 'phys'], image: homeworkPhysBg },
+  { match: ['русск', 'russ'], image: homeworkRussBg },
+  { match: ['англ', 'english'], image: homeworkEnglishBg },
+];
+
+function getHomeworkSubjectCardBg(subject) {
+  const haystack = `${subject?.name || ''} ${subject?.icon || ''}`.toLowerCase();
+  const found = HOMEWORK_SUBJECT_CARD_BACKGROUNDS.find(({ match }) =>
+    match.some((token) => haystack.includes(token))
+  );
+  return found?.image || null;
+}
 
 function HomeworkHero({ eyebrow, title, subtitle, showBack, onBack, badgeCount, badgeUrgent }) {
   return (
@@ -1122,14 +1141,23 @@ function StudentHomework({ studentId }) {
         />
         <div className="subjects-grid">
           {subjects.map(subject => {
-            const subjectHomeworks = homeworks.filter(hw => hw.subjectId === subject.id);
+            const cardBg = getHomeworkSubjectCardBg(subject);
+            const subjectHomeworks = homeworks.filter(hw => Number(hw.subjectId) === Number(subject.id));
             const unfinishedCount = subjectHomeworks.filter(hw => !hw.stats || hw.stats.bestScore === 0).length;
             return (
-              <button key={subject.id} type="button" className="subject-card" onClick={() => setSelectedSubject(subject)}>
-                <span className="subject-icon-big">{subject.icon}</span>
-                <h3>{subject.name}</h3>
-                <p>{subjectHomeworks.length} заданий</p>
-                {unfinishedCount > 0 && <span className="badge-warning">❗ {unfinishedCount}</span>}
+              <button
+                key={subject.id}
+                type="button"
+                className="subject-card homework-subject-card"
+                style={cardBg ? { backgroundImage: `url(${cardBg})` } : undefined}
+                onClick={() => setSelectedSubject(subject)}
+                aria-label={`${subject.name}, ${subjectHomeworks.length} заданий${unfinishedCount > 0 ? `, ${unfinishedCount} не сдано` : ''}`}
+              >
+                {unfinishedCount > 0 && (
+                  <span className="homework-subject-card-badge" aria-hidden="true">
+                    {unfinishedCount}
+                  </span>
+                )}
               </button>
             );
           })}

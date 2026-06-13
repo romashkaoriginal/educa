@@ -606,6 +606,10 @@
   padding: 0;
 }
 
+.student-app .section.section-homework .homework-subject-card {
+  padding: 0;
+}
+
 .student-app .topics-list,
 .student-app .subjects-list,
 .student-app .recent-list,

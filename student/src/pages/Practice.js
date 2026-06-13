@@ -300,7 +300,9 @@ function Practice({ studentId }) {
     dailyGoal, loadDailyGoal, patchDailyGoal,
     predictedScore, loadPredictedScore,
     leaderboard, loadLeaderboard,
-    loadWeakTopicsQuestions
+    loadWeakTopicsQuestions,
+    loadSubjectDashboard,
+    practiceIntent, clearPracticeIntent,
   } = useData();
   
   const [selectedSubject, setSelectedSubject] = useState(null);
@@ -344,11 +346,15 @@ function Practice({ studentId }) {
   const streakTodayDoneInitRef = useRef(false);
   const prevStreakTodayDoneRef = useRef(false);
 
-  const subjectDailyGoal = dailyGoal?.goals?.find(g => g.subjectId === selectedSubject?.id);
+  const subjectDailyGoal = dailyGoal?.goals?.find(
+    (g) => Number(g.subjectId) === Number(selectedSubject?.id)
+  );
 
   const getEffectiveTodayDone = () => {
     if (activePractice?.subjectId) {
-      const goal = dailyGoal?.goals?.find(g => g.subjectId === activePractice.subjectId);
+      const goal = dailyGoal?.goals?.find(
+        (g) => Number(g.subjectId) === Number(activePractice.subjectId)
+      );
       if (goal) return goal.completed || (goal.solved + sessionSolved >= goal.goal);
     }
     if (subjectDailyGoal) return subjectDailyGoal.completed;
@@ -519,6 +525,7 @@ function Practice({ studentId }) {
             isCorrect: !!answerPayload.isCorrect,
             difficulty: question.difficulty || 'medium',
             selectedAnswer: answerPayload.selectedAnswer,
+            practiceMode: practiceModeRef.current || 'general',
           }),
         });
 
@@ -533,6 +540,9 @@ function Practice({ studentId }) {
         setSessionSolved((s) => Math.max(0, s - 1));
         if (answerPayload.isCorrect && practiceSnapshot?.subjectId) {
           loadPredictedScore(practiceSnapshot.subjectId);
+        }
+        if (practiceSnapshot?.subjectId) {
+          loadSubjectDashboard(practiceSnapshot.subjectId);
         }
         return data;
       } catch (error) {
@@ -663,6 +673,74 @@ function Practice({ studentId }) {
     }
   };
 
+  const practiceIntentRef = useRef(null);
+  useEffect(() => {
+    if (!practiceIntent || !subjects.length) return;
+    if (practiceIntentRef.current === practiceIntent) return;
+    practiceIntentRef.current = practiceIntent;
+
+    const subject = subjects.find((s) => Number(s.id) === Number(practiceIntent.subjectId));
+    if (!subject) {
+      clearPracticeIntent();
+      practiceIntentRef.current = null;
+      return;
+    }
+
+    const run = async () => {
+      setSelectedSubject(subject);
+      setActiveTab('practice');
+
+      try {
+        if (practiceIntent.mode === 'weak') {
+          setPracticeLoading(true);
+          const goalData = await loadDailyGoal();
+          const data = await loadWeakTopicsQuestions(subject.id);
+          const questionsList = (data?.questions || []).map((q) => shuffleOptions(q)).filter(Boolean);
+          if (questionsList.length === 0) {
+            alert(data?.message || 'Нет заданий для тренировки');
+          } else {
+            startPracticeFromQuestions(
+              { id: `weak-${subject.id}`, name: 'Слабые темы', subjectId: subject.id },
+              questionsList,
+              'Слабые темы',
+              goalData,
+              'weak'
+            );
+          }
+          setPracticeLoading(false);
+        } else if (practiceIntent.mode === 'topic' && practiceIntent.topicId) {
+          const topic = practiceTopics.find((t) => t.id === practiceIntent.topicId);
+          if (topic) await startPractice(topic);
+        } else {
+          setPracticeLoading(true);
+          const goalData = await loadDailyGoal();
+          const topics = practiceTopics.filter((t) => t.subjectId === subject.id);
+          const allQuestions = await loadAllSubjectQuestions(topics);
+          if (allQuestions.length === 0) {
+            alert('Нет доступных заданий');
+          } else {
+            startPracticeFromQuestions(
+              { id: `general-${subject.id}`, name: 'Практика', subjectId: subject.id },
+              allQuestions,
+              'Практика',
+              goalData,
+              'general'
+            );
+          }
+          setPracticeLoading(false);
+        }
+      } catch (e) {
+        console.error('Practice intent error:', e);
+        setPracticeLoading(false);
+      } finally {
+        clearPracticeIntent();
+        practiceIntentRef.current = null;
+      }
+    };
+
+    run();
+  }, [practiceIntent, subjects, practiceTopics]); // eslint-disable-line
+
   // Запуск светящейся сферы от кнопки ответа к кольцу дневной цели
   const launchOrbToGoal = (answerIndex, question, answerPayload, practiceSnapshot) => {
     const orbItem = { question, answerPayload, practiceSnapshot };
@@ -766,6 +844,38 @@ function Practice({ studentId }) {
       setAnswered(false);
       setIsCorrect(false);
     }, RESULT_DURATION);
+  };
+
+  const restoreQuestionState = (index) => {
+    if (autoNextTimerRef.current) {
+      clearTimeout(autoNextTimerRef.current);
+      autoNextTimerRef.current = null;
+    }
+    const ans = userAnswers[index];
+    if (ans) {
+      setSelectedAnswer(ans.selectedAnswer);
+      setAnswered(true);
+      setIsCorrect(ans.isCorrect);
+    } else {
+      setSelectedAnswer(null);
+      setAnswered(false);
+      setIsCorrect(false);
+    }
+    setShowExplanationHint(false);
+  };
+
+  const goToPreviousQuestion = () => {
+    if (currentQuestionIndex <= 0) return;
+    const prevIndex = currentQuestionIndex - 1;
+    setCurrentQuestionIndex(prevIndex);
+    restoreQuestionState(prevIndex);
+  };
+
+  const goToNextQuestion = () => {
+    if (currentQuestionIndex >= questions.length - 1) return;
+    const nextIndex = currentQuestionIndex + 1;
+    setCurrentQuestionIndex(nextIndex);
+    restoreQuestionState(nextIndex);
   };
 
   const savePracticeSession = async (answers, practiceSnapshot = activePractice) => {
@@ -874,6 +984,8 @@ function Practice({ studentId }) {
     const headerTitle = practiceModeRef.current === 'general'
       ? 'Практика'
       : (selectedSubject?.name || activePractice.name);
+    const canGoBack = currentQuestionIndex > 0;
+    const canGoForward = currentQuestionIndex < questions.length - 1;
 
     if (!currentQuestion) {
       return renderPracticeOverlay(
@@ -896,7 +1008,9 @@ function Practice({ studentId }) {
       <div className="practice-mode">
         {/* Выезжающее кольцо дневной цели + летящие сферы */}
         {(() => {
-          const goal = dailyGoal?.goals?.find(g => g.subjectId === activePractice?.subjectId);
+          const goal = dailyGoal?.goals?.find(
+            (g) => Number(g.subjectId) === Number(activePractice?.subjectId)
+          );
           const baseSolved = goal?.solved || 0;
           const target = goal?.goal || 50;
           const liveSolved = baseSolved + sessionSolved;
@@ -974,12 +1088,15 @@ function Practice({ studentId }) {
                   {currentQuestion.difficulty === 'hard' && '🔴 Сложный'}
                 </span>
               )}
-              {currentQuestion.explanation && !answered && (
+              {currentQuestion.explanation && (
                 <button
+                  type="button"
                   className="hint-button"
                   onClick={() => setShowExplanationHint(!showExplanationHint)}
                 >
-                  💡 {showExplanationHint ? 'Скрыть подсказку' : 'Подсказка'}
+                  💡 {showExplanationHint
+                    ? 'Скрыть'
+                    : (answered ? 'Объяснение' : 'Подсказка')}
                 </button>
               )}
             </div>
@@ -987,9 +1104,11 @@ function Practice({ studentId }) {
 
           <h3 className="question-text">{currentQuestion.questionText}</h3>
 
-          {showExplanationHint && currentQuestion.explanation && !answered && (
-            <div className="hint-box">
-              <div className="hint-title">💡 Подсказка:</div>
+          {showExplanationHint && currentQuestion.explanation && (
+            <div className={`hint-box ${answered ? 'hint-box--explanation' : ''}`}>
+              <div className="hint-title">
+                💡 {answered ? 'Объяснение:' : 'Подсказка:'}
+              </div>
               <div className="hint-text">{currentQuestion.explanation}</div>
             </div>
           )}
@@ -1019,25 +1138,32 @@ function Practice({ studentId }) {
           </div>
 
           {answered && (
-  <>
-    <div className={`answer-result-box ${isCorrect ? 'correct-result' : 'wrong-result'}`}>
-      <div className="result-icon">
-        {isCorrect ? '✅' : '❌'}
-      </div>
-      <div className="result-text">
-        {isCorrect ? 'Правильно!' : 'Неправильно'}
-      </div>
-    </div>
+            <div className={`answer-result-box ${isCorrect ? 'correct-result' : 'wrong-result'}`}>
+              <div className="result-icon">
+                {isCorrect ? '✅' : '❌'}
+              </div>
+              <div className="result-text">
+                {isCorrect ? 'Правильно!' : 'Неправильно'}
+              </div>
+            </div>
+          )}
 
-    {/* Объяснение показывается ПОСЛЕ ответа */}
-    {currentQuestion.explanation && (
-      <div className="explanation-box">
-        <div className="hint-title">💡 Объяснение:</div>
-        <div className="hint-text">{currentQuestion.explanation}</div>
-      </div>
-    )}
-  </>
-)}
+          {(canGoBack || canGoForward) && (
+            <div className="question-nav-row">
+              {canGoBack ? (
+                <button type="button" className="question-nav-btn" onClick={goToPreviousQuestion}>
+                  ← Предыдущий
+                </button>
+              ) : (
+                <span />
+              )}
+              {canGoForward && (
+                <button type="button" className="question-nav-btn question-nav-btn--forward" onClick={goToNextQuestion}>
+                  Следующий →
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
     );

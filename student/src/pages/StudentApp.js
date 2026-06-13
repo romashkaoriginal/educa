@@ -12,12 +12,18 @@ import { API_URL } from '../config';
 
 function StudentAppContent({ selectedStudent }) {
   const [activeTab, setActiveTab] = useState('practice');
-  const { preloadAllData, loadStreak } = useData();
+  const { preloadAllData, loadStreak, practiceIntent, refreshDashboard } = useData();
 
   // Грузим данные один раз при монтировании — без ожидания, сразу показываем UI
   useEffect(() => {
     preloadAllData();
   }, []); // eslint-disable-line
+
+  useEffect(() => {
+    if (practiceIntent && activeTab !== 'practice') {
+      setActiveTab('practice');
+    }
+  }, [practiceIntent]); // eslint-disable-line
 
   // Глобально включаем подтверждение закрытия — всегда, для всех разделов
   useEffect(() => {
@@ -40,6 +46,9 @@ function StudentAppContent({ selectedStudent }) {
     if (tabId === activeTab || animating) return;
     if (tabId === 'practice') {
       loadStreak();
+    }
+    if (tabId === 'stats') {
+      refreshDashboard();
     }
     setPrevTab(activeTab);
     setAnimating(true);
@@ -170,19 +179,7 @@ function StudentApp({ initialUser = null }) {
             </p>
           )}
 
-          {false ? (
-            <div className="students-loading">
-              {[1, 2, 3].map(i => (
-                <div key={i} className="student-select-card skeleton">
-                  <div className="skeleton-avatar"></div>
-                  <div className="skeleton-info">
-                    <div className="skeleton-line"></div>
-                    <div className="skeleton-line short"></div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
+          {students.length > 0 && (
             <div className="students-select-list">
               {students
                 .filter(student => {

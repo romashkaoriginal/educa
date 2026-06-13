@@ -25,6 +25,11 @@ const PracticeAttempt = sequelize.define('PracticeAttempt', {
   },
   selectedAnswer: { type: DataTypes.INTEGER, allowNull: false },
   isCorrect: { type: DataTypes.BOOLEAN, allowNull: false },
+  practiceMode: {
+    type: DataTypes.STRING(16),
+    allowNull: true,
+    defaultValue: 'general'
+  },
   timeSpent: { type: DataTypes.INTEGER, allowNull: true }
 }, {
   tableName: 'practice_attempts',
