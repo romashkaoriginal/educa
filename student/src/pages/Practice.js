@@ -415,6 +415,49 @@ function Practice({ studentId }) {
     typeof document === 'undefined' ? content : createPortal(content, document.body)
   );
 
+  useEffect(() => {
+    if (!showTopicPicker) return undefined;
+    const content = document.querySelector('.student-app .content');
+    content?.classList.add('topic-picker-scroll-lock');
+    return () => content?.classList.remove('topic-picker-scroll-lock');
+  }, [showTopicPicker]);
+
+  const renderTopicPicker = () => {
+    if (!showTopicPicker) return null;
+    const node = (
+      <div
+        className="topic-picker-overlay"
+        onClick={() => setShowTopicPicker(false)}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="topic-picker-title"
+      >
+        <div className="topic-picker" onClick={(e) => e.stopPropagation()}>
+          <h3 id="topic-picker-title" className="topic-picker-title">Выберите тему</h3>
+          <div className="topic-picker-scroll-wrap">
+            <div className="topic-picker-list">
+              {filteredTopics.map(topic => (
+                <button
+                  key={topic.id}
+                  type="button"
+                  className="topic-picker-item"
+                  onClick={() => startPractice(topic)}
+                >
+                  <span className="topic-picker-icon">{topic.icon || '📝'}</span>
+                  <span className="topic-picker-name">{topic.name}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          <button type="button" className="topic-picker-cancel" onClick={() => setShowTopicPicker(false)}>
+            Отмена
+          </button>
+        </div>
+      </div>
+    );
+    return typeof document === 'undefined' ? node : createPortal(node, document.body);
+  };
+
   const normalizeQuestion = (question) => {
     if (!question) return null;
     let options = question.options;
@@ -1041,32 +1084,6 @@ function Practice({ studentId }) {
     return renderPracticeOverlay(
       <div className="practice-mode">
         <div className="practice-header">
-          {(() => {
-            const goal = dailyGoal?.goals?.find(
-              (g) => Number(g.subjectId) === Number(activePractice?.subjectId)
-            );
-            const baseSolved = goal?.solved || 0;
-            const target = goal?.goal || 50;
-            const liveSolved = baseSolved + sessionSolved;
-            const pct = Math.min(100, Math.round((liveSolved / target) * 100));
-            const complete = liveSolved >= target;
-            return (
-              <div className={`goal-peek ${goalPeek ? 'show' : ''} ${goalPulse ? 'pulse' : ''}`}>
-                <div
-                  ref={goalRingRef}
-                  className={`goal-peek-ring ${complete ? 'complete' : ''}`}
-                  style={{ '--goal-pct': `${pct}%` }}
-                >
-                  <span className="goal-peek-value">{pct}%</span>
-                </div>
-                <div className="goal-peek-label">
-                  <span className="goal-peek-title">🎯 Цель дня</span>
-                  <span className="goal-peek-count">{liveSolved}/{target}</span>
-                </div>
-              </div>
-            );
-          })()}
-
           <button className="back-button" onClick={closePractice}>
             ← Назад к списку
           </button>
@@ -1088,6 +1105,32 @@ function Practice({ studentId }) {
             </HeroMetricHint>
           )}
         </div>
+
+        {goalPeek && (() => {
+          const goal = dailyGoal?.goals?.find(
+            (g) => Number(g.subjectId) === Number(activePractice?.subjectId)
+          );
+          const baseSolved = goal?.solved || 0;
+          const target = goal?.goal || 50;
+          const liveSolved = baseSolved + sessionSolved;
+          const pct = Math.min(100, Math.round((liveSolved / target) * 100));
+          const complete = liveSolved >= target;
+          return (
+            <div className={`goal-peek show ${goalPulse ? 'pulse' : ''}`}>
+              <div
+                ref={goalRingRef}
+                className={`goal-peek-ring ${complete ? 'complete' : ''}`}
+                style={{ '--goal-pct': `${pct}%` }}
+              >
+                <span className="goal-peek-value">{pct}%</span>
+              </div>
+              <div className="goal-peek-label">
+                <span className="goal-peek-title">🎯 Цель дня</span>
+                <span className="goal-peek-count">{liveSolved} / {target}</span>
+              </div>
+            </div>
+          );
+        })()}
 
         {orbs.map(orb => (
           <span
@@ -1375,32 +1418,10 @@ function Practice({ studentId }) {
               <span className="practice-mode-btn-arrow">→</span>
             </button>
           </div>
-
-          {showTopicPicker && (
-            <div className="topic-picker-overlay" onClick={() => setShowTopicPicker(false)}>
-              <div className="topic-picker" onClick={(e) => e.stopPropagation()}>
-                <h3 className="topic-picker-title">Выберите тему</h3>
-                <div className="topic-picker-list">
-                  {filteredTopics.map(topic => (
-                    <button
-                      key={topic.id}
-                      type="button"
-                      className="topic-picker-item"
-                      onClick={() => startPractice(topic)}
-                    >
-                      <span className="topic-picker-icon">{topic.icon || '📝'}</span>
-                      <span className="topic-picker-name">{topic.name}</span>
-                    </button>
-                  ))}
-                </div>
-                <button type="button" className="topic-picker-cancel" onClick={() => setShowTopicPicker(false)}>
-                  Отмена
-                </button>
-              </div>
-            </div>
-          )}
         </div>
       )}
+
+      {renderTopicPicker()}
 
       {/* ===== ВКЛАДКА РЕЙТИНГ ===== */}
       {selectedSubject && activeTab === 'rating' && (

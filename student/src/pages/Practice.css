@@ -348,7 +348,7 @@
   gap: 11px;
   flex-shrink: 0;
   position: relative;
-  overflow: hidden;
+  z-index: 2;
 }
 .practice-header::before {
   content: '';
@@ -391,13 +391,13 @@
 }
 .practice-info p { color: rgba(255,255,255,0.82); font-size: 12px; margin: 0; font-weight: 500; }
 
-/* Всплывающая цель дня — не сдвигает layout */
+/* Всплывающая цель дня — только после правильного ответа (монтируется в JS) */
 .goal-peek {
   position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  right: 0;
-  z-index: 15;
+  top: 54px;
+  left: 12px;
+  right: 12px;
+  z-index: 25;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -406,17 +406,17 @@
   border: 1px solid var(--kubik-border);
   border-radius: 14px;
   box-shadow: 0 10px 28px rgba(26, 64, 95, 0.14);
-  opacity: 0;
-  visibility: hidden;
-  transform: translateY(-6px) scale(0.96);
+  animation: goalPeekIn 0.28s cubic-bezier(0.22, 0.9, 0.3, 1);
   pointer-events: none;
-  transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.22, 0.9, 0.3, 1), visibility 0.25s;
+}
+
+@keyframes goalPeekIn {
+  from { opacity: 0; transform: translateY(-8px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .goal-peek.show {
   opacity: 1;
-  visibility: visible;
-  transform: translateY(0) scale(1);
 }
 
 .goal-peek.pulse .goal-peek-ring {
@@ -1974,49 +1974,82 @@
 }
 
 /* ========== ВЫБОР ТЕМЫ ========== */
+.student-app .content.topic-picker-scroll-lock {
+  overflow: hidden !important;
+  touch-action: none;
+}
+
 .topic-picker-overlay {
   position: fixed;
   inset: 0;
   background: rgba(26, 64, 95, 0.45);
-  z-index: 1300;
+  z-index: 2000;
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  padding: 16px;
+  padding: 0;
+  padding-bottom: var(--student-bottom-nav-offset);
   box-sizing: border-box;
+  overscroll-behavior: none;
 }
 
 .topic-picker {
   width: 100%;
   max-width: 480px;
-  max-height: 70vh;
+  height: min(
+    68dvh,
+    calc(100dvh - env(safe-area-inset-top, 0px) - var(--student-bottom-nav-offset) - 12px)
+  );
   background: #ffffff;
-  border-radius: 18px 18px 14px 14px;
-  padding: 18px 16px 14px;
+  border-radius: 18px 18px 0 0;
+  padding: 16px 16px calc(10px + env(safe-area-inset-bottom, 0px));
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 0;
   overflow: hidden;
+  box-shadow: 0 -10px 36px rgba(26, 64, 95, 0.18);
 }
 
 .topic-picker-title {
-  margin: 0;
+  margin: 0 0 12px;
   font-size: 17px;
   font-weight: 700;
   color: var(--kubik-navy);
   text-align: center;
+  flex-shrink: 0;
+}
+
+.topic-picker-scroll-wrap {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.topic-picker-scroll-wrap::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 6px;
+  bottom: 0;
+  height: 28px;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.96));
+  pointer-events: none;
+  z-index: 1;
 }
 
 .topic-picker-list {
+  height: 100%;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  flex: 1;
-  min-height: 0;
+  padding: 2px 6px 10px 2px;
   scrollbar-width: thin;
-  scrollbar-color: rgba(51, 123, 174, 0.5) rgba(26, 64, 95, 0.06);
-  padding-right: 2px;
+  scrollbar-color: rgba(51, 123, 174, 0.55) rgba(26, 64, 95, 0.06);
 }
 
 .topic-picker-list::-webkit-scrollbar {
@@ -2029,7 +2062,7 @@
 }
 
 .topic-picker-list::-webkit-scrollbar-thumb {
-  background: rgba(51, 123, 174, 0.5);
+  background: rgba(51, 123, 174, 0.55);
   border-radius: 999px;
 }
 
@@ -2037,6 +2070,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
+  width: 100%;
   padding: 12px 14px;
   background: var(--kubik-blue-soft, #EAF3FA);
   border: 1px solid var(--kubik-border);
@@ -2045,11 +2079,14 @@
   font-family: inherit;
   text-align: left;
   transition: border-color 0.2s, background 0.2s;
+  flex-shrink: 0;
 }
 
-.topic-picker-item:hover {
-  border-color: var(--kubik-blue);
-  background: #ffffff;
+@media (hover: hover) and (pointer: fine) {
+  .topic-picker-item:hover {
+    border-color: var(--kubik-blue);
+    background: #ffffff;
+  }
 }
 
 .topic-picker-icon {
@@ -2058,15 +2095,21 @@
 }
 
 .topic-picker-name {
+  flex: 1;
+  min-width: 0;
   font-size: 14px;
   font-weight: 600;
   color: var(--kubik-navy);
+  line-height: 1.35;
 }
 
 .topic-picker-cancel {
+  flex-shrink: 0;
+  margin-top: 8px;
   padding: 12px;
   background: transparent;
   border: none;
+  border-top: 1px solid var(--kubik-border);
   color: var(--kubik-text-soft);
   font-size: 14px;
   font-weight: 600;

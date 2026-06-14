@@ -15,6 +15,7 @@
     "xlsx": "^0.18.5"
   },
   "scripts": {
+    "prebuild": "node scripts/write-version.js",
     "start": "react-scripts start",
     "build": "cross-env DISABLE_ESLINT_PLUGIN=true react-scripts build",
     "test": "react-scripts test",
