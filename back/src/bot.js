@@ -1,6 +1,7 @@
 const axios = require('axios');
 const TelegramBot = require('node-telegram-bot-api');
 const { User, BotUser, BotTest, Subject, Application } = require('./models');
+const { refreshWebAppUrl, getWebAppUrlSync } = require('./utils/webAppUrl');
 
 const token = process.env.BOT_TOKEN;
 const webAppUrl = process.env.WEB_APP_URL;
@@ -12,8 +13,9 @@ function isHttpsWebAppUrl(url) {
 }
 
 function getAppOpenButton() {
-  if (!webAppUrl || !isHttpsWebAppUrl(webAppUrl)) return null;
-  return { text: '📚 Открыть приложение', web_app: { url: webAppUrl } };
+  const url = getWebAppUrlSync();
+  if (!url || !isHttpsWebAppUrl(url.split('?')[0])) return null;
+  return { text: '📚 Открыть приложение', web_app: { url } };
 }
 
 function getAppOpenKeyboard() {
@@ -244,6 +246,11 @@ function startBot() {
 
   bot = new TelegramBot(token, { polling: true });
   console.log('🤖 Telegram бот запущен');
+
+  refreshWebAppUrl(true).then((url) => {
+    if (url) console.log('📱 WebApp URL:', url);
+  }).catch(() => {});
+  setInterval(() => refreshWebAppUrl(true), 5 * 60 * 1000);
 
   bot.deleteWebHook().catch((error) => {
     console.error('Не удалось удалить webhook:', error.message);

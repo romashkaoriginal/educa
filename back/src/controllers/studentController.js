@@ -1,7 +1,6 @@
 const { User, Subject, UserSubject, HomeworkSubmission, HomeworkAnswer, PracticeAttempt, PracticeBest, PracticeDailyLog, BotUser, QuizAnswer, QuizParticipant } = require('../models');
 const { Op } = require('sequelize');
-
-const webAppUrl = process.env.WEB_APP_URL;
+const { getWebAppUrlSync } = require('../utils/webAppUrl');
 
 function formatDate(date) {
   if (!date) return 'бессрочно';
@@ -17,7 +16,7 @@ async function notifyStudent(telegramId, message) {
     await bot.sendMessage(telegramId, message, {
       parse_mode: 'HTML',
       reply_markup: {
-        inline_keyboard: [[{ text: '📚 Открыть приложение', web_app: { url: webAppUrl } }]]
+        inline_keyboard: [[{ text: '📚 Открыть приложение', web_app: { url: getWebAppUrlSync() } }]]
       }
     });
   } catch (e) {

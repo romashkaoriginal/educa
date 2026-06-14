@@ -12,7 +12,10 @@ import { API_URL } from '../config';
 
 function StudentAppContent({ selectedStudent }) {
   const [activeTab, setActiveTab] = useState('practice');
-  const { preloadAllData, loadStreak, practiceIntent, refreshDashboard } = useData();
+  const {
+    preloadAllData, loadStreak, practiceIntent, refreshDashboard,
+    requestPracticeHome, requestHomeworkHome,
+  } = useData();
 
   // Грузим данные один раз при монтировании — без ожидания, сразу показываем UI
   useEffect(() => {
@@ -43,7 +46,16 @@ function StudentAppContent({ selectedStudent }) {
   const tabOrder = ['practice', 'homework', 'quiz', 'stats'];
 
   const handleTabChange = (tabId) => {
-    if (tabId === activeTab || animating) return;
+    if (animating) return;
+    if (tabId === activeTab) {
+      if (tabId === 'practice') {
+        loadStreak();
+        requestPracticeHome();
+      } else if (tabId === 'homework') {
+        requestHomeworkHome();
+      }
+      return;
+    }
     if (tabId === 'practice') {
       loadStreak();
     }
@@ -77,7 +89,7 @@ function StudentAppContent({ selectedStudent }) {
           {[
             { id: 'practice', el: <Practice studentId={selectedStudent.id} /> },
             { id: 'homework', el: <Homework studentId={selectedStudent.id} /> },
-            { id: 'quiz', el: <Quiz studentId={selectedStudent.id} /> },
+            { id: 'quiz', el: <Quiz studentId={selectedStudent.id} studentName={`${selectedStudent.firstName || ''} ${selectedStudent.lastName || ''}`.trim() || 'Ученик'} /> },
             { id: 'stats', el: <Statistics studentId={selectedStudent.id} /> },
           ].map(({ id, el }) => {
             const isActive = id === activeTab;

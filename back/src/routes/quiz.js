@@ -40,6 +40,7 @@ router.get('/student/:studentId/stats', async (req, res) => {
       SELECT 
         q.id as "quizId",
         q.title as "quizTitle",
+        q.status as "quizStatus",
         q."accessCode",
         s.id as "subjectId",
         s.name as "subjectName",
@@ -67,13 +68,18 @@ router.get('/student/:studentId/stats', async (req, res) => {
           SELECT COUNT(DISTINCT qq.id)
           FROM quiz_questions qq
           WHERE qq."quizId" = q.id
-        ) as "totalQuestions"
+        ) as "totalQuestions",
+        (
+          SELECT COALESCE(SUM(qq.points), 0)
+          FROM quiz_questions qq
+          WHERE qq."quizId" = q.id
+        ) as "maxScore"
       FROM quiz_participants qp
       INNER JOIN quizzes q ON q.id = qp."quizId"
       INNER JOIN subjects s ON s.id = q."subjectId"
       WHERE qp."userId" = :studentId
-        AND q.status = 'finished'
-      ORDER BY q."finishedAt" DESC
+        AND q."isDeleted" = false
+      ORDER BY COALESCE(q."finishedAt", qp."joinedAt") DESC
     `, {
       replacements: { studentId: parseInt(studentId) },
       type: sequelize.QueryTypes.SELECT
@@ -107,7 +113,7 @@ router.get('/student/:studentId/stats', async (req, res) => {
 // Создать викторину
 router.post('/create', isAdmin, async (req, res) => {
   try {
-    const { title, description, subjectId, questions, createdBy } = req.body;
+    const { title, description, subjectId, questions, createdBy, showLeaderboardAfterQuestion, showQuestionReview, showExplanations } = req.body;
 
     if (!title || !subjectId || !questions || questions.length === 0) {
       return res.status(400).json({ message: 'Missing required fields' });
@@ -117,9 +123,12 @@ router.post('/create', isAdmin, async (req, res) => {
       title,
       description,
       subjectId,
-      accessCode: null, // код генерируется отдельно в лобби
+      accessCode: null,
       createdBy: createdBy || 1,
-      status: 'draft'
+      status: 'draft',
+      showLeaderboardAfterQuestion: showLeaderboardAfterQuestion !== false,
+      showQuestionReview: showQuestionReview !== false,
+      showExplanations: showExplanations !== false
     });
 
     // Создаём вопросы
@@ -140,6 +149,89 @@ router.post('/create', isAdmin, async (req, res) => {
   } catch (error) {
     console.error('Create quiz error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Найти викторину по коду (до /:id)
+router.get('/code/:accessCode', async (req, res) => {
+  try {
+    const code = req.params.accessCode.toUpperCase();
+    const studentId = req.query.studentId ? parseInt(req.query.studentId, 10) : null;
+
+    if (!code || code.length < 4) {
+      return res.status(404).json({
+        code: 'NOT_FOUND',
+        message: 'Викторина с таким кодом не найдена. Проверьте код и попробуйте еще раз.'
+      });
+    }
+
+    const quiz = await Quiz.findOne({
+      where: { accessCode: code, isDeleted: false },
+      include: [
+        { model: Subject, as: 'subject' },
+        { model: QuizQuestion, as: 'questions', separate: true, order: [['order', 'ASC']] }
+      ]
+    });
+
+    if (!quiz) {
+      return res.status(404).json({
+        code: 'NOT_FOUND',
+        message: 'Викторина с таким кодом не найдена. Проверьте код и попробуйте еще раз.'
+      });
+    }
+
+    if (quiz.status === 'finished') {
+      let participated = false;
+      if (studentId) {
+        const p = await QuizParticipant.findOne({ where: { quizId: quiz.id, userId: studentId } });
+        participated = !!p;
+      }
+      return res.status(400).json({
+        code: 'FINISHED',
+        message: 'Эта викторина уже завершена.',
+        quizId: quiz.id,
+        participated,
+        quiz: { id: quiz.id, title: quiz.title, subject: quiz.subject }
+      });
+    }
+
+    if (studentId) {
+      const student = await User.findByPk(studentId, {
+        include: [{ model: Subject, as: 'subjects', attributes: ['id'] }]
+      });
+      if (!student) {
+        return res.status(404).json({ code: 'NOT_FOUND', message: 'Ученик не найден' });
+      }
+      const hasAccess = (student.subjects || []).some((s) => s.id === quiz.subjectId);
+      if (!hasAccess) {
+        return res.status(403).json({
+          code: 'NO_ACCESS',
+          message: 'У вас нет доступа к этой викторине.'
+        });
+      }
+    }
+
+    const participantCount = await QuizParticipant.count({ where: { quizId: quiz.id } });
+
+    res.json({
+      quiz: {
+        id: quiz.id,
+        title: quiz.title,
+        description: quiz.description,
+        status: quiz.status,
+        subject: quiz.subject,
+        subjectId: quiz.subjectId,
+        questions: quiz.questions,
+        currentQuestionIndex: quiz.currentQuestionIndex,
+        showLeaderboardAfterQuestion: quiz.showLeaderboardAfterQuestion !== false,
+        showQuestionReview: quiz.showQuestionReview !== false,
+        showExplanations: quiz.showExplanations !== false
+      },
+      participantCount
+    });
+  } catch (error) {
+    console.error('Find by code error:', error);
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
@@ -197,39 +289,9 @@ router.delete('/:id', isAdmin, async (req, res) => {
   }
 });
 
-// Найти викторину по коду
-router.get('/code/:accessCode', async (req, res) => {
-  try {
-    const code = req.params.accessCode.toUpperCase();
-    if (!code || code.length < 4) {
-      return res.status(404).json({ message: 'Неверный код' });
-    }
-
-    const quiz = await Quiz.findOne({
-      where: { accessCode: code },
-      include: [
-        { model: Subject, as: 'subject' },
-        { model: QuizQuestion, as: 'questions' }
-      ]
-    });
-
-    if (!quiz) {
-      return res.status(404).json({ message: 'Викторина не найдена' });
-    }
-
-    if (quiz.status === 'finished') {
-      return res.status(400).json({ message: 'Викторина уже завершена' });
-    }
-
-    res.json({ quiz });
-  } catch (error) {
-    console.error('Find by code error:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
+// Найти викторину по коду — см. маршрут выше (перед /:id)
 
 // Получить результаты викторины
-// Получить детальные результаты викторины
 router.get('/:id/results', async (req, res) => {
   try {
     const quiz = await Quiz.findByPk(req.params.id, {
@@ -261,7 +323,7 @@ router.get('/:id/results', async (req, res) => {
     const answers = await QuizAnswer.findAll({
       where: { quizId: req.params.id },
       include: [
-        { model: QuizQuestion, as: 'question', attributes: ['id', 'questionText', 'correctAnswer', 'order'] },
+        { model: QuizQuestion, as: 'question', attributes: ['id', 'questionText', 'correctAnswer', 'order', 'explanation', 'options', 'points'] },
         { model: User, as: 'user', attributes: ['id', 'firstName', 'lastName'] }
       ],
       order: [['answeredAt', 'ASC']]

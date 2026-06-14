@@ -35,6 +35,8 @@ export const DataProvider = ({ children, studentId }) => {
   const [scoreHistory, setScoreHistory] = useState(null);
   const [subjectDashboard, setSubjectDashboard] = useState(null);
   const [practiceIntent, setPracticeIntent] = useState(null);
+  const [practiceHomeToken, setPracticeHomeToken] = useState(0);
+  const [homeworkHomeToken, setHomeworkHomeToken] = useState(0);
   const [dashboardRefreshKey, setDashboardRefreshKey] = useState(0);
 
   const [loaded, setLoaded] = useState({
@@ -355,6 +357,14 @@ export const DataProvider = ({ children, studentId }) => {
     setPracticeIntent(null);
   }, []);
 
+  const requestPracticeHome = useCallback(() => {
+    setPracticeHomeToken((t) => t + 1);
+  }, []);
+
+  const requestHomeworkHome = useCallback(() => {
+    setHomeworkHomeToken((t) => t + 1);
+  }, []);
+
   const preloadAllData = useCallback(async () => {
     // Сначала грузим то что видно сразу — subjects, practice и streak (огонёк в hero)
     await Promise.all([loadSubjects(), loadPractice(), loadStreak()]);
@@ -397,7 +407,9 @@ export const DataProvider = ({ children, studentId }) => {
     scoreHistory, loadScoreHistory,
     loadWeakTopicsQuestions,
     subjectDashboard, loadSubjectDashboard, refreshDashboard, dashboardRefreshKey,
-    practiceIntent, requestPractice, clearPracticeIntent
+    practiceIntent, requestPractice, clearPracticeIntent,
+    practiceHomeToken, requestPracticeHome,
+    homeworkHomeToken, requestHomeworkHome
   };
 
   return (

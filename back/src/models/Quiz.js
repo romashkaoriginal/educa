@@ -41,7 +41,19 @@ const Quiz = sequelize.define('Quiz', {
     type: DataTypes.INTEGER,
     defaultValue: -1
   },
-  questionStartedAt: DataTypes.DATE
+  questionStartedAt: DataTypes.DATE,
+  showLeaderboardAfterQuestion: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
+  },
+  showQuestionReview: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
+  },
+  showExplanations: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
+  }
 }, {
   tableName: 'quizzes',
   timestamps: true

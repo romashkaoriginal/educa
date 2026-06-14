@@ -39,9 +39,9 @@ function HomeworkHero({ eyebrow, title, subtitle, showBack, onBack, badgeCount, 
         <div className="section-hero-main">
           <StudentBrandMark variant="hero" />
           <div className="section-hero-text">
-            <div className="section-hero-eyebrow">{eyebrow}</div>
+            {eyebrow ? <div className="section-hero-eyebrow">{eyebrow}</div> : null}
             <h1 className="section-hero-title">{title}</h1>
-            {subtitle && <p className="section-hero-sub">{subtitle}</p>}
+            {subtitle ? <p className="section-hero-sub">{subtitle}</p> : null}
           </div>
         </div>
         {badgeCount > 0 && (
@@ -272,7 +272,7 @@ function getHomeworkCardState(homework, now = new Date()) {
 }
 
 function StudentHomework({ studentId }) {
-  const { homeworks, subjects, refreshAfterHomework, loading: contextLoading } = useData();
+  const { homeworks, subjects, refreshAfterHomework, loading: contextLoading, homeworkHomeToken } = useData();
 
   const [selectedSubject, setSelectedSubject] = useState(null);
   const [selectedHomework, setSelectedHomework] = useState(null);
@@ -366,6 +366,23 @@ function StudentHomework({ studentId }) {
     // Обновляем данные только если реально сдали домашку
     if (wasSubmitted) refreshAfterHomework();
   };
+
+  const resetHomeRef = useRef(() => {});
+  resetHomeRef.current = () => {
+    if (selectedHomework) {
+      closeHomework(false);
+    }
+    setShowResult(false);
+    setResult(null);
+    if (subjects.length > 1) {
+      setSelectedSubject(null);
+    }
+  };
+
+  useEffect(() => {
+    if (!homeworkHomeToken) return;
+    resetHomeRef.current();
+  }, [homeworkHomeToken]);
 
   const handlePointerDown = useCallback((e, questionIndex, itemIndex, items) => {
     e.preventDefault();
@@ -763,11 +780,7 @@ function StudentHomework({ studentId }) {
   if (contextLoading.homework && homeworks.length === 0) {
     return (
       <div className="section section-homework homework-section">
-        <HomeworkHero
-          eyebrow="РАЗДЕЛ"
-          title="Домашка"
-          subtitle="Загрузка заданий..."
-        />
+        <HomeworkHero title="Домашка" />
         <div className="homework-panel">
           <p style={{ textAlign: 'center', color: '#6b7280', padding: '32px 0' }}>Загрузка...</p>
         </div>
@@ -1133,9 +1146,7 @@ function StudentHomework({ studentId }) {
     return (
       <div className="section section-homework homework-section">
         <HomeworkHero
-          eyebrow="РАЗДЕЛ"
           title="Домашка"
-          subtitle="Выберите предмет"
           badgeCount={totalUnfinished}
           badgeUrgent={totalUnfinished > 0}
         />
@@ -1177,17 +1188,7 @@ function StudentHomework({ studentId }) {
       <HomeworkHero
         showBack={subjects.length > 1 && !!selectedSubject}
         onBack={backToSubjects}
-        eyebrow={selectedSubject ? 'ПРЕДМЕТ' : 'РАЗДЕЛ'}
-        title={
-          selectedSubject ? (
-            <><span className="hero-title-emoji">{selectedSubject.icon}</span> {selectedSubject.name}</>
-          ) : 'Домашка'
-        }
-        subtitle={
-          selectedSubject
-            ? `${filteredHomeworks.length} заданий · выполняй в срок`
-            : 'Все домашние задания'
-        }
+        title={selectedSubject ? selectedSubject.name : 'Домашка'}
         badgeCount={unfinishedInView}
         badgeUrgent={unfinishedInView > 0}
       />

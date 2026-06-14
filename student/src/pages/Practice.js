@@ -303,6 +303,7 @@ function Practice({ studentId }) {
     loadWeakTopicsQuestions,
     loadSubjectDashboard,
     practiceIntent, clearPracticeIntent,
+    practiceHomeToken,
   } = useData();
   
   const [selectedSubject, setSelectedSubject] = useState(null);
@@ -781,6 +782,12 @@ function Practice({ studentId }) {
     }, 300);
   };
 
+  const blurActiveElement = () => {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+  };
+
   const submitAnswer = async (answerIndex) => {
     if (answered) return; // Предотвращаем повторный клик
 
@@ -791,6 +798,7 @@ function Practice({ studentId }) {
     setAnswered(true);
     setIsCorrect(correct);
     setShowExplanationHint(false);
+    blurActiveElement();
 
     const practiceSnapshot = activePractice;
 
@@ -834,17 +842,26 @@ function Practice({ studentId }) {
       const nextQ = nextRaw ? shuffleOptions(nextRaw) : null;
       if (!nextQ) return;
 
+      setSelectedAnswer(null);
+      setAnswered(false);
+      setIsCorrect(false);
+      setShowExplanationHint(false);
+      blurActiveElement();
+
       setCurrentQuestionIndex(prev => prev + 1);
       setQuestions(prev => {
         const updated = [...prev, nextQ];
         questionsRef.current = updated;
         return updated;
       });
-      setSelectedAnswer(null);
-      setAnswered(false);
-      setIsCorrect(false);
     }, RESULT_DURATION);
   };
+
+  useEffect(() => {
+    if (!activePractice) return undefined;
+    blurActiveElement();
+    return undefined;
+  }, [activePractice, currentQuestionIndex, questions[currentQuestionIndex]?.id]);
 
   const restoreQuestionState = (index) => {
     if (autoNextTimerRef.current) {
@@ -963,6 +980,23 @@ function Practice({ studentId }) {
     setActiveTab('practice');
   };
 
+  const resetHomeRef = useRef(() => {});
+  resetHomeRef.current = async () => {
+    setShowTopicPicker(false);
+    setActiveTab('practice');
+    if (activePractice) {
+      await closePractice();
+    }
+    if (subjects.length > 1) {
+      setSelectedSubject(null);
+    }
+  };
+
+  useEffect(() => {
+    if (!practiceHomeToken) return;
+    resetHomeRef.current();
+  }, [practiceHomeToken]);
+
   if (contextLoading.practice && practiceTopics.length === 0) {
     return (
       <div className="section">
@@ -1006,45 +1040,33 @@ function Practice({ studentId }) {
 
     return renderPracticeOverlay(
       <div className="practice-mode">
-        {/* Выезжающее кольцо дневной цели + летящие сферы */}
-        {(() => {
-          const goal = dailyGoal?.goals?.find(
-            (g) => Number(g.subjectId) === Number(activePractice?.subjectId)
-          );
-          const baseSolved = goal?.solved || 0;
-          const target = goal?.goal || 50;
-          const liveSolved = baseSolved + sessionSolved;
-          const pct = Math.min(100, Math.round((liveSolved / target) * 100));
-          const complete = liveSolved >= target;
-          return (
-            <div className={`goal-peek ${goalPeek ? 'show' : ''} ${goalPulse ? 'pulse' : ''}`}>
-              <div
-                ref={goalRingRef}
-                className={`goal-peek-ring ${complete ? 'complete' : ''}`}
-                style={{ '--goal-pct': `${pct}%` }}
-              >
-                <span className="goal-peek-value">{pct}%</span>
-              </div>
-              <div className="goal-peek-label">
-                <span className="goal-peek-title">🎯 Цель дня</span>
-                <span className="goal-peek-count">{liveSolved}/{target}</span>
-              </div>
-            </div>
-          );
-        })()}
-
-        {orbs.map(orb => (
-          <span
-            key={orb.id}
-            className="light-orb"
-            style={{
-              '--x0': `${orb.x0}px`, '--y0': `${orb.y0}px`,
-              '--x1': `${orb.x1}px`, '--y1': `${orb.y1}px`,
-            }}
-          />
-        ))}
-
         <div className="practice-header">
+          {(() => {
+            const goal = dailyGoal?.goals?.find(
+              (g) => Number(g.subjectId) === Number(activePractice?.subjectId)
+            );
+            const baseSolved = goal?.solved || 0;
+            const target = goal?.goal || 50;
+            const liveSolved = baseSolved + sessionSolved;
+            const pct = Math.min(100, Math.round((liveSolved / target) * 100));
+            const complete = liveSolved >= target;
+            return (
+              <div className={`goal-peek ${goalPeek ? 'show' : ''} ${goalPulse ? 'pulse' : ''}`}>
+                <div
+                  ref={goalRingRef}
+                  className={`goal-peek-ring ${complete ? 'complete' : ''}`}
+                  style={{ '--goal-pct': `${pct}%` }}
+                >
+                  <span className="goal-peek-value">{pct}%</span>
+                </div>
+                <div className="goal-peek-label">
+                  <span className="goal-peek-title">🎯 Цель дня</span>
+                  <span className="goal-peek-count">{liveSolved}/{target}</span>
+                </div>
+              </div>
+            );
+          })()}
+
           <button className="back-button" onClick={closePractice}>
             ← Назад к списку
           </button>
@@ -1066,6 +1088,17 @@ function Practice({ studentId }) {
             </HeroMetricHint>
           )}
         </div>
+
+        {orbs.map(orb => (
+          <span
+            key={orb.id}
+            className="light-orb"
+            style={{
+              '--x0': `${orb.x0}px`, '--y0': `${orb.y0}px`,
+              '--x1': `${orb.x1}px`, '--y1': `${orb.y1}px`,
+            }}
+          />
+        ))}
 
         {confetti && (
           <div className="confetti-layer">
@@ -1113,18 +1146,20 @@ function Practice({ studentId }) {
             </div>
           )}
 
-          <div className="answers-list">
+          <div className="answers-list" key={currentQuestion.id}>
             {currentQuestion.options.map((option, index) => {
-              const isSelected = selectedAnswer === index;
+              const isSelected = answered && selectedAnswer === index;
               const showCorrect = answered && index === currentQuestion.correctAnswer;
               const showWrong = answered && isSelected && !isCorrect;
 
               return (
-                <button
-                  key={index}
-                  className={`answer-option ${isSelected ? 'selected' : ''} ${showCorrect ? 'correct' : ''} ${showWrong ? 'wrong' : ''}`}
-                  onClick={() => submitAnswer(index)}
-                  disabled={answered}
+                <div
+                  key={`${currentQuestion.id}-${index}`}
+                  role="button"
+                  tabIndex={-1}
+                  className={`answer-option ${isSelected ? 'selected' : ''} ${showCorrect ? 'correct' : ''} ${showWrong ? 'wrong' : ''} ${answered ? 'is-locked' : ''}`}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => !answered && submitAnswer(index)}
                 >
                   <span className="answer-letter">
                     {String.fromCharCode(65 + index)}
@@ -1132,7 +1167,7 @@ function Practice({ studentId }) {
                   <span className="answer-text">
                     {option}
                   </span>
-                </button>
+                </div>
               );
             })}
           </div>

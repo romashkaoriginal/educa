@@ -11,6 +11,9 @@ COPY src ./src
 ARG REACT_APP_BACKEND_URL
 ENV REACT_APP_BACKEND_URL=$REACT_APP_BACKEND_URL
 
+# Версия билда — Telegram iOS кэширует Mini App по URL, ?v= сбрасывает кэш
+RUN BUILD_V=$(date +%s) && echo "{\"v\":\"${BUILD_V}\"}" > public/version.json
+
 RUN DISABLE_ESLINT_PLUGIN=true npm run build
 
 FROM nginx:alpine

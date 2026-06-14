@@ -17,7 +17,14 @@ function Quiz({ subjects, currentUserId, dataRefreshKey = 0 }) {
   const [socket, setSocket] = useState(null);
 
   // Форма создания
-  const [formData, setFormData] = useState({ title: '', description: '', subjectId: '' });
+  const [formData, setFormData] = useState({
+    title: '',
+    description: '',
+    subjectId: '',
+    showLeaderboardAfterQuestion: true,
+    showQuestionReview: true,
+    showExplanations: true
+  });
   const [questions, setQuestions] = useState([]);
   const [currentQ, setCurrentQ] = useState({
     questionText: '', options: ['', '', '', ''],
@@ -54,6 +61,10 @@ function Quiz({ subjects, currentUserId, dataRefreshKey = 0 }) {
 
       newSocket.on('participants:updated', ({ participants }) => {
         setParticipants(participants);
+        const sorted = [...(participants || [])].sort(
+          (a, b) => (parseFloat(b.totalScore) || 0) - (parseFloat(a.totalScore) || 0)
+        );
+        setLeaderboard(sorted);
       });
 
       newSocket.on('leaderboard:updated', ({ leaderboard }) => {
@@ -70,8 +81,28 @@ function Quiz({ subjects, currentUserId, dataRefreshKey = 0 }) {
         setTimeLeft(question.timeLimit);
       });
 
-      newSocket.on('quiz:finished', () => {
+      newSocket.on('quiz:finished', async () => {
         setCurrentQuestion(null);
+        setParticipants([]);
+        setLeaderboard([]);
+        const quizId = activeQuiz.id;
+        const quizSnapshot = { ...activeQuiz, status: 'finished' };
+        newSocket.disconnect();
+        setSocket(null);
+        setResultsQuiz(quizSnapshot);
+        setLoadingResults(true);
+        setView('results');
+        try {
+          const response = await adminFetch(`${API_URL}/quiz/${quizId}/results`);
+          const data = await response.json();
+          setResultsData(data);
+        } catch (error) {
+          console.error('Error loading results after finish:', error);
+          setResultsData(null);
+        } finally {
+          setLoadingResults(false);
+        }
+        loadQuizzes();
       });
 
       setSocket(newSocket);
@@ -468,6 +499,33 @@ function Quiz({ subjects, currentUserId, dataRefreshKey = 0 }) {
             <option value="">Выберите предмет</option>
             {subjects.map(s => <option key={s.id} value={s.id}>{s.icon} {s.name}</option>)}
           </select>
+          <div className="quiz-settings-block">
+            <h3>Настройки викторины</h3>
+            <label className="quiz-setting-row">
+              <input
+                type="checkbox"
+                checked={formData.showLeaderboardAfterQuestion}
+                onChange={(e) => setFormData({ ...formData, showLeaderboardAfterQuestion: e.target.checked })}
+              />
+              Показывать лидерборд после каждого вопроса
+            </label>
+            <label className="quiz-setting-row">
+              <input
+                type="checkbox"
+                checked={formData.showQuestionReview}
+                onChange={(e) => setFormData({ ...formData, showQuestionReview: e.target.checked })}
+              />
+              Показывать список вопросов с результатами в конце
+            </label>
+            <label className="quiz-setting-row">
+              <input
+                type="checkbox"
+                checked={formData.showExplanations}
+                onChange={(e) => setFormData({ ...formData, showExplanations: e.target.checked })}
+              />
+              Показывать объяснения к вопросам
+            </label>
+          </div>
           <div className="questions-section">
             <h3>Вопросы ({questions.length})</h3>
             {questions.map((q, i) => (

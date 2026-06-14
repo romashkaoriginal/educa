@@ -1,4 +1,4 @@
-﻿:root {
+:root {
   --kubik-pink: #FFBEBD;
   --kubik-pink-soft: #FFF1F0;
   --kubik-white: #FCFCFA;
@@ -273,6 +273,85 @@
 .form-textarea {
   min-height: 80px;
   resize: vertical;
+}
+
+/* ========== НАСТРОЙКИ ВИКТОРИНЫ (чекбоксы) ========== */
+.quiz-settings-block {
+  margin-bottom: 24px;
+  padding: 18px;
+  background: var(--kubik-blue-soft);
+  border: 1px solid var(--kubik-border);
+  border-radius: 14px;
+}
+
+.quiz-settings-block h3 {
+  margin: 0 0 14px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--kubik-navy);
+}
+
+.quiz-setting-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  background: white;
+  border: 1px solid var(--kubik-border);
+  border-radius: 12px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.45;
+  color: var(--kubik-navy);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.quiz-setting-row:last-child {
+  margin-bottom: 0;
+}
+
+.quiz-setting-row:hover {
+  border-color: rgba(51, 123, 174, 0.45);
+  box-shadow: 0 4px 12px rgba(51, 123, 174, 0.08);
+}
+
+.quiz-setting-row input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  margin-top: 1px;
+  border: 2px solid var(--kubik-blue);
+  border-radius: 6px;
+  background: white;
+  cursor: pointer;
+  position: relative;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.quiz-setting-row input[type="checkbox"]:checked {
+  background: linear-gradient(135deg, var(--kubik-navy) 0%, var(--kubik-blue) 100%);
+  border-color: var(--kubik-navy);
+}
+
+.quiz-setting-row input[type="checkbox"]:checked::after {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 2px;
+  width: 5px;
+  height: 10px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.quiz-setting-row input[type="checkbox"]:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(51, 123, 174, 0.25);
 }
 
 /* ========== ВОПРОСЫ ========== */
@@ -672,6 +751,9 @@
 .list-scroll {
   max-height: 400px;
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .list-scroll::-webkit-scrollbar {
@@ -692,21 +774,24 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px;
-  border-bottom: 1px solid var(--kubik-white);
+  padding: 10px 12px;
+  background: white;
+  border: 1px solid var(--kubik-border);
+  border-radius: 10px;
 }
 
 .participant-avatar {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   background: linear-gradient(135deg, var(--kubik-navy) 0%, var(--kubik-blue) 100%);
   color: white;
-  border-radius: 50%;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 700;
-  font-size: 14px;
+  font-size: 13px;
+  flex-shrink: 0;
 }
 
 .participant-item div {
