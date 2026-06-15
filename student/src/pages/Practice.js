@@ -283,14 +283,45 @@ const STREAK_HINT = 'Выполни ежедневную цель, чтобы п
 
 function HeroMetricHint({ id, openId, onToggle, hint, children, align = 'center' }) {
   const active = openId === id;
+  const triggerRef = useRef(null);
+  const [popoverData, setPopoverData] = useState(null);
+
+  useEffect(() => {
+    if (!active || !triggerRef.current) { setPopoverData(null); return; }
+    const rect = triggerRef.current.getBoundingClientRect();
+    const POPOVER_W = 168;
+    const style = { position: 'fixed', zIndex: 9999, width: 'max-content', maxWidth: POPOVER_W };
+
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const showBelow = rect.top < 120 || spaceBelow > 80;
+
+    // Горизонталь: прижимаем к правому краю кнопки, не выходя за экран
+    let left;
+    const btnCenterX = rect.left + rect.width / 2;
+    if (align === 'end') {
+      left = Math.max(8, rect.right - POPOVER_W);
+    } else {
+      left = Math.max(8, btnCenterX - POPOVER_W / 2);
+    }
+    left = Math.min(left, window.innerWidth - POPOVER_W - 8);
+    style.left = left;
+
+    // Вертикаль
+    if (showBelow) {
+      style.top = rect.bottom + 8;
+    } else {
+      style.bottom = window.innerHeight - rect.top + 8;
+    }
+
+    // Позиция стрелки относительно popover
+    const arrowX = btnCenterX - left - 5; // -5 = половина стрелки
+    setPopoverData({ style, arrowX, showBelow });
+  }, [active, align]);
+
   return (
     <div className={`hero-metric-hint-wrap hero-metric-hint-wrap--${align}`}>
-      {active && (
-        <div className="hero-metric-hint-popover" role="tooltip">
-          {hint}
-        </div>
-      )}
       <button
+        ref={triggerRef}
         type="button"
         className="hero-metric-hint-trigger"
         onClick={() => onToggle(id)}
@@ -299,6 +330,20 @@ function HeroMetricHint({ id, openId, onToggle, hint, children, align = 'center'
       >
         {children}
       </button>
+      {active && popoverData && typeof document !== 'undefined' && createPortal(
+        <div className="hero-metric-hint-popover hero-metric-hint-popover--portal" role="tooltip" style={popoverData.style}>
+          {hint}
+          <span
+            className="hero-metric-hint-arrow"
+            style={{
+              left: Math.max(6, Math.min(popoverData.arrowX, 148)),
+              [popoverData.showBelow ? 'top' : 'bottom']: -5,
+              transform: popoverData.showBelow ? 'rotate(225deg)' : 'rotate(45deg)',
+            }}
+          />
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
@@ -1176,7 +1221,7 @@ function Practice({ studentId }) {
           )}
         </div>
 
-        {goalPeek && (() => {
+        {(() => {
           const goal = dailyGoal?.goals?.find(
             (g) => Number(g.subjectId) === Number(activePractice?.subjectId)
           );
@@ -1186,7 +1231,7 @@ function Practice({ studentId }) {
           const pct = Math.min(100, Math.round((liveSolved / target) * 100));
           const complete = liveSolved >= target;
           return (
-            <div className={`goal-peek show ${goalPulse ? 'pulse' : ''}`}>
+            <div className={`goal-peek ${goalPeek ? 'show' : ''} ${goalPulse ? 'pulse' : ''}`}>
               <div
                 ref={goalRingRef}
                 className={`goal-peek-ring ${complete ? 'complete' : ''}`}
@@ -1196,7 +1241,7 @@ function Practice({ studentId }) {
               </div>
               <div className="goal-peek-label">
                 <span className="goal-peek-title">🎯 Цель дня</span>
-                <span className="goal-peek-count">{liveSolved} / {target}</span>
+                <span className="goal-peek-count">{liveSolved}/{target}</span>
               </div>
             </div>
           );

@@ -36,49 +36,255 @@
   color: #fff;
   margin: 0;
   letter-spacing: -0.02em;
+  flex: 1;
+}
+
+/* Кружок с суммарным баллом в hero */
+.sd-hero-score-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* Тот же формат, что и кружок «Цель дня»: розовая дуга + белый центр */
+.sd-hero-score-ring {
+  position: relative;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: conic-gradient(var(--kubik-pink) var(--score-pct, 0%), rgba(255,255,255,0.25) 0);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  transition: background 0.6s ease;
+}
+
+.sd-hero-score-ring::before {
+  content: '';
+  position: absolute;
+  inset: 5px;
+  border-radius: 50%;
+  background: #fff;
+}
+
+.sd-hero-score-ring.locked {
+  background: conic-gradient(rgba(255,255,255,0.3) 100%, transparent 0);
+}
+
+.sd-hero-score-val {
+  position: relative;
+  z-index: 1;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--kubik-navy);
+  line-height: 1;
+  letter-spacing: -0.5px;
+}
+
+.sd-hero-score-max {
+  position: relative;
+  z-index: 1;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--kubik-text-soft);
+  line-height: 1.2;
+}
+
+.sd-hero-score-val--lock {
+  font-size: 20px;
+  color: var(--kubik-text-soft);
+}
+
+.sd-hero-score-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.75);
+  letter-spacing: 0.02em;
+}
+
+.sd-hero-score-subject {
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.9);
+  text-align: center;
+  line-height: 1.15;
+  max-width: 100px;
+  word-break: break-word;
+}
+
+/* ─── Блок наставника ─── */
+.sd-coach {
+  margin: 8px 16px 4px;
+  padding: 20px 18px 18px;
+  background: linear-gradient(145deg, var(--kubik-navy) 0%, #1c5278 55%, var(--kubik-blue) 100%);
+  border-radius: 22px;
+  box-shadow: 0 8px 28px rgba(26, 64, 95, 0.30);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Декоративное свечение в углу */
+.sd-coach::before {
+  content: '';
+  position: absolute;
+  top: -30px;
+  right: -20px;
+  width: 130px;
+  height: 130px;
+  background: radial-gradient(circle, rgba(255, 190, 189, 0.3) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.sd-coach--locked {
+  background: linear-gradient(145deg, #2a5a7a 0%, var(--kubik-navy) 100%);
+}
+
+/* Заголовок — крупный, мотивирующий */
+.sd-coach-headline {
+  margin: 0 0 10px;
+  font-size: 17px;
+  font-weight: 800;
+  color: #fff;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  position: relative;
+}
+
+/* Текущий балл — чуть меньше, акцент на цифру */
+.sd-coach-score {
+  margin: 0 0 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.72);
+  line-height: 1.4;
+  position: relative;
+}
+
+/* Блок темы — выделенная карточка */
+.sd-coach-topic {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 11px 14px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 14px;
+  margin-bottom: 12px;
+  backdrop-filter: blur(4px);
+  position: relative;
+}
+
+.sd-coach-topic-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--kubik-pink);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.sd-coach-topic-name {
+  font-size: 14px;
+  font-weight: 800;
+  color: #fff;
+  line-height: 1.3;
+}
+
+/* Описание задачи */
+.sd-coach-task {
+  margin: 0 0 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.82);
+  line-height: 1.5;
+  position: relative;
+}
+
+/* Кнопка действия */
+.sd-coach-cta {
+  width: 100%;
+  padding: 14px 18px;
+  border: none;
+  border-radius: 14px;
+  background: var(--kubik-pink);
+  color: var(--kubik-navy);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+  letter-spacing: -0.01em;
+  box-shadow: 0 4px 16px rgba(255, 190, 189, 0.45);
+  transition: transform 0.14s ease, box-shadow 0.14s ease;
+  position: relative;
+}
+.sd-coach-cta:active {
+  transform: scale(0.97);
+  box-shadow: 0 2px 8px rgba(255, 190, 189, 0.3);
+}
+
+/* Разделитель «Практика» */
+.sd-section-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 0 -4px;
+}
+
+.sd-section-divider::before,
+.sd-section-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--kubik-border);
+}
+
+.sd-section-divider span {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--kubik-text-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
 }
 
 /* ─── Subject switcher ─── */
+.sd-subject-tabs-wrap {
+  margin: 12px 16px 4px;
+  padding: 10px;
+  background: #fff;
+  border-radius: 18px;
+  border: 1px solid var(--kubik-border);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+
 .sd-subject-tabs {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
-  padding: 12px 16px 4px;
-  overflow: visible;
-  overscroll-behavior: none;
 }
-
-.sd-subject-tabs--count-2 {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.sd-subject-tabs--count-3 {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.sd-subject-tabs--count-4 {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.sd-subject-tabs::-webkit-scrollbar { display: none; }
 
 .sd-subject-tab {
-  flex: 1 1 auto;
   min-width: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 10px 10px;
-  border-radius: 999px;
+  padding: 10px 8px;
+  border-radius: 12px;
   border: 1.5px solid var(--kubik-border);
-  background: #fff;
+  background: var(--kubik-blue-soft);
   font-family: inherit;
   font-size: 12px;
   font-weight: 600;
   color: var(--kubik-text-soft);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.18s ease;
   white-space: nowrap;
 }
 
@@ -91,7 +297,7 @@
   background: linear-gradient(135deg, var(--kubik-blue) 0%, var(--kubik-navy) 100%);
   border-color: transparent;
   color: #fff;
-  box-shadow: 0 4px 14px rgba(26, 64, 95, 0.25);
+  box-shadow: 0 3px 10px rgba(26, 64, 95, 0.22);
 }
 
 .sd-subject-tab-icon { font-size: 16px; line-height: 1; }
@@ -325,7 +531,7 @@
 .sd-pill {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 10px;
   padding: 14px 14px;
   background: #fff;
@@ -469,6 +675,23 @@
   font-weight: 800;
   color: var(--low);
   flex-shrink: 0;
+}
+
+.sd-weak-item--clickable {
+  cursor: pointer;
+  transition: background 0.15s, transform 0.12s;
+}
+.sd-weak-item--clickable:active {
+  background: #FFDEDE;
+  transform: scale(0.98);
+}
+
+.sd-weak-go {
+  font-size: 14px;
+  color: var(--low);
+  flex-shrink: 0;
+  opacity: 0.6;
+  margin-left: 2px;
 }
 
 /* ─── Recommendation card ─── */
@@ -626,6 +849,22 @@
   border-bottom: 1px solid var(--kubik-border);
 }
 
+.sd-topic-row--clickable {
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background 0.15s;
+}
+
+.sd-topic-row--clickable:active {
+  background: var(--kubik-blue-soft);
+}
+
+.sd-topic-go {
+  font-size: 14px;
+  color: var(--kubik-text-soft);
+  flex-shrink: 0;
+}
+
 .sd-topic-row:last-child { border-bottom: none; }
 
 .sd-topic-icon { font-size: 20px; flex-shrink: 0; }
@@ -715,30 +954,83 @@
 }
 
 /* Errors */
+.sd-error-intro {
+  margin: 0 0 12px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--kubik-text-soft);
+}
+
 .sd-error-list {
   list-style: none;
   margin: 0;
   padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .sd-error-item {
-  padding: 10px 0;
-  border-bottom: 1px solid var(--kubik-border);
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--kubik-pink-soft);
+  border: 1px solid rgba(215, 90, 90, 0.12);
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 
-.sd-error-item:last-child { border-bottom: none; }
+.sd-error-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
 
 .sd-error-topic {
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--kubik-navy);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sd-error-diff {
+  flex-shrink: 0;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: lowercase;
+}
+
+.sd-error-diff--easy { background: #E8F8F0; color: var(--good); }
+.sd-error-diff--medium { background: #FFF3E0; color: var(--medium); }
+.sd-error-diff--hard { background: #FCE4E4; color: var(--low); }
+
+.sd-error-q {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--kubik-text);
+  line-height: 1.4;
+}
+
+.sd-error-exp {
+  margin: 0;
+  font-size: 12px;
+  color: var(--kubik-navy);
+  line-height: 1.45;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 10px;
 }
 
 .sd-error-meta {
   font-size: 11px;
+  font-weight: 600;
   color: var(--kubik-text-soft);
 }
 
@@ -894,4 +1186,90 @@
   height: 100%;
   border-radius: 999px;
   background: linear-gradient(90deg, var(--kubik-blue), var(--kubik-pink));
+}
+
+.sd-hw-section-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--kubik-text-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 6px 0 2px;
+}
+
+/* Переключатель Общая / По заданиям (удалён, оставлено для обратной совместимости) */
+.sd-hw-toggle {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+  background: var(--kubik-blue-soft);
+  border-radius: 12px;
+  padding: 4px;
+}
+
+.sd-hw-toggle-btn {
+  flex: 1;
+  padding: 7px 0;
+  border: none;
+  background: transparent;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--kubik-text-soft);
+  cursor: pointer;
+  transition: background 0.18s, color 0.18s;
+}
+
+.sd-hw-toggle-btn.active {
+  background: #fff;
+  color: var(--kubik-navy);
+  box-shadow: 0 1px 4px rgba(26, 64, 95, 0.1);
+}
+
+/* Карточка конкретного задания */
+.sd-hw-card--item .sd-hw-head {
+  margin-bottom: 10px;
+}
+
+.sd-hw-card--item.pending {
+  opacity: 0.72;
+}
+
+.sd-hw-title-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.sd-hw-title-col .sd-hw-name {
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sd-hw-subject-hint {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--kubik-text-soft);
+}
+
+.sd-hw-status-badge {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+
+.sd-hw-status-badge.done {
+  background: rgba(34, 197, 94, 0.12);
+  color: var(--good);
+}
+
+.sd-hw-status-badge.pending {
+  background: var(--kubik-blue-soft);
+  color: var(--kubik-text-soft);
 }

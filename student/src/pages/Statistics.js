@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './Statistics.css';
 import './Practice.css';
 import { useData } from './DataContext';
@@ -6,6 +6,7 @@ import StudentBrandMark from '../components/StudentBrandMark';
 import PredictedScoreCard from '../components/PredictedScoreCard';
 
 const DIFF_LABELS = { easy: 'Лёгкие', medium: 'Средние', hard: 'Сложные' };
+const DIFF_WORD = { easy: 'лёгкое', medium: 'среднее', hard: 'сложное' };
 const STATUS_CLASS = {
   weak: 'sd-status--weak',
   review: 'sd-status--review',
@@ -14,6 +15,16 @@ const STATUS_CLASS = {
   mastered: 'sd-status--mastered',
   learning: 'sd-status--learning',
 };
+
+function pluralRu(n, one, few, many) {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return one;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return few;
+  return many;
+}
+const pluralTasks = (n) => pluralRu(n, 'задание', 'задания', 'заданий');
+const pluralPoints = (n) => pluralRu(n, 'балл', 'балла', 'баллов');
 
 function formatRelativeDate(iso) {
   if (!iso) return '';
@@ -78,38 +89,38 @@ function countHomeworkSubjects(homeworkStats) {
 
 function HomeworkStatsPanel({ homeworkStats, compact = false }) {
   const homeworkBySubject = {};
-  if (homeworkStats?.homeworks) {
-    homeworkStats.homeworks.forEach((hw) => {
-      const subjectName = hw.subject?.name || 'Без предмета';
-      const subjectIcon = hw.subject?.icon || '📖';
-      if (!homeworkBySubject[subjectName]) {
-        homeworkBySubject[subjectName] = {
-          icon: subjectIcon,
-          total: 0,
-          completed: 0,
-          totalScore: 0,
-          maxScore: 0,
-          correctAnswers: 0,
-          totalQuestions: 0,
-        };
-      }
-      homeworkBySubject[subjectName].total += 1;
-      const questionsInHw = (hw.questions || []).length;
-      homeworkBySubject[subjectName].totalQuestions += questionsInHw;
+  const allHomeworks = homeworkStats?.homeworks || [];
 
-      if (hw.bestSubmission) {
-        homeworkBySubject[subjectName].completed += 1;
-        homeworkBySubject[subjectName].totalScore += hw.bestSubmission.totalScore || 0;
-        homeworkBySubject[subjectName].maxScore += hw.bestSubmission.maxScore || 0;
-        const correct = hw.bestSubmission.correctAnswers !== undefined
-          ? hw.bestSubmission.correctAnswers
-          : (hw.bestSubmission.maxScore > 0
-            ? Math.round((hw.bestSubmission.totalScore / hw.bestSubmission.maxScore) * questionsInHw)
-            : 0);
-        homeworkBySubject[subjectName].correctAnswers += correct;
-      }
-    });
-  }
+  allHomeworks.forEach((hw) => {
+    const subjectName = hw.subject?.name || 'Без предмета';
+    const subjectIcon = hw.subject?.icon || '📖';
+    if (!homeworkBySubject[subjectName]) {
+      homeworkBySubject[subjectName] = {
+        icon: subjectIcon,
+        total: 0,
+        completed: 0,
+        totalScore: 0,
+        maxScore: 0,
+        correctAnswers: 0,
+        totalQuestions: 0,
+      };
+    }
+    homeworkBySubject[subjectName].total += 1;
+    const questionsInHw = (hw.questions || []).length;
+    homeworkBySubject[subjectName].totalQuestions += questionsInHw;
+
+    if (hw.bestSubmission) {
+      homeworkBySubject[subjectName].completed += 1;
+      homeworkBySubject[subjectName].totalScore += hw.bestSubmission.totalScore || 0;
+      homeworkBySubject[subjectName].maxScore += hw.bestSubmission.maxScore || 0;
+      const correct = hw.bestSubmission.correctAnswers !== undefined
+        ? hw.bestSubmission.correctAnswers
+        : (hw.bestSubmission.maxScore > 0
+          ? Math.round((hw.bestSubmission.totalScore / hw.bestSubmission.maxScore) * questionsInHw)
+          : 0);
+      homeworkBySubject[subjectName].correctAnswers += correct;
+    }
+  });
 
   const entries = Object.entries(homeworkBySubject);
 
@@ -124,13 +135,13 @@ function HomeworkStatsPanel({ homeworkStats, compact = false }) {
 
   return (
     <div className={`sd-dashboard sd-homework-panel ${compact ? 'sd-homework-panel--compact' : ''}`}>
+      {/* Общая сводка по предмету */}
       {entries.map(([subjectName, data]) => {
         const answerPercent = data.totalQuestions > 0
           ? Math.round((data.correctAnswers / data.totalQuestions) * 100)
           : 0;
         return (
           <div key={subjectName} className="sd-hw-card">
-            {compact && <h3 className="sd-block-title sd-hw-inline-title">Домашка</h3>}
             <div className="sd-hw-head">
               <span className="sd-hw-icon">{data.icon}</span>
               <span className="sd-hw-name">{subjectName}</span>
@@ -157,6 +168,7 @@ function HomeworkStatsPanel({ homeworkStats, compact = false }) {
           </div>
         );
       })}
+
     </div>
   );
 }
@@ -175,15 +187,17 @@ function Statistics({ studentId }) {
   const [mainTab, setMainTab] = useState('practice');
   const [selectedSubjectId, setSelectedSubjectId] = useState(null);
   const [dashboard, setDashboard] = useState(null);
+  const [dashboardMap, setDashboardMap] = useState({}); // subjectId → dashboard (для суммы баллов)
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
-  const [openSections, setOpenSections] = useState({ topics: false, difficulty: false, modes: false, errors: false });
+  const [openSections, setOpenSections] = useState({ topics: false, difficulty: false, errors: false });
+  const lastRefreshKeyRef = useRef(null);
 
   const subjectIdMatch = (a, b) => Number(a) === Number(b);
   const homeworkSubjectCount = countHomeworkSubjects(homeworkStats);
 
   useEffect(() => {
-    loadHomeworkStats(true);
+    loadHomeworkStats(false); // не форсировать, только если не загружено
   }, [loadHomeworkStats]);
 
   useEffect(() => {
@@ -199,31 +213,60 @@ function Statistics({ studentId }) {
     const data = await loadSubjectDashboard(subjectId);
     if (data) {
       setDashboard(data);
+      setDashboardMap(prev => ({ ...prev, [Number(subjectId)]: data }));
     } else {
       setLoadError(true);
     }
     if (!silent) setLoading(false);
   }, [loadSubjectDashboard]);
 
+  // Загружаем дашборд при смене предмета или при реальном обновлении данных (после практики/домашки)
   useEffect(() => {
-    if (selectedSubjectId && (mainTab === 'practice' || homeworkSubjectCount <= 1)) {
-      loadDashboard(selectedSubjectId);
-    }
-  }, [selectedSubjectId, mainTab, dashboardRefreshKey, loadDashboard, homeworkSubjectCount]);
+    if (!selectedSubjectId) return;
+    const cached = dashboardMap[Number(selectedSubjectId)];
+    const isRealRefresh = dashboardRefreshKey !== lastRefreshKeyRef.current && lastRefreshKeyRef.current !== null;
+    const wrongSubject = !dashboard || !subjectIdMatch(dashboard?.subject?.id, selectedSubjectId);
 
+    // Мгновенный переход: если данные предмета уже в кэше — показываем сразу, без спиннера
+    if (cached && wrongSubject) {
+      setDashboard(cached);
+      setLoading(false);
+      setLoadError(false);
+    }
+
+    if (!cached || isRealRefresh) {
+      // Нет кэша или реальное обновление данных — тихо подгружаем
+      lastRefreshKeyRef.current = dashboardRefreshKey;
+      loadDashboard(selectedSubjectId, !!cached);
+    } else {
+      lastRefreshKeyRef.current = dashboardRefreshKey;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSubjectId, dashboardRefreshKey, dashboardMap]);
+
+  // Обновляем из кэша контекста если пришли свежие данные
   useEffect(() => {
     if (subjectDashboard?.subject?.id != null
       && selectedSubjectId != null
       && subjectIdMatch(subjectDashboard.subject.id, selectedSubjectId)) {
       setDashboard(subjectDashboard);
+      setDashboardMap(prev => ({ ...prev, [Number(selectedSubjectId)]: subjectDashboard }));
       setLoading(false);
       setLoadError(false);
     }
   }, [subjectDashboard, selectedSubjectId]);
 
+  // Подгружаем остальные предметы фоново для суммарного балла
   useEffect(() => {
-    if (mainTab === 'homework') loadHomeworkStats(true);
-  }, [mainTab, loadHomeworkStats]);
+    subjects.forEach(s => {
+      if (!dashboardMap[Number(s.id)]) {
+        loadSubjectDashboard(s.id).then(data => {
+          if (data) setDashboardMap(prev => ({ ...prev, [Number(s.id)]: data }));
+        });
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subjects]);
 
   const toggleSection = (id) => {
     setOpenSections((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -239,10 +282,93 @@ function Statistics({ studentId }) {
   };
 
   const subject = subjects.find((s) => subjectIdMatch(s.id, selectedSubjectId));
-  const rec = dashboard?.recommendation;
   const showStatsTabs = homeworkSubjectCount > 1;
   const showInlineHomework = !showStatsTabs && homeworkSubjectCount === 1;
   const activePracticeView = showStatsTabs ? mainTab === 'practice' : true;
+
+  // Балл и прогноз для текущего предмета
+  const pred = dashboard?.prediction;
+  const ringUnlocked = pred?.unlocked === true;
+  const ringScore = ringUnlocked ? (pred.score ?? 0) : 0;
+  const ringPct = ringUnlocked ? `${ringScore}%` : '0%';
+  const neededForUnlock = pred && !ringUnlocked ? (pred.needed ?? 50) : 0;
+
+  // ─── Блок наставника: фиксированная структура, адаптивный контент ───
+  const coach = (() => {
+    if (!pred) return null;
+
+    const topics = dashboard?.topics || [];
+
+    // ── Прогноз закрыт ──
+    if (!ringUnlocked) {
+      const needed = neededForUnlock;
+      const solved = pred.solved ?? 0;
+      const startTopic = [...topics].sort((a, b) => (a.uniqueSolved ?? 0) - (b.uniqueSolved ?? 0))[0] || null;
+
+      const headlines = [
+        'Хочешь узнать свой балл ЦТ?',
+        'Открой прогноз — начни решать',
+        needed <= 10 ? 'Ещё чуть-чуть — и прогноз готов!' : 'Ты уже на пути к прогнозу',
+      ];
+      const headline = solved === 0 ? headlines[0] : needed <= 10 ? headlines[2] : headlines[1];
+
+      return {
+        locked: true,
+        headline,
+        scoreLabel: `Решено заданий: ${solved} из ${needed + solved}`,
+        topicName: startTopic?.name || null,
+        topicId: startTopic?.id || null,
+        taskCount: needed,
+        taskDesc: needed <= 10
+          ? `Дорешай ещё ${needed} ${pluralTasks(needed)} — и прогноз появится`
+          : `Реши ${needed} ${pluralTasks(needed)}, чтобы открыть прогноз`,
+        mode: 'general',
+        cta: solved === 0 ? 'Начать практику →' : 'Продолжить →',
+      };
+    }
+
+    // ── Прогноз открыт ──
+    const score = pred.score ?? 0;
+    const predTopics = pred.topics || [];
+
+    // Лучший рычаг: тема с наибольшим потенциальным приростом балла
+    const levers = predTopics
+      .filter((t) => t.solved > 0 && t.progress < 80)
+      .map((t) => {
+        const headroom = Math.min(80, t.progress + 35) - t.progress;
+        const gain = Math.max(1, Math.round((headroom * t.normalizedWeight) / 100));
+        const tasks = Math.min(30, Math.max(8, Math.round(headroom * 0.55)));
+        return { ...t, gain, tasks };
+      })
+      .sort((a, b) => b.gain - a.gain);
+
+    const best = levers[0] || null;
+
+    const headlines = score >= 90
+      ? 'Топовый результат — держи планку!'
+      : score >= 75
+        ? 'Хочешь 90+ на ЦТ? Тогда решай'
+        : score >= 50
+          ? 'Хочешь выше на ЦТ? Тогда решай'
+          : 'Хочешь 100 на ЦТ? Тогда решай';
+
+    const taskDesc = best
+      ? `Реши правильно ${best.tasks} ${pluralTasks(best.tasks)}, чтобы поднять ${pluralPoints(best.gain)} на ~${best.gain}`
+      : 'Реши задания в слабых темах, чтобы поднять балл';
+
+    return {
+      locked: false,
+      headline: headlines,
+      scoreLabel: `Сейчас у тебя ${score} ${pluralPoints(score)}.`,
+      topicName: best?.name || null,
+      topicId: best?.topicId || null,
+      taskCount: best?.tasks || null,
+      taskDesc,
+      gain: best?.gain || null,
+      mode: best ? 'topic' : 'weak',
+      cta: 'Решать задания →',
+    };
+  })();
 
   return (
     <div className={`section section-stats sd-page ${!showStatsTabs ? 'sd-page--unified' : ''}`}>
@@ -251,6 +377,23 @@ function Statistics({ studentId }) {
         <div className="section-hero-content practice-hero-row">
           <StudentBrandMark variant="hero" />
           <h1 className="practice-hero-title practice-hero-title--plain">Статистика</h1>
+          <div className="sd-hero-score-wrap">
+            {subject && <span className="sd-hero-score-subject">{subject.name}</span>}
+            <div
+              className={`sd-hero-score-ring ${ringUnlocked ? 'unlocked' : 'locked'}`}
+              style={{ '--score-pct': ringPct }}
+            >
+              {ringUnlocked ? (
+                <>
+                  <span className="sd-hero-score-val">{ringScore}</span>
+                  <span className="sd-hero-score-max">/100</span>
+                </>
+              ) : (
+                <span className="sd-hero-score-val sd-hero-score-val--lock">?</span>
+              )}
+            </div>
+            <span className="sd-hero-score-label">баллов ЦТ</span>
+          </div>
         </div>
         <svg className="section-hero-wave" viewBox="0 0 400 40" preserveAspectRatio="none">
           <path d="M0,40 L0,22 Q100,2 200,18 T400,15 L400,40 Z" />
@@ -283,29 +426,49 @@ function Statistics({ studentId }) {
       )}
 
       {activePracticeView && subjects.length > 1 && (
-        <div
-          className={`sd-subject-tabs sd-subject-tabs--count-${Math.min(subjects.length, 4)}`}
-          role="tablist"
-        >
-          {subjects.map((s) => (
-            <button
-              key={s.id}
-              type="button"
-              role="tab"
-              aria-selected={subjectIdMatch(s.id, selectedSubjectId)}
-              className={`sd-subject-tab ${subjectIdMatch(s.id, selectedSubjectId) ? 'active' : ''}`}
-              onClick={() => setSelectedSubjectId(s.id)}
-            >
-              <span className="sd-subject-tab-icon">{s.icon}</span>
-              <span className="sd-subject-tab-name">{s.name}</span>
-            </button>
-          ))}
+        <div className="sd-subject-tabs-wrap">
+          <div className="sd-subject-tabs" role="tablist">
+            {subjects.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                role="tab"
+                aria-selected={subjectIdMatch(s.id, selectedSubjectId)}
+                className={`sd-subject-tab ${subjectIdMatch(s.id, selectedSubjectId) ? 'active' : ''}`}
+                onClick={() => setSelectedSubjectId(s.id)}
+              >
+                <span className="sd-subject-tab-icon">{s.icon}</span>
+                <span className="sd-subject-tab-name">{s.name}</span>
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
       {activePracticeView && subjects.length === 1 && subject && (
         <div className="sd-subject-single">
           <span>{subject.icon}</span> {subject.name}
+        </div>
+      )}
+
+      {activePracticeView && coach && (
+        <div className={`sd-coach${coach.locked ? ' sd-coach--locked' : ''}`}>
+          <p className="sd-coach-headline">{coach.headline}</p>
+          <p className="sd-coach-score">{coach.scoreLabel}</p>
+          {coach.topicName && (
+            <div className="sd-coach-topic">
+              <span className="sd-coach-topic-label">Начни с темы</span>
+              <span className="sd-coach-topic-name">«{coach.topicName}»</span>
+            </div>
+          )}
+          <p className="sd-coach-task">{coach.taskDesc}</p>
+          <button
+            type="button"
+            className="sd-coach-cta"
+            onClick={() => handleAction(coach.mode || 'general', coach.topicId)}
+          >
+            {coach.cta}
+          </button>
         </div>
       )}
 
@@ -333,34 +496,12 @@ function Statistics({ studentId }) {
       ) : activePracticeView && dashboard ? (
         <div className="sd-dashboard">
           {showInlineHomework && (
-            <HomeworkStatsPanel homeworkStats={homeworkStats} compact />
+            <>
+              <div className="sd-section-divider"><span>Домашка</span></div>
+              <HomeworkStatsPanel homeworkStats={homeworkStats} compact />
+              <div className="sd-section-divider"><span>Практика</span></div>
+            </>
           )}
-          <div className="sd-predicted-wrap">
-            <PredictedScoreCard
-              predictedScore={buildPredictedFromDashboard(dashboard)}
-              subjectName={subjects.length > 1 ? subject?.name : undefined}
-            />
-            {dashboard.scoreDynamics?.monthDelta != null
-              && dashboard.scoreDynamics.monthDelta !== dashboard.scoreDynamics.weekDelta && (
-              <p className="sd-month-delta">
-                {dashboard.scoreDynamics.monthDelta >= 0 ? '+' : ''}
-                {dashboard.scoreDynamics.monthDelta} за месяц
-              </p>
-            )}
-          </div>
-
-          <div className="sd-pill-grid">
-            <StatPill icon="✅" label="Правильность" value={`${dashboard.activity?.accuracy ?? 0}%`} />
-            <StatPill icon="📝" label="Решено всего" value={dashboard.activity?.total ?? 0} />
-            <StatPill icon="📅" label="Сегодня" value={dashboard.activity?.today ?? 0} />
-            <StatPill
-              icon="🔥"
-              label="Стрик"
-              value={dashboard.streak?.streak ?? 0}
-              sub={dashboard.streak?.best ? `лучшая серия: ${dashboard.streak.best}` : null}
-            />
-          </div>
-
           {dashboard.weeklyGoal && (
             <div className="sd-weekly">
               <div className="sd-weekly-head">
@@ -376,33 +517,39 @@ function Statistics({ studentId }) {
             </div>
           )}
 
+          <div className="sd-pill-grid">
+            <StatPill icon="✅" label="Правильность" value={`${dashboard.activity?.accuracy ?? 0}%`} />
+            <StatPill icon="📝" label="Решено всего" value={dashboard.activity?.total ?? 0} />
+            <StatPill icon="📅" label="Сегодня" value={dashboard.activity?.today ?? 0} />
+            <StatPill
+              icon="🔥"
+              label="Стрик"
+              value={dashboard.streak?.streak ?? 0}
+              sub={dashboard.streak?.best ? `лучшая серия: ${dashboard.streak.best}` : null}
+            />
+          </div>
+
           {dashboard.weakTopics?.length > 0 && (
             <div className="sd-weak-block">
               <h3 className="sd-block-title">Слабые темы</h3>
               <ul className="sd-weak-list">
                 {dashboard.weakTopics.slice(0, 3).map((t, i) => (
-                  <li key={t.id} className="sd-weak-item">
+                  <li
+                    key={t.id}
+                    className="sd-weak-item sd-weak-item--clickable"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => handleAction('topic', t.id)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleAction('topic', t.id)}
+                  >
                     <span className="sd-weak-rank">{i + 1}</span>
                     <span className="sd-weak-icon">{t.icon}</span>
                     <span className="sd-weak-name">{t.name}</span>
                     <span className="sd-weak-pct">{t.accuracy}%</span>
+                    <span className="sd-weak-go">→</span>
                   </li>
                 ))}
               </ul>
-            </div>
-          )}
-
-          {rec && (
-            <div className="sd-rec-card">
-              <span className="sd-rec-kicker">{rec.title}</span>
-              <p className="sd-rec-text">{rec.text}</p>
-              <button
-                type="button"
-                className="sd-cta sd-cta--full"
-                onClick={() => handleAction(rec.actionType, rec.topicId)}
-              >
-                {rec.action}
-              </button>
             </div>
           )}
 
@@ -424,13 +571,21 @@ function Statistics({ studentId }) {
           >
             <ul className="sd-topic-list">
               {dashboard.topics?.map((t) => (
-                <li key={t.id} className="sd-topic-row">
+                <li
+                  key={t.id}
+                  className="sd-topic-row sd-topic-row--clickable"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => handleAction('topic', t.id)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleAction('topic', t.id)}
+                >
                   <span className="sd-topic-icon">{t.icon}</span>
                   <div className="sd-topic-info">
                     <span className="sd-topic-name">{t.name}</span>
-                    <span className="sd-topic-meta">{t.solved} заданий · {t.accuracy}%</span>
+                    <span className="sd-topic-meta">{t.accuracy}% верно</span>
                   </div>
                   <span className={`sd-status ${STATUS_CLASS[t.status] || ''}`}>{t.statusLabel}</span>
+                  <span className="sd-topic-go">→</span>
                 </li>
               ))}
             </ul>
@@ -457,30 +612,6 @@ function Statistics({ studentId }) {
           </CollapsibleSection>
 
           <CollapsibleSection
-            id="modes"
-            title="Режимы практики"
-            icon="🎯"
-            open={openSections.modes}
-            onToggle={toggleSection}
-          >
-            <div className="sd-mode-list">
-              {[
-                { key: 'general', label: 'Все тесты', icon: '💪' },
-                { key: 'weak', label: 'Слабые темы', icon: '🎯' },
-                { key: 'topic', label: 'Конкретная тема', icon: '📚' },
-              ].map(({ key, label, icon }) => {
-                const m = dashboard.modeStats?.[key] || { total: 0, accuracy: 0 };
-                return (
-                  <div key={key} className="sd-mode-row">
-                    <span>{icon} {label}</span>
-                    <span>{m.total} · {m.accuracy}%</span>
-                  </div>
-                );
-              })}
-            </div>
-          </CollapsibleSection>
-
-          <CollapsibleSection
             id="errors"
             title="Последние ошибки"
             icon="🔍"
@@ -490,13 +621,25 @@ function Statistics({ studentId }) {
           >
             {dashboard.recentErrors?.length ? (
               <>
+                <p className="sd-error-intro">
+                  Задания, в которых ты ошибся. Разбери их — это быстро поднимает балл.
+                </p>
                 <ul className="sd-error-list">
                   {dashboard.recentErrors.map((e) => (
                     <li key={e.id} className="sd-error-item">
-                      <span className="sd-error-topic">{e.topicIcon} {e.topicName}</span>
-                      <span className="sd-error-meta">
-                        {DIFF_LABELS[e.difficulty] || e.difficulty} · {formatRelativeDate(e.date)}
-                      </span>
+                      <div className="sd-error-head">
+                        <span className="sd-error-topic">{e.topicIcon} {e.topicName}</span>
+                        <span className={`sd-error-diff sd-error-diff--${e.difficulty}`}>
+                          {DIFF_WORD[e.difficulty] || e.difficulty}
+                        </span>
+                      </div>
+                      {e.questionText && (
+                        <p className="sd-error-q">{e.questionText}</p>
+                      )}
+                      {e.explanation && (
+                        <p className="sd-error-exp">💡 {e.explanation}</p>
+                      )}
+                      <span className="sd-error-meta">Ошибка · {formatRelativeDate(e.date)}</span>
                     </li>
                   ))}
                 </ul>

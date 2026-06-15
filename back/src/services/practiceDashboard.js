@@ -211,6 +211,28 @@ async function buildSubjectDashboard(studentId, subjectId, helpers) {
   ]);
 
   const topicMap = Object.fromEntries(topics.map(t => [t.id, t.toJSON()]));
+  const topicIds = topics.map(t => t.id);
+
+  // Сколько всего активных заданий в каждой теме (для процента прохождения)
+  const questionCounts = topicIds.length
+    ? await PracticeQuestion.findAll({
+      where: { topicId: topicIds, isActive: true },
+      attributes: ['topicId', [sequelize.fn('COUNT', sequelize.col('id')), 'cnt']],
+      group: ['topicId'],
+      raw: true
+    })
+    : [];
+  const totalQuestionsByTopic = Object.fromEntries(
+    questionCounts.map(q => [q.topicId, parseInt(q.cnt, 10) || 0])
+  );
+
+  // Сколько уникальных заданий темы реально пройдено (из results)
+  const uniqueSolvedByTopic = {};
+  results.forEach((r) => {
+    const rj = r.toJSON ? r.toJSON() : r;
+    if (!uniqueSolvedByTopic[rj.topicId]) uniqueSolvedByTopic[rj.topicId] = new Set();
+    uniqueSolvedByTopic[rj.topicId].add(rj.questionId);
+  });
 
   const totalAttempts = allAttempts.length;
   const totalCorrect = allAttempts.filter(a => a.isCorrect).length;
@@ -317,6 +339,11 @@ async function buildSubjectDashboard(studentId, subjectId, helpers) {
     const errors = total - correct;
     const accuracy = total > 0 ? Math.round(correct / total * 100) : 0;
     const status = getTopicStatus(total, accuracy);
+    const totalQuestions = totalQuestionsByTopic[topicId] || 0;
+    const uniqueSolved = uniqueSolvedByTopic[topicId] ? uniqueSolvedByTopic[topicId].size : 0;
+    const completionPercent = totalQuestions > 0
+      ? Math.min(100, Math.round(uniqueSolved / totalQuestions * 100))
+      : 0;
     return {
       id: parseInt(topicId, 10),
       name: meta.name || 'Тема',
@@ -325,6 +352,9 @@ async function buildSubjectDashboard(studentId, subjectId, helpers) {
       correct,
       errors,
       accuracy,
+      totalQuestions,
+      uniqueSolved,
+      completionPercent,
       status: status.key,
       statusLabel: status.label,
       lastAt: agg.lastAt

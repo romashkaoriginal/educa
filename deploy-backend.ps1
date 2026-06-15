@@ -7,6 +7,6 @@ scp back/package.json "${sshHost}:${remote}/"
 scp back/package-lock.json "${sshHost}:${remote}/"
 scp -r back/src "${sshHost}:${remote}/"
 
-ssh $sshHost "cd /opt/educa && docker compose build --no-cache backend && docker compose up -d backend"
+ssh $sshHost "cd /opt/educa && docker compose build backend && docker compose up -d backend && docker image prune -f && docker builder prune -f"
 
 Write-Host "Backend done."
