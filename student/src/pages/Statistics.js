@@ -7,6 +7,8 @@ import PredictedScoreCard from '../components/PredictedScoreCard';
 
 const DIFF_LABELS = { easy: 'Лёгкие', medium: 'Средние', hard: 'Сложные' };
 const DIFF_WORD = { easy: 'лёгкое', medium: 'среднее', hard: 'сложное' };
+const DIFF_TARGETS = { easy: 10, medium: 10, hard: 5 };
+const DIFF_WEIGHTS = { easy: 0.30, medium: 0.40, hard: 0.30 };
 const STATUS_CLASS = {
   weak: 'sd-status--weak',
   review: 'sd-status--review',
@@ -25,6 +27,60 @@ function pluralRu(n, one, few, many) {
 }
 const pluralTasks = (n) => pluralRu(n, 'задание', 'задания', 'заданий');
 const pluralPoints = (n) => pluralRu(n, 'балл', 'балла', 'баллов');
+const pluralAnswers = (n) => pluralRu(n, 'правильный ответ', 'правильных ответа', 'правильных ответов');
+
+function calcDifficultyMastery(correct, solved, target) {
+  if (solved <= 0 || target <= 0) return 0;
+  const accuracy = correct / solved;
+  const volume = Math.min(1, solved / target);
+  return accuracy * volume;
+}
+
+function estimateCorrectAnswersToTarget(topic, targetProgress) {
+  if (!topic?.difficulties?.length) return null;
+
+  const states = topic.difficulties.map((d) => ({
+    difficulty: d.difficulty,
+    solved: Number(d.solved) || 0,
+    correct: Number(d.correct) || 0,
+    target: Number(d.target) || DIFF_TARGETS[d.difficulty] || 10,
+    weight: DIFF_WEIGHTS[d.difficulty] || 0,
+  })).filter((d) => d.weight > 0);
+
+  if (!states.length) return null;
+
+  const progressOf = () => states.reduce((sum, d) => (
+    sum + calcDifficultyMastery(d.correct, d.solved, d.target) * d.weight * 100
+  ), 0);
+
+  let progress = progressOf();
+  if (progress >= targetProgress) return 0;
+
+  let answers = 0;
+  const maxAnswers = 80;
+  while (progress < targetProgress && answers < maxAnswers) {
+    let best = null;
+    let bestGain = 0;
+
+    states.forEach((d) => {
+      const before = calcDifficultyMastery(d.correct, d.solved, d.target) * d.weight * 100;
+      const after = calcDifficultyMastery(d.correct + 1, d.solved + 1, d.target) * d.weight * 100;
+      const gain = after - before;
+      if (gain > bestGain) {
+        bestGain = gain;
+        best = d;
+      }
+    });
+
+    if (!best || bestGain <= 0) break;
+    best.correct += 1;
+    best.solved += 1;
+    answers += 1;
+    progress = progressOf();
+  }
+
+  return answers || null;
+}
 
 function formatRelativeDate(iso) {
   if (!iso) return '';
@@ -332,17 +388,37 @@ function Statistics({ studentId }) {
     // ── Прогноз открыт ──
     const score = pred.score ?? 0;
     const predTopics = pred.topics || [];
+    const dashboardTopicById = Object.fromEntries(
+      (topics || []).map((t) => [String(t.id), t])
+    );
 
     // Лучший рычаг: тема с наибольшим потенциальным приростом балла
     const levers = predTopics
-      .filter((t) => t.solved > 0 && t.progress < 80)
+      .filter((t) => t.solved > 0 && t.progress < 90)
       .map((t) => {
-        const headroom = Math.min(80, t.progress + 35) - t.progress;
-        const gain = Math.max(1, Math.round((headroom * t.normalizedWeight) / 100));
-        const tasks = Math.min(30, Math.max(8, Math.round(headroom * 0.55)));
-        return { ...t, gain, tasks };
+        const targetProgress = t.progress < 70 ? 70 : t.progress < 80 ? 80 : 90;
+        const estimatedAnswers = estimateCorrectAnswersToTarget(t, targetProgress);
+        const fallbackAnswers = Math.max(3, Math.ceil((targetProgress - t.progress) / 4));
+        const topicStat = dashboardTopicById[String(t.topicId)];
+        const unsolvedUnique = topicStat?.totalQuestions > 0
+          ? Math.max(0, topicStat.totalQuestions - (topicStat.uniqueSolved || 0))
+          : null;
+        const tasks = Math.max(1, Math.min(
+          estimatedAnswers || fallbackAnswers,
+          unsolvedUnique != null && unsolvedUnique > 0 ? unsolvedUnique : 30
+        ));
+        const gain = Math.max(1, Math.round(((targetProgress - t.progress) * t.normalizedWeight) / 100));
+        return {
+          ...t,
+          gain,
+          tasks,
+          targetProgress,
+          uniqueSolved: topicStat?.uniqueSolved ?? t.solved,
+          totalQuestions: topicStat?.totalQuestions ?? null,
+        };
       })
-      .sort((a, b) => b.gain - a.gain);
+      .filter((t) => t.tasks > 0)
+      .sort((a, b) => b.gain - a.gain || a.tasks - b.tasks);
 
     const best = levers[0] || null;
 
@@ -355,7 +431,7 @@ function Statistics({ studentId }) {
           : 'Хочешь 100 на ЦТ? Тогда решай';
 
     const taskDesc = best
-      ? `Реши правильно ${best.tasks} ${pluralTasks(best.tasks)}, чтобы поднять баллы`
+      ? `Сделай ещё ${best.tasks} ${pluralAnswers(best.tasks)} в этой теме, чтобы поднять баллы`
       : 'Реши задания в слабых темах, чтобы поднять баллы';
 
     return {

@@ -711,10 +711,11 @@
   font-size: 16px;
   line-height: 1.35;
   margin-bottom: 6px;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 42%;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .quiz-ui--session .quiz-ui-points-badge {
@@ -727,7 +728,8 @@
   gap: 6px;
   flex: 1;
   min-height: 0;
-  overflow: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .quiz-ui--session .quiz-ui-answer {

@@ -542,9 +542,8 @@
 .question-container {
   flex: 1;
   min-height: 0;
-  padding: 16px 16px 18px;
-  overflow-x: hidden;
-  overflow-y: auto;
+  padding: 10px 16px 14px;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   -webkit-overflow-scrolling: touch;
@@ -576,39 +575,111 @@
 
 .question-card {
   position: relative;
-  background: linear-gradient(135deg, #ffffff 0%, var(--kubik-blue-soft) 140%);
+  background: linear-gradient(135deg, #ffffff 0%, var(--kubik-blue-soft) 150%);
   border: 1.5px solid var(--kubik-border);
-  border-radius: 16px;
-  padding: 18px 18px 18px 20px;
-  margin: 0 0 16px 0;
-  box-shadow: 0 4px 16px rgba(26, 64, 95, 0.06);
-  flex-shrink: 0;
+  border-radius: 14px;
+  padding: 10px 12px 10px 14px;
+  margin: 0 0 10px 0;
+  flex: 0 0 auto;
   overflow: hidden;
   animation: questionCardIn 0.4s var(--ease-out) both;
 }
 
 .question-card-mark {
   position: absolute;
-  top: -6px;
-  left: 8px;
-  font-size: 56px;
+  top: -10px;
+  left: 6px;
+  font-size: 46px;
   font-weight: 800;
   line-height: 1;
   color: var(--kubik-blue);
-  opacity: 0.1;
+  opacity: 0.09;
   pointer-events: none;
   font-family: Georgia, 'Times New Roman', serif;
 }
 
 .question-text {
   position: relative;
-  font-size: 17px;
   font-weight: 700;
   color: var(--kubik-navy);
-  line-height: 1.4;
   margin: 0;
   letter-spacing: -0.3px;
   text-wrap: pretty;
+}
+
+/* ===== АДАПТИВНАЯ ПЛОТНОСТЬ: вопрос + варианты ужимаются вместе, чтобы всё влезло без скролла ===== */
+
+/* Размер текста вопроса */
+.question-density--sm .question-text { font-size: 15px; line-height: 1.35; }
+.question-density--md .question-text { font-size: 14px; line-height: 1.3; }
+.question-density--lg .question-text { font-size: 13px; line-height: 1.28; }
+.question-density--xl .question-text { font-size: 12px; line-height: 1.26; }
+
+/* Отступы карточки вопроса */
+.question-density--sm .question-card { padding: 10px 12px 10px 14px; margin-bottom: 10px; }
+.question-density--md .question-card { padding: 9px 11px 9px 13px; margin-bottom: 8px; }
+.question-density--lg .question-card { padding: 8px 10px 8px 12px; margin-bottom: 7px; }
+.question-density--xl .question-card { padding: 7px 10px 7px 12px; margin-bottom: 6px; }
+
+/* Размер текста вариантов */
+.question-density--sm .answer-text { font-size: 14px; line-height: 1.35; }
+.question-density--md .answer-text { font-size: 13.5px; line-height: 1.3; }
+.question-density--lg .answer-text { font-size: 13px; line-height: 1.25; }
+.question-density--xl .answer-text { font-size: 12px; line-height: 1.22; }
+
+/* Паддинги и зазор вариантов */
+.question-density--sm .answers-list { gap: 9px; }
+.question-density--md .answers-list { gap: 7px; }
+.question-density--lg .answers-list { gap: 6px; }
+.question-density--xl .answers-list { gap: 5px; }
+
+.question-density--sm .answer-option { padding: 11px 13px; }
+.question-density--md .answer-option { padding: 9px 12px; }
+.question-density--lg .answer-option { padding: 8px 11px; }
+.question-density--xl .answer-option { padding: 7px 10px; }
+
+/* Буква-маркер ужимается на плотных раскладках */
+.question-density--lg .answer-letter,
+.question-density--xl .answer-letter {
+  width: 22px;
+  height: 22px;
+  font-size: 11px;
+}
+
+/* Плашка результата ужимается на плотных раскладках */
+.question-density--lg .answer-result-box,
+.question-density--xl .answer-result-box {
+  padding: 9px 14px;
+  margin-top: 10px;
+  gap: 11px;
+}
+.question-density--lg .result-medal,
+.question-density--xl .result-medal {
+  width: 32px;
+  height: 32px;
+}
+.question-density--lg .result-medal-glyph,
+.question-density--xl .result-medal-glyph {
+  font-size: 17px;
+}
+.question-density--lg .result-text,
+.question-density--xl .result-text {
+  font-size: 14px;
+}
+.question-density--lg .result-sub,
+.question-density--xl .result-sub {
+  font-size: 11px;
+}
+
+/* Nav-кнопки ужимаются */
+.question-density--lg .question-nav-row,
+.question-density--xl .question-nav-row {
+  margin-top: 8px;
+}
+.question-density--lg .question-nav-btn,
+.question-density--xl .question-nav-btn {
+  padding: 8px 12px;
+  font-size: 12px;
 }
 
 @keyframes questionCardIn {
@@ -617,7 +688,7 @@
 }
 
 /* Варианты — без hover на touch, только явные состояния */
-.answers-list { display: flex; flex-direction: column; gap: 12px; flex-shrink: 0; }
+.answers-list { display: flex; flex-direction: column; gap: 9px; flex-shrink: 0; }
 
 /* Каскадный вход вариантов при смене вопроса */
 .answers-list .answer-option {
@@ -644,11 +715,12 @@
   gap: 11px;
   cursor: pointer;
   transition: border-color 0.2s var(--ease-out), background 0.2s var(--ease-out),
-    transform 0.15s var(--ease-out), box-shadow 0.2s var(--ease-out);
+    transform 0.1s var(--ease-out), box-shadow 0.1s var(--ease-out);
   text-align: left;
   font-size: 14px;
   font-family: 'Manrope', sans-serif;
-  box-shadow: 0 1px 3px rgba(26, 64, 95, 0.03);
+  /* Приподнятая нижняя грань — 3D-кнопка */
+  box-shadow: 0 3px 0 0 #DAD8D2, 0 4px 6px rgba(26, 64, 95, 0.06);
   -webkit-tap-highlight-color: transparent;
   outline: none;
   touch-action: manipulation;
@@ -656,17 +728,49 @@
   -webkit-user-select: none;
 }
 
+/* Нажатие — кнопка «проваливается»: грань схлопывается, элемент опускается */
 .answer-option:active:not(.is-locked):not(.correct):not(.wrong) {
-  transform: scale(0.985);
+  transform: translateY(3px);
+  box-shadow: 0 0 0 0 #DAD8D2, 0 1px 3px rgba(26, 64, 95, 0.06);
   border-color: var(--kubik-blue);
 }
 
+/* После ответа грань убирается — варианты «лежат» плоско */
+.answer-option.is-locked {
+  box-shadow: none;
+}
+
 .answer-option.selected { border-color: var(--kubik-blue); background: var(--kubik-blue-soft); }
-.answer-option.correct { border-color: var(--good); background: #E3F5EC; pointer-events: none; }
+.answer-option.correct {
+  border-color: var(--good);
+  background: #E3F5EC;
+  pointer-events: none;
+  animation: answerCorrectPulse 0.9s var(--ease-out) 0.05s 2;
+}
 .answer-option.wrong { border-color: var(--low); background: #FBE8E8; pointer-events: none; }
 .answer-option.is-locked {
   cursor: default;
   pointer-events: none;
+}
+
+/* Гасим неотносящиеся к итогу варианты — фокус на правильном/выбранном */
+.answer-option.is-locked:not(.selected):not(.correct):not(.wrong) {
+  opacity: 0.5;
+  transition: opacity 0.35s var(--ease-out);
+}
+.answer-option.is-locked:not(.selected):not(.correct):not(.wrong) .answer-letter {
+  background: #F1EFEB;
+  color: #B4BCC4;
+}
+.answer-option.is-locked:not(.selected):not(.correct):not(.wrong) .answer-text {
+  color: var(--kubik-text-soft);
+}
+
+/* Пульс-подсветка правильного варианта — взгляд сам притягивается */
+@keyframes answerCorrectPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(46, 158, 107, 0); }
+  35%  { box-shadow: 0 0 0 4px rgba(46, 158, 107, 0.28); }
+  100% { box-shadow: 0 0 0 0 rgba(46, 158, 107, 0); }
 }
 
 .answer-letter {
@@ -697,23 +801,114 @@
 .correct-icon { color: var(--good); }
 .wrong-icon { color: var(--low); }
 
-/* Результат ответа */
+/* Результат ответа — яркая плашка-итог, визуально не похожа на варианты */
 .answer-result-box {
-  border-radius: 11px;
-  padding: 9px 13px;
-  margin-top: 12px;
+  position: relative;
+  border-radius: 16px;
+  padding: 11px 15px;
+  margin-top: 11px;
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 13px;
   flex-shrink: 0;
-  animation: slideUp 0.3s ease both;
+  overflow: hidden;
+  color: #fff;
+  border: none;
+  animation: resultBannerIn 0.5s var(--ease-spring) both;
 }
-.answer-result-box.correct-result { background: #E3F5EC; border: 1.5px solid var(--good); }
-.answer-result-box.wrong-result { background: #FBE8E8; border: 1.5px solid var(--low); }
-.result-icon { font-size: 20px; }
-.result-text { font-size: 15px; font-weight: 700; }
-.answer-result-box.correct-result .result-text { color: #1C6B47; }
-.answer-result-box.wrong-result .result-text { color: #9E3535; }
+
+/* Светящийся блик в углу */
+.answer-result-box::after {
+  content: '';
+  position: absolute;
+  top: -40px;
+  right: -20px;
+  width: 120px;
+  height: 120px;
+  background: radial-gradient(circle, rgba(255,255,255,0.28) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.answer-result-box.correct-result {
+  background: linear-gradient(135deg, #2EB872 0%, #1C8F57 100%);
+  box-shadow: 0 8px 22px rgba(28, 143, 87, 0.32);
+}
+.answer-result-box.wrong-result {
+  background: linear-gradient(135deg, #E86B6B 0%, #C44545 100%);
+  box-shadow: 0 8px 22px rgba(196, 69, 69, 0.30);
+}
+
+/* Круглый медальон с галочкой/крестиком */
+.result-medal {
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.22);
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: resultMedalPop 0.55s var(--ease-spring) 0.1s both;
+}
+
+.result-medal-glyph {
+  font-size: 20px;
+  font-weight: 900;
+  line-height: 1;
+  color: #fff;
+}
+
+/* Пульсирующее кольцо вокруг медальона */
+.result-medal::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.6);
+  animation: resultMedalRing 0.7s ease-out 0.15s both;
+}
+
+.result-body {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.result-text {
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+  line-height: 1.15;
+}
+
+.result-sub {
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.85);
+  line-height: 1.2;
+}
+
+@keyframes resultBannerIn {
+  from { opacity: 0; transform: translateY(14px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes resultMedalPop {
+  0%   { transform: scale(0) rotate(-20deg); }
+  60%  { transform: scale(1.18) rotate(6deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+
+@keyframes resultMedalRing {
+  0%   { opacity: 0.8; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.55); }
+}
 
 @keyframes slideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 
@@ -749,8 +944,13 @@
   border-radius: 11px;
   padding: 10px 13px;
   margin-bottom: 12px;
-  flex-shrink: 0;
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
+
+.question-nav-row { flex-shrink: 0; }
 
 .hint-box--explanation {
   background: var(--kubik-blue-soft);
@@ -972,6 +1172,61 @@
   100% {
     opacity: 0;
     transform: translateY(340px) rotate(540deg) scale(0.7);
+  }
+}
+
+/* ========== MICRO-CELEBRATION — вспышка частиц из точки тапа ========== */
+.tap-burst {
+  position: fixed;
+  z-index: 60;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.tap-burst-particle {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  animation: tapBurstFly 0.6s var(--ease-out) forwards;
+  will-change: transform, opacity;
+}
+
+.tap-burst-particle.bc0 { background: var(--good); }
+.tap-burst-particle.bc1 { background: var(--kubik-pink); }
+.tap-burst-particle.bc2 { background: #F5C84B; }
+.tap-burst-particle.bc3 { background: var(--kubik-blue); }
+.tap-burst-particle.bc4 { background: #4FBF8B; }
+.tap-burst-particle.bc5 { background: #E8806B; }
+
+.tap-burst-particle:nth-child(even) {
+  width: 6px;
+  height: 6px;
+  border-radius: 2px;
+}
+
+@keyframes tapBurstFly {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(0.4);
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tap-burst-particle {
+    animation: none;
+    opacity: 0;
   }
 }
 
@@ -2076,8 +2331,8 @@
 .question-meta-row {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  margin-bottom: 12px;
+  gap: 6px;
+  margin-bottom: 8px;
   flex-shrink: 0;
 }
 
@@ -2310,4 +2565,14 @@
   font-weight: 600;
   cursor: pointer;
   font-family: inherit;
+}
+
+/* Доступность: .practice-mode — портал вне .student-app, дублируем reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  .practice-mode .answer-option.correct {
+    animation: none;
+  }
+  .practice-mode .answer-option {
+    transition-duration: 0.01ms;
+  }
 }

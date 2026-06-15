@@ -388,8 +388,10 @@ function Practice({ studentId }) {
   const [goalPeek, setGoalPeek] = useState(false); // кольцо выехало
   const [goalPulse, setGoalPulse] = useState(false); // кольцо пульсит
   const [sessionSolved, setSessionSolved] = useState(0); // оптимистичный прирост до ответа сервера
+  const [bursts, setBursts] = useState([]); // micro-celebration: вспышки частиц из точки тапа
   const goalRingRef = useRef(null);
   const orbIdRef = useRef(0);
+  const burstIdRef = useRef(0);
   const goalHideTimerRef = useRef(null);
   const pendingSavesRef = useRef([]);
   const orbFlushQueueRef = useRef([]);
@@ -906,6 +908,31 @@ function Practice({ studentId }) {
     }, 300);
   };
 
+  // Micro-celebration: выпускаем частицы из центра нажатой кнопки
+  const launchBurst = (answerIndex) => {
+    const btn = document.querySelectorAll('.answer-option')[answerIndex];
+    if (!btn) return;
+    const br = btn.getBoundingClientRect();
+    const cx = br.left + br.width / 2;
+    const cy = br.top + br.height / 2;
+    const id = ++burstIdRef.current;
+    // 7 частиц, разлетающихся по кругу
+    const particles = Array.from({ length: 7 }).map((_, i) => {
+      const angle = (Math.PI * 2 * i) / 7 + (Math.random() - 0.5) * 0.5;
+      const dist = 38 + Math.random() * 26;
+      return {
+        i,
+        dx: Math.cos(angle) * dist,
+        dy: Math.sin(angle) * dist - 10, // лёгкий подъём вверх
+        c: i % 6,
+      };
+    });
+    setBursts((prev) => [...prev, { id, cx, cy, particles }]);
+    setTimeout(() => {
+      setBursts((prev) => prev.filter((b) => b.id !== id));
+    }, 700);
+  };
+
   const blurActiveElement = () => {
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
@@ -936,6 +963,7 @@ function Practice({ studentId }) {
     // Дофамин: вибрация + конфетти; шкала и сохранение — когда орб долетит
     if (correct) {
       haptic('success');
+      launchBurst(answerIndex);
       setConfetti(true);
       setTimeout(() => setConfetti(false), 1200);
       launchOrbToGoal(answerIndex, currentQuestion, answerPayload, practiceSnapshot);
@@ -1266,7 +1294,36 @@ function Practice({ studentId }) {
           </div>
         )}
 
-        <div className="question-container">
+        {bursts.map((burst) => (
+          <div
+            key={burst.id}
+            className="tap-burst"
+            style={{ left: `${burst.cx}px`, top: `${burst.cy}px` }}
+            aria-hidden
+          >
+            {burst.particles.map((p) => (
+              <span
+                key={p.i}
+                className={`tap-burst-particle bc${p.c}`}
+                style={{ '--dx': `${p.dx}px`, '--dy': `${p.dy}px` }}
+              />
+            ))}
+          </div>
+        ))}
+
+        <div
+          className={`question-container question-density--${
+            (() => {
+              const qLen = (currentQuestion.questionText || '').length;
+              const optLen = currentQuestion.options.reduce((s, o) => s + (o || '').length, 0);
+              const total = qLen + optLen;
+              if (total > 320 || qLen > 150) return 'xl';
+              if (total > 200 || qLen > 90) return 'lg';
+              if (total > 110) return 'md';
+              return 'sm';
+            })()
+          }`}
+        >
           <div className="question-meta-row">
             {sessionTopicTitle && (
               <div className="practice-session-topic">{sessionTopicTitle}</div>
@@ -1293,7 +1350,10 @@ function Practice({ studentId }) {
             </div>
           </div>
 
-          <div className="question-card" key={`q-${currentQuestion.id}`}>
+          <div
+            className="question-card"
+            key={`q-${currentQuestion.id}`}
+          >
             <span className="question-card-mark" aria-hidden>“</span>
             <h3 className="question-text">{currentQuestion.questionText}</h3>
           </div>
@@ -1335,11 +1395,16 @@ function Practice({ studentId }) {
 
           {answered && (
             <div className={`answer-result-box ${isCorrect ? 'correct-result' : 'wrong-result'}`}>
-              <div className="result-icon">
-                {isCorrect ? '✅' : '❌'}
+              <div className="result-medal" aria-hidden>
+                <span className="result-medal-glyph">{isCorrect ? '✓' : '✕'}</span>
               </div>
-              <div className="result-text">
-                {isCorrect ? 'Правильно!' : 'Неправильно'}
+              <div className="result-body">
+                <span className="result-text">
+                  {isCorrect ? 'Верно!' : 'Не верно'}
+                </span>
+                <span className="result-sub">
+                  {isCorrect ? 'Отличная работа' : 'Запомни правильный ответ'}
+                </span>
               </div>
             </div>
           )}
