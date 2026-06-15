@@ -156,7 +156,7 @@ function HomeworkStatsPanel({ homeworkStats, compact = false }) {
                 <span className="sd-hw-stat-label">ответов</span>
               </div>
               <div className="sd-hw-stat">
-                <span className={`sd-hw-stat-val sd-hw-pct ${answerPercent >= 70 ? 'good' : answerPercent >= 50 ? 'medium' : 'low'}`}>
+                <span className={`sd-hw-stat-val ${answerPercent >= 70 ? 'sd-hw-good' : answerPercent >= 50 ? 'sd-hw-medium' : 'sd-hw-low'}`}>
                   {answerPercent}%
                 </span>
                 <span className="sd-hw-stat-label">верно</span>
@@ -191,6 +191,7 @@ function Statistics({ studentId }) {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [openSections, setOpenSections] = useState({ topics: false, difficulty: false, errors: false });
+  const [scoreBreakdownOpen, setScoreBreakdownOpen] = useState(false);
   const lastRefreshKeyRef = useRef(null);
 
   const subjectIdMatch = (a, b) => Number(a) === Number(b);
@@ -292,6 +293,7 @@ function Statistics({ studentId }) {
   const ringScore = ringUnlocked ? (pred.score ?? 0) : 0;
   const ringPct = ringUnlocked ? `${ringScore}%` : '0%';
   const neededForUnlock = pred && !ringUnlocked ? (pred.needed ?? 50) : 0;
+  const todayDelta = dashboard?.scoreDynamics?.todayDelta ?? null;
 
   // ─── Блок наставника: фиксированная структура, адаптивный контент ───
   const coach = (() => {
@@ -353,8 +355,8 @@ function Statistics({ studentId }) {
           : 'Хочешь 100 на ЦТ? Тогда решай';
 
     const taskDesc = best
-      ? `Реши правильно ${best.tasks} ${pluralTasks(best.tasks)}, чтобы поднять ${pluralPoints(best.gain)} на ~${best.gain}`
-      : 'Реши задания в слабых темах, чтобы поднять балл';
+      ? `Реши правильно ${best.tasks} ${pluralTasks(best.tasks)}, чтобы поднять баллы`
+      : 'Реши задания в слабых темах, чтобы поднять баллы';
 
     return {
       locked: false,
@@ -379,18 +381,51 @@ function Statistics({ studentId }) {
           <h1 className="practice-hero-title practice-hero-title--plain">Статистика</h1>
           <div className="sd-hero-score-wrap">
             {subject && <span className="sd-hero-score-subject">{subject.name}</span>}
-            <div
-              className={`sd-hero-score-ring ${ringUnlocked ? 'unlocked' : 'locked'}`}
-              style={{ '--score-pct': ringPct }}
-            >
-              {ringUnlocked ? (
-                <>
-                  <span className="sd-hero-score-val">{ringScore}</span>
-                  <span className="sd-hero-score-max">/100</span>
-                </>
-              ) : (
-                <span className="sd-hero-score-val sd-hero-score-val--lock">?</span>
-              )}
+            <div className="sd-hero-score-panel">
+              <div className="sd-hero-score-ring-cluster">
+                {ringUnlocked && (
+                  <div className={`sd-hero-side-col${scoreBreakdownOpen ? ' sd-hero-side-col--open' : ''}`}>
+                    {todayDelta != null && todayDelta !== 0 && (
+                      <div className={`sd-today-delta ${todayDelta > 0 ? 'sd-today-delta--up' : 'sd-today-delta--down'}`}>
+                        <span className="sd-today-delta-arrow">{todayDelta > 0 ? '▲' : '▼'}</span>
+                        <span className="sd-today-delta-val">{todayDelta > 0 ? '+' : ''}{todayDelta}</span>
+                        <span className="sd-today-delta-label">сегодня</span>
+                      </div>
+                    )}
+                    <div
+                      className={`sd-hero-score-split${scoreBreakdownOpen ? ' sd-hero-score-split--open' : ''}`}
+                      aria-hidden={!scoreBreakdownOpen}
+                    >
+                      <div className="sd-hero-score-split-inner">
+                        <span>Практика {pred.practiceScore ?? 0}/80</span>
+                        <span>
+                          {pred.homeworkAvailable
+                            ? `Домашка ${pred.homeworkScore ?? 0}/20`
+                            : 'Домашка —'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  className={`sd-hero-score-ring ${ringUnlocked ? 'unlocked' : 'locked'}${scoreBreakdownOpen ? ' sd-hero-score-ring--open' : ''}`}
+                  style={{ '--score-pct': ringPct }}
+                  onClick={() => ringUnlocked && setScoreBreakdownOpen((v) => !v)}
+                  aria-expanded={scoreBreakdownOpen}
+                  aria-label={scoreBreakdownOpen ? 'Скрыть разбивку балла' : 'Показать разбивку балла'}
+                  disabled={!ringUnlocked}
+                >
+                  {ringUnlocked ? (
+                    <>
+                      <span className="sd-hero-score-val">{ringScore}</span>
+                      <span className="sd-hero-score-max">/100</span>
+                    </>
+                  ) : (
+                    <span className="sd-hero-score-val sd-hero-score-val--lock">?</span>
+                  )}
+                </button>
+              </div>
             </div>
             <span className="sd-hero-score-label">баллов ЦТ</span>
           </div>
@@ -520,7 +555,7 @@ function Statistics({ studentId }) {
           <div className="sd-pill-grid">
             <StatPill icon="✅" label="Правильность" value={`${dashboard.activity?.accuracy ?? 0}%`} />
             <StatPill icon="📝" label="Решено всего" value={dashboard.activity?.total ?? 0} />
-            <StatPill icon="📅" label="Сегодня" value={dashboard.activity?.today ?? 0} />
+            <StatPill icon="📅" label="Решено сегодня" value={dashboard.activity?.today ?? 0} />
             <StatPill
               icon="🔥"
               label="Стрик"
@@ -546,18 +581,11 @@ function Statistics({ studentId }) {
                     <span className="sd-weak-icon">{t.icon}</span>
                     <span className="sd-weak-name">{t.name}</span>
                     <span className="sd-weak-pct">{t.accuracy}%</span>
+                    <span className={`sd-status ${STATUS_CLASS[t.status] || ''}`}>{t.statusLabel}</span>
                     <span className="sd-weak-go">→</span>
                   </li>
                 ))}
               </ul>
-            </div>
-          )}
-
-          {dashboard.achievements?.length > 0 && (
-            <div className="sd-achievements">
-              {dashboard.achievements.map((a, i) => (
-                <span key={i} className="sd-ach-chip">{a.icon} {a.label}</span>
-              ))}
             </div>
           )}
 
@@ -598,13 +626,23 @@ function Statistics({ studentId }) {
             open={openSections.difficulty}
             onToggle={toggleSection}
           >
+            <p className="sd-diff-hint">
+              Процент — это правильность решений: сколько заданий каждого уровня ты решил верно.
+            </p>
             <div className="sd-diff-grid">
               {['easy', 'medium', 'hard'].map((d) => {
                 const val = dashboard.accuracyByDifficulty?.[d];
                 return (
                   <div key={d} className={`sd-diff-row sd-diff-row--${d}`}>
                     <span>{DIFF_LABELS[d]}</span>
-                    <span className="sd-diff-val">{val != null ? `${val}%` : '—'}</span>
+                    <span className="sd-diff-val">
+                      {val != null ? (
+                        <>
+                          <strong>{val}%</strong>
+                          <span className="sd-diff-verno">верно</span>
+                        </>
+                      ) : '—'}
+                    </span>
                   </div>
                 );
               })}
@@ -636,8 +674,23 @@ function Statistics({ studentId }) {
                       {e.questionText && (
                         <p className="sd-error-q">{e.questionText}</p>
                       )}
+                      <div className="sd-error-answers">
+                        {e.userAnswer != null && (
+                          <p className="sd-error-answer sd-error-answer--wrong">
+                            <span className="sd-error-answer-label">Твой ответ:</span> {e.userAnswer}
+                          </p>
+                        )}
+                        {e.correctAnswer != null && (
+                          <p className="sd-error-answer sd-error-answer--right">
+                            <span className="sd-error-answer-label">Правильный ответ:</span> {e.correctAnswer}
+                          </p>
+                        )}
+                      </div>
                       {e.explanation && (
-                        <p className="sd-error-exp">💡 {e.explanation}</p>
+                        <div className="sd-error-exp-block">
+                          <span className="sd-error-exp-label">Объяснение</span>
+                          <p className="sd-error-exp">{e.explanation}</p>
+                        </div>
                       )}
                       <span className="sd-error-meta">Ошибка · {formatRelativeDate(e.date)}</span>
                     </li>

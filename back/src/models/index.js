@@ -19,6 +19,12 @@ const PracticeBest = require('./PracticeBest');
 const PracticeDailyLog = require('./PracticeDailyLog');
 const PracticeQuestionResult = require('./PracticeQuestionResult');
 const PracticeScoreHistory = require('./PracticeScoreHistory');
+const PracticeStudentTotals = require('./PracticeStudentTotals');
+const PracticeDailyStats = require('./PracticeDailyStats');
+const PracticeTopicTotals = require('./PracticeTopicTotals');
+const PracticeDifficultyTotals = require('./PracticeDifficultyTotals');
+const PracticeModeTotals = require('./PracticeModeTotals');
+const PracticeRecentError = require('./PracticeRecentError');
 const BotUser = require('./BotUser');
 const NotificationLog = require('./NotificationLog');
 const BotTest = require('./BotTest');
@@ -122,6 +128,34 @@ PracticeScoreHistory.belongsTo(Subject, { foreignKey: 'subjectId', as: 'subject'
 User.hasMany(PracticeScoreHistory, { foreignKey: 'studentId', as: 'scoreHistory' });
 Subject.hasMany(PracticeScoreHistory, { foreignKey: 'subjectId', as: 'scoreHistory' });
 
+// ========== PRACTICE STATS AGGREGATES ==========
+PracticeStudentTotals.belongsTo(User, { foreignKey: 'studentId', as: 'student' });
+PracticeStudentTotals.belongsTo(Subject, { foreignKey: 'subjectId', as: 'subject' });
+User.hasMany(PracticeStudentTotals, { foreignKey: 'studentId', as: 'practiceStudentTotals' });
+
+PracticeDailyStats.belongsTo(User, { foreignKey: 'studentId', as: 'student' });
+PracticeDailyStats.belongsTo(Subject, { foreignKey: 'subjectId', as: 'subject' });
+User.hasMany(PracticeDailyStats, { foreignKey: 'studentId', as: 'practiceDailyStats' });
+
+PracticeTopicTotals.belongsTo(User, { foreignKey: 'studentId', as: 'student' });
+PracticeTopicTotals.belongsTo(PracticeTopic, { foreignKey: 'topicId', as: 'topic' });
+PracticeTopicTotals.belongsTo(Subject, { foreignKey: 'subjectId', as: 'subject' });
+User.hasMany(PracticeTopicTotals, { foreignKey: 'studentId', as: 'practiceTopicTotals' });
+
+PracticeDifficultyTotals.belongsTo(User, { foreignKey: 'studentId', as: 'student' });
+PracticeDifficultyTotals.belongsTo(Subject, { foreignKey: 'subjectId', as: 'subject' });
+User.hasMany(PracticeDifficultyTotals, { foreignKey: 'studentId', as: 'practiceDifficultyTotals' });
+
+PracticeModeTotals.belongsTo(User, { foreignKey: 'studentId', as: 'student' });
+PracticeModeTotals.belongsTo(Subject, { foreignKey: 'subjectId', as: 'subject' });
+User.hasMany(PracticeModeTotals, { foreignKey: 'studentId', as: 'practiceModeTotals' });
+
+PracticeRecentError.belongsTo(User, { foreignKey: 'studentId', as: 'student' });
+PracticeRecentError.belongsTo(Subject, { foreignKey: 'subjectId', as: 'subject' });
+PracticeRecentError.belongsTo(PracticeQuestion, { foreignKey: 'questionId', as: 'question' });
+PracticeRecentError.belongsTo(PracticeTopic, { foreignKey: 'topicId', as: 'topic' });
+User.hasMany(PracticeRecentError, { foreignKey: 'studentId', as: 'practiceRecentErrors' });
+
 // Синхронизация
 const syncDatabase = async () => {
   try {
@@ -139,6 +173,8 @@ module.exports = {
   Homework, HomeworkQuestion, HomeworkSubmission, HomeworkAnswer,
   PracticeTopic, PracticeQuestion, PracticeAttempt,
   PracticeBest, PracticeDailyLog, PracticeQuestionResult, PracticeScoreHistory,
+  PracticeStudentTotals, PracticeDailyStats, PracticeTopicTotals,
+  PracticeDifficultyTotals, PracticeModeTotals, PracticeRecentError,
   NotificationLog, BotUser, BotTest, Application,
   syncDatabase
 };

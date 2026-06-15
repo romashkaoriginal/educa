@@ -85,6 +85,11 @@
   color: #fff;
 }
 
+.cleanup-btn--primary {
+  background: var(--kubik-blue);
+  color: #fff;
+}
+
 .cleanup-message {
   padding: 14px 16px;
   border-radius: 12px;

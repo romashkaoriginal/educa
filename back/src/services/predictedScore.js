@@ -46,28 +46,21 @@ function getDifficultyBreakdown(topicResults) {
   });
 }
 
+// Вес тем больше НЕ настраивается вручную — он всегда распределяется
+// поровну между всеми темами предмета (ТЗ 4.3, требование руководителя).
 function normalizeTopicWeights(topics) {
   if (!topics.length) return [];
-
-  const allHaveWeight = topics.every(t => t.weight != null && t.weight > 0);
-  if (allHaveWeight) {
-    const sum = topics.reduce((s, t) => s + t.weight, 0);
-    const divisor = sum > 0 ? sum : 100;
-    return topics.map(t => ({
-      ...t,
-      normalizedWeight: t.weight / divisor
-    }));
-  }
-
   const equal = 1 / topics.length;
-  return topics.map(t => ({
-    ...t,
-    normalizedWeight: equal
-  }));
+  return topics.map(t => ({ ...t, normalizedWeight: equal }));
 }
 
-function calculatePredictedScore(topics, results) {
+// homework — результат calculateHomeworkScore() либо null.
+// Итог: Баллы на ЦТ = Практика_80 + Домашка_20 (ТЗ раздел 3).
+function calculatePredictedScore(topics, results, homework = null) {
   const uniqueCount = new Set(results.map(r => r.questionId)).size;
+  const hw = homework || null;
+  const homeworkAvailable = hw ? hw.hasData : false;
+  const homeworkScore = hw ? Math.round(hw.homeworkScore) : 0;
 
   if (uniqueCount < CONFIG.MIN_TOTAL_TO_UNLOCK) {
     return {
@@ -76,6 +69,10 @@ function calculatePredictedScore(topics, results) {
       needed: CONFIG.MIN_TOTAL_TO_UNLOCK - uniqueCount,
       minRequired: CONFIG.MIN_TOTAL_TO_UNLOCK,
       score: null,
+      practiceScore: null,
+      homeworkScore: null,
+      homeworkAvailable,
+      homework: hw,
       accuracy: results.length > 0
         ? Math.round(results.filter(r => r.isCorrect).length / results.length * 100)
         : 0,
@@ -87,19 +84,18 @@ function calculatePredictedScore(topics, results) {
   }
 
   const normalizedTopics = normalizeTopicWeights(topics);
-  let totalScore = 0;
+  let practiceProgress = 0; // 0..1 (взвешенная сумма прогресса тем)
   const topicDetails = [];
 
   for (const topic of normalizedTopics) {
     const topicResults = results.filter(r => r.topicId === topic.id);
-    const progress = calcTopicProgress(topicResults);
-    totalScore += progress * topic.normalizedWeight;
+    const progress = calcTopicProgress(topicResults); // 0..100
+    practiceProgress += (progress / 100) * topic.normalizedWeight;
 
     topicDetails.push({
       topicId: topic.id,
       name: topic.name,
       icon: topic.icon || '📝',
-      weight: topic.weight,
       normalizedWeight: Math.round(topic.normalizedWeight * 100),
       progress,
       solved: new Set(topicResults.map(r => r.questionId)).size,
@@ -110,7 +106,10 @@ function calculatePredictedScore(topics, results) {
     });
   }
 
-  const score = Math.round(Math.min(100, Math.max(0, totalScore)));
+  // Практика_80 = Прогресс практики × 80 (ТЗ 4.9)
+  const practiceScore = Math.round(Math.min(80, Math.max(0, practiceProgress * 80)));
+  // Итог: округлённая практика + округлённая домашка (ТЗ 3, 6)
+  const score = Math.min(100, Math.max(0, practiceScore + homeworkScore));
   const correct = results.filter(r => r.isCorrect).length;
   const accuracy = results.length > 0 ? Math.round(correct / results.length * 100) : 0;
 
@@ -127,6 +126,10 @@ function calculatePredictedScore(topics, results) {
   return {
     unlocked: true,
     score,
+    practiceScore,
+    homeworkScore,
+    homeworkAvailable,
+    homework: hw,
     solved: uniqueCount,
     needed: 0,
     minRequired: CONFIG.MIN_TOTAL_TO_UNLOCK,

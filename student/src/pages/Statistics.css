@@ -9,7 +9,7 @@
   --kubik-navy: #1A405F;
   --kubik-border: #ECEAE5;
   --kubik-text: #2A3744;
-  --kubik-text-soft: #8A95A1;
+  --kubik-text-soft: #5E6B78;
   --good: #2E9E6B;
   --medium: #D9943B;
   --low: #D75A5A;
@@ -30,22 +30,162 @@
   padding-bottom: 16px;
 }
 
+.section-hero.sd-hero {
+  overflow: visible;
+  box-sizing: border-box;
+  min-height: calc(136px + env(safe-area-inset-top, 0px));
+  max-height: calc(136px + env(safe-area-inset-top, 0px));
+  padding: calc(14px + env(safe-area-inset-top, 0px)) 16px 38px;
+}
+
+.sd-hero .practice-hero-row {
+  position: relative;
+  z-index: 1;
+  align-items: center;
+  gap: 10px;
+}
+
 .sd-hero .practice-hero-title--plain {
-  font-size: 22px;
+  position: relative;
+  z-index: 5;
+  font-size: 21px;
   font-weight: 800;
   color: #fff;
   margin: 0;
   letter-spacing: -0.02em;
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: calc(100% - 112px);
+  overflow: visible;
+  text-overflow: unset;
+  white-space: nowrap;
 }
 
-/* Кружок с суммарным баллом в hero */
+.sd-hero .section-hero-content {
+  overflow: visible;
+}
+
+/* Кружок с суммарным баллом в hero — прижат вправо */
 .sd-hero-score-wrap {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
+  flex: 0 0 auto;
+  min-width: 88px;
+  margin-left: auto;
+  overflow: visible;
+}
+
+.sd-hero-score-panel {
+  position: relative;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  overflow: visible;
+}
+
+/* Кольцо + бейдж «+N сегодня» сбоку */
+.sd-hero-score-ring-cluster {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
   flex-shrink: 0;
+  overflow: visible;
+}
+
+/* Колонка слева от кольца: +N сегодня и разбивка под ней */
+.sd-hero-side-col {
+  position: absolute;
+  right: calc(100% + 4px);
+  top: 4px;
+  z-index: 8;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  width: max-content;
+  gap: 0;
+  transition: gap 0.38s cubic-bezier(0.22, 1, 0.36, 1),
+              transform 0.38s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.sd-hero-side-col--open {
+  gap: 5px;
+  transform: translateY(-2px);
+}
+
+.sd-hero-score-ring-cluster .sd-today-delta {
+  position: static;
+  flex-direction: column;
+  gap: 1px;
+  padding: 3px 7px;
+  width: max-content;
+  animation: deltaFadeIn 0.35s ease;
+  transition: transform 0.38s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.sd-hero-side-col--open .sd-today-delta {
+  transform: translateY(-3px);
+}
+
+.sd-today-delta {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  background: rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 20px;
+  padding: 3px 10px;
+  white-space: nowrap;
+}
+
+@keyframes deltaFadeIn {
+  from { opacity: 0; transform: scale(0.85); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.sd-today-delta--up {
+  border-color: rgba(46, 200, 120, 0.4);
+  background: rgba(46, 200, 120, 0.18);
+}
+
+.sd-today-delta--down {
+  border-color: rgba(215, 90, 90, 0.4);
+  background: rgba(215, 90, 90, 0.18);
+}
+
+.sd-today-delta-arrow {
+  font-size: 9px;
+  line-height: 1;
+}
+
+.sd-today-delta--up .sd-today-delta-arrow { color: #4ade80; }
+.sd-today-delta--down .sd-today-delta-arrow { color: #f87171; }
+
+.sd-today-delta-val {
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+  color: #fff;
+  letter-spacing: -0.3px;
+}
+
+.sd-today-delta-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.75);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  line-height: 1;
 }
 
 /* Тот же формат, что и кружок «Цель дня»: розовая дуга + белый центр */
@@ -60,7 +200,27 @@
   align-items: center;
   justify-content: center;
   gap: 0;
-  transition: background 0.6s ease;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background 0.6s ease,
+    transform 0.15s ease,
+    box-shadow 0.38s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.sd-hero-score-ring.unlocked {
+  cursor: pointer;
+}
+
+.sd-hero-score-ring.unlocked:active {
+  transform: scale(0.96);
+}
+
+.sd-hero-score-ring.unlocked.sd-hero-score-ring--open {
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.45);
 }
 
 .sd-hero-score-ring::before {
@@ -99,11 +259,58 @@
   color: var(--kubik-text-soft);
 }
 
+/* Разбивка балла — плавное появление и смещение под бейджем +N */
+.sd-hero-score-split {
+  width: max-content;
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+  transform: translateY(-10px) scale(0.94);
+  transform-origin: top right;
+  padding: 0 10px;
+  margin: 0;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  box-shadow: none;
+  transition:
+    max-height 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.32s ease,
+    transform 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+    padding 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.32s ease,
+    box-shadow 0.38s ease;
+}
+
+.sd-hero-score-split-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.92);
+  white-space: nowrap;
+  line-height: 1.25;
+}
+
+.sd-hero-score-split--open {
+  max-height: 64px;
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+  padding: 6px 10px;
+  background: rgba(20, 50, 74, 0.94);
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow: 0 6px 18px rgba(15, 40, 60, 0.35);
+}
+
 .sd-hero-score-label {
   font-size: 10px;
   font-weight: 600;
   color: rgba(255,255,255,0.75);
   letter-spacing: 0.02em;
+  line-height: 1;
 }
 
 .sd-hero-score-subject {
@@ -111,9 +318,11 @@
   font-weight: 700;
   color: rgba(255,255,255,0.9);
   text-align: center;
-  line-height: 1.15;
-  max-width: 100px;
-  word-break: break-word;
+  line-height: 1.1;
+  max-width: 88px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ─── Блок наставника ─── */
@@ -276,6 +485,7 @@
   justify-content: center;
   gap: 6px;
   padding: 10px 8px;
+  min-height: 44px;
   border-radius: 12px;
   border: 1.5px solid var(--kubik-border);
   background: var(--kubik-blue-soft);
@@ -284,9 +494,14 @@
   font-weight: 600;
   color: var(--kubik-text-soft);
   cursor: pointer;
-  transition: all 0.18s ease;
+  transition: background 0.18s var(--ease-out), border-color 0.18s var(--ease-out),
+    color 0.18s var(--ease-out), box-shadow 0.18s var(--ease-out),
+    transform 0.14s var(--ease-out);
   white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
 }
+
+.sd-subject-tab:active { transform: scale(0.95); }
 
 .sd-subject-tab-name {
   overflow: hidden;
@@ -677,6 +892,12 @@
   flex-shrink: 0;
 }
 
+.sd-weak-item .sd-status {
+  flex-shrink: 0;
+  font-size: 10px;
+  padding: 3px 8px;
+}
+
 .sd-weak-item--clickable {
   cursor: pointer;
   transition: background 0.15s, transform 0.12s;
@@ -787,6 +1008,12 @@
   font-family: inherit;
   cursor: pointer;
   text-align: left;
+  transition: background 0.18s var(--ease-out);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.sd-section-head:active {
+  background: rgba(51, 123, 174, 0.05);
 }
 
 .sd-section-title {
@@ -813,7 +1040,7 @@
 .sd-section-chevron {
   font-size: 20px;
   color: var(--kubik-text-soft);
-  transition: transform 0.2s ease;
+  transition: transform 0.28s var(--ease-spring);
   line-height: 1;
 }
 
@@ -823,11 +1050,27 @@
 
 .sd-section-body {
   padding: 0 16px 16px;
-  animation: sdSlide 0.25s ease;
+  animation: sdSlide 0.28s var(--ease-out);
 }
 
 @keyframes sdSlide {
-  from { opacity: 0; transform: translateY(-4px); }
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Stagger строк тем при раскрытии секции */
+.sd-section-body .sd-topic-row {
+  animation: sdRowIn 0.3s var(--ease-out) both;
+}
+.sd-section-body .sd-topic-row:nth-child(1) { animation-delay: 0ms; }
+.sd-section-body .sd-topic-row:nth-child(2) { animation-delay: 40ms; }
+.sd-section-body .sd-topic-row:nth-child(3) { animation-delay: 80ms; }
+.sd-section-body .sd-topic-row:nth-child(4) { animation-delay: 120ms; }
+.sd-section-body .sd-topic-row:nth-child(5) { animation-delay: 160ms; }
+.sd-section-body .sd-topic-row:nth-child(n+6) { animation-delay: 200ms; }
+
+@keyframes sdRowIn {
+  from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
@@ -908,6 +1151,13 @@
 .sd-status--learning { background: #f5f5f5; color: var(--kubik-text-soft); }
 
 /* Difficulty */
+.sd-diff-hint {
+  margin: 0 0 12px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--kubik-text-soft);
+}
+
 .sd-diff-grid {
   display: flex;
   flex-direction: column;
@@ -930,9 +1180,22 @@
 .sd-diff-row--hard { background: var(--kubik-pink-soft); }
 
 .sd-diff-val {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
   font-size: 16px;
   font-weight: 800;
   color: var(--kubik-navy);
+}
+
+.sd-diff-val strong {
+  font-weight: 800;
+}
+
+.sd-diff-verno {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--kubik-text-soft);
 }
 
 /* Modes */
@@ -1016,6 +1279,48 @@
   font-weight: 600;
   color: var(--kubik-text);
   line-height: 1.4;
+}
+
+.sd-error-answers {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sd-error-answer {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  padding: 8px 10px;
+  border-radius: 10px;
+}
+
+.sd-error-answer-label {
+  font-weight: 700;
+}
+
+.sd-error-answer--wrong {
+  background: #FCECEC;
+  color: var(--low);
+}
+
+.sd-error-answer--right {
+  background: #E8F8F0;
+  color: var(--good);
+}
+
+.sd-error-exp-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sd-error-exp-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--kubik-text-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .sd-error-exp {
@@ -1163,9 +1468,9 @@
   color: var(--kubik-navy);
 }
 
-.sd-hw-stat-val.good { color: var(--good); }
-.sd-hw-stat-val.medium { color: var(--medium); }
-.sd-hw-stat-val.low { color: var(--low); }
+.sd-hw-stat-val.sd-hw-good { color: var(--good); }
+.sd-hw-stat-val.sd-hw-medium { color: var(--medium); }
+.sd-hw-stat-val.sd-hw-low { color: var(--low); }
 
 .sd-hw-stat-label {
   font-size: 10px;

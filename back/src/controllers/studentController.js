@@ -150,7 +150,7 @@ exports.createStudent = async (req, res) => {
       const subjectsText = buildSubjectsText(studentWithSubjects.subjects);
       await notifyStudent(telegramId,
         `👋 Привет, <b>${firstName}</b>!\n\n` +
-        `🎓 Вам открыт доступ к образовательной платформе <b>EDme</b>.\n\n` +
+        `🎓 Вам открыт доступ к образовательной платформе <b>KUBIK</b>.\n\n` +
         `📚 <b>Ваши предметы:</b>\n${subjectsText}\n\n` +
         `Нажмите кнопку ниже чтобы войти в приложение:`
       );
@@ -162,10 +162,7 @@ exports.createStudent = async (req, res) => {
     });
   } catch (error) {
     console.error('Create student error:', error);
-    res.status(500).json({ 
-      message: 'Server error', 
-      error: error.message 
-    });
+    res.status(500).json({ message: 'Server error' });
   }
 };
 

@@ -1,8 +1,13 @@
-const { PracticeTopic, PracticeQuestion, PracticeAttempt, PracticeBest, PracticeDailyLog, PracticeQuestionResult, PracticeScoreHistory, Subject, User } = require('../models');
+const {
+  PracticeTopic, PracticeQuestion, PracticeAttempt, PracticeBest, PracticeDailyLog,
+  PracticeQuestionResult, PracticeScoreHistory, PracticeDailyStats, Subject, User
+} = require('../models');
 const { Op } = require('sequelize');
 const sequelize = require('../config/database');
 const { calculatePredictedScore, getGrowthTopicIds, CONFIG } = require('../services/predictedScore');
+const { calculateHomeworkScore } = require('../services/homeworkScore');
 const { buildSubjectDashboard } = require('../services/practiceDashboard');
+const { recordPracticeStatsIncrement, hasAggregatedStats } = require('../services/practiceStatsAggregate');
 
 // In-memory кэш статистики (TTL 60 секунд)
 const statsCache = new Map();
@@ -17,18 +22,20 @@ const setCache = (key, data) => statsCache.set(key, { data, time: Date.now() });
 const invalidateCache = (key) => statsCache.delete(key);
 
 async function buildPrediction(studentId, subjectId) {
-  const topics = await PracticeTopic.findAll({
-    where: { subjectId, isActive: true },
-    attributes: ['id', 'name', 'icon', 'weight']
-  });
-  const results = await PracticeQuestionResult.findAll({
-    where: { studentId, subjectId }
-  });
+  const [topics, results, homework] = await Promise.all([
+    PracticeTopic.findAll({
+      where: { subjectId, isActive: true },
+      attributes: ['id', 'name', 'icon']
+    }),
+    PracticeQuestionResult.findAll({ where: { studentId, subjectId } }),
+    calculateHomeworkScore(studentId, subjectId)
+  ]);
   const resultRows = results.map(r => r.toJSON());
   return {
     ...calculatePredictedScore(
       topics.map(t => t.toJSON()),
-      resultRows
+      resultRows,
+      homework
     ),
     solvedQuestionIds: resultRows.map(r => r.questionId)
   };
@@ -51,6 +58,8 @@ async function recordScoreHistory(studentId, subjectId, prediction) {
     studentId,
     subjectId,
     score: prediction.score,
+    practiceScore: prediction.practiceScore ?? null,
+    homeworkScore: prediction.homeworkScore ?? null,
     solvedCount: prediction.solved,
     date: today
   });
@@ -107,7 +116,28 @@ function getPeriodBounds(period) {
   return { start, end: todayEnd };
 }
 
+async function countCorrectFromDailyStats(studentId, subjectId, start, end) {
+  const rows = await PracticeDailyStats.findAll({
+    where: { studentId: parseInt(studentId, 10), subjectId: parseInt(subjectId, 10) },
+    attributes: ['date', 'correct'],
+    raw: true
+  });
+
+  return rows.reduce((sum, row) => {
+    const dateStr = typeof row.date === 'string' ? row.date.slice(0, 10) : getLocalDateStr(new Date(row.date));
+    const { start: dayStart } = getLocalDayBounds(dateStr);
+    if (dayStart >= start && dayStart < end) {
+      return sum + (parseInt(row.correct, 10) || 0);
+    }
+    return sum;
+  }, 0);
+}
+
 async function countCorrectTotalInRange(studentId, subjectId, start, end) {
+  if (await hasAggregatedStats(studentId, subjectId)) {
+    return countCorrectFromDailyStats(studentId, subjectId, start, end);
+  }
+
   const attemptCount = await PracticeAttempt.count({
     where: {
       studentId,
@@ -253,14 +283,17 @@ async function persistPracticeAnswer({
   selectedAnswer = 0,
   practiceMode = 'general'
 }) {
-  await PracticeAttempt.create({
-    studentId: parseInt(studentId),
-    topicId: parseInt(topicId),
-    subjectId: parseInt(subjectId),
-    questionId: parseInt(questionId),
-    selectedAnswer: Number.isInteger(selectedAnswer) ? selectedAnswer : 0,
-    isCorrect: !!isCorrect,
-    practiceMode: practiceMode || 'general'
+  await recordPracticeStatsIncrement({
+    studentId,
+    subjectId,
+    topicId,
+    questionId,
+    isCorrect,
+    difficulty,
+    practiceMode,
+    selectedAnswer
+  }).catch((err) => {
+    console.error('recordPracticeStatsIncrement error:', err);
   });
 
   const [record, created] = await PracticeQuestionResult.findOrCreate({
@@ -562,6 +595,9 @@ exports.savePracticeAnswer = async (req, res) => {
     });
 
     invalidateCache(`stats_${studentId}`);
+
+    const prediction = await buildPrediction(studentId, subjectId);
+    await recordScoreHistory(studentId, subjectId, prediction);
 
     const subject = await Subject.findByPk(subjectId, { attributes: ['id', 'name', 'icon'] });
     if (!subject) return res.status(404).json({ error: 'Subject not found' });
@@ -1031,19 +1067,16 @@ exports.getAdminPredicted = async (req, res) => {
 
 exports.getQuestionsImportTemplate = async (req, res) => {
   try {
-    const XLSX = require('xlsx');
-    const rows = [
-      ['question', 'a', 'b', 'c', 'd', 'correct', 'difficulty', 'explanation'],
-      ['Чему равно 2+2?', '3', '4', '5', '6', 'b', 'easy', 'Простое сложение'],
-    ];
-    const sheet = XLSX.utils.aoa_to_sheet(rows);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, sheet, 'Questions');
-    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    const ExcelJS = require('exceljs');
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('Questions');
+    sheet.addRow(['question', 'a', 'b', 'c', 'd', 'correct', 'difficulty', 'explanation']);
+    sheet.addRow(['Чему равно 2+2?', '3', '4', '5', '6', 'b', 'easy', 'Простое сложение']);
 
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', 'attachment; filename=questions_template.xlsx');
-    res.send(buffer);
+    await workbook.xlsx.write(res);
+    res.end();
   } catch (error) {
     console.error('Import template error:', error);
     res.status(500).json({ message: 'Не удалось сформировать шаблон' });
@@ -1063,11 +1096,18 @@ exports.importQuestionsFromExcel = async (req, res) => {
       return res.status(404).json({ message: 'Тема не найдена' });
     }
 
-    const XLSX = require('xlsx');
-    const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
-    const sheetName = workbook.SheetNames[0];
-    const sheet = workbook.Sheets[sheetName];
-    const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+    const ExcelJS = require('exceljs');
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(req.file.buffer);
+    const sheet = workbook.worksheets[0];
+    const headerRow = sheet.getRow(1).values.slice(1);
+    const rows = [];
+    sheet.eachRow((row, rowNumber) => {
+      if (rowNumber === 1) return;
+      const obj = {};
+      row.values.slice(1).forEach((val, i) => { obj[headerRow[i]] = val ?? ''; });
+      rows.push(obj);
+    });
 
     if (rows.length === 0) {
       return res.status(400).json({ message: 'Файл пустой или не содержит данных' });
@@ -1126,6 +1166,6 @@ exports.importQuestionsFromExcel = async (req, res) => {
     res.json({ imported, skipped: errors.length, errors });
   } catch (error) {
     console.error('Import questions error:', error);
-    res.status(500).json({ message: 'Ошибка при импорте: ' + error.message });
+    res.status(500).json({ message: 'Ошибка при импорте' });
   }
 };

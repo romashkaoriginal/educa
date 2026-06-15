@@ -3,13 +3,21 @@ const botUserController = require('../controllers/botUserController');
 
 const router = express.Router();
 
-// Получить всех пользователей бота (с фильтрами)
-router.get('/', botUserController.getAllBotUsers);
+const requireBotSecret = (req, res, next) => {
+  const secret = req.headers['x-bot-secret'];
+  if (!process.env.BOT_SECRET || secret !== process.env.BOT_SECRET) {
+    return res.status(403).json({ message: 'Forbidden' });
+  }
+  next();
+};
 
-// Зарегистрировать/обновить пользователя бота
-router.post('/register', botUserController.registerOrUpdateBotUser);
+// Получить всех пользователей бота (только бот-сервер)
+router.get('/', requireBotSecret, botUserController.getAllBotUsers);
 
-// Синхронизировать статусы isAssigned
-router.post('/sync', botUserController.syncAssignedStatus);
+// Зарегистрировать/обновить пользователя бота (только бот-сервер)
+router.post('/register', requireBotSecret, botUserController.registerOrUpdateBotUser);
+
+// Синхронизировать статусы isAssigned (только бот-сервер)
+router.post('/sync', requireBotSecret, botUserController.syncAssignedStatus);
 
 module.exports = router;

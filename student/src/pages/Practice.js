@@ -1293,7 +1293,10 @@ function Practice({ studentId }) {
             </div>
           </div>
 
-          <h3 className="question-text">{currentQuestion.questionText}</h3>
+          <div className="question-card" key={`q-${currentQuestion.id}`}>
+            <span className="question-card-mark" aria-hidden>“</span>
+            <h3 className="question-text">{currentQuestion.questionText}</h3>
+          </div>
 
           {showExplanationHint && currentQuestion.explanation && (
             <div className={`hint-box ${answered ? 'hint-box--explanation' : ''}`}>

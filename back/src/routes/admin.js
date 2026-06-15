@@ -36,5 +36,7 @@ router.get('/dashboard', async (req, res) => {
 
 router.post('/cleanup/answers', requireSuperAdmin, cleanupController.clearStudentAnswersBySubject);
 router.post('/cleanup/streak', requireSuperAdmin, cleanupController.clearStudentStreak);
+router.post('/cleanup/migrate-stats', requireSuperAdmin, cleanupController.migratePracticeStats);
+router.post('/cleanup/rebuild-stats', requireSuperAdmin, cleanupController.rebuildPracticeStats);
 
 module.exports = router;

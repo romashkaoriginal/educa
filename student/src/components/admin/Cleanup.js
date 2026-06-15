@@ -29,7 +29,7 @@ function Cleanup({ subjects = [] }) {
   const selectedStudent = students.find((s) => String(s.id) === String(studentId));
 
   const runAction = async (action) => {
-    if (!studentId) {
+    if (!studentId && action !== 'migrate' && action !== 'rebuild') {
       setMessage({ type: 'error', text: 'Выберите ученика' });
       return;
     }
@@ -39,12 +39,26 @@ function Cleanup({ subjects = [] }) {
       return;
     }
 
-    const studentName = `${selectedStudent?.firstName || ''} ${selectedStudent?.lastName || ''}`.trim();
+    const studentName = selectedStudent
+      ? `${selectedStudent.firstName || ''} ${selectedStudent.lastName || ''}`.trim()
+      : 'всех учеников';
     const subjectName = subjects.find((s) => String(s.id) === String(subjectId))?.name;
 
     const confirmText = action === 'answers'
       ? `Удалить все ответы, прогноз, лучшие результаты и дневные логи по предмету «${subjectName}» у ученика ${studentName}?`
-      : streakSubjectId
+      : action === 'migrate'
+        ? studentId && subjectId
+          ? `Удалить старые попытки из базы для ${studentName} по предмету «${subjectName}»? Сводки не изменятся.`
+          : studentId
+            ? `Удалить старые попытки из базы для ${studentName} по всем предметам? Сводки не изменятся.`
+            : 'Удалить все старые попытки из базы? Сводки не изменятся.'
+        : action === 'rebuild'
+          ? studentId && subjectId
+            ? `Восстановить сводки для ${studentName} по предмету «${subjectName}» из результатов по заданиям?`
+            : studentId
+              ? `Восстановить сводки для ${studentName} по всем предметам из результатов по заданиям?`
+              : 'Восстановить сводки для всех учеников из результатов по заданиям?'
+          : streakSubjectId
         ? `Сбросить стрик по предмету «${subjects.find((s) => String(s.id) === String(streakSubjectId))?.name}» у ${studentName}?`
         : `Сбросить стрик по всем предметам у ${studentName}?`;
 
@@ -56,14 +70,23 @@ function Cleanup({ subjects = [] }) {
     try {
       const url = action === 'answers'
         ? `${API_URL}/admin/cleanup/answers`
-        : `${API_URL}/admin/cleanup/streak`;
+        : action === 'migrate'
+          ? `${API_URL}/admin/cleanup/migrate-stats`
+          : action === 'rebuild'
+            ? `${API_URL}/admin/cleanup/rebuild-stats`
+            : `${API_URL}/admin/cleanup/streak`;
 
       const body = action === 'answers'
         ? { studentId: parseInt(studentId, 10), subjectId: parseInt(subjectId, 10) }
-        : {
-          studentId: parseInt(studentId, 10),
-          ...(streakSubjectId ? { subjectId: parseInt(streakSubjectId, 10) } : {})
-        };
+        : action === 'migrate' || action === 'rebuild'
+          ? {
+            ...(studentId ? { studentId: parseInt(studentId, 10) } : {}),
+            ...(subjectId ? { subjectId: parseInt(subjectId, 10) } : {})
+          }
+          : {
+            studentId: parseInt(studentId, 10),
+            ...(streakSubjectId ? { subjectId: parseInt(streakSubjectId, 10) } : {})
+          };
 
       const response = await adminFetch(url, {
         method: 'POST',
@@ -72,11 +95,42 @@ function Cleanup({ subjects = [] }) {
       const data = await response.json();
 
       if (!response.ok) {
-        setMessage({ type: 'error', text: data.error || data.message || 'Ошибка' });
+        setMessage({
+          type: 'error',
+          text: data.details ? `${data.error || 'Ошибка'}: ${data.details}` : (data.error || data.message || 'Ошибка')
+        });
         return;
       }
 
-      if (action === 'answers') {
+      if (action === 'migrate') {
+        const v = data.verification || {};
+        const rows = v.aggregateRows || {};
+        if (data.skipped) {
+          setMessage({
+            type: 'success',
+            text: data.message || 'Сводки актуальны, старых попыток нет.'
+          });
+        } else {
+          const deleted = data.migrated?.attemptsDeleted ?? data.attemptCount ?? 0;
+          setMessage({
+            type: v.ok ? 'success' : 'error',
+            text: v.ok
+              ? `Очищено попыток: ${deleted}, осталось: ${v.attemptsRemaining ?? 0}. Сводки: ${rows.studentTotals || 0} предмет(ов).`
+              : `Очистка под вопросом: сводки пустые (${rows.studentTotals || 0} записей), попыток: ${v.attemptsRemaining ?? '?'}.`
+          });
+        }
+      } else if (action === 'rebuild') {
+        const v = data.verification || {};
+        const rows = v.aggregateRows || {};
+        const sample = v.samples?.[0];
+        setMessage({
+          type: v.ok ? 'success' : 'error',
+          text: v.ok
+            ? `Восстановлено: ${rows.studentTotals || 0} предмет(ов), ${rows.dailyStats || 0} дней, ${rows.topicTotals || 0} тем.` +
+              (sample ? ` Пример: ${sample.totalAttempts} попыток, ${sample.totalCorrect} верных.` : '')
+            : `Не удалось восстановить сводки (${rows.studentTotals || 0} записей).`
+        });
+      } else if (action === 'answers') {
         const d = data.deleted || {};
         setMessage({
           type: 'success',
@@ -146,6 +200,43 @@ function Cleanup({ subjects = [] }) {
           onClick={() => runAction('answers')}
         >
           {busy === 'answers' ? 'Очищаем…' : 'Очистить ответы по предмету'}
+        </button>
+      </div>
+
+      <div className="cleanup-card">
+        <h3>Сводная статистика</h3>
+        <p className="cleanup-hint">
+          Статистика обновляется автоматически при каждом ответе — перенос вручную не нужен.
+          Кнопка ниже только удаляет старые попытки из базы (если они ещё остались).
+          «Восстановить сводки» — если цифры сбились, пересобирает из результатов по заданиям.
+        </p>
+        <label className="cleanup-label">Предмет (необязательно)</label>
+        <select
+          className="cleanup-select"
+          value={subjectId}
+          onChange={(e) => setSubjectId(e.target.value)}
+        >
+          <option value="">Все предметы</option>
+          {subjects.map((s) => (
+            <option key={s.id} value={s.id}>{s.icon} {s.name}</option>
+          ))}
+        </select>
+        <button
+          type="button"
+          className="cleanup-btn cleanup-btn--primary"
+          disabled={busy != null}
+          onClick={() => runAction('migrate')}
+        >
+          {busy === 'migrate' ? 'Очищаем…' : 'Удалить старые попытки (освободить место)'}
+        </button>
+        <button
+          type="button"
+          className="cleanup-btn cleanup-btn--warn"
+          disabled={busy != null}
+          onClick={() => runAction('rebuild')}
+          style={{ marginTop: '0.75rem' }}
+        >
+          {busy === 'rebuild' ? 'Восстанавливаем…' : 'Восстановить сводки из результатов'}
         </button>
       </div>
 

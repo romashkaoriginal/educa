@@ -3,6 +3,8 @@ const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const compression = require('compression');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 const { syncDatabase } = require('./models');
@@ -49,6 +51,27 @@ const io = new Server(server, {
   }
 });
 
+app.use(helmet({
+  crossOriginEmbedderPolicy: false,
+  contentSecurityPolicy: false,
+}));
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: { message: 'Too many requests, please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 200,
+  message: { message: 'Too many requests' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // Сжатие gzip — уменьшает размер ответов в 3-5 раз
 app.use(compression());
 
@@ -66,7 +89,8 @@ app.use('/api/subjects', (req, res, next) => {
   next();
 });
 
-app.use('/api/auth', authRoutes);
+app.use('/api/auth', authLimiter, authRoutes);
+app.use('/api/', apiLimiter);
 
 // Публичные эндпоинты (бот, проверка)
 app.use('/api/bot-users', botUsersRoutes);

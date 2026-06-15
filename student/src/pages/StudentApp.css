@@ -5,7 +5,7 @@
   --kubik-navy: #1A405F;
   --kubik-border: #ECEAE5;
   --kubik-text: #2A3744;
-  --kubik-text-soft: #7B8794;
+  --kubik-text-soft: #5E6B78;
 
   /* Отступы студенческого приложения */
   --space-page-x: 20px;
@@ -17,6 +17,11 @@
   --space-stack: 16px;
   --space-inline: 14px;
   --student-bottom-nav-offset: calc(96px + env(safe-area-inset-bottom, 0px));
+
+  /* Кривые движения — сильнее встроенных CSS-easing */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-spring: cubic-bezier(0.18, 0.89, 0.32, 1.18);
 }
 
 .student-app {
@@ -30,6 +35,39 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+/* Доступность: видимый фокус для клавиатуры/ассистивных устройств */
+.student-app button:focus-visible,
+.student-app a:focus-visible,
+.student-app [role="button"]:focus-visible,
+.student-app input:focus-visible,
+.student-app select:focus-visible,
+.student-app textarea:focus-visible {
+  outline: 2px solid var(--kubik-blue);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+/* Убираем фокус-кольцо только для мыши/тача (focus без -visible) */
+.student-app button:focus:not(:focus-visible),
+.student-app [role="button"]:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Доступность: убираем движение, сохраняем мягкие fade для понятности */
+@media (prefers-reduced-motion: reduce) {
+  .student-app *,
+  .student-app *::before,
+  .student-app *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.12s !important;
+    scroll-behavior: auto !important;
+  }
+  .student-app *:active {
+    transform: none !important;
+  }
 }
 
 /* Header УДАЛЁН - каждая страница показывает свой */
@@ -100,13 +138,21 @@
   background: transparent;
   border-radius: 12px;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: background 0.18s var(--ease-out), color 0.18s var(--ease-out),
+    transform 0.16s var(--ease-out), box-shadow 0.18s var(--ease-out);
   font-size: 14px;
   color: #6b7280;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.nav-button:hover {
-  background: #f3f4f6;
+@media (hover: hover) and (pointer: fine) {
+  .nav-button:hover {
+    background: #f3f4f6;
+  }
+}
+
+.nav-button:active {
+  transform: scale(0.94);
 }
 
 .nav-button.active {
@@ -115,6 +161,10 @@
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(51, 123, 174, 0.28);
   position: relative;
+}
+
+.nav-button.active:active {
+  transform: translateY(-2px) scale(0.96);
 }
 
 .nav-button.active::after {
@@ -140,7 +190,12 @@
 
 /* Section Styles */
 .section {
-  animation: none;
+  animation: sectionEnter 0.34s var(--ease-out) both;
+}
+
+@keyframes sectionEnter {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 /* ========== ОБЩИЕ ОТСТУПЫ СТУДЕНТА ========== */
@@ -359,7 +414,7 @@
   font-weight: 800;
   line-height: 1;
   color: var(--kubik-navy);
-  margin-top: 1px;
+  margin-top: 4px;
 }
 
 .hero-streak.pending .hero-streak-count,

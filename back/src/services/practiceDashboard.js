@@ -5,17 +5,24 @@ const {
   PracticeScoreHistory, Subject
 } = require('../models');
 const { CONFIG, calculatePredictedScore } = require('./predictedScore');
+const { calculateHomeworkScore } = require('./homeworkScore');
+const {
+  hasAggregatedStats,
+  loadAggregatedDashboardMetrics
+} = require('./practiceStatsAggregate');
+const { buildRecentErrorPayload } = require('../utils/practiceAnswerText');
 
 const WEAK_TOPIC_MIN = 10;
+const TOPIC_STATUS_MIN = 5;
 const WEEKLY_GOAL = CONFIG.DAILY_GOAL * 7;
 
-function getTopicStatus(solved, accuracy) {
-  if (solved < WEAK_TOPIC_MIN) return { key: 'learning', label: 'мало данных' };
-  if (accuracy >= 95 && solved >= 15) return { key: 'mastered', label: 'тема освоена' };
-  if (accuracy >= 85) return { key: 'good', label: 'хорошо' };
-  if (accuracy >= 70) return { key: 'normal', label: 'нормально' };
-  if (accuracy >= 55) return { key: 'review', label: 'нужно повторить' };
-  return { key: 'weak', label: 'слабая тема' };
+function getTopicStatus(solved, accuracy, uniqueSolved = 0) {
+  const volume = Math.max(solved, uniqueSolved);
+  if (volume < TOPIC_STATUS_MIN) return { key: 'learning', label: 'мало данных' };
+  if (accuracy < 45) return { key: 'weak', label: 'слабая тема' };
+  if (accuracy <= 65) return { key: 'review', label: 'нужно повторить' };
+  if (accuracy < 80) return { key: 'normal', label: 'нормально' };
+  return { key: 'good', label: 'хорошо' };
 }
 
 function computeBestStreakFromDates(dates) {
@@ -51,6 +58,30 @@ function findScoreNearDate(history, daysAgo, getLocalDateStr) {
     else break;
   }
   return best?.score ?? null;
+}
+
+function findScoreBeforeToday(history, getLocalDateStr) {
+  const today = getLocalDateStr();
+  let lastBeforeToday = null;
+  let firstToday = null;
+  for (const h of history) {
+    const d = typeof h.date === 'string' ? h.date.slice(0, 10) : getLocalDateStr(new Date(h.date));
+    if (d < today) {
+      lastBeforeToday = h;
+    } else if (d === today && !firstToday) {
+      firstToday = h;
+    }
+  }
+  if (lastBeforeToday) return lastBeforeToday.score;
+  if (firstToday) return firstToday.score;
+  return null;
+}
+
+function computeTodayDelta(history, currentScore, getLocalDateStr) {
+  if (currentScore == null) return null;
+  const baseline = findScoreBeforeToday(history, getLocalDateStr);
+  if (baseline == null) return null;
+  return currentScore - baseline;
 }
 
 function buildRecommendation(ctx) {
@@ -175,6 +206,7 @@ async function buildSubjectDashboard(studentId, subjectId, helpers) {
   const { start: todayStart, end: todayEnd } = getLocalDayBounds(today);
   const { start: weekStart, end: weekEnd } = getPeriodBounds('week');
   const { start: monthStart, end: monthEnd } = getPeriodBounds('month');
+  const useAggregates = await hasAggregatedStats(sid, subId);
 
   const [
     topics,
@@ -183,15 +215,19 @@ async function buildSubjectDashboard(studentId, subjectId, helpers) {
     history,
     streak,
     completionDates,
-    recentErrors
+    recentErrorsFromAttempts,
+    aggregated,
+    homework
   ] = await Promise.all([
     PracticeTopic.findAll({ where: { subjectId: subId, isActive: true }, attributes: ['id', 'name', 'icon'] }),
     PracticeQuestionResult.findAll({ where: { studentId: sid, subjectId: subId } }),
-    PracticeAttempt.findAll({
-      where: { studentId: sid, subjectId: subId },
-      attributes: ['topicId', 'isCorrect', 'practiceMode', 'createdAt', 'questionId'],
-      raw: true
-    }),
+    useAggregates
+      ? Promise.resolve([])
+      : PracticeAttempt.findAll({
+        where: { studentId: sid, subjectId: subId },
+        attributes: ['topicId', 'isCorrect', 'practiceMode', 'createdAt', 'questionId'],
+        raw: true
+      }),
     PracticeScoreHistory.findAll({
       where: { studentId: sid, subjectId: subId },
       order: [['date', 'ASC']],
@@ -199,15 +235,30 @@ async function buildSubjectDashboard(studentId, subjectId, helpers) {
     }),
     buildStreakForStudent(sid, subId),
     getDailyGoalCompletionDates(sid, subId),
-    PracticeAttempt.findAll({
-      where: { studentId: sid, subjectId: subId, isCorrect: false },
-      include: [
-        { model: PracticeQuestion, as: 'question', attributes: ['difficulty', 'explanation', 'questionText'] },
-        { model: PracticeTopic, as: 'topic', attributes: ['id', 'name', 'icon'] }
-      ],
-      order: [['createdAt', 'DESC']],
-      limit: 8
-    })
+    useAggregates
+      ? Promise.resolve([])
+      : PracticeAttempt.findAll({
+        where: { studentId: sid, subjectId: subId, isCorrect: false },
+        attributes: ['id', 'topicId', 'questionId', 'selectedAnswer', 'createdAt'],
+        include: [
+          {
+            model: PracticeQuestion,
+            as: 'question',
+            attributes: ['difficulty', 'explanation', 'questionText', 'options', 'correctAnswer']
+          },
+          { model: PracticeTopic, as: 'topic', attributes: ['id', 'name', 'icon'] }
+        ],
+        order: [['createdAt', 'DESC']],
+        limit: 8
+      }),
+    useAggregates
+      ? loadAggregatedDashboardMetrics(sid, subId, {
+        getLocalDateStr,
+        getLocalDayBounds,
+        getPeriodBounds
+      })
+      : Promise.resolve(null),
+    calculateHomeworkScore(sid, subId)
   ]);
 
   const topicMap = Object.fromEntries(topics.map(t => [t.id, t.toJSON()]));
@@ -234,36 +285,42 @@ async function buildSubjectDashboard(studentId, subjectId, helpers) {
     uniqueSolvedByTopic[rj.topicId].add(rj.questionId);
   });
 
-  const totalAttempts = allAttempts.length;
-  const totalCorrect = allAttempts.filter(a => a.isCorrect).length;
-  const overallAccuracy = totalAttempts > 0 ? Math.round(totalCorrect / totalAttempts * 100) : 0;
+  const totalAttempts = aggregated ? aggregated.totalAttempts : allAttempts.length;
+  const totalCorrect = aggregated ? aggregated.totalCorrect : allAttempts.filter(a => a.isCorrect).length;
+  const overallAccuracy = aggregated
+    ? aggregated.overallAccuracy
+    : (totalAttempts > 0 ? Math.round(totalCorrect / totalAttempts * 100) : 0);
 
-  const topicAgg = {};
-  allAttempts.forEach((a) => {
-    if (!topicAgg[a.topicId]) {
-      topicAgg[a.topicId] = { total: 0, correct: 0, lastAt: a.createdAt };
-    }
-    topicAgg[a.topicId].total += 1;
-    if (a.isCorrect) topicAgg[a.topicId].correct += 1;
-    if (new Date(a.createdAt) > new Date(topicAgg[a.topicId].lastAt)) {
-      topicAgg[a.topicId].lastAt = a.createdAt;
-    }
-  });
+  const topicAgg = aggregated ? aggregated.topicAgg : {};
+  if (!aggregated) {
+    allAttempts.forEach((a) => {
+      if (!topicAgg[a.topicId]) {
+        topicAgg[a.topicId] = { total: 0, correct: 0, lastAt: a.createdAt };
+      }
+      topicAgg[a.topicId].total += 1;
+      if (a.isCorrect) topicAgg[a.topicId].correct += 1;
+      if (new Date(a.createdAt) > new Date(topicAgg[a.topicId].lastAt)) {
+        topicAgg[a.topicId].lastAt = a.createdAt;
+      }
+    });
+  }
 
-  const modeStats = {
+  const modeStats = aggregated ? aggregated.modeStats : {
     general: { total: 0, correct: 0, accuracy: 0 },
     weak: { total: 0, correct: 0, accuracy: 0 },
     topic: { total: 0, correct: 0, accuracy: 0 }
   };
-  allAttempts.forEach((a) => {
-    const key = ['general', 'weak', 'topic'].includes(a.practiceMode) ? a.practiceMode : 'general';
-    modeStats[key].total += 1;
-    if (a.isCorrect) modeStats[key].correct += 1;
-  });
-  Object.keys(modeStats).forEach((k) => {
-    const m = modeStats[k];
-    m.accuracy = m.total > 0 ? Math.round(m.correct / m.total * 100) : 0;
-  });
+  if (!aggregated) {
+    allAttempts.forEach((a) => {
+      const key = ['general', 'weak', 'topic'].includes(a.practiceMode) ? a.practiceMode : 'general';
+      modeStats[key].total += 1;
+      if (a.isCorrect) modeStats[key].correct += 1;
+    });
+    Object.keys(modeStats).forEach((k) => {
+      const m = modeStats[k];
+      m.accuracy = m.total > 0 ? Math.round(m.correct / m.total * 100) : 0;
+    });
+  }
 
   const countInRange = (start, end) =>
     allAttempts.filter(a => {
@@ -277,20 +334,19 @@ async function buildSubjectDashboard(studentId, subjectId, helpers) {
       return t >= start && t < end && a.isCorrect;
     }).length;
 
-  const [todayCount, weekCount, monthCount] = [
-    countInRange(todayStart, todayEnd),
-    countInRange(weekStart, weekEnd),
-    countInRange(monthStart, monthEnd)
-  ];
-  const todayCorrect = countCorrectInRange(todayStart, todayEnd);
+  const todayCount = aggregated ? aggregated.todayCount : countInRange(todayStart, todayEnd);
+  const weekCount = aggregated ? aggregated.weekCount : countInRange(weekStart, weekEnd);
+  const monthCount = aggregated ? aggregated.monthCount : countInRange(monthStart, monthEnd);
+  const todayCorrect = aggregated ? aggregated.todayCorrect : countCorrectInRange(todayStart, todayEnd);
 
-  const practiceDays = new Set(
-    allAttempts.map(a => getLocalDateStr(new Date(a.createdAt)))
-  ).size;
+  const practiceDays = aggregated
+    ? aggregated.practiceDays
+    : new Set(allAttempts.map(a => getLocalDateStr(new Date(a.createdAt)))).size;
 
   const prediction = calculatePredictedScore(
     topics.map(t => t.toJSON()),
-    results.map(r => r.toJSON())
+    results.map(r => r.toJSON()),
+    homework
   );
 
   const bestStreak = computeBestStreakFromDates(completionDates);
@@ -304,8 +360,11 @@ async function buildSubjectDashboard(studentId, subjectId, helpers) {
   const monthAgoScore = prediction.unlocked ? findScoreNearDate(historyPoints, 30, getLocalDateStr) : null;
   const weekDelta = prediction.unlocked && weekAgoScore != null ? prediction.score - weekAgoScore : null;
   const monthDelta = prediction.unlocked && monthAgoScore != null ? prediction.score - monthAgoScore : null;
+  const todayDelta = prediction.unlocked
+    ? computeTodayDelta(historyPoints, prediction.score, getLocalDateStr)
+    : null;
 
-  const questionIds = [...new Set(allAttempts.map(a => a.questionId))];
+  const questionIds = aggregated ? [] : [...new Set(allAttempts.map(a => a.questionId))];
   const questions = questionIds.length
     ? await PracticeQuestion.findAll({
       where: { id: questionIds },
@@ -315,22 +374,26 @@ async function buildSubjectDashboard(studentId, subjectId, helpers) {
     : [];
   const qDiffMap = Object.fromEntries(questions.map(q => [q.id, q.difficulty || 'medium']));
 
-  const diffAgg = { easy: { t: 0, c: 0 }, medium: { t: 0, c: 0 }, hard: { t: 0, c: 0 } };
-  allAttempts.forEach((a) => {
-    const d = qDiffMap[a.questionId] || 'medium';
-    if (!diffAgg[d]) return;
-    diffAgg[d].t += 1;
-    if (a.isCorrect) diffAgg[d].c += 1;
-  });
-
-  const accuracyByDifficulty = {
-    easy: diffAgg.easy.t ? Math.round(diffAgg.easy.c / diffAgg.easy.t * 100) : null,
-    medium: diffAgg.medium.t ? Math.round(diffAgg.medium.c / diffAgg.medium.t * 100) : null,
-    hard: diffAgg.hard.t ? Math.round(diffAgg.hard.c / diffAgg.hard.t * 100) : null,
-    easyTotal: diffAgg.easy.t,
-    mediumTotal: diffAgg.medium.t,
-    hardTotal: diffAgg.hard.t
-  };
+  let accuracyByDifficulty;
+  if (aggregated) {
+    accuracyByDifficulty = aggregated.accuracyByDifficulty;
+  } else {
+    const diffAgg = { easy: { t: 0, c: 0 }, medium: { t: 0, c: 0 }, hard: { t: 0, c: 0 } };
+    allAttempts.forEach((a) => {
+      const d = qDiffMap[a.questionId] || 'medium';
+      if (!diffAgg[d]) return;
+      diffAgg[d].t += 1;
+      if (a.isCorrect) diffAgg[d].c += 1;
+    });
+    accuracyByDifficulty = {
+      easy: diffAgg.easy.t ? Math.round(diffAgg.easy.c / diffAgg.easy.t * 100) : null,
+      medium: diffAgg.medium.t ? Math.round(diffAgg.medium.c / diffAgg.medium.t * 100) : null,
+      hard: diffAgg.hard.t ? Math.round(diffAgg.hard.c / diffAgg.hard.t * 100) : null,
+      easyTotal: diffAgg.easy.t,
+      mediumTotal: diffAgg.medium.t,
+      hardTotal: diffAgg.hard.t
+    };
+  }
 
   const topicStats = Object.entries(topicAgg).map(([topicId, agg]) => {
     const meta = topicMap[topicId] || {};
@@ -338,9 +401,9 @@ async function buildSubjectDashboard(studentId, subjectId, helpers) {
     const correct = agg.correct;
     const errors = total - correct;
     const accuracy = total > 0 ? Math.round(correct / total * 100) : 0;
-    const status = getTopicStatus(total, accuracy);
     const totalQuestions = totalQuestionsByTopic[topicId] || 0;
     const uniqueSolved = uniqueSolvedByTopic[topicId] ? uniqueSolvedByTopic[topicId].size : 0;
+    const status = getTopicStatus(total, accuracy, uniqueSolved);
     const completionPercent = totalQuestions > 0
       ? Math.min(100, Math.round(uniqueSolved / totalQuestions * 100))
       : 0;
@@ -362,19 +425,25 @@ async function buildSubjectDashboard(studentId, subjectId, helpers) {
   }).sort((a, b) => a.accuracy - b.accuracy);
 
   const weakTopics = topicStats
-    .filter(t => t.solved >= WEAK_TOPIC_MIN && t.accuracy < 70)
+    .filter(t => t.solved >= WEAK_TOPIC_MIN && (t.status === 'weak' || t.status === 'review'))
     .slice(0, 5);
 
-  const masteredCount = topicStats.filter(t => t.status === 'mastered').length;
+  const masteredCount = topicStats.filter(t => t.status === 'good' && t.solved >= 15).length;
 
-  let correctStreak = 0;
-  const sortedAttempts = [...allAttempts].sort(
-    (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
-  );
-  for (const a of sortedAttempts.slice(0, 20)) {
-    if (a.isCorrect) correctStreak += 1;
-    else break;
+  let correctStreak = aggregated ? aggregated.correctStreak : 0;
+  if (!aggregated) {
+    const sortedAttempts = [...allAttempts].sort(
+      (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+    );
+    for (const a of sortedAttempts.slice(0, 20)) {
+      if (a.isCorrect) correctStreak += 1;
+      else break;
+    }
   }
+
+  const recentErrors = aggregated
+    ? aggregated.recentErrors
+    : recentErrorsFromAttempts.map((e) => buildRecentErrorPayload(e.toJSON ? e.toJSON() : e));
 
   let inactiveTopic = null;
   if (topicStats.length) {
@@ -429,7 +498,8 @@ async function buildSubjectDashboard(studentId, subjectId, helpers) {
       weekAgo: weekAgoScore,
       monthAgo: monthAgoScore,
       weekDelta,
-      monthDelta
+      monthDelta,
+      todayDelta
     },
     activity: {
       total: totalAttempts,
@@ -450,18 +520,7 @@ async function buildSubjectDashboard(studentId, subjectId, helpers) {
     weakTopics,
     recommendation,
     modeStats,
-    recentErrors: recentErrors.map(e => ({
-      id: e.id,
-      topicId: e.topicId,
-      topicName: e.topic?.name || 'Тема',
-      topicIcon: e.topic?.icon || '📝',
-      difficulty: e.question?.difficulty || 'medium',
-      date: e.createdAt,
-      explanation: e.question?.explanation || null,
-      questionText: e.question?.questionText
-        ? String(e.question.questionText).slice(0, 120)
-        : null
-    })),
+    recentErrors,
     achievements,
     weeklyGoal,
     correctStreak

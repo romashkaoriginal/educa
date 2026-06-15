@@ -18,6 +18,15 @@ const PracticeScoreHistory = sequelize.define('PracticeScoreHistory', {
     allowNull: false,
     validate: { min: 0, max: 100 }
   },
+  // Разбивка итогового балла (ТЗ раздел 11)
+  practiceScore: {
+    type: DataTypes.INTEGER,
+    allowNull: true
+  },
+  homeworkScore: {
+    type: DataTypes.INTEGER,
+    allowNull: true
+  },
   solvedCount: {
     type: DataTypes.INTEGER,
     allowNull: false,

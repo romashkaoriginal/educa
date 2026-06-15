@@ -106,7 +106,7 @@ router.get('/student/:studentId/stats', async (req, res) => {
     });
   } catch (error) {
     console.error('Get student quiz stats error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).json({ message: 'Server error' });
   }
 });
 

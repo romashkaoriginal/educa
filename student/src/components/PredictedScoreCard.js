@@ -125,6 +125,17 @@ function PredictedScoreCard({ predictedScore, subjectName }) {
 
       {predictedScore.unlocked ? (
         <>
+          <div className="predicted-breakdown">
+            <span className="predicted-breakdown-item">
+              Практика <strong>{predictedScore.practiceScore ?? 0}</strong>/80
+            </span>
+            <span className="predicted-breakdown-sep">·</span>
+            <span className="predicted-breakdown-item">
+              {predictedScore.homeworkAvailable
+                ? <>Домашка <strong>{predictedScore.homeworkScore ?? 0}</strong>/20</>
+                : <>Домашка <span className="predicted-breakdown-muted">пока нет данных</span></>}
+            </span>
+          </div>
           <div className="predicted-meta">
             Точность {predictedScore.accuracy}%
           </div>

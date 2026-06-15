@@ -558,7 +558,7 @@ function StudentHomework({ studentId }) {
       case 'single_choice': {
         const options = question.options || [];
         return (
-          <div className="question-options">
+          <div className="question-options" key={`opts-${index}`}>
             {options.map((option, optIndex) => (
               <button
                 key={optIndex}
@@ -577,7 +577,7 @@ function StudentHomework({ studentId }) {
         const options = question.options || [];
         const selected = answers[index] || [];
         return (
-          <div className="question-options">
+          <div className="question-options" key={`opts-${index}`}>
             {options.map((option, optIndex) => (
               <button
                 key={optIndex}
@@ -1100,7 +1100,10 @@ function StudentHomework({ studentId }) {
               <span className="question-number">Вопрос {currentQuestionIndex + 1}</span>
               <span className="question-points">{currentQuestion.points} баллов</span>
             </div>
-            <h3 className="question-text">{currentQuestion.questionText}</h3>
+            <div className="hw-question-prompt" key={`hq-${currentQuestion.id ?? currentQuestionIndex}`}>
+              <span className="hw-question-prompt-mark" aria-hidden>“</span>
+              <h3 className="question-text">{currentQuestion.questionText}</h3>
+            </div>
             <div className={`homework-mode-answer homework-mode-answer--${currentQuestion.questionType || 'default'}`}>
               {renderQuestion(currentQuestion, currentQuestionIndex)}
             </div>
