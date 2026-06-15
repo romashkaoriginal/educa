@@ -844,13 +844,13 @@ function StudentHomework({ studentId }) {
             <div className="result-answers">
               {isOk ? (
                 <div className="result-answer correct-answer">
-                  <span className="answer-text">Ваш ответ: <strong>{userLabel}</strong></span>
+                  <span className="answer-text">Твой ответ: <strong>{userLabel}</strong></span>
                   <span className="correct-mark">✓</span>
                 </div>
               ) : (
                 <>
                   <div className="result-answer wrong-answer">
-                    <span className="answer-text">Ваш ответ: <strong>{userLabel}</strong></span>
+                    <span className="answer-text">Твой ответ: <strong>{userLabel}</strong></span>
                     <span className="wrong-mark">✗</span>
                   </div>
                   <div className="result-answer correct-answer">
@@ -868,13 +868,13 @@ function StudentHomework({ studentId }) {
             <div className="result-answers">
               {isOk ? (
                 <div className="result-answer correct-answer">
-                  <span className="answer-text">Ваш ответ: <strong>{userAnswer || '—'}</strong></span>
+                  <span className="answer-text">Твой ответ: <strong>{userAnswer || '—'}</strong></span>
                   <span className="correct-mark">✓</span>
                 </div>
               ) : (
                 <>
                   <div className="result-answer wrong-answer">
-                    <span className="answer-text">Ваш ответ: <strong>{userAnswer || '—'}</strong></span>
+                    <span className="answer-text">Твой ответ: <strong>{userAnswer || '—'}</strong></span>
                     <span className="wrong-mark">✗</span>
                   </div>
                   <div className="result-answer correct-answer">
@@ -894,13 +894,13 @@ function StudentHomework({ studentId }) {
             <div className="result-answers">
               {isOk ? (
                 <div className="result-answer correct-answer">
-                  <span className="answer-text">Ваш ответ: <strong>{userAnswer ?? '—'}</strong></span>
+                  <span className="answer-text">Твой ответ: <strong>{userAnswer ?? '—'}</strong></span>
                   <span className="correct-mark">✓</span>
                 </div>
               ) : (
                 <>
                   <div className="result-answer wrong-answer">
-                    <span className="answer-text">Ваш ответ: <strong>{userAnswer ?? '—'}</strong></span>
+                    <span className="answer-text">Твой ответ: <strong>{userAnswer ?? '—'}</strong></span>
                     <span className="wrong-mark">✗</span>
                   </div>
                   <div className="result-answer correct-answer">
@@ -949,7 +949,7 @@ function StudentHomework({ studentId }) {
               ) : (
                 <>
                   <div className="result-answer wrong-answer">
-                    <span className="answer-text">Ваш порядок: <strong>{userOrder.join(' → ')}</strong></span>
+                    <span className="answer-text">Твой порядок: <strong>{userOrder.join(' → ')}</strong></span>
                     <span className="wrong-mark">✗</span>
                   </div>
                   <div className="result-answer correct-answer">
@@ -997,13 +997,13 @@ function StudentHomework({ studentId }) {
               ) : (
                 isOk ? (
                   <div className="result-answer correct-answer">
-                    <span className="answer-text">Ваш ответ: <strong>{userBlanks.join(', ') || '—'}</strong></span>
+                    <span className="answer-text">Твой ответ: <strong>{userBlanks.join(', ') || '—'}</strong></span>
                     <span className="correct-mark">✓</span>
                   </div>
                 ) : (
                   <>
                     <div className="result-answer wrong-answer">
-                      <span className="answer-text">Ваш ответ: <strong>{userBlanks.join(', ') || '—'}</strong></span>
+                      <span className="answer-text">Твой ответ: <strong>{userBlanks.join(', ') || '—'}</strong></span>
                       <span className="wrong-mark">✗</span>
                     </div>
                     <div className="result-answer correct-answer">
@@ -1062,7 +1062,7 @@ function StudentHomework({ studentId }) {
         </div>
         <div className="result-actions">
           {result.maxAttempts && result.attemptsUsed >= result.maxAttempts ? (
-            <p className="attempts-exhausted">Вы использовали все попытки</p>
+            <p className="attempts-exhausted">Ты использовал все попытки</p>
           ) : (
             <button className="primary-button" onClick={() => startHomework(selectedHomework)}>
               Попробовать еще раз

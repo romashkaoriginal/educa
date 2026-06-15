@@ -10,6 +10,6 @@ scp -r student/scripts "${sshHost}:${remote}/"
 scp -r student/public "${sshHost}:${remote}/"
 scp -r student/src "${sshHost}:${remote}/"
 
-ssh $sshHost "cd /opt/educa && docker compose build --no-cache frontend && docker compose up -d frontend backend"
+ssh $sshHost "cd /opt/educa && docker compose build --no-cache frontend && docker compose up -d frontend"
 
-Write-Host "Done. Check: https://kubik-ct.online/version.json (v must NOT be dev)"
+Write-Host "Frontend done. Check: https://kubik-ct.online/version.json"

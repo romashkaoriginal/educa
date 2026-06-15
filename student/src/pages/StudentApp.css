@@ -1,4 +1,4 @@
-﻿:root {
+:root {
   --kubik-pink: #FFBEBD;
   --kubik-white: #FCFCFA;
   --kubik-blue: #337BAE;
@@ -63,6 +63,13 @@
   -webkit-overflow-scrolling: touch;
   background: var(--kubik-blue-soft, #EAF3FA);
   max-width: 100%;
+}
+
+/* Поля ввода ≥16px — без авто-зума iOS в Telegram (домашка) */
+.student-app .homework-mode input,
+.student-app .homework-mode textarea,
+.student-app .homework-mode .blank-input {
+  font-size: 16px;
 }
 
 /* Bottom Navigation */

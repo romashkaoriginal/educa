@@ -24,10 +24,14 @@ async function buildPrediction(studentId, subjectId) {
   const results = await PracticeQuestionResult.findAll({
     where: { studentId, subjectId }
   });
-  return calculatePredictedScore(
-    topics.map(t => t.toJSON()),
-    results.map(r => r.toJSON())
-  );
+  const resultRows = results.map(r => r.toJSON());
+  return {
+    ...calculatePredictedScore(
+      topics.map(t => t.toJSON()),
+      resultRows
+    ),
+    solvedQuestionIds: resultRows.map(r => r.questionId)
+  };
 }
 
 async function recordScoreHistory(studentId, subjectId, prediction) {

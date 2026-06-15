@@ -372,9 +372,9 @@ function Quiz({ studentId, studentName = 'Ученик' }) {
           setFinishedInfo(data);
           setError(data.message);
         } else if (data.code === 'NO_ACCESS') {
-          setError(data.message || 'У вас нет доступа к этой викторине.');
+          setError(data.message || 'У тебя нет доступа к этой викторине.');
         } else {
-          setError(data.message || 'Викторина с таким кодом не найдена. Проверьте код и попробуйте еще раз.');
+          setError(data.message || 'Викторина с таким кодом не найдена. Проверь код и попробуй ещё раз.');
         }
         setLoading(false);
         return;
@@ -486,7 +486,7 @@ function Quiz({ studentId, studentName = 'Ученик' }) {
 
   const renderHistoryList = (onItemClickSource) => (
     quizHistory.length === 0 ? (
-      <p className="quiz-ui-empty">Вы ещё не участвовали в викторинах.</p>
+      <p className="quiz-ui-empty">Ты ещё не участвовал в викторинах.</p>
     ) : (
       <ul className="quiz-ui-history-list quiz-ui-history-full">
         {quizHistory.map((item) => (
@@ -524,9 +524,9 @@ function Quiz({ studentId, studentName = 'Ученик' }) {
         <div className="quiz-ui-lobby__pulse"><span>✓</span></div>
         <span className="quiz-ui__eyebrow">Комната ожидания</span>
         <h1 className="quiz-ui__title">{formatQuizLine(quiz?.subject?.name, quiz?.title, ':')}</h1>
-        <div className="quiz-ui-status-chip">Вы подключены</div>
+        <div className="quiz-ui-status-chip">Ты подключён</div>
         <div className="quiz-ui-info-grid">
-          <div className="quiz-ui-info-row"><span>Вы подключены как</span><span>{studentName}</span></div>
+          <div className="quiz-ui-info-row"><span>Ты подключён как</span><span>{studentName}</span></div>
           {quiz?.subject && (
             <div className="quiz-ui-info-row"><span>Предмет</span><span>{quiz.subject.icon} {quiz.subject.name}</span></div>
           )}
@@ -692,7 +692,7 @@ function Quiz({ studentId, studentName = 'Ученик' }) {
               <div className="quiz-ui-qresult__details">
                 {!questionResult.timedOut && questionResult.selectedAnswer != null && (
                   <div className="quiz-ui-qresult__row">
-                    <span className="quiz-ui-qresult__label">Ваш ответ:</span>
+                    <span className="quiz-ui-qresult__label">Твой ответ:</span>
                     <strong>{opt(questionResult.selectedAnswer)}</strong>
                   </div>
                 )}
@@ -701,7 +701,7 @@ function Quiz({ studentId, studentName = 'Ученик' }) {
                   <strong>{opt(questionResult.correctAnswer)}</strong>
                 </div>
               </div>
-              <p className="quiz-ui-qresult__score">Вы получили: 0 баллов</p>
+              <p className="quiz-ui-qresult__score">Ты получил: 0 баллов</p>
             </>
           )}
 
@@ -716,7 +716,7 @@ function Quiz({ studentId, studentName = 'Ученик' }) {
 
           {showRank && (
             <p className="quiz-ui-qresult__rank">
-              Ваше место: {questionResult.myRank} из {questionResult.totalParticipants || participantCount}
+              Твоё место: {questionResult.myRank} из {questionResult.totalParticipants || participantCount}
             </p>
           )}
 
@@ -766,7 +766,7 @@ function Quiz({ studentId, studentName = 'Ученик' }) {
             )}
             <p className="quiz-ui-hint">Ожидайте следующий вопрос…</p>
           </div>
-          <aside className="quiz-ui-sidebar" aria-label="Ваше место">
+          <aside className="quiz-ui-sidebar" aria-label="Твоё место">
             <h3 className="quiz-ui-sidebar__title">🏆 Топ</h3>
             <MiniLeaderboard participants={participants} studentId={studentId} myRank={myRank} compact />
           </aside>
@@ -856,7 +856,7 @@ function Quiz({ studentId, studentName = 'Ученик' }) {
                   return (
                     <div key={`detail-${a.id}`} className="quiz-ui-error-card">
                       <strong>Вопрос {(a.question?.order ?? 0) + 1}. {qText}</strong>
-                      <p><span>Ваш ответ:</span> {myAns}</p>
+                      <p><span>Твой ответ:</span> {myAns}</p>
                       <p><span>Правильный ответ:</span> {correctAns}</p>
                       {a.question?.explanation && (
                         <p><span>Объяснение:</span> {a.question.explanation}</p>

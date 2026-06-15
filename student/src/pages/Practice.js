@@ -253,8 +253,19 @@ function pickAdaptiveFromPool(candidates, sessionAnswers) {
 function pickFromPool(pool, sessionAnswers, mode, options = {}) {
   if (!pool.length) return null;
 
-  const answeredIds = new Set(sessionAnswers.map((a) => a.questionId));
-  let candidates = pool.filter((q) => !answeredIds.has(q.id));
+  const sessionAnsweredIds = new Set(sessionAnswers.map((a) => a.questionId));
+  const globalSolvedIds = options.globalSolvedIds || new Set();
+
+  let candidates = pool.filter((q) => !sessionAnsweredIds.has(q.id));
+
+  if (!options.hasPredictedScore) {
+    const unseen = candidates.filter((q) => !globalSolvedIds.has(q.id));
+    if (unseen.length > 0) candidates = unseen;
+  }
+
+  if (candidates.length === 0) {
+    candidates = pool.filter((q) => !sessionAnsweredIds.has(q.id));
+  }
   if (candidates.length === 0) candidates = pool;
 
   if (mode === 'general') {
@@ -267,8 +278,8 @@ function pickFromPool(pool, sessionAnswers, mode, options = {}) {
   return shuffleArr(candidates)[0];
 }
 
-const GOAL_HINT = 'Решайте любые задания — новые правильные ответы заполняют цель';
-const STREAK_HINT = 'Выполните ежедневную цель, чтобы продлить серию';
+const GOAL_HINT = 'Решай любые задания — новые правильные ответы заполняют цель';
+const STREAK_HINT = 'Выполни ежедневную цель, чтобы продлить серию';
 
 function HeroMetricHint({ id, openId, onToggle, hint, children, align = 'center' }) {
   const active = openId === id;
@@ -338,8 +349,10 @@ function Practice({ studentId }) {
   const pendingSavesRef = useRef([]);
   const orbFlushQueueRef = useRef([]);
   const practiceModeRef = useRef('general');
+  const globalSolvedIdsRef = useRef(new Set());
   const questionPoolRef = useRef([]);
   const questionsRef = useRef([]);
+  const pendingAutoNextSessionRef = useRef(null); // sessionAnswers pending auto-advance
 
   const RESULT_DURATION = 1500; // 1.5 секунды показ результата
   const [streakBump, setStreakBump] = useState(false);
@@ -433,7 +446,7 @@ function Practice({ studentId }) {
         aria-labelledby="topic-picker-title"
       >
         <div className="topic-picker" onClick={(e) => e.stopPropagation()}>
-          <h3 id="topic-picker-title" className="topic-picker-title">Выберите тему</h3>
+          <h3 id="topic-picker-title" className="topic-picker-title">Выбери тему</h3>
           <div className="topic-picker-scroll-wrap">
             <div className="topic-picker-list">
               {filteredTopics.map(topic => (
@@ -527,7 +540,18 @@ function Practice({ studentId }) {
 
   const getGeneralPickOptions = () => ({
     hasPredictedScore: !!predictedScore?.unlocked,
+    globalSolvedIds: globalSolvedIdsRef.current,
   });
+
+  const syncGlobalSolvedIds = (prediction) => {
+    globalSolvedIdsRef.current = new Set(prediction?.solvedQuestionIds || []);
+  };
+
+  useEffect(() => {
+    if (predictedScore?.solvedQuestionIds) {
+      syncGlobalSolvedIds(predictedScore);
+    }
+  }, [predictedScore]);
 
   // Очистка таймера при размонтировании
   useEffect(() => {
@@ -574,6 +598,8 @@ function Practice({ studentId }) {
         });
 
         if (!response.ok) return null;
+
+        globalSolvedIdsRef.current.add(question.id);
 
         const data = await response.json();
         if (data.goal) patchDailyGoal(data.goal);
@@ -622,7 +648,7 @@ function Practice({ studentId }) {
     return all;
   };
 
-  const startPracticeFromQuestions = (topic, activeQuestions, label, goalData, mode = 'topic') => {
+  const startPracticeFromQuestions = (topic, activeQuestions, label, goalData, mode = 'topic', pickOptions = {}) => {
     const pool = activeQuestions.map(shuffleOptions).filter(Boolean);
     if (pool.length === 0) {
       alert('Нет доступных вопросов');
@@ -631,13 +657,16 @@ function Practice({ studentId }) {
 
     practiceModeRef.current = mode;
     questionPoolRef.current = pool;
+    const pickOpts = mode === 'general'
+      ? { ...getGeneralPickOptions(), ...pickOptions }
+      : { ...pickOptions, hasPredictedScore: !!predictedScore?.unlocked, globalSolvedIds: globalSolvedIdsRef.current };
     setSessionSolved(0);
     setGoalPeek(false);
     setGoalPulse(false);
     setOrbs([]);
     orbFlushQueueRef.current = [];
 
-    const firstRaw = pickFromPool(pool, [], mode, mode === 'general' ? getGeneralPickOptions() : {});
+    const firstRaw = pickFromPool(pool, [], mode, pickOpts);
     const first = shuffleOptions(firstRaw) || pool[0];
 
     setActivePractice({ ...topic, name: label || topic.name });
@@ -657,6 +686,8 @@ function Practice({ studentId }) {
     setPracticeLoading(true);
     try {
       const goalData = await loadDailyGoal();
+      const prediction = await loadPredictedScore(selectedSubject.id);
+      syncGlobalSolvedIds(prediction);
       const topics = practiceTopics.filter(t => t.subjectId === selectedSubject.id);
       const allQuestions = await loadAllSubjectQuestions(topics);
       if (allQuestions.length === 0) {
@@ -682,6 +713,9 @@ function Practice({ studentId }) {
     try {
       setShowTopicPicker(false);
       const goalData = await loadDailyGoal();
+      const subjectId = topic.subjectId || selectedSubject?.id;
+      const prediction = subjectId ? await loadPredictedScore(subjectId) : null;
+      syncGlobalSolvedIds(prediction);
       const activeQuestions = await getQuestions(topic);
       const withTopic = activeQuestions.map(q => ({ ...q, topicId: q.topicId || topic.id }));
       startPracticeFromQuestions(topic, withTopic, topic.name, goalData, 'topic');
@@ -696,6 +730,8 @@ function Practice({ studentId }) {
     setPracticeLoading(true);
     try {
       const goalData = await loadDailyGoal();
+      const prediction = await loadPredictedScore(selectedSubject.id);
+      syncGlobalSolvedIds(prediction);
       const data = await loadWeakTopicsQuestions(selectedSubject.id);
       const questionsList = (data?.questions || []).map(q => shuffleOptions(q)).filter(Boolean);
       if (questionsList.length === 0) {
@@ -875,12 +911,16 @@ function Practice({ studentId }) {
     }];
     setSessionAnswers(newSessionAnswers);
 
+    pendingAutoNextSessionRef.current = newSessionAnswers;
     autoNextTimerRef.current = setTimeout(() => {
+      pendingAutoNextSessionRef.current = null;
       const nextRaw = pickFromPool(
         questionPoolRef.current,
         newSessionAnswers,
         practiceModeRef.current,
-        practiceModeRef.current === 'general' ? getGeneralPickOptions() : {}
+        practiceModeRef.current === 'general'
+          ? getGeneralPickOptions()
+          : { hasPredictedScore: !!predictedScore?.unlocked, globalSolvedIds: globalSolvedIdsRef.current }
       );
       const nextQ = nextRaw ? shuffleOptions(nextRaw) : null;
       if (!nextQ) return;
@@ -936,6 +976,35 @@ function Practice({ studentId }) {
     const nextIndex = currentQuestionIndex + 1;
     setCurrentQuestionIndex(nextIndex);
     restoreQuestionState(nextIndex);
+
+    // If returning to the frontier answered question whose timer was cancelled, restart auto-advance
+    if (nextIndex === questionsRef.current.length - 1 && pendingAutoNextSessionRef.current) {
+      const savedSA = pendingAutoNextSessionRef.current;
+      pendingAutoNextSessionRef.current = null;
+      autoNextTimerRef.current = setTimeout(() => {
+        const nextRaw = pickFromPool(
+          questionPoolRef.current,
+          savedSA,
+          practiceModeRef.current,
+          practiceModeRef.current === 'general'
+            ? getGeneralPickOptions()
+            : { hasPredictedScore: !!predictedScore?.unlocked, globalSolvedIds: globalSolvedIdsRef.current }
+        );
+        const nextQ = nextRaw ? shuffleOptions(nextRaw) : null;
+        if (!nextQ) return;
+        setSelectedAnswer(null);
+        setAnswered(false);
+        setIsCorrect(false);
+        setShowExplanationHint(false);
+        blurActiveElement();
+        setCurrentQuestionIndex(prev => prev + 1);
+        setQuestions(prev => {
+          const updated = [...prev, nextQ];
+          questionsRef.current = updated;
+          return updated;
+        });
+      }, RESULT_DURATION);
+    }
   };
 
   const savePracticeSession = async (answers, practiceSnapshot = activePractice) => {
@@ -1008,6 +1077,7 @@ function Practice({ studentId }) {
     setSessionSolved(0);
     setGoalPeek(false);
     setOrbs([]);
+    pendingAutoNextSessionRef.current = null;
 
     setActiveTab('practice');
 
@@ -1413,7 +1483,7 @@ function Practice({ studentId }) {
               <span className="practice-mode-btn-icon">📚</span>
               <span className="practice-mode-btn-text">
                 <span className="practice-mode-btn-title">Конкретная тема</span>
-                <span className="practice-mode-btn-sub">Выберите подраздел сами</span>
+                <span className="practice-mode-btn-sub">Выбери подраздел сам</span>
               </span>
               <span className="practice-mode-btn-arrow">→</span>
             </button>
@@ -1445,7 +1515,7 @@ function Practice({ studentId }) {
 
           {leaderboard?.myPosition && (
             <div className="my-rank-card">
-              <div className="my-rank-label">Ваше место</div>
+              <div className="my-rank-label">Твоё место</div>
               <div className="my-rank-value">#{leaderboard.myPosition.rank}</div>
               <div className="my-rank-meta">{leaderboard.myPosition.totalSolved} заданий за период</div>
             </div>

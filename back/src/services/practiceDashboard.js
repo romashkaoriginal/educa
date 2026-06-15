@@ -7,7 +7,7 @@ const {
 const { CONFIG, calculatePredictedScore } = require('./predictedScore');
 
 const WEAK_TOPIC_MIN = 10;
-const WEEKLY_GOAL = 100;
+const WEEKLY_GOAL = CONFIG.DAILY_GOAL * 7;
 
 function getTopicStatus(solved, accuracy) {
   if (solved < WEAK_TOPIC_MIN) return { key: 'learning', label: 'мало данных' };
@@ -65,7 +65,7 @@ function buildRecommendation(ctx) {
       title: 'Что делать дальше?',
       text: left <= 5
         ? `Осталось ${left} заданий — и откроется прогноз на ЦТ!`
-        : `Решите ещё ${left} разных заданий, чтобы увидеть прогноз балла.`,
+        : `Реши ещё ${left} заданий, чтобы увидеть балл на ЦТ/ЦЭ.`,
       action: 'Решать тесты',
       actionType: 'general'
     };
@@ -74,8 +74,8 @@ function buildRecommendation(ctx) {
   if (streak?.streak > 0 && !streak?.todayDone && todaySolved < CONFIG.DAILY_GOAL) {
     const remaining = Math.max(1, CONFIG.DAILY_GOAL - todaySolved);
     return {
-      title: 'Сохраните стрик',
-      text: `Вы занимаетесь ${streak.streak} ${streak.streak === 1 ? 'день' : 'дней'} подряд. Решите ещё ${remaining} правильных заданий сегодня, чтобы продлить серию.`,
+      title: 'Сохрани стрик',
+      text: `Ты занимаешься ${streak.streak} ${streak.streak === 1 ? 'день' : 'дней'} подряд. Реши ещё ${remaining} правильных заданий сегодня, чтобы продлить серию.`,
       action: 'Продолжить стрик',
       actionType: 'general'
     };
@@ -85,7 +85,7 @@ function buildRecommendation(ctx) {
     const target = Math.min(70, (prediction.score || 0) + 6);
     return {
       title: 'Что делать дальше?',
-      text: `«${hardestWeak.name}» сильнее всего снижает прогноз (${hardestWeak.accuracy}%). Решите 10 заданий по этой теме${prediction.score < 70 ? ` — это поможет подняться к ${target}+` : ''}.`,
+      text: `«${hardestWeak.name}» сильнее всего снижает балл (${hardestWeak.accuracy}%). Реши 10 заданий по этой теме${prediction.score < 70 ? ` — это поможет подняться к ${target}+` : ''}.`,
       action: 'Тренировать слабые темы',
       actionType: 'weak',
       topicId: hardestWeak.id
@@ -97,8 +97,8 @@ function buildRecommendation(ctx) {
   const hardTotal = accuracyByDifficulty?.hardTotal || 0;
   if (easyAcc >= 80 && hardTotal < 15 && (hardAcc == null || hardAcc < 50)) {
     return {
-      title: 'Добавьте сложности',
-      text: 'С лёгкими заданиями справляетесь отлично, но мало решаете сложные. Добавьте 15 сложных — прогноз вырастет быстрее.',
+      title: 'Добавь сложности',
+      text: 'С лёгкими заданиями справляешься отлично, но мало решаешь сложные. Добавь 15 сложных — балл вырастет быстрее.',
       action: 'Решать тесты',
       actionType: 'general'
     };
@@ -109,7 +109,7 @@ function buildRecommendation(ctx) {
   if (generalTotal > 30 && weakModeTotal < generalTotal * 0.15 && weakTopics?.length) {
     return {
       title: 'Слабые темы',
-      text: 'Вы редко тренируете слабые темы — это замедляет рост прогноза.',
+      text: 'Ты редко тренируешь слабые темы — это замедляет рост балла.',
       action: 'Тренировать слабые темы',
       actionType: 'weak'
     };
@@ -117,8 +117,8 @@ function buildRecommendation(ctx) {
 
   if (inactiveTopic) {
     return {
-      title: 'Повторите тему',
-      text: `Вы давно не решали «${inactiveTopic.name}». Повторите её, чтобы не потерять прогресс.`,
+      title: 'Повтори тему',
+      text: `Ты давно не решал «${inactiveTopic.name}». Повтори её, чтобы не потерять прогресс.`,
       action: 'Повторить тему',
       actionType: 'topic',
       topicId: inactiveTopic.id
@@ -128,7 +128,7 @@ function buildRecommendation(ctx) {
   if (correctStreak >= 8) {
     return {
       title: 'Отличный темп!',
-      text: `${correctStreak} правильных подряд — продолжайте в том же духе.`,
+      text: `${correctStreak} правильных подряд — продолжай в том же духе.`,
       action: 'Решать тесты',
       actionType: 'general'
     };
@@ -138,8 +138,8 @@ function buildRecommendation(ctx) {
   return {
     title: 'Что делать дальше?',
     text: prediction.score < 100
-      ? `Чтобы поднять прогноз до ${nextTarget}+, решите ещё ~${Math.max(5, Math.ceil((nextTarget - prediction.score) / 2))} заданий по слабым темам.`
-      : 'Поддерживайте форму — решайте по 10–15 заданий в день.',
+      ? `Чтобы поднять балл до ${nextTarget}+, реши ещё ~${Math.max(5, Math.ceil((nextTarget - prediction.score) / 2))} заданий по слабым темам.`
+      : 'Поддерживай форму — решай по 10–15 заданий в день.',
     action: weakTopics?.length ? 'Тренировать слабые темы' : 'Решать тесты',
     actionType: weakTopics?.length ? 'weak' : 'general'
   };

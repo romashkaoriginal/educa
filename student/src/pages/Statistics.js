@@ -68,7 +68,15 @@ function CollapsibleSection({ id, title, icon, open, onToggle, children, badge }
   );
 }
 
-function HomeworkStatsPanel({ homeworkStats }) {
+function countHomeworkSubjects(homeworkStats) {
+  const names = new Set();
+  homeworkStats?.homeworks?.forEach((hw) => {
+    names.add(hw.subject?.name || 'Без предмета');
+  });
+  return names.size;
+}
+
+function HomeworkStatsPanel({ homeworkStats, compact = false }) {
   const homeworkBySubject = {};
   if (homeworkStats?.homeworks) {
     homeworkStats.homeworks.forEach((hw) => {
@@ -109,22 +117,20 @@ function HomeworkStatsPanel({ homeworkStats }) {
     return (
       <div className="sd-empty">
         <span className="sd-empty-icon">📝</span>
-        <p>У вас пока нет домашних заданий</p>
+        <p>У тебя пока нет домашних заданий</p>
       </div>
     );
   }
 
   return (
-    <div className="sd-dashboard sd-homework-panel">
+    <div className={`sd-dashboard sd-homework-panel ${compact ? 'sd-homework-panel--compact' : ''}`}>
       {entries.map(([subjectName, data]) => {
-        const scorePercent = data.maxScore > 0
-          ? Math.round((data.totalScore / data.maxScore) * 100)
-          : 0;
         const answerPercent = data.totalQuestions > 0
           ? Math.round((data.correctAnswers / data.totalQuestions) * 100)
           : 0;
         return (
           <div key={subjectName} className="sd-hw-card">
+            {compact && <h3 className="sd-block-title sd-hw-inline-title">Домашка</h3>}
             <div className="sd-hw-head">
               <span className="sd-hw-icon">{data.icon}</span>
               <span className="sd-hw-name">{subjectName}</span>
@@ -139,10 +145,10 @@ function HomeworkStatsPanel({ homeworkStats }) {
                 <span className="sd-hw-stat-label">ответов</span>
               </div>
               <div className="sd-hw-stat">
-                <span className={`sd-hw-stat-val sd-hw-pct ${scorePercent >= 70 ? 'good' : scorePercent >= 50 ? 'medium' : 'low'}`}>
-                  {scorePercent}%
+                <span className={`sd-hw-stat-val sd-hw-pct ${answerPercent >= 70 ? 'good' : answerPercent >= 50 ? 'medium' : 'low'}`}>
+                  {answerPercent}%
                 </span>
-                <span className="sd-hw-stat-label">баллы</span>
+                <span className="sd-hw-stat-label">верно</span>
               </div>
             </div>
             <div className="sd-hw-bar">
@@ -174,6 +180,7 @@ function Statistics({ studentId }) {
   const [openSections, setOpenSections] = useState({ topics: false, difficulty: false, modes: false, errors: false });
 
   const subjectIdMatch = (a, b) => Number(a) === Number(b);
+  const homeworkSubjectCount = countHomeworkSubjects(homeworkStats);
 
   useEffect(() => {
     loadHomeworkStats(true);
@@ -199,10 +206,10 @@ function Statistics({ studentId }) {
   }, [loadSubjectDashboard]);
 
   useEffect(() => {
-    if (selectedSubjectId && mainTab === 'practice') {
+    if (selectedSubjectId && (mainTab === 'practice' || homeworkSubjectCount <= 1)) {
       loadDashboard(selectedSubjectId);
     }
-  }, [selectedSubjectId, mainTab, dashboardRefreshKey, loadDashboard]);
+  }, [selectedSubjectId, mainTab, dashboardRefreshKey, loadDashboard, homeworkSubjectCount]);
 
   useEffect(() => {
     if (subjectDashboard?.subject?.id != null
@@ -233,9 +240,12 @@ function Statistics({ studentId }) {
 
   const subject = subjects.find((s) => subjectIdMatch(s.id, selectedSubjectId));
   const rec = dashboard?.recommendation;
+  const showStatsTabs = homeworkSubjectCount > 1;
+  const showInlineHomework = !showStatsTabs && homeworkSubjectCount === 1;
+  const activePracticeView = showStatsTabs ? mainTab === 'practice' : true;
 
   return (
-    <div className="section section-stats sd-page">
+    <div className={`section section-stats sd-page ${!showStatsTabs ? 'sd-page--unified' : ''}`}>
       <div className="section-hero sd-hero">
         <div className="section-hero-glow" />
         <div className="section-hero-content practice-hero-row">
@@ -247,31 +257,36 @@ function Statistics({ studentId }) {
         </svg>
       </div>
 
-      <div className="practice-tabs sd-main-tabs">
-        <button
-          type="button"
-          className={`practice-tab ${mainTab === 'practice' ? 'active' : ''}`}
-          onClick={() => setMainTab('practice')}
-        >
-          <span className="practice-tab-icon">💪</span>
-          <span className="practice-tab-label">Практика</span>
-        </button>
-        <button
-          type="button"
-          className={`practice-tab ${mainTab === 'homework' ? 'active' : ''}`}
-          onClick={() => setMainTab('homework')}
-        >
-          <span className="practice-tab-icon">📝</span>
-          <span className="practice-tab-label">Домашка</span>
-        </button>
-      </div>
+      {showStatsTabs && (
+        <div className="practice-tabs sd-main-tabs">
+          <button
+            type="button"
+            className={`practice-tab ${mainTab === 'practice' ? 'active' : ''}`}
+            onClick={() => setMainTab('practice')}
+          >
+            <span className="practice-tab-icon">💪</span>
+            <span className="practice-tab-label">Практика</span>
+          </button>
+          <button
+            type="button"
+            className={`practice-tab ${mainTab === 'homework' ? 'active' : ''}`}
+            onClick={() => setMainTab('homework')}
+          >
+            <span className="practice-tab-icon">📝</span>
+            <span className="practice-tab-label">Домашка</span>
+          </button>
+        </div>
+      )}
 
-      {mainTab === 'homework' && (
+      {showStatsTabs && mainTab === 'homework' && (
         <HomeworkStatsPanel homeworkStats={homeworkStats} />
       )}
 
-      {mainTab === 'practice' && subjects.length > 1 && (
-        <div className="sd-subject-tabs" role="tablist">
+      {activePracticeView && subjects.length > 1 && (
+        <div
+          className={`sd-subject-tabs sd-subject-tabs--count-${Math.min(subjects.length, 4)}`}
+          role="tablist"
+        >
           {subjects.map((s) => (
             <button
               key={s.id}
@@ -288,35 +303,38 @@ function Statistics({ studentId }) {
         </div>
       )}
 
-      {mainTab === 'practice' && subjects.length === 1 && subject && (
+      {activePracticeView && subjects.length === 1 && subject && (
         <div className="sd-subject-single">
           <span>{subject.icon}</span> {subject.name}
         </div>
       )}
 
-      {mainTab === 'practice' && loading && !dashboard ? (
+      {activePracticeView && loading && !dashboard ? (
         <div className="sd-loading">
           <div className="sd-loading-pulse" />
-          <p>Собираем ваш прогресс…</p>
+          <p>Собираем твой прогресс…</p>
         </div>
-      ) : mainTab === 'practice' && loadError && !dashboard ? (
+      ) : activePracticeView && loadError && !dashboard ? (
         <div className="sd-empty">
           <span className="sd-empty-icon">⚠️</span>
-          <p>Не удалось загрузить статистику. Проверьте, что сервер обновлён.</p>
+          <p>Не удалось загрузить статистику. Проверь, что сервер обновлён.</p>
           <button type="button" className="sd-cta" onClick={() => loadDashboard(selectedSubjectId)}>
             Повторить
           </button>
         </div>
-      ) : mainTab === 'practice' && !dashboard ? (
+      ) : activePracticeView && !dashboard ? (
         <div className="sd-empty">
           <span className="sd-empty-icon">📊</span>
-          <p>Решите первые задания в практике — здесь появится ваш прогресс</p>
+          <p>Реши первые задания в практике — здесь появится твой прогресс</p>
           <button type="button" className="sd-cta" onClick={() => handleAction('general')}>
             Начать практику
           </button>
         </div>
-      ) : mainTab === 'practice' && dashboard ? (
+      ) : activePracticeView && dashboard ? (
         <div className="sd-dashboard">
+          {showInlineHomework && (
+            <HomeworkStatsPanel homeworkStats={homeworkStats} compact />
+          )}
           <div className="sd-predicted-wrap">
             <PredictedScoreCard
               predictedScore={buildPredictedFromDashboard(dashboard)}
@@ -339,7 +357,7 @@ function Statistics({ studentId }) {
               icon="🔥"
               label="Стрик"
               value={dashboard.streak?.streak ?? 0}
-              sub={dashboard.streak?.best ? `рек. ${dashboard.streak.best}` : null}
+              sub={dashboard.streak?.best ? `лучшая серия: ${dashboard.streak.best}` : null}
             />
           </div>
 
@@ -353,7 +371,7 @@ function Statistics({ studentId }) {
                 <div className="sd-weekly-fill" style={{ width: `${dashboard.weeklyGoal.percent}%` }} />
               </div>
               {dashboard.weeklyGoal.remaining > 0 && (
-                <p className="sd-weekly-hint">Ещё {dashboard.weeklyGoal.remaining} до цели</p>
+                <p className="sd-weekly-hint">Ещё {dashboard.weeklyGoal.remaining} заданий до цели</p>
               )}
             </div>
           )}
