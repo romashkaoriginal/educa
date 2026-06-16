@@ -1,0 +1,597 @@
+{
+  "C:\\Users\\trank\\project\\student\\public\\logo192.png": {
+    "mtime": 1778089249.1532612,
+    "ast_hash": "33dbdd0177549353eeeb785d02c294af",
+    "semantic_hash": "33dbdd0177549353eeeb785d02c294af"
+  },
+  "C:\\Users\\trank\\project\\student\\public\\logo512.png": {
+    "mtime": 1778089249.250686,
+    "ast_hash": "917515db74ea8d1aee6a246cfbcc0b45",
+    "semantic_hash": "917515db74ea8d1aee6a246cfbcc0b45"
+  },
+  "C:\\Users\\trank\\project\\student\\src\\assets\\english.png": {
+    "mtime": 1781208410.3704157,
+    "ast_hash": "670f702d1c526c7a4828b1c368e4526d",
+    "semantic_hash": "670f702d1c526c7a4828b1c368e4526d"
+  },
+  "C:\\Users\\trank\\project\\student\\src\\assets\\homework-english.png": {
+    "mtime": 1781343944.8330345,
+    "ast_hash": "ce96ec44096a7f5bed7ed758ce9dd139",
+    "semantic_hash": "ce96ec44096a7f5bed7ed758ce9dd139"
+  },
+  "C:\\Users\\trank\\project\\student\\src\\assets\\homework-math.png": {
+    "mtime": 1781343944.7343962,
+    "ast_hash": "6e986de21ecc52386f6d2fef41ecbc98",
+    "semantic_hash": "6e986de21ecc52386f6d2fef41ecbc98"
+  },
+  "C:\\Users\\trank\\project\\student\\src\\assets\\homework-phys.png": {
+    "mtime": 1781343944.7008657,
+    "ast_hash": "cf65286e6d7fb6513f5801c5ad704b3d",
+    "semantic_hash": "cf65286e6d7fb6513f5801c5ad704b3d"
+  },
+  "C:\\Users\\trank\\project\\student\\src\\assets\\homework-russ.png": {
+    "mtime": 1781343944.7895086,
+    "ast_hash": "0b97c788bebff763484c71e93b0165b8",
+    "semantic_hash": "0b97c788bebff763484c71e93b0165b8"
+  },
+  "C:\\Users\\trank\\project\\student\\src\\assets\\kubik-icon.png": {
+    "mtime": 1780727041.4377818,
+    "ast_hash": "dd326cadcb47b9b660121e57ccbcdd25",
+    "semantic_hash": "dd326cadcb47b9b660121e57ccbcdd25"
+  },
+  "C:\\Users\\trank\\project\\student\\src\\assets\\kubik-logo-dark.png": {
+    "mtime": 1780727062.2316766,
+    "ast_hash": "7425904c84b35d7835ce977aca1d5850",
+    "semantic_hash": "7425904c84b35d7835ce977aca1d5850"
+  },
+  "C:\\Users\\trank\\project\\student\\src\\assets\\kubik-logo-transparent.png": {
+    "mtime": 1780727081.7721105,
+    "ast_hash": "a7a87abcd9e1aac18e1d32b83209a19f",
+    "semantic_hash": "a7a87abcd9e1aac18e1d32b83209a19f"
+  },
+  "C:\\Users\\trank\\project\\student\\src\\assets\\kubik-logo.png": {
+    "mtime": 1780726902.786579,
+    "ast_hash": "060e7979f2868c7dce71c5168865c2c3",
+    "semantic_hash": "060e7979f2868c7dce71c5168865c2c3"
+  },
+  "C:\\Users\\trank\\project\\student\\src\\assets\\math.png": {
+    "mtime": 1781208410.4705825,
+    "ast_hash": "44ad69bcb0d4bd6e57b427b01d8c9c65",
+    "semantic_hash": "44ad69bcb0d4bd6e57b427b01d8c9c65"
+  },
+  "C:\\Users\\trank\\project\\student\\src\\assets\\phys.png": {
+    "mtime": 1781208410.4219837,
+    "ast_hash": "fc1207fa92de20da3d1a6bf37dfab5ef",
+    "semantic_hash": "fc1207fa92de20da3d1a6bf37dfab5ef"
+  },
+  "C:\\Users\\trank\\project\\student\\src\\assets\\russ.png": {
+    "mtime": 1781208380.433993,
+    "ast_hash": "902fe6c524811236311c211c1466808e",
+    "semantic_hash": "902fe6c524811236311c211c1466808e"
+  },
+  "C:\\Users\\trank\\project\\student\\src\\logo.svg": {
+    "mtime": 1778089249.3470047,
+    "ast_hash": "06e733283fa43d1dd57738cfc409adbd",
+    "semantic_hash": "06e733283fa43d1dd57738cfc409adbd"
+  },
+  "C:\\Users\\trank\\project\\student\\README.md": {
+    "mtime": 1778089249.0170918,
+    "ast_hash": "33822368bfb3ad3de6fceb9cd76aa0dd",
+    "semantic_hash": "33822368bfb3ad3de6fceb9cd76aa0dd"
+  },
+  "C:\\Users\\trank\\project\\student\\public\\index.html": {
+    "mtime": 1781548968.4727879,
+    "ast_hash": "3082e14eebcba21445c7527867209ef1",
+    "semantic_hash": "3082e14eebcba21445c7527867209ef1"
+  },
+  "C:\\Users\\trank\\project\\student\\public\\robots.txt": {
+    "mtime": 1778089249.4459057,
+    "ast_hash": "fa1ded1ed7c11438a9b0385b1e112850",
+    "semantic_hash": "fa1ded1ed7c11438a9b0385b1e112850"
+  },
+  "C:\\Users\\trank\\project\\back\\package.json": {
+    "mtime": 1781534873.3270147,
+    "ast_hash": "3ac56a99b3d0c5fc4895ec414fd0bdc4",
+    "semantic_hash": "3ac56a99b3d0c5fc4895ec414fd0bdc4"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\app.js": {
+    "mtime": 1781530753.8445363,
+    "ast_hash": "a37b89cd995a6f8bfb8a47e321b0d669",
+    "semantic_hash": "a37b89cd995a6f8bfb8a47e321b0d669"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\bot.js": {
+    "mtime": 1781548968.4592113,
+    "ast_hash": "b9ba5c3b66b94fc1d69824bad373e80c",
+    "semantic_hash": "b9ba5c3b66b94fc1d69824bad373e80c"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\config\\database.js": {
+    "mtime": 1781031033.0996492,
+    "ast_hash": "c2a74ce945fd2fae227151ab3c4a89c9",
+    "semantic_hash": "c2a74ce945fd2fae227151ab3c4a89c9"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\config\\predictedScore.js": {
+    "mtime": 1781030517.7152064,
+    "ast_hash": "a3ed0dbff6e47a9acc27fcc211d99b15",
+    "semantic_hash": "a3ed0dbff6e47a9acc27fcc211d99b15"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\controllers\\authController.js": {
+    "mtime": 1778476198.8781445,
+    "ast_hash": "2add8c41c6947db60324c60a7ab2d062",
+    "semantic_hash": "2add8c41c6947db60324c60a7ab2d062"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\controllers\\botUserController.js": {
+    "mtime": 1781530718.689607,
+    "ast_hash": "f7f7f3c4ab907ac89c4e9499db380f20",
+    "semantic_hash": "f7f7f3c4ab907ac89c4e9499db380f20"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\controllers\\cleanupController.js": {
+    "mtime": 1781548968.4470186,
+    "ast_hash": "85e1a4a7b8c921b3fab22d9326975864",
+    "semantic_hash": "85e1a4a7b8c921b3fab22d9326975864"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\controllers\\practiceController.js": {
+    "mtime": 1781548968.4717686,
+    "ast_hash": "63f94a1cffa0486a4319fcd385e0f0bc",
+    "semantic_hash": "63f94a1cffa0486a4319fcd385e0f0bc"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\controllers\\statsController.js": {
+    "mtime": 1780301737.425766,
+    "ast_hash": "85f85b919af9dcd25af56b6c057670f4",
+    "semantic_hash": "85f85b919af9dcd25af56b6c057670f4"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\controllers\\studentController.js": {
+    "mtime": 1781548968.4642398,
+    "ast_hash": "997a7f777934bc978c4b1573587a4422",
+    "semantic_hash": "997a7f777934bc978c4b1573587a4422"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\controllers\\subjectController.js": {
+    "mtime": 1778320454.782174,
+    "ast_hash": "736b15c9fab17481533ddabfb6f87a52",
+    "semantic_hash": "736b15c9fab17481533ddabfb6f87a52"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\controllers\\userController.js": {
+    "mtime": 1781530719.7366495,
+    "ast_hash": "73c0bd0e90799c239db031ab8695cb9e",
+    "semantic_hash": "73c0bd0e90799c239db031ab8695cb9e"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\middleware\\authMiddleware.js": {
+    "mtime": 1778304839.1865654,
+    "ast_hash": "2813205952e8f481f9a12adeef796710",
+    "semantic_hash": "2813205952e8f481f9a12adeef796710"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\middleware\\superAdmin.js": {
+    "mtime": 1781337787.6064594,
+    "ast_hash": "31a086bbcd0dc3ad8d10644b40a5b3ee",
+    "semantic_hash": "31a086bbcd0dc3ad8d10644b40a5b3ee"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\middleware\\telegramAuth.js": {
+    "mtime": 1780514480.388396,
+    "ast_hash": "c4b78ad58b1ad51483349e17b8afc7b2",
+    "semantic_hash": "c4b78ad58b1ad51483349e17b8afc7b2"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\models\\Application.js": {
+    "mtime": 1780392803.0029235,
+    "ast_hash": "c85a7286cb10bc8915b8d9396a0806d6",
+    "semantic_hash": "c85a7286cb10bc8915b8d9396a0806d6"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\models\\BotTest.js": {
+    "mtime": 1780235593.0597546,
+    "ast_hash": "426adbaa85dddbce9d89e24bd6dd11d1",
+    "semantic_hash": "426adbaa85dddbce9d89e24bd6dd11d1"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\models\\BotUser.js": {
+    "mtime": 1780394337.8837552,
+    "ast_hash": "336b180fe02e69a1492e04b51a160a84",
+    "semantic_hash": "336b180fe02e69a1492e04b51a160a84"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\models\\Homework.js": {
+    "mtime": 1779023813.2492986,
+    "ast_hash": "03167398c32bb95eae3f34fd4506b6ca",
+    "semantic_hash": "03167398c32bb95eae3f34fd4506b6ca"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\models\\HomeworkAnswer.js": {
+    "mtime": 1780242173.4633956,
+    "ast_hash": "aa8a17af9074314304d3b0d21c98681d",
+    "semantic_hash": "aa8a17af9074314304d3b0d21c98681d"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\models\\HomeworkQuestion.js": {
+    "mtime": 1779023833.5262275,
+    "ast_hash": "ce66021d64222cc18771a7a123e41141",
+    "semantic_hash": "ce66021d64222cc18771a7a123e41141"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\models\\HomeworkSubmission.js": {
+    "mtime": 1780242173.4633956,
+    "ast_hash": "e3ff0d4a10774ad1d5bc99d0fafa6b83",
+    "semantic_hash": "e3ff0d4a10774ad1d5bc99d0fafa6b83"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\models\\NotificationLog.js": {
+    "mtime": 1780207355.5619948,
+    "ast_hash": "2c721463b9235f263d38239cec095153",
+    "semantic_hash": "2c721463b9235f263d38239cec095153"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\models\\PracticeAttempt.js": {
+    "mtime": 1781335431.661249,
+    "ast_hash": "e53fb758891e7a9934d2ec5fdfe1488e",
+    "semantic_hash": "e53fb758891e7a9934d2ec5fdfe1488e"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\models\\PracticeBest.js": {
+    "mtime": 1780301419.5735703,
+    "ast_hash": "198772cad0c58b894e24c1e7c2420880",
+    "semantic_hash": "198772cad0c58b894e24c1e7c2420880"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\models\\PracticeDailyLog.js": {
+    "mtime": 1780301437.459138,
+    "ast_hash": "11a5d07e17496e16e91358e9798e2ba6",
+    "semantic_hash": "11a5d07e17496e16e91358e9798e2ba6"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\models\\PracticeDailyStats.js": {
+    "mtime": 1781548968.468241,
+    "ast_hash": "5c646a4f72e4ced144ed8d963701a3b1",
+    "semantic_hash": "5c646a4f72e4ced144ed8d963701a3b1"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\models\\PracticeDifficultyTotals.js": {
+    "mtime": 1781548968.4612393,
+    "ast_hash": "5db0c5a42d56fbac55dedc80e55a0ce9",
+    "semantic_hash": "5db0c5a42d56fbac55dedc80e55a0ce9"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\models\\PracticeModeTotals.js": {
+    "mtime": 1781548968.4460137,
+    "ast_hash": "f4a61d8239dad4a437172814c673bf47",
+    "semantic_hash": "f4a61d8239dad4a437172814c673bf47"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\models\\PracticeQuestion.js": {
+    "mtime": 1779013491.5091684,
+    "ast_hash": "5d66000a94cfff89947cdb89a142fb6a",
+    "semantic_hash": "5d66000a94cfff89947cdb89a142fb6a"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\models\\PracticeQuestionResult.js": {
+    "mtime": 1780941281.2700696,
+    "ast_hash": "74945b35b86c81ad3d1c6075a676de63",
+    "semantic_hash": "74945b35b86c81ad3d1c6075a676de63"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\models\\PracticeRecentError.js": {
+    "mtime": 1781548968.4470186,
+    "ast_hash": "94228d6822229bed0e7fd66fdfd01470",
+    "semantic_hash": "94228d6822229bed0e7fd66fdfd01470"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\models\\PracticeScoreHistory.js": {
+    "mtime": 1781539018.0925531,
+    "ast_hash": "4849061cdbffc04ff3e7345c91755815",
+    "semantic_hash": "4849061cdbffc04ff3e7345c91755815"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\models\\PracticeStudentTotals.js": {
+    "mtime": 1781548968.4662375,
+    "ast_hash": "7569aa78a7d7639533c976fdf4fe7771",
+    "semantic_hash": "7569aa78a7d7639533c976fdf4fe7771"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\models\\PracticeTopic.js": {
+    "mtime": 1781030516.0681221,
+    "ast_hash": "0fa05a95b68ed5aa361af702860613ed",
+    "semantic_hash": "0fa05a95b68ed5aa361af702860613ed"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\models\\PracticeTopicTotals.js": {
+    "mtime": 1781548968.468241,
+    "ast_hash": "e0f253c81a28bfb02702da134890b8c4",
+    "semantic_hash": "e0f253c81a28bfb02702da134890b8c4"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\models\\Quiz.js": {
+    "mtime": 1781454297.3119137,
+    "ast_hash": "918f62567f33b476c6bb7b171b8d9b94",
+    "semantic_hash": "918f62567f33b476c6bb7b171b8d9b94"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\models\\QuizAnswer.js": {
+    "mtime": 1779164232.9403172,
+    "ast_hash": "f35767e20e2970e60fc3a1d7015e0271",
+    "semantic_hash": "f35767e20e2970e60fc3a1d7015e0271"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\models\\QuizParticipant.js": {
+    "mtime": 1779134278.7848225,
+    "ast_hash": "34c1a5283bd28840449450b86df9a035",
+    "semantic_hash": "34c1a5283bd28840449450b86df9a035"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\models\\QuizQuestion.js": {
+    "mtime": 1779134278.7848225,
+    "ast_hash": "ac9cd5694191cf716758bf7c605d7745",
+    "semantic_hash": "ac9cd5694191cf716758bf7c605d7745"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\models\\Subject.js": {
+    "mtime": 1778317092.3444116,
+    "ast_hash": "de2ce19072f545437c81705015b1dd1f",
+    "semantic_hash": "de2ce19072f545437c81705015b1dd1f"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\models\\User.js": {
+    "mtime": 1779530638.5726397,
+    "ast_hash": "3b8823b3d97e3813029398729ff48046",
+    "semantic_hash": "3b8823b3d97e3813029398729ff48046"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\models\\UserSubject.js": {
+    "mtime": 1779388817.926259,
+    "ast_hash": "459e7ecc63127bcdcac91327d54aad47",
+    "semantic_hash": "459e7ecc63127bcdcac91327d54aad47"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\models\\index.js": {
+    "mtime": 1781548968.4536881,
+    "ast_hash": "67f6b7146c911fb9790e47c12680ecf5",
+    "semantic_hash": "67f6b7146c911fb9790e47c12680ecf5"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\routes\\admin.js": {
+    "mtime": 1781548968.4662375,
+    "ast_hash": "ca4c12260f16882c9d4c08ae35dec213",
+    "semantic_hash": "ca4c12260f16882c9d4c08ae35dec213"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\routes\\applications.js": {
+    "mtime": 1780392854.5991902,
+    "ast_hash": "799b92d260bfea1e7355833da5265729",
+    "semantic_hash": "799b92d260bfea1e7355833da5265729"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\routes\\auth.js": {
+    "mtime": 1780515875.9330597,
+    "ast_hash": "6db841a9e7235db9dd7bd9b4e2321e88",
+    "semantic_hash": "6db841a9e7235db9dd7bd9b4e2321e88"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\routes\\botTest.js": {
+    "mtime": 1780321610.0891628,
+    "ast_hash": "db7091604cc7450b25f7316e440c935a",
+    "semantic_hash": "db7091604cc7450b25f7316e440c935a"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\routes\\botUsers.js": {
+    "mtime": 1781530767.2071812,
+    "ast_hash": "3115f13725f69ed6e94957c0c1ab9355",
+    "semantic_hash": "3115f13725f69ed6e94957c0c1ab9355"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\routes\\homework.js": {
+    "mtime": 1780321610.0891628,
+    "ast_hash": "984905912fdc4382564b4b812c94f535",
+    "semantic_hash": "984905912fdc4382564b4b812c94f535"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\routes\\notify.js": {
+    "mtime": 1780207355.5629902,
+    "ast_hash": "8c91e8a3b45d01aaa0f286b1f3942cea",
+    "semantic_hash": "8c91e8a3b45d01aaa0f286b1f3942cea"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\routes\\practice.js": {
+    "mtime": 1781340740.244491,
+    "ast_hash": "aa0a84b72e88d7026ba7c498129ec88a",
+    "semantic_hash": "aa0a84b72e88d7026ba7c498129ec88a"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\routes\\quiz.js": {
+    "mtime": 1781530734.24969,
+    "ast_hash": "e789340332466802c710bad10f6f6132",
+    "semantic_hash": "e789340332466802c710bad10f6f6132"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\routes\\stats.js": {
+    "mtime": 1779000291.0831864,
+    "ast_hash": "86b24e40daf1b4948d8082c45a99babe",
+    "semantic_hash": "86b24e40daf1b4948d8082c45a99babe"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\routes\\students.js": {
+    "mtime": 1778480440.4459786,
+    "ast_hash": "97259c02d1e5f83a017553fe8284261d",
+    "semantic_hash": "97259c02d1e5f83a017553fe8284261d"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\routes\\subjects.js": {
+    "mtime": 1778320410.36156,
+    "ast_hash": "a27a668379b5a8a2710a2ede3d3462c8",
+    "semantic_hash": "a27a668379b5a8a2710a2ede3d3462c8"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\routes\\users.js": {
+    "mtime": 1778437131.296082,
+    "ast_hash": "37c204c4425706f6ab47e2d5ca74fdcc",
+    "semantic_hash": "37c204c4425706f6ab47e2d5ca74fdcc"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\services\\amocrm.js": {
+    "mtime": 1780392833.4789016,
+    "ast_hash": "ef12ebac5895e4d0291ba571c8e965d1",
+    "semantic_hash": "ef12ebac5895e4d0291ba571c8e965d1"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\services\\homeworkScore.js": {
+    "mtime": 1781538914.1946526,
+    "ast_hash": "b04b35650e10f761f5d2530a20468056",
+    "semantic_hash": "b04b35650e10f761f5d2530a20468056"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\services\\practiceDashboard.js": {
+    "mtime": 1781548968.4592113,
+    "ast_hash": "3b4d39e59641b7b3a55cda7b896e8d0e",
+    "semantic_hash": "3b4d39e59641b7b3a55cda7b896e8d0e"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\services\\practiceStatsAggregate.js": {
+    "mtime": 1781548968.4672394,
+    "ast_hash": "0411feb7460da6b8a022fd123ec8e3b6",
+    "semantic_hash": "0411feb7460da6b8a022fd123ec8e3b6"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\services\\predictedScore.js": {
+    "mtime": 1781538946.9214723,
+    "ast_hash": "3d7317b1ffff02c3a73a8c27c8c26601",
+    "semantic_hash": "3d7317b1ffff02c3a73a8c27c8c26601"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\socket\\quizSocket.js": {
+    "mtime": 1781444033.2598317,
+    "ast_hash": "2821c8ece2bcc74d3396faa459c1f028",
+    "semantic_hash": "2821c8ece2bcc74d3396faa459c1f028"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\utils\\practiceAnswerText.js": {
+    "mtime": 1781548968.4592113,
+    "ast_hash": "39a67416d200ab9640240707a0dc6e0e",
+    "semantic_hash": "39a67416d200ab9640240707a0dc6e0e"
+  },
+  "C:\\Users\\trank\\project\\back\\src\\utils\\webAppUrl.js": {
+    "mtime": 1781446675.9575336,
+    "ast_hash": "b20533b67a24e5a459c1a94004afcdb5",
+    "semantic_hash": "b20533b67a24e5a459c1a94004afcdb5"
+  },
+  "C:\\Users\\trank\\project\\student\\package.json": {
+    "mtime": 1781447299.754248,
+    "ast_hash": "0f8ec67488ce9f0e5478e46c2a4fd2cf",
+    "semantic_hash": "0f8ec67488ce9f0e5478e46c2a4fd2cf"
+  },
+  "C:\\Users\\trank\\project\\student\\public\\manifest.json": {
+    "mtime": 1778089248.494565,
+    "ast_hash": "d9d975cebe2ec20b6c652e1e4c12ccf0",
+    "semantic_hash": "d9d975cebe2ec20b6c652e1e4c12ccf0"
+  },
+  "C:\\Users\\trank\\project\\student\\public\\version.json": {
+    "mtime": 1781556355.3302515,
+    "ast_hash": "618c11d6ab2d3915c588d7ce604c5c9b",
+    "semantic_hash": "618c11d6ab2d3915c588d7ce604c5c9b"
+  },
+  "C:\\Users\\trank\\project\\student\\scripts\\write-version.js": {
+    "mtime": 1781447299.377925,
+    "ast_hash": "d6b8b55533ceb7c923ff9efa07c88f0c",
+    "semantic_hash": "d6b8b55533ceb7c923ff9efa07c88f0c"
+  },
+  "C:\\Users\\trank\\project\\student\\src\\App.js": {
+    "mtime": 1781195566.521605,
+    "ast_hash": "697c131264d0f522c9dda464c34823ba",
+    "semantic_hash": "697c131264d0f522c9dda464c34823ba"
+  },
+  "C:\\Users\\trank\\project\\student\\src\\components\\PredictedScoreCard.js": {
+    "mtime": 1781582852.29129,
+    "ast_hash": "b1429381f666d865b5f0b2e08ae11942",
+    "semantic_hash": "b1429381f666d865b5f0b2e08ae11942"
+  },
+  "C:\\Users\\trank\\project\\student\\src\\components\\StudentBrandMark.js": {
+    "mtime": 1781194800.0139654,
+    "ast_hash": "1dee8d260e39f6ae45668da61d7fa2b1",
+    "semantic_hash": "1dee8d260e39f6ae45668da61d7fa2b1"
+  },
+  "C:\\Users\\trank\\project\\student\\src\\components\\admin\\AdminDataContext.js": {
+    "mtime": 1781190820.1174703,
+    "ast_hash": "2f80a8058509a1558d2b2dd50a2b3a06",
+    "semantic_hash": "2f80a8058509a1558d2b2dd50a2b3a06"
+  },
+  "C:\\Users\\trank\\project\\student\\src\\components\\admin\\Applications.js": {
+    "mtime": 1781199999.846964,
+    "ast_hash": "8ab8b87fc30c91e1244368c18b8ba8f0",
+    "semantic_hash": "8ab8b87fc30c91e1244368c18b8ba8f0"
+  },
+  "C:\\Users\\trank\\project\\student\\src\\components\\admin\\BotTestEditor.js": {
+    "mtime": 1781190777.6425188,
+    "ast_hash": "834e964f7b9f7708f58ff3b16730fd53",
+    "semantic_hash": "834e964f7b9f7708f58ff3b16730fd53"
+  },
+  "C:\\Users\\trank\\project\\student\\src\\components\\admin\\Cleanup.js": {
+    "mtime": 1781548968.4526913,
+    "ast_hash": "0c3d2eac0c2421b76150cd2d4e7c100b",
+    "semantic_hash": "0c3d2eac0c2421b76150cd2d4e7c100b"
+  },
+  "C:\\Users\\trank\\project\\student\\src\\components\\admin\\ConfirmDeleteModal.js": {
+    "mtime": 1781199647.9409316,
+    "ast_hash": "340c9c614695e8e405d9b3ed05148a22",
+    "semantic_hash": "340c9c614695e8e405d9b3ed05148a22"
+  },
+  "C:\\Users\\trank\\project\\student\\src\\components\\admin\\Homework.js": {
+    "mtime": 1781340751.7154422,
+    "ast_hash": "e742e1f37a59287f24f1ad1511b9422a",
+    "semantic_hash": "e742e1f37a59287f24f1ad1511b9422a"
+  },
+  "C:\\Users\\trank\\project\\student\\src\\components\\admin\\Notifications.js": {
+    "mtime": 1781190781.068869,
+    "ast_hash": "b1607b67002c3355c5d4fbea4a8abe64",
+    "semantic_hash": "b1607b67002c3355c5d4fbea4a8abe64"
+  },
+  "C:\\Users\\trank\\project\\student\\src\\components\\admin\\Practice.js": {
+    "mtime": 1781539090.5554628,
+    "ast_hash": "0e6b70b44b993138ed76bdaf1b82bd4a",
+    "semantic_hash": "0e6b70b44b993138ed76bdaf1b82bd4a"
+  },
+  "C:\\Users\\trank\\project\\student\\src\\components\\admin\\Quiz.js": {
+    "mtime": 1781444033.264923,
+    "ast_hash": "68dc23a421a9f708f62e7498a449c973",
+    "semantic_hash": "68dc23a421a9f708f62e7498a449c973"
+  },
+  "C:\\Users\\trank\\project\\student\\src\\components\\admin\\Statistics.js": {
+    "mtime": 1781190751.2195227,
+    "ast_hash": "6d926bbcb72509980a5476bf3fda01bf",
+    "semantic_hash": "6d926bbcb72509980a5476bf3fda01bf"
+  },
+  "C:\\Users\\trank\\project\\student\\src\\components\\admin\\Students.js": {
+    "mtime": 1781199694.6333098,
+    "ast_hash": "ebdeec6fda378048af600632b3226f49",
+    "semantic_hash": "ebdeec6fda378048af600632b3226f49"
+  },
+  "C:\\Users\\trank\\project\\student\\src\\components\\admin\\Users.js": {
+    "mtime": 1781190739.713123,
+    "ast_hash": "200b6679ccee067e6f994c9ca5d75c02",
+    "semantic_hash": "200b6679ccee067e6f994c9ca5d75c02"
+  },
+  "C:\\Users\\trank\\project\\student\\src\\components\\admin\\adminApi.js": {
+    "mtime": 1781191095.914122,
+    "ast_hash": "49d79026644806dd9ae9bc83ae39b2d9",
+    "semantic_hash": "49d79026644806dd9ae9bc83ae39b2d9"
+  },
+  "C:\\Users\\trank\\project\\student\\src\\components\\admin\\cascadeDeleteMessages.js": {
+    "mtime": 1781199855.9870791,
+    "ast_hash": "a8ddd3598b22c9ef71c2f10165baca1f",
+    "semantic_hash": "a8ddd3598b22c9ef71c2f10165baca1f"
+  },
+  "C:\\Users\\trank\\project\\student\\src\\components\\admin\\useConfirmDelete.js": {
+    "mtime": 1781199648.9219186,
+    "ast_hash": "62f79305b2905e5eddd8fdb6005f527f",
+    "semantic_hash": "62f79305b2905e5eddd8fdb6005f527f"
+  },
+  "C:\\Users\\trank\\project\\student\\src\\components\\admin\\useSectionRefresh.js": {
+    "mtime": 1781190691.6831458,
+    "ast_hash": "8fbd4e9600362afc923a9ac4796d0af4",
+    "semantic_hash": "8fbd4e9600362afc923a9ac4796d0af4"
+  },
+  "C:\\Users\\trank\\project\\student\\src\\config.js": {
+    "mtime": 1781116444.4560459,
+    "ast_hash": "ab577e52faedb9cc06fc0d546a3c4647",
+    "semantic_hash": "ab577e52faedb9cc06fc0d546a3c4647"
+  },
+  "C:\\Users\\trank\\project\\student\\src\\index.js": {
+    "mtime": 1781446679.3016014,
+    "ast_hash": "4607a6b2740514060f906ea4224b6d33",
+    "semantic_hash": "4607a6b2740514060f906ea4224b6d33"
+  },
+  "C:\\Users\\trank\\project\\student\\src\\pages\\AdminPanel.js": {
+    "mtime": 1781337813.8924887,
+    "ast_hash": "466a3ca59e15728412184f6593b71942",
+    "semantic_hash": "466a3ca59e15728412184f6593b71942"
+  },
+  "C:\\Users\\trank\\project\\student\\src\\pages\\DataContext.js": {
+    "mtime": 1781444304.237426,
+    "ast_hash": "4465515833ee7f523d55678b19bbc196",
+    "semantic_hash": "4465515833ee7f523d55678b19bbc196"
+  },
+  "C:\\Users\\trank\\project\\student\\src\\pages\\Homework.js": {
+    "mtime": 1781550614.8101463,
+    "ast_hash": "2a25db0dfb08e1b868c8fc3df2b6e5a0",
+    "semantic_hash": "2a25db0dfb08e1b868c8fc3df2b6e5a0"
+  },
+  "C:\\Users\\trank\\project\\student\\src\\pages\\Practice.js": {
+    "mtime": 1781582852.29129,
+    "ast_hash": "537e06927df006322fdf8ce25df00638",
+    "semantic_hash": "537e06927df006322fdf8ce25df00638"
+  },
+  "C:\\Users\\trank\\project\\student\\src\\pages\\Quiz.js": {
+    "mtime": 1781509838.370707,
+    "ast_hash": "21519b690a4fdee3c03bdcfe63807492",
+    "semantic_hash": "21519b690a4fdee3c03bdcfe63807492"
+  },
+  "C:\\Users\\trank\\project\\student\\src\\pages\\Statistics.js": {
+    "mtime": 1781553699.412341,
+    "ast_hash": "8d444983b576a3b1346ad4d1bef257b2",
+    "semantic_hash": "8d444983b576a3b1346ad4d1bef257b2"
+  },
+  "C:\\Users\\trank\\project\\student\\src\\pages\\StudentApp.js": {
+    "mtime": 1781444304.301233,
+    "ast_hash": "052989912541fab61a32d4f59bb47402",
+    "semantic_hash": "052989912541fab61a32d4f59bb47402"
+  },
+  "C:\\Users\\trank\\project\\student\\src\\pages\\api.js": {
+    "mtime": 1780315673.108192,
+    "ast_hash": "85dcc522bb92faf93674a2b46e1f7189",
+    "semantic_hash": "85dcc522bb92faf93674a2b46e1f7189"
+  },
+  "C:\\Users\\trank\\project\\student\\src\\utils\\practicePredicted.js": {
+    "mtime": 1781509838.3769784,
+    "ast_hash": "e1cfdb09d940d3a6927712eb295268c3",
+    "semantic_hash": "e1cfdb09d940d3a6927712eb295268c3"
+  },
+  "C:\\Users\\trank\\project\\student\\vercel.json": {
+    "mtime": 1778779406.6368048,
+    "ast_hash": "958a0937551270d27cf8730726d29bf8",
+    "semantic_hash": "958a0937551270d27cf8730726d29bf8"
+  }
+}

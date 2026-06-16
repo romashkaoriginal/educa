@@ -348,7 +348,7 @@ function HeroMetricHint({ id, openId, onToggle, hint, children, align = 'center'
   );
 }
 
-function Practice({ studentId }) {
+function Practice({ studentId, isTabActive = true }) {
   // Используем данные из контекста
   const {
     practiceTopics, subjects, refreshAfterPractice, loading: contextLoading,
@@ -379,6 +379,9 @@ function Practice({ studentId }) {
   const [answered, setAnswered] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
   const [showExplanationHint, setShowExplanationHint] = useState(false);
+  // Анимировать выезд лишних вариантов только при свежем ответе.
+  // При возврате к уже отвеченному вопросу варианты сразу скрыты, без повторной анимации.
+  const [animateDismiss, setAnimateDismiss] = useState(false);
   
   const autoNextTimerRef = useRef(null);
   const [confetti, setConfetti] = useState(false);
@@ -471,9 +474,17 @@ function Practice({ studentId }) {
     return `streak-circle on-blue ${state}${streakBump ? ' bump' : ''}`;
   };
 
-  const renderPracticeOverlay = (content) => (
-    typeof document === 'undefined' ? content : createPortal(content, document.body)
-  );
+  // Оверлей теста идёт в портал на document.body, поэтому .tab-hidden родителя его не скрывает.
+  // Когда таб «Практика» неактивен — прячем оверлей через display:none, сохраняя стейт теста,
+  // чтобы при возврате тест продолжался с того же места.
+  const renderPracticeOverlay = (content) => {
+    const wrapped = (
+      <div className="practice-overlay-portal" style={isTabActive ? undefined : { display: 'none' }}>
+        {content}
+      </div>
+    );
+    return typeof document === 'undefined' ? wrapped : createPortal(wrapped, document.body);
+  };
 
   useEffect(() => {
     if (!showTopicPicker) return undefined;
@@ -948,6 +959,7 @@ function Practice({ studentId }) {
     setSelectedAnswer(answerIndex);
     setAnswered(true);
     setIsCorrect(correct);
+    setAnimateDismiss(true);
     setShowExplanationHint(false);
     blurActiveElement();
 
@@ -1034,6 +1046,7 @@ function Practice({ studentId }) {
       setAnswered(false);
       setIsCorrect(false);
     }
+    setAnimateDismiss(false); // вернулись к отвеченному вопросу — без повторной анимации выезда
     setShowExplanationHint(false);
   };
 
@@ -1373,12 +1386,19 @@ function Practice({ studentId }) {
               const showCorrect = answered && index === currentQuestion.correctAnswer;
               const showWrong = answered && isSelected && !isCorrect;
 
+              // После ответа сворачиваем лишние варианты, чтобы освободить место под объяснение:
+              // верный ответ + (если ошибся) выбранный неверный остаются, остальные убираются.
+              // Свежий ответ (animateDismiss) — уезжают за экран (.dismissed). Возврат к
+              // отвеченному вопросу — сразу скрыты без анимации (.collapsed).
+              const hidden = answered && !showCorrect && !showWrong;
+              const dismissClass = hidden ? (animateDismiss ? 'dismissed' : 'collapsed') : '';
+
               return (
                 <div
                   key={`${currentQuestion.id}-${index}`}
                   role="button"
                   tabIndex={-1}
-                  className={`answer-option ${isSelected ? 'selected' : ''} ${showCorrect ? 'correct' : ''} ${showWrong ? 'wrong' : ''} ${answered ? 'is-locked' : ''}`}
+                  className={`answer-option ${isSelected ? 'selected' : ''} ${showCorrect ? 'correct' : ''} ${showWrong ? 'wrong' : ''} ${answered ? 'is-locked' : ''} ${dismissClass}`}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => !answered && submitAnswer(index)}
                 >

@@ -87,14 +87,17 @@ function StudentAppContent({ selectedStudent }) {
       <main className="content">
         <div className="tab-viewport">
           {[
-            { id: 'practice', el: <Practice studentId={selectedStudent.id} /> },
+            { id: 'practice', el: <Practice studentId={selectedStudent.id} isTabActive={activeTab === 'practice'} /> },
             { id: 'homework', el: <Homework studentId={selectedStudent.id} /> },
             { id: 'quiz', el: <Quiz studentId={selectedStudent.id} studentName={`${selectedStudent.firstName || ''} ${selectedStudent.lastName || ''}`.trim() || 'Ученик'} /> },
             { id: 'stats', el: <Statistics studentId={selectedStudent.id} /> },
           ].map(({ id, el }) => {
             const isActive = id === activeTab;
             const isPrev = id === prevTab;
-            if (!isActive && !isPrev) return null;
+            // Practice держим смонтированным всегда, чтобы активный тест не прерывался
+            // при уходе на другой таб — он просто прячется через .tab-hidden.
+            const keepMounted = id === 'practice';
+            if (!isActive && !isPrev && !keepMounted) return null;
             const dir = prevTab ? getDirection(prevTab, activeTab) : 'forward';
             let cls = 'tab-panel';
             if (isActive && animating) cls += ` tab-enter-${dir}`;

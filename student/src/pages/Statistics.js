@@ -143,9 +143,11 @@ function countHomeworkSubjects(homeworkStats) {
   return names.size;
 }
 
-function HomeworkStatsPanel({ homeworkStats, compact = false }) {
+function HomeworkStatsPanel({ homeworkStats, compact = false, subjectId = null }) {
   const homeworkBySubject = {};
-  const allHomeworks = homeworkStats?.homeworks || [];
+  const allHomeworks = (homeworkStats?.homeworks || []).filter((hw) =>
+    subjectId == null || Number(hw.subjectId ?? hw.subject?.id) === Number(subjectId)
+  );
 
   allHomeworks.forEach((hw) => {
     const subjectName = hw.subject?.name || 'Без предмета';
@@ -532,11 +534,8 @@ function Statistics({ studentId }) {
         </div>
       )}
 
-      {showStatsTabs && mainTab === 'homework' && (
-        <HomeworkStatsPanel homeworkStats={homeworkStats} />
-      )}
-
-      {activePracticeView && subjects.length > 1 && (
+      {/* Табы предметов видны и в практике, и в домашке — чтобы домашка менялась при смене предмета */}
+      {subjects.length > 1 && (
         <div className="sd-subject-tabs-wrap">
           <div className="sd-subject-tabs" role="tablist">
             {subjects.map((s) => (
@@ -554,6 +553,10 @@ function Statistics({ studentId }) {
             ))}
           </div>
         </div>
+      )}
+
+      {showStatsTabs && mainTab === 'homework' && (
+        <HomeworkStatsPanel homeworkStats={homeworkStats} subjectId={selectedSubjectId} />
       )}
 
       {activePracticeView && subjects.length === 1 && subject && (
@@ -609,7 +612,7 @@ function Statistics({ studentId }) {
           {showInlineHomework && (
             <>
               <div className="sd-section-divider"><span>Домашка</span></div>
-              <HomeworkStatsPanel homeworkStats={homeworkStats} compact />
+              <HomeworkStatsPanel homeworkStats={homeworkStats} subjectId={selectedSubjectId} compact />
               <div className="sd-section-divider"><span>Практика</span></div>
             </>
           )}

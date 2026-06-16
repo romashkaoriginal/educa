@@ -82,7 +82,7 @@ const [editFormData, setEditFormData] = useState({
     setLoadingBotUsers(true);
     try {
       const response = await adminFetch(
-        `${API_URL}/bot-users?sortBy=${botUsersSortBy}&order=${botUsersSortOrder}&filter=${botUsersFilter}`
+        `${API_URL}/bot-users/admin-list?sortBy=${botUsersSortBy}&order=${botUsersSortOrder}&filter=${botUsersFilter}`
       );
       const data = await response.json();
       setBotUsers(data.botUsers || []);
@@ -242,7 +242,6 @@ const [editFormData, setEditFormData] = useState({
         setShowAddModal(false);
         resetForm();
         await loadStudents();
-      refresh('students');
         refresh('students');
         if (addMode === 'bot') {
           await loadBotUsers();
@@ -290,7 +289,6 @@ const [editFormData, setEditFormData] = useState({
 
       if (response.ok) {
         await loadStudents();
-      refresh('students');
         refresh('students');
         if (selectedStudent?.id === studentId) {
           const updated = students.find(s => s.id === studentId);

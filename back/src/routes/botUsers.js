@@ -1,5 +1,6 @@
 const express = require('express');
 const botUserController = require('../controllers/botUserController');
+const { telegramAuth, requireRole } = require('../middleware/telegramAuth');
 
 const router = express.Router();
 
@@ -10,6 +11,9 @@ const requireBotSecret = (req, res, next) => {
   }
   next();
 };
+
+// Получить всех пользователей бота для админ-панели (admin + manager)
+router.get('/admin-list', telegramAuth, requireRole(['admin', 'manager']), botUserController.getAllBotUsers);
 
 // Получить всех пользователей бота (только бот-сервер)
 router.get('/', requireBotSecret, botUserController.getAllBotUsers);

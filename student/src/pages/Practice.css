@@ -627,11 +627,12 @@
 .question-density--lg .answer-text { font-size: 13px; line-height: 1.25; }
 .question-density--xl .answer-text { font-size: 12px; line-height: 1.22; }
 
-/* Паддинги и зазор вариантов */
-.question-density--sm .answers-list { gap: 9px; }
-.question-density--md .answers-list { gap: 7px; }
-.question-density--lg .answers-list { gap: 6px; }
-.question-density--xl .answers-list { gap: 5px; }
+/* Паддинги и зазор вариантов. gap держим в переменной — её использует
+   анимация выезда (.dismissed), чтобы точно схлопнуть промежуток. */
+.question-density--sm .answers-list { --answers-gap: 9px; gap: var(--answers-gap); }
+.question-density--md .answers-list { --answers-gap: 7px; gap: var(--answers-gap); }
+.question-density--lg .answers-list { --answers-gap: 6px; gap: var(--answers-gap); }
+.question-density--xl .answers-list { --answers-gap: 5px; gap: var(--answers-gap); }
 
 .question-density--sm .answer-option { padding: 11px 13px; }
 .question-density--md .answer-option { padding: 9px 12px; }
@@ -688,7 +689,7 @@
 }
 
 /* Варианты — без hover на touch, только явные состояния */
-.answers-list { display: flex; flex-direction: column; gap: 9px; flex-shrink: 0; }
+.answers-list { display: flex; flex-direction: column; --answers-gap: 9px; gap: var(--answers-gap); flex-shrink: 0; }
 
 /* Каскадный вход вариантов при смене вопроса */
 .answers-list .answer-option {
@@ -753,17 +754,49 @@
   pointer-events: none;
 }
 
-/* Гасим неотносящиеся к итогу варианты — фокус на правильном/выбранном */
-.answer-option.is-locked:not(.selected):not(.correct):not(.wrong) {
-  opacity: 0.5;
-  transition: opacity 0.35s var(--ease-out);
+/* Неотносящиеся к итогу варианты уезжают за экран и схлопывают высоту,
+   освобождая место под объяснение. Высоту анимируем отдельной фазой,
+   чтобы оставшиеся варианты плавно подтянулись, а не дёрнулись. */
+.answers-list .answer-option.dismissed {
+  animation: answerDismissRight 0.85s var(--ease-in-out, cubic-bezier(0.4, 0, 0.2, 1)) both;
+  animation-delay: 0s; /* гасим каскадную задержку входа, чтобы выезд начинался сразу */
+  pointer-events: none;
+  overflow: hidden;
 }
-.answer-option.is-locked:not(.selected):not(.correct):not(.wrong) .answer-letter {
-  background: #F1EFEB;
-  color: #B4BCC4;
+/* Чередуем сторону выезда — чётные влево, нечётные вправо */
+.answers-list .answer-option.dismissed:nth-child(even) {
+  animation-name: answerDismissLeft;
 }
-.answer-option.is-locked:not(.selected):not(.correct):not(.wrong) .answer-text {
-  color: var(--kubik-text-soft);
+
+@keyframes answerDismissRight {
+  0%   { opacity: 1; transform: translateX(0); }
+  55%  { opacity: 0; transform: translateX(120%); max-height: 80px;
+         margin-bottom: 0; padding-top: 11px; padding-bottom: 11px;
+         border-width: 1.5px; }
+  100% { opacity: 0; transform: translateX(120%); max-height: 0;
+         margin-top: calc(var(--answers-gap, 9px) * -1);
+         padding-top: 0; padding-bottom: 0; border-width: 0; }
+}
+@keyframes answerDismissLeft {
+  0%   { opacity: 1; transform: translateX(0); }
+  55%  { opacity: 0; transform: translateX(-120%); max-height: 80px;
+         margin-bottom: 0; padding-top: 11px; padding-bottom: 11px;
+         border-width: 1.5px; }
+  100% { opacity: 0; transform: translateX(-120%); max-height: 0;
+         margin-top: calc(var(--answers-gap, 9px) * -1);
+         padding-top: 0; padding-bottom: 0; border-width: 0; }
+}
+
+/* Возврат к уже отвеченному вопросу — лишние варианты сразу убраны, без анимации */
+.answer-option.collapsed {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .answer-option.dismissed {
+    animation: none;
+    display: none;
+  }
 }
 
 /* Пульс-подсветка правильного варианта — взгляд сам притягивается */
