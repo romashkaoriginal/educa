@@ -40,11 +40,17 @@ async function sendToAmoCRM(application) {
     const contactId = contactData._embedded?.contacts?.[0]?.id;
 
     // 2. Создаём сделку (lead) с привязкой контакта
+    const selectedSubjects = Array.isArray(application.selectedSubjects) ? application.selectedSubjects : [];
     const noteText = [
-      `Заявка из Telegram-бота`,
-      `Предмет: ${application.subjectName || '—'}`,
-      `Результат теста: ${application.testCorrect}/${application.testTotal} (${application.testPercent}%)`,
+      `Заявка: ${application.source || 'Telegram'}`,
+      application.context ? `Контекст: ${application.context}` : '',
+      application.userStatus ? `Статус пользователя: ${application.userStatus}` : '',
+      selectedSubjects.length ? `Выбранные предметы (${selectedSubjects.length}): ${selectedSubjects.join(', ')}` : '',
+      application.subjectName ? `Предмет теста: ${application.subjectName}` : '',
+      (application.testTotal > 0) ? `Результат теста: ${application.testCorrect}/${application.testTotal} (${application.testPercent}%)` : '',
+      application.telegramId ? `Telegram ID: ${application.telegramId}` : '',
       application.telegramUsername ? `Telegram: @${application.telegramUsername}` : '',
+      `Дата заявки: ${new Date(application.createdAt || Date.now()).toLocaleString('ru-RU')}`,
     ].filter(Boolean).join('\n');
 
     const leadRes = await fetch(`${baseUrl}/leads`, {

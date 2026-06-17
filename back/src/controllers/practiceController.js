@@ -426,6 +426,9 @@ exports.deleteTopic = async (req, res) => {
 exports.getQuestionsByTopic = async (req, res) => {
   try {
     const { topicId } = req.params;
+    // ВАЖНО: практика проверяет ответ НА КЛИЕНТЕ (savePracticeAnswer доверяет isCorrect),
+    // поэтому correctAnswer нужен фронту для подсветки правильного ответа и объяснения.
+    // Скрытие correctAnswer здесь ломает весь раздел практики — не убирать.
     const questions = await PracticeQuestion.findAll({
       where: { topicId },
       attributes: ['id', 'questionText', 'options', 'correctAnswer', 'explanation', 'difficulty', 'isActive', 'createdAt'],

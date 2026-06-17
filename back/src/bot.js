@@ -1,10 +1,10 @@
 const axios = require('axios');
 const TelegramBot = require('node-telegram-bot-api');
-const { User, BotUser, BotTest, Subject, Application } = require('./models');
+const { User, BotUser, Application } = require('./models');
 const { refreshWebAppUrl, getWebAppUrlSync } = require('./utils/webAppUrl');
+const guestAccess = require('./services/guestAccess');
 
 const token = process.env.BOT_TOKEN;
-const webAppUrl = process.env.WEB_APP_URL;
 
 let bot = null;
 
@@ -39,9 +39,29 @@ async function sendStartMessage(chatId, text, options = {}) {
   await bot.sendMessage(chatId, text, options);
 }
 
-const testSessions = {};
-const lastTestResults = {};
+// Сессии сбора заявки прямо в боте (ТЗ §17): для напоминания за 4 часа
+// и для повторного /start после окончания доступа.
+// Формат: { step: 'name'|'phone', fullName, telegramId, telegramUsername, source, context }
 const applicationSessions = {};
+
+// Анти-флуд: дебаунс /start по Telegram ID. Защищает БД от спама /start
+// (создание/поиск гостя). Повторный /start чаще, чем раз в N секунд, игнорируется.
+const START_DEBOUNCE_MS = 3000;
+const lastStartAt = new Map();
+
+function isStartThrottled(telegramId) {
+  const now = Date.now();
+  const prev = lastStartAt.get(telegramId) || 0;
+  if (now - prev < START_DEBOUNCE_MS) return true;
+  lastStartAt.set(telegramId, now);
+  // Чистим карту, чтобы не росла бесконечно
+  if (lastStartAt.size > 5000) {
+    for (const [id, ts] of lastStartAt) {
+      if (now - ts > 60000) lastStartAt.delete(id);
+    }
+  }
+  return false;
+}
 
 async function registerBotUser(user) {
   try {
@@ -71,170 +91,54 @@ async function registerBotUser(user) {
   }
 }
 
-
-// Получить сегодняшнюю дату в формате YYYY-MM-DD (по UTC)
-function todayKey() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-// Проверить и увеличить счётчик. Возвращает true если лимит не превышен
-async function checkAndIncrement(telegramId, type, subjectId, limit = 2) {
-  try {
-    const botUser = await BotUser.findOne({ where: { telegramId } });
-    if (!botUser) return true; // новый — пропускаем
-
-    const day = todayKey();
-    const key = `${type}_${subjectId}`;
-    const limits = { ...(botUser.dailyLimits || {}) };
-    if (!limits[day]) limits[day] = {};
-    const current = limits[day][key] || 0;
-
-    if (current >= limit) return false; // лимит исчерпан
-
-    limits[day][key] = current + 1;
-    await botUser.update({ dailyLimits: limits });
-    return true;
-  } catch {
-    return true; // при ошибке не блокируем
-  }
-}
-
-// Проверить без увеличения
-async function checkLimit(telegramId, type, subjectId, limit = 2) {
-  try {
-    const botUser = await BotUser.findOne({ where: { telegramId } });
-    if (!botUser) return true;
-    const day = todayKey();
-    const key = `${type}_${subjectId}`;
-    const current = botUser.dailyLimits?.[day]?.[key] || 0;
-    return current < limit;
-  } catch {
-    return true;
-  }
-}
-
 async function checkUserRole(telegramId) {
   try {
     const user = await User.findOne({
       where: { telegramId },
-      attributes: ['id', 'firstName', 'lastName', 'role', 'isActive', 'telegramId']
+      attributes: ['id', 'firstName', 'lastName', 'role', 'isActive', 'telegramId', 'isGuest']
     });
-    return user || null;
+    // Сотрудники/ученики (не гости) — «зарегистрированы в системе»
+    return user && !user.isGuest ? user : null;
   } catch {
     return null;
   }
 }
 
-async function getSubjects() {
-  try {
-    return await Subject.findAll({ attributes: ['id', 'name', 'icon'] });
-  } catch {
-    return [];
-  }
+// Клавиатура напоминания/предложения оставить заявку (ТЗ §16, §19, §20)
+function leaveApplicationKeyboard(yesText = 'Хочу', noData = 'guest_remind_later') {
+  return {
+    inline_keyboard: [[
+      { text: yesText, callback_data: 'guest_remind_yes' },
+      { text: 'Позже', callback_data: noData }
+    ]]
+  };
 }
 
-async function getTestQuestions(subjectId) {
-  try {
-    return await BotTest.findAll({
-      where: { subjectId, isActive: true },
-      order: [['order', 'ASC'], ['id', 'ASC']],
-      attributes: ['id', 'questionText', 'options', 'correctAnswer', 'explanation']
-    });
-  } catch {
-    return [];
-  }
+// Запустить сбор заявки в боте (ТЗ §17)
+async function startBotApplication(chatId, fromUser, { source, context }) {
+  applicationSessions[chatId] = {
+    step: 'name',
+    telegramId: fromUser.id,
+    telegramUsername: fromUser.username || null,
+    source: source || 'TG Bot — напоминание за 4 часа',
+    context: context || 'trial_expire_reminder'
+  };
+  await bot.sendMessage(chatId, 'Как тебя зовут?');
 }
 
-// Отправляем вопрос с inline кнопками
-async function sendQuestion(chatId, session) {
-  const q = session.questions[session.currentIndex];
-  const total = session.questions.length;
-  const num = session.currentIndex + 1;
-
-  const keyboard = q.options.map((opt, i) => ([{
-    text: `${String.fromCharCode(65 + i)}. ${opt}`,
-    callback_data: `answer_${i}`
-  }]));
-
-  // Добавляем кнопки управления
-  keyboard.push([
-    { text: '🔄 Перезапустить', callback_data: 'restart' },
-    { text: '❌ Выйти из теста', callback_data: 'exit' }
-  ]);
-
-  await bot.sendMessage(
-    chatId,
-    `📝 <b>Вопрос ${num}/${total}</b>\n\n${q.questionText}`,
-    {
-      parse_mode: 'HTML',
-      reply_markup: { inline_keyboard: keyboard }
-    }
-  );
-}
-
-// Загружаем вопросы и запускаем тест
-async function startTest(chatId, subjectId, subjectName, telegramId) {
+// Отправить напоминание за 4 часа до окончания (ТЗ §16). Вызывается планировщиком.
+async function sendGuestReminder(telegramId) {
+  if (!bot) return false;
   try {
-    // Проверяем лимит теста (2 раза в день на предмет)
-    if (telegramId) {
-      const allowed = await checkAndIncrement(telegramId, 'test', subjectId, 2);
-      if (!allowed) {
-        await bot.sendMessage(chatId,
-          `⛔ <b>Лимит исчерпан</b>\n\nВы уже прошли тест по <b>${subjectName}</b> 2 раза сегодня.\n\n🕛 Попробуйте завтра!`,
-          { parse_mode: 'HTML' }
-        );
-        return;
-      }
-    }
-    const questions = await getTestQuestions(subjectId);
-
-    if (questions.length === 0) {
-      await bot.sendMessage(chatId, `😔 По предмету <b>${subjectName}</b> пока нет вопросов.\n\nВыберите другой предмет или напишите /start.`, { parse_mode: 'HTML' });
-      delete testSessions[chatId];
-      return;
-    }
-
-    testSessions[chatId] = {
-      step: 'question',
-      subjectId,
-      subjectName,
-      questions,
-      currentIndex: 0,
-      score: 0
-    };
-
-    await bot.sendMessage(chatId, `🎯 Начинаем тест по <b>${subjectName}</b>!\n\n📊 Вопросов: ${questions.length}\n\n<i>Выбирайте ответ из кнопок ниже:</i>`, { parse_mode: 'HTML' });
-    await sendQuestion(chatId, testSessions[chatId]);
-  } catch (e) {
-    console.error('Ошибка загрузки теста:', e.message);
-    await bot.sendMessage(chatId, '❌ Ошибка загрузки теста. Попробуйте позже.');
-  }
-}
-
-async function showSubjectPicker(chatId, firstName) {
-  try {
-    const subjects = await getSubjects();
-
-    if (subjects.length === 0) {
-      await bot.sendMessage(chatId, '😔 Тесты пока недоступны. Обратитесь к администратору.');
-      return;
-    }
-
-    testSessions[chatId] = { step: 'subject', subjects };
-
-    const keyboard = subjects.map(s => ([{
-      text: `${s.icon} ${s.name}`,
-      callback_data: `subject_${s.id}_${s.name}`
-    }]));
-
     await bot.sendMessage(
-      chatId,
-      `👋 Привет, <b>${firstName}</b>!\n\n🎓 Вы ещё не зарегистрированы в системе, но можете пройти вступительный тест.\n\n📚 Выберите предмет:`,
-      { parse_mode: 'HTML', reply_markup: { inline_keyboard: keyboard } }
+      telegramId,
+      'Твой доступ закроется через 4 часа.\n\nХочешь оставить заявку и учиться с нами?',
+      { reply_markup: leaveApplicationKeyboard() }
     );
+    return true;
   } catch (e) {
-    console.error('Ошибка загрузки предметов:', e.message);
-    await bot.sendMessage(chatId, '❌ Ошибка загрузки. Попробуйте позже.');
+    console.error('Ошибка отправки напоминания гостю:', e.message);
+    return false;
   }
 }
 
@@ -266,10 +170,14 @@ function startBot() {
     const user = msg.from;
     const firstName = user.first_name || 'Пользователь';
 
+    // Анти-флуд: игнорируем слишком частые /start от одного пользователя
+    if (isStartThrottled(user.id)) return;
+
     try {
       await registerBotUser(user);
       const systemUser = await checkUserRole(user.id);
 
+      // ===== Ученик / сотрудник =====
       if (systemUser) {
         if (!systemUser.isActive) {
           await resetChatMenuButton(chatId);
@@ -294,8 +202,43 @@ function startBot() {
         return sendStartMessage(chatId, welcomeText, { reply_markup: replyMarkup });
       }
 
+      // ===== Гость =====
       await resetChatMenuButton(chatId);
-      await showSubjectPicker(chatId, firstName);
+
+      const { expired } = await guestAccess.createOrGetGuest({
+        telegramId: user.id,
+        telegramUsername: user.username || null,
+        firstName
+      });
+
+      if (expired) {
+        // Повторный запуск после окончания доступа (ТЗ §20)
+        return sendStartMessage(
+          chatId,
+          'Твой гостевой доступ уже закончился.\n\nХочешь оставить заявку и учиться с нами?',
+          {
+            reply_markup: {
+              inline_keyboard: [[
+                { text: 'Оставить заявку', callback_data: 'guest_remind_yes' },
+                { text: 'Позже', callback_data: 'guest_expired_later' }
+              ]]
+            }
+          }
+        );
+      }
+
+      // Первый/повторный заход в активный доступ (ТЗ §2)
+      const replyMarkup = getAppOpenKeyboard();
+      const text = 'Ты ещё не учишься у нас, но можешь глянуть, как тут всё устроено. У тебя 24 часа.';
+
+      if (!replyMarkup) {
+        return sendStartMessage(
+          chatId,
+          `${text}\n\n⚠️ Приложение пока недоступно: нужен HTTPS-домен на сервере.`
+        );
+      }
+
+      return sendStartMessage(chatId, text, { reply_markup: replyMarkup });
     } catch (error) {
       console.error('Ошибка /start:', error.message);
       await bot.sendMessage(chatId, '❌ Не удалось обработать команду /start. Попробуйте ещё раз через минуту.');
@@ -311,7 +254,7 @@ function startBot() {
     if (systemUser) {
       bot.sendMessage(chatId, `📚 <b>Помощь</b>\n\n/start - Открыть приложение\n/help - Справка\n/info - Информация об аккаунте`, { parse_mode: 'HTML' });
     } else {
-      bot.sendMessage(chatId, `📚 <b>Помощь</b>\n\n/start - Начать / пройти тест\n/help - Справка\n\nВы не зарегистрированы в системе.\nОбратитесь к администратору.`, { parse_mode: 'HTML' });
+      bot.sendMessage(chatId, `📚 <b>Помощь</b>\n\n/start - Открыть приложение в гостевом режиме\n/help - Справка`, { parse_mode: 'HTML' });
     }
   });
 
@@ -333,7 +276,7 @@ function startBot() {
     } else {
       bot.sendMessage(
         chatId,
-        `👤 <b>Информация</b>\n\n📛 Имя: ${user.first_name} ${user.last_name || ''}\n🆔 Telegram ID: <code>${user.id}</code>\n\n❌ Не зарегистрированы в системе.`,
+        `👤 <b>Информация</b>\n\n📛 Имя: ${user.first_name} ${user.last_name || ''}\n🆔 Telegram ID: <code>${user.id}</code>\n\n🎓 У тебя гостевой доступ. Напишите /start чтобы открыть приложение.`,
         { parse_mode: 'HTML' }
       );
     }
@@ -343,118 +286,32 @@ function startBot() {
   bot.on('callback_query', async (query) => {
     const chatId = query.message.chat.id;
     const data = query.data;
-    const firstName = query.from.first_name || 'Пользователь';
 
-    // Убираем "часики" на кнопке
     await bot.answerCallbackQuery(query.id);
 
-    const session = testSessions[chatId];
-
-    // Выбор предмета
-    if (data.startsWith('subject_')) {
-      const parts = data.split('_');
-      const subjectId = parts[1];
-      const subjectName = parts.slice(2).join('_');
-      await startTest(chatId, subjectId, subjectName, query.from.id);
+    // «Хочу» в напоминании / на экране окончания — собрать заявку в боте (ТЗ §17)
+    if (data === 'guest_remind_yes') {
+      await startBotApplication(chatId, query.from, {
+        source: 'TG Bot — напоминание за 4 часа',
+        context: 'trial_expire_reminder'
+      });
       return;
     }
 
-    // Перезапуск
-    if (data === 'restart') {
-      if (session?.subjectId) {
-        await bot.sendMessage(chatId, '🔄 Перезапускаем тест...');
-        await startTest(chatId, session.subjectId, session.subjectName);
-      } else {
-        await showSubjectPicker(chatId, firstName);
-      }
+    // «Позже» в напоминании за 4 часа (ТЗ §18)
+    if (data === 'guest_remind_later') {
+      await bot.sendMessage(chatId, 'Ок, доступ ещё активен 4 часа.');
       return;
     }
 
-    // Выход
-    if (data === 'exit') {
-      delete testSessions[chatId];
-      await bot.sendMessage(
-        chatId,
-        `👋 Тест прерван.\n\nНапишите /start чтобы начать заново.`
-      );
-      return;
-    }
-
-    // Ответ на вопрос
-    if (data.startsWith('answer_') && session?.step === 'question') {
-      const answerIndex = parseInt(data.split('_')[1]);
-      const q = session.questions[session.currentIndex];
-      const isCorrect = answerIndex === q.correctAnswer;
-
-      if (isCorrect) {
-        session.score++;
-        await bot.sendMessage(chatId, `✅ <b>Правильно!</b>${q.explanation ? `\n\n💡 ${q.explanation}` : ''}`, { parse_mode: 'HTML' });
-      } else {
-        const correctLetter = String.fromCharCode(65 + q.correctAnswer);
-        await bot.sendMessage(
-          chatId,
-          `❌ <b>Неправильно.</b>\n\nПравильный ответ: <b>${correctLetter}. ${q.options[q.correctAnswer]}</b>${q.explanation ? `\n\n💡 ${q.explanation}` : ''}`,
-          { parse_mode: 'HTML' }
-        );
-      }
-
-      session.currentIndex++;
-
-      if (session.currentIndex < session.questions.length) {
-        // Следующий вопрос
-        await sendQuestion(chatId, session);
-      } else {
-        // Тест завершён
-        const total = session.questions.length;
-        const score = session.score;
-        const percent = Math.round(score / total * 100);
-
-        let emoji = '😔';
-        let comment = 'Не расстраивайся, попробуй ещё раз!';
-        if (percent >= 80) { emoji = '🎉'; comment = 'Отличный результат!'; }
-        else if (percent >= 60) { emoji = '👍'; comment = 'Хороший результат!'; }
-        else if (percent >= 40) { emoji = '📖'; comment = 'Есть над чем поработать!'; }
-
-        await bot.sendMessage(
-          chatId,
-          `${emoji} <b>Тест завершён!</b>\n\n📊 Предмет: ${session.subjectName}\n✅ Правильных ответов: ${score} из ${total}\n📈 Результат: ${percent}%\n\n${comment}`,
-          {
-            parse_mode: 'HTML',
-            reply_markup: {
-              inline_keyboard: [
-                [{ text: '📋 Оставить заявку', callback_data: 'leave_application' }],
-                [{ text: '🔄 Пройти снова', callback_data: 'restart' }],
-                [{ text: '📚 Выбрать другой предмет', callback_data: 'choose_subject' }]
-              ]
-            }
-          }
-        );
-        lastTestResults[chatId] = { subjectId: session.subjectId, subjectName: session.subjectName, correct: score, total, percent };
-        delete testSessions[chatId];
-      }
-      return;
-    }
-
-    // Оставить заявку
-    if (data === 'leave_application') {
-      applicationSessions[chatId] = {
-        step: 'name',
-        testResult: lastTestResults[chatId] || null,
-        telegramId: query.from.id,
-        telegramUsername: query.from.username || null
-      };
-      await bot.sendMessage(chatId, `📝 <b>Оставить заявку</b>\r\n\r\nНапишите ваше <b>ФИО</b>:`, { parse_mode: 'HTML' });
-      return;
-    }
-
-    // Выбор другого предмета
-    if (data === 'choose_subject') {
-      await showSubjectPicker(chatId, firstName);
+    // «Позже» на экране окончания доступа
+    if (data === 'guest_expired_later') {
+      await bot.sendMessage(chatId, 'Хорошо. Если передумаешь — напиши /start.');
       return;
     }
   });
 
-  // Текстовые сообщения
+  // Текстовые сообщения — сбор заявки в боте (ТЗ §17)
   bot.on('message', async (msg) => {
     if (msg.text && msg.text.startsWith('/')) return;
     if (!msg.text) return;
@@ -462,74 +319,83 @@ function startBot() {
     const chatId = msg.chat.id;
     await registerBotUser(msg.from);
 
+    // Сотрудники/ученики игнорируются
     const systemUser = await checkUserRole(msg.from.id);
-    if (systemUser) return; // авторизованные пользователи игнорируем
+    if (systemUser) return;
 
-    // Сбор данных заявки
     const appSession = applicationSessions[chatId];
-    if (appSession) {
-      if (appSession.step === 'name') {
-        appSession.fullName = msg.text.trim();
-        appSession.step = 'phone';
-        await bot.sendMessage(chatId, `📞 Теперь напишите ваш <b>номер телефона</b>:`, { parse_mode: 'HTML' });
+    if (!appSession) return;
+
+    if (appSession.step === 'name') {
+      const name = msg.text.trim().slice(0, 100);
+      if (name.length < 2) {
+        await bot.sendMessage(chatId, 'Введите имя.');
         return;
       }
-      if (appSession.step === 'phone') {
-        appSession.phone = msg.text.trim();
-        // Проверяем лимит заявок (2 раза в день)
-        const subjectId = appSession.testResult?.subjectId || 'any';
-        const appAllowed = await checkAndIncrement(appSession.telegramId, 'app', subjectId, 2);
-        if (!appAllowed) {
-          await bot.sendMessage(chatId,
-            `⛔ <b>Лимит заявок исчерпан</b>\n\nВы уже отправили 2 заявки сегодня.\n\n🕛 Попробуйте завтра!`,
-            { parse_mode: 'HTML' }
-          );
-          delete applicationSessions[chatId];
-          return;
-        }
-        try {
-          const tr = appSession.testResult;
-          await Application.create({
-            fullName: appSession.fullName,
-            phone: appSession.phone,
-            telegramId: appSession.telegramId,
-            telegramUsername: appSession.telegramUsername,
-            subjectId: tr?.subjectId || null,
-            subjectName: tr?.subjectName || null,
-            testCorrect: tr?.correct || 0,
-            testTotal: tr?.total || 0,
-            testPercent: tr?.percent || 0,
-            testAnswers: tr?.answers || [],
-            status: 'new',
-            crmStatus: 'pending'
-          });
-          await bot.sendMessage(chatId, `✅ <b>Заявка отправлена!</b>\r\n\r\nМы свяжемся с вами в ближайшее время.\r\n\r\n👤 ${appSession.fullName}\r\n📞 ${appSession.phone}`, { parse_mode: 'HTML' });
-        } catch (e) {
-          console.error('Ошибка сохранения заявки:', e.message);
-          await bot.sendMessage(chatId, '❌ Ошибка отправки заявки. Попробуйте позже.');
-        }
-        delete applicationSessions[chatId];
-        return;
-      }
+      appSession.fullName = name;
+      appSession.step = 'phone';
+      await bot.sendMessage(chatId, 'Оставь номер телефона, чтобы менеджер связался с тобой.');
+      return;
     }
 
-    const session = testSessions[chatId];
+    if (appSession.step === 'phone') {
+      const phone = msg.text.trim();
+      if (phone.replace(/\D/g, '').length < 9) {
+        await bot.sendMessage(chatId, 'Введите корректный номер телефона.');
+        return;
+      }
+      try {
+        // Собираем выбранные гостем предметы (если есть) для заявки
+        let selectedSubjects = [];
+        let userStatus = 'guest';
+        try {
+          const guestUser = await User.findOne({
+            where: { telegramId: appSession.telegramId },
+            include: [{ association: 'subjects', attributes: ['name'], through: { attributes: [] } }]
+          });
+          if (guestUser) {
+            selectedSubjects = (guestUser.subjects || []).map((s) => s.name);
+            userStatus = guestAccess.guestUserStatusLabel(guestUser) || 'guest';
+          }
+        } catch {}
 
-    if (session?.step === 'question') {
-      // Пользователь отправил текст вместо нажатия кнопки
-      await bot.sendMessage(
-        chatId,
-        `⚠️ Пожалуйста, выбирайте ответ <b>из кнопок</b>, не отправляйте текст!\n\nЕсли кнопки не видны — прокрутите вверх к вопросу.`,
-        { parse_mode: 'HTML' }
-      );
-    } else if (!session) {
-      // Нет активной сессии — предлагаем начать тест
-      await showSubjectPicker(chatId, msg.from.first_name || 'Пользователь');
+        const application = await Application.create({
+          fullName: appSession.fullName,
+          phone,
+          telegramId: appSession.telegramId,
+          telegramUsername: appSession.telegramUsername,
+          source: appSession.source,
+          context: appSession.context,
+          selectedSubjects,
+          selectedSubjectsCount: selectedSubjects.length,
+          userStatus,
+          status: 'new',
+          crmStatus: 'pending'
+        });
+
+        await guestAccess.markGuestApplicationSent(appSession.telegramId).catch(() => {});
+
+        // Фоновая отправка в CRM
+        const { sendToAmoCRM } = require('./services/amocrm');
+        sendToAmoCRM(application).then(async (result) => {
+          if (result.ok) {
+            await application.update({ crmStatus: 'sent', crmLeadId: result.leadId, crmSentAt: new Date(), crmError: null });
+          } else {
+            await application.update({ crmStatus: 'error', crmError: result.error });
+          }
+        }).catch(() => {});
+
+        await bot.sendMessage(chatId, 'Спасибо! Заявка отправлена. Скоро с тобой свяжемся.');
+      } catch (e) {
+        console.error('Ошибка сохранения заявки из бота:', e.message);
+        await bot.sendMessage(chatId, 'Ошибка отправки. Попробуйте ещё раз.');
+      }
+      delete applicationSessions[chatId];
+      return;
     }
   });
 
   bot.on('polling_error', (error) => {
-    // ECONNRESET и EFATAL - временные сетевые ошибки, бот переподключится сам
     if (error.code === 'EFATAL' || error.code === 'ECONNRESET') return;
     console.error('❌ Polling error:', error.message);
   });
@@ -543,4 +409,4 @@ function stopBot() {
   }
 }
 
-module.exports = { startBot, stopBot, getBot: () => bot };
+module.exports = { startBot, stopBot, getBot: () => bot, sendGuestReminder };

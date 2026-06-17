@@ -5,14 +5,19 @@ import Practice from './Practice';
 import Homework from './Homework';
 import Quiz from './Quiz';
 import Statistics from './Statistics';
+import LockedSectionModal from '../components/LockedSectionModal';
 import { DataProvider, useData } from './DataContext';
 import { apiFetch } from './api';
 
 import { API_URL } from '../config';
 
-function StudentAppContent({ selectedStudent }) {
+function StudentAppContent({ selectedStudent, isGuest = false, applicationSent = false }) {
   const [activeTab, setActiveTab] = useState('practice');
+  const [appSent, setAppSent] = useState(applicationSent);
+  // Модалка закрытого раздела для гостя: { context, source } | null
+  const [lockedModal, setLockedModal] = useState(null);
   const {
+    subjects,
     preloadAllData, loadStreak, practiceIntent, refreshDashboard,
     requestPracticeHome, requestHomeworkHome,
   } = useData();
@@ -45,8 +50,19 @@ function StudentAppContent({ selectedStudent }) {
 
   const tabOrder = ['practice', 'homework', 'quiz', 'stats'];
 
+  // Для гостя Домашка и Викторина закрыты (ТЗ §7, §8)
+  const LOCKED_FOR_GUEST = { homework: 'locked_homework', quiz: 'locked_quiz' };
+
   const handleTabChange = (tabId) => {
     if (animating) return;
+    // Гость нажал на закрытый раздел — показываем модалку, таб не меняем
+    if (isGuest && LOCKED_FOR_GUEST[tabId]) {
+      setLockedModal({
+        context: LOCKED_FOR_GUEST[tabId],
+        source: 'TG Mini App — закрытый раздел',
+      });
+      return;
+    }
     if (tabId === activeTab) {
       if (tabId === 'practice') {
         loadStreak();
@@ -77,10 +93,12 @@ function StudentAppContent({ selectedStudent }) {
 
   const tabs = [
     { id: 'practice', name: 'Практика', icon: '💪' },
-    { id: 'homework', name: 'Домашка', icon: '📝' },
-    { id: 'quiz', name: 'Викторина', icon: '🎯' },
+    { id: 'homework', name: 'Домашка', icon: '📝', locked: isGuest },
+    { id: 'quiz', name: 'Викторина', icon: '🎯', locked: isGuest },
     { id: 'stats', name: 'Статистика', icon: '📊' },
   ];
+
+  const guestSubjectNames = isGuest ? (subjects || []).map((s) => s.name) : [];
 
   return (
     <div className="student-app">
@@ -90,7 +108,7 @@ function StudentAppContent({ selectedStudent }) {
             { id: 'practice', el: <Practice studentId={selectedStudent.id} isTabActive={activeTab === 'practice'} /> },
             { id: 'homework', el: <Homework studentId={selectedStudent.id} /> },
             { id: 'quiz', el: <Quiz studentId={selectedStudent.id} studentName={`${selectedStudent.firstName || ''} ${selectedStudent.lastName || ''}`.trim() || 'Ученик'} /> },
-            { id: 'stats', el: <Statistics studentId={selectedStudent.id} /> },
+            { id: 'stats', el: <Statistics studentId={selectedStudent.id} isGuest={isGuest} onLockedClick={() => setLockedModal({ context: 'locked_statistics_homework', source: 'TG Mini App — закрытый раздел' })} /> },
           ].map(({ id, el }) => {
             const isActive = id === activeTab;
             const isPrev = id === prevTab;
@@ -117,19 +135,34 @@ function StudentAppContent({ selectedStudent }) {
         {tabs.map(tab => (
           <button
             key={tab.id}
-            className={`nav-button ${activeTab === tab.id ? 'active' : ''}`}
+            className={`nav-button ${activeTab === tab.id ? 'active' : ''} ${tab.locked ? 'nav-button--locked' : ''}`}
             onClick={() => handleTabChange(tab.id)}
           >
-            <span className="nav-icon">{tab.icon}</span>
+            <span className="nav-icon">
+              {tab.icon}
+              {tab.locked && <span className="nav-lock">🔒</span>}
+            </span>
             <span className="nav-text">{tab.name}</span>
           </button>
         ))}
       </nav>
+
+      {isGuest && (
+        <LockedSectionModal
+          open={!!lockedModal}
+          onClose={() => setLockedModal(null)}
+          source={lockedModal?.source}
+          context={lockedModal?.context}
+          selectedSubjects={guestSubjectNames}
+          applicationSent={appSent}
+          onApplicationSent={() => setAppSent(true)}
+        />
+      )}
     </div>
   );
 }
 
-function StudentApp({ initialUser = null }) {
+function StudentApp({ initialUser = null, isGuest = false, applicationSent = false }) {
   const initialStudent = initialUser?.role === 'student' && initialUser?.isActive !== false
     ? initialUser
     : null;
@@ -138,7 +171,8 @@ function StudentApp({ initialUser = null }) {
   const [loading, setLoading] = useState(!initialStudent);
 
   useEffect(() => {
-    if (initialStudent) return;
+    // Гость всегда приходит с готовым initialUser — резолвить ученика не нужно
+    if (initialStudent || isGuest) return;
 
     const resolveStudent = async () => {
       try {
@@ -167,7 +201,7 @@ function StudentApp({ initialUser = null }) {
     };
 
     resolveStudent();
-  }, [initialStudent]);
+  }, [initialStudent, isGuest]);
 
   if (!selectedStudent) {
     // Пока грузим — не показываем ничего чтобы не было flash экрана выбора
@@ -231,7 +265,11 @@ function StudentApp({ initialUser = null }) {
 
   return (
     <DataProvider studentId={selectedStudent.id}>
-      <StudentAppContent selectedStudent={selectedStudent} />
+      <StudentAppContent
+        selectedStudent={selectedStudent}
+        isGuest={isGuest}
+        applicationSent={applicationSent}
+      />
     </DataProvider>
   );
 }

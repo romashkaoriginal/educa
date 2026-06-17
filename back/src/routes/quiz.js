@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { Quiz, QuizQuestion, QuizParticipant, QuizAnswer, User, Subject } = require('../models');
 const { Op } = require('sequelize');
-const { requireRole } = require('../middleware/telegramAuth');
+const { requireRole, assertSelfOrStaff, assertBodyStudentId } = require('../middleware/telegramAuth');
 const isAdmin = requireRole(['admin', 'teacher']);
 
 // Генерация уникального кода
@@ -30,7 +30,7 @@ router.get('/all', isAdmin, async (req, res) => {
 });
 
 // Статистика викторин студента
-router.get('/student/:studentId/stats', async (req, res) => {
+router.get('/student/:studentId/stats', assertSelfOrStaff('studentId'), async (req, res) => {
   try {
     const { studentId } = req.params;
     const { sequelize } = require('../models');
@@ -158,6 +158,10 @@ router.get('/code/:accessCode', async (req, res) => {
     const code = req.params.accessCode.toUpperCase();
     const studentId = req.query.studentId ? parseInt(req.query.studentId, 10) : null;
 
+    if (!studentId || Number(studentId) !== Number(req.dbUser.id)) {
+      return res.status(403).json({ code: 'NO_ACCESS', message: 'Access denied' });
+    }
+
     if (!code || code.length < 4) {
       return res.status(404).json({
         code: 'NOT_FOUND',
@@ -213,6 +217,12 @@ router.get('/code/:accessCode', async (req, res) => {
 
     const participantCount = await QuizParticipant.count({ where: { quizId: quiz.id } });
 
+    const safeQuestions = (quiz.questions || []).map((q) => {
+      const item = typeof q.toJSON === 'function' ? q.toJSON() : { ...q };
+      delete item.correctAnswer;
+      return item;
+    });
+
     res.json({
       quiz: {
         id: quiz.id,
@@ -221,7 +231,7 @@ router.get('/code/:accessCode', async (req, res) => {
         status: quiz.status,
         subject: quiz.subject,
         subjectId: quiz.subjectId,
-        questions: quiz.questions,
+        questions: safeQuestions,
         currentQuestionIndex: quiz.currentQuestionIndex,
         showLeaderboardAfterQuestion: quiz.showLeaderboardAfterQuestion !== false,
         showQuestionReview: quiz.showQuestionReview !== false,
@@ -375,7 +385,7 @@ router.get('/:id/results', async (req, res) => {
 });
 // Получить предметы по которым у ученика были викторины
 // Получить предметы ученика
-router.get('/student/:studentId/subjects', async (req, res) => {
+router.get('/student/:studentId/subjects', assertSelfOrStaff('studentId'), async (req, res) => {
   try {
     const { studentId } = req.params;
     const { User } = require('../models');

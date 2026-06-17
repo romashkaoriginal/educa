@@ -379,11 +379,13 @@ function Practice({ studentId, isTabActive = true }) {
   const [answered, setAnswered] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
   const [showExplanationHint, setShowExplanationHint] = useState(false);
+  // Фаза закрытия модалки объяснения — держим её в DOM на время анимации сворачивания.
+  const [explanationClosing, setExplanationClosing] = useState(false);
+  const explanationCloseTimerRef = useRef(null);
   // Анимировать выезд лишних вариантов только при свежем ответе.
   // При возврате к уже отвеченному вопросу варианты сразу скрыты, без повторной анимации.
   const [animateDismiss, setAnimateDismiss] = useState(false);
   
-  const autoNextTimerRef = useRef(null);
   const [confetti, setConfetti] = useState(false);
 
   // Светящаяся сфера, летящая к дневной цели
@@ -402,9 +404,9 @@ function Practice({ studentId, isTabActive = true }) {
   const globalSolvedIdsRef = useRef(new Set());
   const questionPoolRef = useRef([]);
   const questionsRef = useRef([]);
-  const pendingAutoNextSessionRef = useRef(null); // sessionAnswers pending auto-advance
+  const pendingAutoNextSessionRef = useRef(null); // sessionAnswers для подбора следующего вопроса
+  const prefetchedNextRef = useRef(null); // { question, answerCount } — следующий вопрос, подобранный фоново
 
-  const RESULT_DURATION = 1500; // 1.5 секунды показ результата
   const [streakBump, setStreakBump] = useState(false);
   const [openMetricHint, setOpenMetricHint] = useState(null);
   const streakTodayDoneInitRef = useRef(false);
@@ -601,6 +603,44 @@ function Practice({ studentId, isTabActive = true }) {
     globalSolvedIds: globalSolvedIdsRef.current,
   });
 
+  const getPickOptionsForMode = () => (
+    practiceModeRef.current === 'general'
+      ? getGeneralPickOptions()
+      : { hasPredictedScore: !!predictedScore?.unlocked, globalSolvedIds: globalSolvedIdsRef.current }
+  );
+
+  const clearPrefetch = () => {
+    prefetchedNextRef.current = null;
+  };
+
+  const computeNextQuestion = (sessionSnapshot) => {
+    const nextRaw = pickFromPool(
+      questionPoolRef.current,
+      sessionSnapshot,
+      practiceModeRef.current,
+      getPickOptionsForMode()
+    );
+    return nextRaw ? shuffleOptions(nextRaw) : null;
+  };
+
+  const prefetchNextQuestion = (sessionSnapshot) => {
+    clearPrefetch();
+    const answerCount = sessionSnapshot.length;
+    const run = () => {
+      if (!questionPoolRef.current.length) return;
+      if (pendingAutoNextSessionRef.current?.length !== answerCount) return;
+      const nextQ = computeNextQuestion(sessionSnapshot);
+      if (nextQ && pendingAutoNextSessionRef.current?.length === answerCount) {
+        prefetchedNextRef.current = { question: nextQ, answerCount };
+      }
+    };
+    if (typeof requestIdleCallback !== 'undefined') {
+      requestIdleCallback(run, { timeout: 300 });
+    } else {
+      setTimeout(run, 0);
+    }
+  };
+
   const syncGlobalSolvedIds = (prediction) => {
     globalSolvedIdsRef.current = new Set(prediction?.solvedQuestionIds || []);
   };
@@ -614,8 +654,8 @@ function Practice({ studentId, isTabActive = true }) {
   // Очистка таймера при размонтировании
   useEffect(() => {
     return () => {
-      if (autoNextTimerRef.current) clearTimeout(autoNextTimerRef.current);
       if (goalHideTimerRef.current) clearTimeout(goalHideTimerRef.current);
+      if (explanationCloseTimerRef.current) clearTimeout(explanationCloseTimerRef.current);
     };
   }, []);
 
@@ -715,6 +755,7 @@ function Practice({ studentId, isTabActive = true }) {
 
     practiceModeRef.current = mode;
     questionPoolRef.current = pool;
+    clearPrefetch();
     const pickOpts = mode === 'general'
       ? { ...getGeneralPickOptions(), ...pickOptions }
       : { ...pickOptions, hasPredictedScore: !!predictedScore?.unlocked, globalSolvedIds: globalSolvedIdsRef.current };
@@ -950,6 +991,17 @@ function Practice({ studentId, isTabActive = true }) {
     }
   };
 
+  // Закрытие модалки объяснения: запускаем анимацию сворачивания, затем размонтируем.
+  const closeExplanation = () => {
+    if (explanationCloseTimerRef.current) return; // уже закрывается
+    setExplanationClosing(true);
+    explanationCloseTimerRef.current = setTimeout(() => {
+      setShowExplanationHint(false);
+      setExplanationClosing(false);
+      explanationCloseTimerRef.current = null;
+    }, 240); // должно совпадать с длительностью explanationModalOut
+  };
+
   const submitAnswer = async (answerIndex) => {
     if (answered) return; // Предотвращаем повторный клик
 
@@ -960,7 +1012,7 @@ function Practice({ studentId, isTabActive = true }) {
     setAnswered(true);
     setIsCorrect(correct);
     setAnimateDismiss(true);
-    setShowExplanationHint(false);
+    // Объяснение открывается по кнопке (модалка поверх экрана), не само — чтобы не мешать.
     blurActiveElement();
 
     const practiceSnapshot = activePractice;
@@ -996,33 +1048,40 @@ function Practice({ studentId, isTabActive = true }) {
     }];
     setSessionAnswers(newSessionAnswers);
 
+    // Переход к следующему вопросу теперь только по кнопке (advanceToNextQuestion).
+    // Храним актуальные ответы сессии для корректного подбора следующего вопроса.
     pendingAutoNextSessionRef.current = newSessionAnswers;
-    autoNextTimerRef.current = setTimeout(() => {
-      pendingAutoNextSessionRef.current = null;
-      const nextRaw = pickFromPool(
-        questionPoolRef.current,
-        newSessionAnswers,
-        practiceModeRef.current,
-        practiceModeRef.current === 'general'
-          ? getGeneralPickOptions()
-          : { hasPredictedScore: !!predictedScore?.unlocked, globalSolvedIds: globalSolvedIdsRef.current }
-      );
-      const nextQ = nextRaw ? shuffleOptions(nextRaw) : null;
-      if (!nextQ) return;
+    prefetchNextQuestion(newSessionAnswers);
+  };
 
-      setSelectedAnswer(null);
-      setAnswered(false);
-      setIsCorrect(false);
-      setShowExplanationHint(false);
-      blurActiveElement();
+  // Берёт следующий вопрос из пула и показывает его. Дёргается кнопкой «Следующий вопрос».
+  const advanceToNextQuestion = () => {
+    const sessionSnapshot = pendingAutoNextSessionRef.current || sessionAnswers;
+    pendingAutoNextSessionRef.current = null;
 
-      setCurrentQuestionIndex(prev => prev + 1);
-      setQuestions(prev => {
-        const updated = [...prev, nextQ];
-        questionsRef.current = updated;
-        return updated;
-      });
-    }, RESULT_DURATION);
+    const cached = prefetchedNextRef.current;
+    let nextQ = null;
+    if (cached && cached.answerCount === sessionSnapshot.length) {
+      nextQ = cached.question;
+      prefetchedNextRef.current = null;
+    } else {
+      nextQ = computeNextQuestion(sessionSnapshot);
+    }
+    if (!nextQ) return;
+
+    setSelectedAnswer(null);
+    setAnswered(false);
+    setIsCorrect(false);
+    setAnimateDismiss(false);
+    setShowExplanationHint(false);
+    blurActiveElement();
+
+    setCurrentQuestionIndex(prev => prev + 1);
+    setQuestions(prev => {
+      const updated = [...prev, nextQ];
+      questionsRef.current = updated;
+      return updated;
+    });
   };
 
   useEffect(() => {
@@ -1032,10 +1091,6 @@ function Practice({ studentId, isTabActive = true }) {
   }, [activePractice, currentQuestionIndex, questions[currentQuestionIndex]?.id]);
 
   const restoreQuestionState = (index) => {
-    if (autoNextTimerRef.current) {
-      clearTimeout(autoNextTimerRef.current);
-      autoNextTimerRef.current = null;
-    }
     const ans = userAnswers[index];
     if (ans) {
       setSelectedAnswer(ans.selectedAnswer);
@@ -1057,40 +1112,12 @@ function Practice({ studentId, isTabActive = true }) {
     restoreQuestionState(prevIndex);
   };
 
+  // Листание вперёд по уже показанным вопросам (история). Новый вопрос берёт advanceToNextQuestion.
   const goToNextQuestion = () => {
     if (currentQuestionIndex >= questions.length - 1) return;
     const nextIndex = currentQuestionIndex + 1;
     setCurrentQuestionIndex(nextIndex);
     restoreQuestionState(nextIndex);
-
-    // If returning to the frontier answered question whose timer was cancelled, restart auto-advance
-    if (nextIndex === questionsRef.current.length - 1 && pendingAutoNextSessionRef.current) {
-      const savedSA = pendingAutoNextSessionRef.current;
-      pendingAutoNextSessionRef.current = null;
-      autoNextTimerRef.current = setTimeout(() => {
-        const nextRaw = pickFromPool(
-          questionPoolRef.current,
-          savedSA,
-          practiceModeRef.current,
-          practiceModeRef.current === 'general'
-            ? getGeneralPickOptions()
-            : { hasPredictedScore: !!predictedScore?.unlocked, globalSolvedIds: globalSolvedIdsRef.current }
-        );
-        const nextQ = nextRaw ? shuffleOptions(nextRaw) : null;
-        if (!nextQ) return;
-        setSelectedAnswer(null);
-        setAnswered(false);
-        setIsCorrect(false);
-        setShowExplanationHint(false);
-        blurActiveElement();
-        setCurrentQuestionIndex(prev => prev + 1);
-        setQuestions(prev => {
-          const updated = [...prev, nextQ];
-          questionsRef.current = updated;
-          return updated;
-        });
-      }, RESULT_DURATION);
-    }
   };
 
   const savePracticeSession = async (answers, practiceSnapshot = activePractice) => {
@@ -1141,8 +1168,6 @@ function Practice({ studentId, isTabActive = true }) {
   };
 
   const closePractice = async () => {
-    if (autoNextTimerRef.current) clearTimeout(autoNextTimerRef.current);
-
     await flushPendingGoalSaves();
 
     const answersToSave = [...userAnswers];
@@ -1164,6 +1189,7 @@ function Practice({ studentId, isTabActive = true }) {
     setGoalPeek(false);
     setOrbs([]);
     pendingAutoNextSessionRef.current = null;
+    clearPrefetch();
 
     setActiveTab('practice');
 
@@ -1219,6 +1245,8 @@ function Practice({ studentId, isTabActive = true }) {
       : (selectedSubject?.name || activePractice.name);
     const canGoBack = currentQuestionIndex > 0;
     const canGoForward = currentQuestionIndex < questions.length - 1;
+    // На последнем (текущем) вопросе после ответа — кнопка взять новый вопрос
+    const canAdvance = answered && currentQuestionIndex === questions.length - 1;
 
     if (!currentQuestion) {
       return renderPracticeOverlay(
@@ -1327,6 +1355,8 @@ function Practice({ studentId, isTabActive = true }) {
         <div
           className={`question-container question-density--${
             (() => {
+              // Объяснение теперь в модалке поверх экрана и не делит высоту с вопросом,
+              // поэтому плотность считаем только по вопросу и вариантам.
               const qLen = (currentQuestion.questionText || '').length;
               const optLen = currentQuestion.options.reduce((s, o) => s + (o || '').length, 0);
               const total = qLen + optLen;
@@ -1353,11 +1383,9 @@ function Practice({ studentId, isTabActive = true }) {
                 <button
                   type="button"
                   className="hint-button"
-                  onClick={() => setShowExplanationHint(!showExplanationHint)}
+                  onClick={() => setShowExplanationHint(true)}
                 >
-                  💡 {showExplanationHint
-                    ? 'Скрыть'
-                    : (answered ? 'Объяснение' : 'Подсказка')}
+                  💡 {answered ? 'Объяснение' : 'Подсказка'}
                 </button>
               )}
             </div>
@@ -1370,15 +1398,6 @@ function Practice({ studentId, isTabActive = true }) {
             <span className="question-card-mark" aria-hidden>“</span>
             <h3 className="question-text">{currentQuestion.questionText}</h3>
           </div>
-
-          {showExplanationHint && currentQuestion.explanation && (
-            <div className={`hint-box ${answered ? 'hint-box--explanation' : ''}`}>
-              <div className="hint-title">
-                💡 {answered ? 'Объяснение:' : 'Подсказка:'}
-              </div>
-              <div className="hint-text">{currentQuestion.explanation}</div>
-            </div>
-          )}
 
           <div className="answers-list" key={currentQuestion.id}>
             {currentQuestion.options.map((option, index) => {
@@ -1429,7 +1448,7 @@ function Practice({ studentId, isTabActive = true }) {
             </div>
           )}
 
-          {(canGoBack || canGoForward) && (
+          {(canGoBack || canGoForward || canAdvance) && (
             <div className="question-nav-row">
               {canGoBack ? (
                 <button type="button" className="question-nav-btn" onClick={goToPreviousQuestion}>
@@ -1438,14 +1457,49 @@ function Practice({ studentId, isTabActive = true }) {
               ) : (
                 <span />
               )}
-              {canGoForward && (
+              {canGoForward ? (
                 <button type="button" className="question-nav-btn question-nav-btn--forward" onClick={goToNextQuestion}>
                   Следующий →
                 </button>
-              )}
+              ) : canAdvance ? (
+                <button type="button" className="question-nav-btn question-nav-btn--next" onClick={advanceToNextQuestion}>
+                  Следующий вопрос →
+                </button>
+              ) : null}
             </div>
           )}
         </div>
+
+        {(showExplanationHint || explanationClosing) && currentQuestion.explanation && (
+          <div
+            className={`explanation-modal-overlay ${explanationClosing ? 'is-closing' : ''}`}
+            onClick={closeExplanation}
+          >
+            <div
+              className={`explanation-modal ${answered ? 'explanation-modal--answer' : 'explanation-modal--hint'}`}
+              onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+            >
+              <div className="explanation-modal-head">
+                <span className="explanation-modal-title">
+                  💡 {answered ? 'Объяснение' : 'Подсказка'}
+                </span>
+                <button
+                  type="button"
+                  className="explanation-modal-close"
+                  onClick={closeExplanation}
+                  aria-label="Закрыть"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="explanation-modal-body">
+                {currentQuestion.explanation}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }

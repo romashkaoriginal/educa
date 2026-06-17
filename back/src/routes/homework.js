@@ -1,13 +1,56 @@
 const express = require('express');
-const { requireRole } = require('../middleware/telegramAuth');
+const {
+  requireRole,
+  isStaffRole,
+  assertSelfOrStaff,
+  assertBodyStudentId,
+  assertSubmissionOwner
+} = require('../middleware/telegramAuth');
 const isAdmin = requireRole(['admin', 'teacher']);
 const { Homework, HomeworkQuestion, HomeworkSubmission, HomeworkAnswer, User, Subject, sequelize } = require('../models');
 const { Op } = require('sequelize');
 
 const router = express.Router();
 
+// ВНИМАНИЕ: correctAnswer НЕ скрываем у ученика.
+// Домашка использует correctAnswer на клиенте: для вопросов типа
+// «порядок/сопоставление» это сами элементы для рендера, плюс мгновенная
+// обратная связь. Итоговый балл считается на сервере (checkAnswer при сабмите),
+// поэтому скрытие correctAnswer не даёт защиты, но ломает прохождение.
+// Функция оставлена как no-op для обратной совместимости вызовов.
+function sanitizeHomeworkPayload(homework /* , staff */) {
+  return typeof homework.toJSON === 'function' ? homework.toJSON() : { ...homework };
+}
+
+async function assertHomeworkReadable(req, res, next) {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!id) return res.status(400).json({ message: 'Invalid homework id' });
+    if (isStaffRole(req.dbUser?.role)) return next();
+
+    const homework = await Homework.findByPk(id, { attributes: ['id', 'subjectId'] });
+    if (!homework) return res.status(404).json({ message: 'Homework not found' });
+
+    const hasSubject = await User.findOne({
+      where: { id: req.dbUser.id },
+      include: [{
+        model: Subject,
+        as: 'subjects',
+        where: { id: homework.subjectId },
+        attributes: ['id'],
+        required: true
+      }]
+    });
+    if (!hasSubject) return res.status(403).json({ message: 'Access denied' });
+    next();
+  } catch (error) {
+    console.error('assertHomeworkReadable:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+}
+
 // Get all homeworks (for admin)
-router.get('/all', async (req, res) => {
+router.get('/all', isAdmin, async (req, res) => {
   try {
     const homeworks = await Homework.findAll({
       include: [
@@ -33,9 +76,10 @@ router.get('/all', async (req, res) => {
 });
 
 // Get homework by ID with questions
-router.get('/:id', async (req, res) => {
+router.get('/:id', assertHomeworkReadable, async (req, res) => {
   try {
     const { id } = req.params;
+    const staff = isStaffRole(req.dbUser?.role);
 
     const homework = await Homework.findByPk(id, {
       include: [
@@ -56,7 +100,7 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ message: 'Homework not found' });
     }
 
-    res.json({ homework });
+    res.json({ homework: sanitizeHomeworkPayload(homework, staff) });
   } catch (error) {
     console.error('Get homework error:', error);
     res.status(500).json({ message: 'Server error' });
@@ -64,9 +108,10 @@ router.get('/:id', async (req, res) => {
 });
 
 // Get homeworks for student (by their subjects)
-router.get('/student/:studentId', async (req, res) => {
+router.get('/student/:studentId', assertSelfOrStaff('studentId'), async (req, res) => {
   try {
     const { studentId } = req.params;
+    const staff = isStaffRole(req.dbUser?.role);
 
     const student = await User.findByPk(studentId, {
       include: [{
@@ -132,10 +177,13 @@ router.get('/student/:studentId', async (req, res) => {
       );
     });
 
-    const homeworksWithStats = homeworks.map(hw => ({
-      ...hw.toJSON(),
-      stats: submissionsMap[hw.id] || null
-    }));
+    const homeworksWithStats = homeworks.map(hw => {
+      const payload = sanitizeHomeworkPayload(hw, staff);
+      return {
+        ...payload,
+        stats: submissionsMap[hw.id] || null
+      };
+    });
 
     res.json({ homeworks: homeworksWithStats });
   } catch (error) {
@@ -278,7 +326,7 @@ router.delete('/:id', isAdmin, async (req, res) => {
 });
 
 // Submit homework
-router.post('/submit', async (req, res) => {
+router.post('/submit', assertBodyStudentId, async (req, res) => {
   try {
     const { homeworkId, studentId, answers, timeSpent } = req.body;
 
@@ -385,7 +433,7 @@ router.post('/submit', async (req, res) => {
 });
 
 // Get homework submission with answers
-router.get('/submission/:submissionId', async (req, res) => {
+router.get('/submission/:submissionId', assertSubmissionOwner, async (req, res) => {
   try {
     const { submissionId } = req.params;
 
@@ -429,7 +477,7 @@ router.get('/submission/:submissionId', async (req, res) => {
 });
 
 // Get homework results (for admin)
-router.get('/:id/results', async (req, res) => {
+router.get('/:id/results', isAdmin, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -505,7 +553,7 @@ function checkAnswer(question, userAnswer) {
 }
 
 // Get homework statistics for student
-router.get('/student/:studentId/stats', async (req, res) => {
+router.get('/student/:studentId/stats', assertSelfOrStaff('studentId'), async (req, res) => {
   try {
     const { studentId } = req.params;
 

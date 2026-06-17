@@ -1,5 +1,7 @@
 // Утилита для fetch с Telegram initData (для AdminPanel)
-const getInitData = () => window.Telegram?.WebApp?.initData || '';
+export const getTelegramInitData = () => window.Telegram?.WebApp?.initData || '';
+
+const getInitData = getTelegramInitData;
 
 export const adminFetch = (url, options = {}) => {
   const initData = getInitData();

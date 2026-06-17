@@ -1,0 +1,83 @@
+.guest-expired {
+  min-height: 100vh;
+  background: linear-gradient(160deg, #f5f3ff, #eef2ff);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 18px calc(32px + env(safe-area-inset-bottom));
+  box-sizing: border-box;
+}
+
+.guest-expired-container {
+  width: 100%;
+  max-width: 440px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.guest-expired-logo {
+  width: 60px;
+  height: 60px;
+  object-fit: contain;
+  margin-bottom: 16px;
+}
+
+.guest-expired-icon {
+  font-size: 52px;
+  margin-bottom: 12px;
+}
+
+.guest-expired-title {
+  font-size: 24px;
+  font-weight: 800;
+  color: #1a1a2e;
+  margin: 0 0 12px;
+}
+
+.guest-expired-text {
+  font-size: 15px;
+  color: #6b7280;
+  line-height: 1.5;
+  margin: 0 0 24px;
+}
+
+.guest-expired-actions {
+  width: 100%;
+}
+
+.guest-expired-btn {
+  width: 100%;
+  padding: 16px;
+  font-size: 17px;
+  font-weight: 700;
+  border: none;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+}
+
+.guest-expired-btn:active {
+  transform: scale(0.99);
+}
+
+.guest-expired-btn--primary {
+  color: #fff;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+}
+
+.guest-expired-sent {
+  margin-top: 16px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #16a34a;
+}
+
+.guest-expired-form {
+  width: 100%;
+  background: #fff;
+  border-radius: 20px;
+  padding: 22px;
+  box-sizing: border-box;
+}

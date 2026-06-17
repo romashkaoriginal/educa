@@ -1,0 +1,151 @@
+.admin-guest {
+  min-height: 100vh;
+  background: linear-gradient(160deg, #f5f3ff, #eef2ff);
+  display: flex;
+  justify-content: center;
+  padding: 32px 18px calc(32px + env(safe-area-inset-bottom));
+  box-sizing: border-box;
+}
+
+.admin-guest-container {
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.admin-guest-logo {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  margin-bottom: 12px;
+}
+
+.admin-guest-title {
+  font-size: 22px;
+  font-weight: 800;
+  color: #1a1a2e;
+  margin: 0 0 6px;
+  text-align: center;
+}
+
+.admin-guest-subtitle {
+  font-size: 14px;
+  color: #6b7280;
+  text-align: center;
+  margin: 0 0 20px;
+}
+
+.admin-guest-error,
+.admin-guest-empty {
+  font-size: 14px;
+  text-align: center;
+  margin: 16px 0;
+}
+
+.admin-guest-error { color: #ef4444; }
+.admin-guest-empty { color: #9ca3af; }
+
+.admin-guest-list {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.admin-guest-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: #fff;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.1s;
+  text-align: left;
+}
+
+.admin-guest-card:active { transform: scale(0.99); }
+.admin-guest-card:hover { border-color: #c7d2fe; }
+
+.admin-guest-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #fff;
+  font-weight: 700;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.admin-guest-info { flex: 1; min-width: 0; }
+
+.admin-guest-info h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1a1a2e;
+  margin: 0;
+}
+
+.admin-guest-info p {
+  font-size: 13px;
+  color: #9ca3af;
+  margin: 2px 0 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-guest-time {
+  font-size: 13px;
+  font-weight: 600;
+  color: #6366f1;
+  flex-shrink: 0;
+}
+
+.admin-guest-loading {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  background: linear-gradient(160deg, #f5f3ff, #eef2ff);
+}
+
+/* Баннер режима проверки поверх гостевого StudentApp */
+.admin-guest-wrap {
+  position: relative;
+}
+
+.admin-guest-banner {
+  position: sticky;
+  top: 0;
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+}
+
+.admin-guest-banner-back {
+  margin-left: auto;
+  background: rgba(255, 255, 255, 0.25);
+  border: none;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}

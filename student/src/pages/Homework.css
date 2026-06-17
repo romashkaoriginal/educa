@@ -355,9 +355,10 @@
 
 .homework-mode-header .homework-info h2 {
   margin: 0 0 2px 0;
-  font-size: 14px;
-  font-weight: 700;
+  font-size: 21px;
+  font-weight: 800;
   color: #ffffff;
+  letter-spacing: -0.02em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
-import { apiFetch } from './api';
+import { apiFetch, getTelegramInitData } from './api';
 import { useData } from './DataContext';
 import './Quiz.css';
 
@@ -333,7 +333,6 @@ function Quiz({ studentId, studentName = 'Ученик' }) {
 
     newSocket.emit('student:join-quiz', {
       quizId: quizData.id,
-      userId: studentId,
       forceReconnect
     });
   };
@@ -344,7 +343,9 @@ function Quiz({ studentId, studentName = 'Ученик' }) {
     setError('');
     setFinishedInfo(null);
 
-    const newSocket = io(SOCKET_URL);
+    const newSocket = io(SOCKET_URL, {
+      auth: { initData: getTelegramInitData() },
+    });
     newSocket.on('connect', () => {
       setupSocketListeners(newSocket, quizData, forceReconnect);
     });

@@ -1,5 +1,7 @@
 // Утилита для fetch с автоматическим добавлением Telegram initData
-const getInitData = () => window.Telegram?.WebApp?.initData || '';
+export const getTelegramInitData = () => window.Telegram?.WebApp?.initData || '';
+
+const getInitData = getTelegramInitData;
 
 export const apiFetch = (url, options = {}) => {
   const initData = getInitData();

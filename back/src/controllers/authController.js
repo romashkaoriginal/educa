@@ -11,7 +11,7 @@ exports.register = async (req, res) => {
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { email, password, firstName, lastName, role } = req.body;
+    const { email, password, firstName, lastName } = req.body;
 
     // Проверка существующего пользователя
     const existingUser = await User.findOne({ where: { email } });
@@ -28,7 +28,7 @@ exports.register = async (req, res) => {
       password: hashedPassword,
       firstName,
       lastName,
-      role: role || 'student'
+      role: 'student'
     });
 
     // Генерация JWT токена

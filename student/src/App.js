@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import './App.css';
 import kubikLogo from './assets/kubik-logo-transparent.png';
 import StudentApp from './pages/StudentApp';
+import GuestSubjectSelect from './pages/GuestSubjectSelect';
+import GuestExpired from './pages/GuestExpired';
+import AdminGuestPicker from './pages/AdminGuestPicker';
 
 import AdminPanel from './pages/AdminPanel';
 
@@ -14,6 +17,9 @@ function App() {
   const [authUser, setAuthUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isTelegramWebApp, setIsTelegramWebApp] = useState(false);
+  // Гостевой режим: null | 'select' (выбор предметов) | 'app' (Mini App гостя) | 'expired'
+  const [guestMode, setGuestMode] = useState(null);
+  const [guestState, setGuestState] = useState(null);
 
   useEffect(() => {
     const checkTelegramWebApp = () => {
@@ -86,10 +92,48 @@ function App() {
     // dashboard загружается в AdminPanel
   }, []);
 
+  // Определяем режим гостя по /api/guest/state (ТЗ §10).
+  const resolveGuestMode = async () => {
+    try {
+      const res = await apiFetch(`${API_URL}/guest/state`);
+      if (res.ok) {
+        const state = await res.json();
+        setGuestState(state);
+
+        if (state.isStudent) {
+          // На самом деле это ученик — обычный поток
+          setUserRole('student');
+          setSelectedRole('student');
+          setLoading(false);
+          return;
+        }
+        if (state.isGuest) {
+          if (state.expired || state.status === 'guest_expired') {
+            setGuestMode('expired');
+          } else if (!state.subjectsChosen) {
+            setGuestMode('select');
+          } else {
+            setGuestMode('app');
+          }
+          setUserRole('guest');
+          setLoading(false);
+          return;
+        }
+      }
+    } catch (error) {
+      console.error('Error resolving guest mode:', error);
+    }
+    // Фолбэк — старое поведение (на случай недоступности guest API)
+    setUserRole('student');
+    setSelectedRole('student');
+    setLoading(false);
+  };
+
   const checkUserRole = async (telegramId) => {
     try {
-      const response = await fetch(`${API_URL}/auth/telegram/${telegramId}`);
-      
+      // apiFetch добавляет x-telegram-init-data — роут /auth/telegram/:id защищён telegramAuth.
+      const response = await apiFetch(`${API_URL}/auth/telegram/${telegramId}`);
+
       if (response.ok) {
         const data = await response.json();
         const role = data.user?.role;
@@ -106,21 +150,21 @@ function App() {
               }
             })
             .catch(() => {});
-        } else {
+        } else if (role === 'student') {
           setUserRole('student');
           setSelectedRole('student');
           setLoading(false);
+        } else {
+          // Роль не определена — проверяем гостевой режим
+          await resolveGuestMode();
         }
       } else {
-        setUserRole('student');
-        setSelectedRole('student');
-        setLoading(false);
+        // Нет строки User по telegramId — гость (или новый пользователь)
+        await resolveGuestMode();
       }
     } catch (error) {
       console.error('Error checking user role:', error);
-      setUserRole('student');
-      setSelectedRole('student');
-      setLoading(false);
+      await resolveGuestMode();
     }
   };
 
@@ -163,6 +207,47 @@ function App() {
     );
   }
 
+  // ===== Гостевой режим (ТЗ §4, §5, §19) =====
+  if (userRole === 'guest') {
+    if (guestMode === 'expired') {
+      return <GuestExpired />;
+    }
+    if (guestMode === 'select') {
+      return (
+        <GuestSubjectSelect
+          onDone={() => {
+            setGuestState((prev) => (prev ? { ...prev, subjectsChosen: true } : prev));
+            setGuestMode('app');
+          }}
+        />
+      );
+    }
+    if (guestMode === 'app' && guestState?.userId) {
+      const guestUser = {
+        id: guestState.userId,
+        firstName: guestState.firstName || 'Гость',
+        lastName: '',
+        role: 'student',
+        isActive: true,
+      };
+      return (
+        <StudentApp
+          initialUser={guestUser}
+          isGuest
+          applicationSent={guestState.applicationSent}
+          onGuestExpired={() => setGuestMode('expired')}
+        />
+      );
+    }
+    // guestMode ещё не определён — показываем лоадер
+    return (
+      <div className="loading-screen">
+        <img src={kubikLogo} alt="" className="kubik-loading-logo" />
+        <div className="kubik-loader"><div className="kubik-loader-fill"></div></div>
+      </div>
+    );
+  }
+
   // Если НЕ выбрана роль
   if (!selectedRole) {
     // Автоматически переходим в раздел ученика для студентов
@@ -198,7 +283,7 @@ function App() {
             </button>
 
             {userRole && userRole !== 'student' && (
-              <button 
+              <button
                 className="role-button role-admin"
                 onClick={() => setSelectedRole('admin')}
               >
@@ -206,6 +291,19 @@ function App() {
                 <div className="role-info">
                   <h2>Администрирование</h2>
                   <p>Управление учениками и контентом</p>
+                </div>
+              </button>
+            )}
+
+            {userRole === 'admin' && (
+              <button
+                className="role-button role-student"
+                onClick={() => setSelectedRole('guest-admin')}
+              >
+                <div className="role-icon">🔍</div>
+                <div className="role-info">
+                  <h2>Гостевой режим (проверка)</h2>
+                  <p>Посмотреть приложение глазами гостя</p>
                 </div>
               </button>
             )}
@@ -219,6 +317,7 @@ function App() {
     <>
       {selectedRole === 'student' && <StudentApp initialUser={authUser?.role === 'student' ? authUser : null} />}
       {selectedRole === 'admin' && <AdminPanel />}
+      {selectedRole === 'guest-admin' && <AdminGuestPicker />}
     </>
   );
 }

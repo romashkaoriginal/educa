@@ -22,9 +22,12 @@ const botUsersRoutes = require('./routes/botUsers');
 const quizRoutes = require('./routes/quiz');
 const notifyRoutes = require('./routes/notify');
 const applicationRoutes = require('./routes/applications');
-const botTestRoutes = require('./routes/botTest');
+const guestRoutes = require('./routes/guest');
+const guestAdminRoutes = require('./routes/guestAdmin');
 const setupQuizSocket = require('./socket/quizSocket');
-const { telegramAuth, requireUser, requireAdmin, requireRole } = require('./middleware/telegramAuth');
+const { startGuestScheduler } = require('./services/guestScheduler');
+const { telegramAuth, requireUser, requireAdmin, requireRole, blockGuests } = require('./middleware/telegramAuth');
+const { telegramKey } = require('./middleware/rateLimitKeys');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -64,10 +67,66 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// Общий лимит на /api/ — ключуем ПО ПОЛЬЗОВАТЕЛЮ (Telegram ID), фолбэк IP.
+// Порог щедрый: активная практика (answer/dashboard/streak/leaderboard) влезает
+// с запасом, а флуд одного пользователя/IP режется.
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 200,
-  message: { message: 'Too many requests' },
+  max: 600,
+  keyGenerator: telegramKey,
+  message: { message: 'Слишком много запросов, попробуйте чуть позже' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Старт Mini App (состояние гостя, список предметов) — дёргается редко.
+const guestStateLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  keyGenerator: telegramKey,
+  message: { message: 'Слишком много запросов' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Выбор предметов гостем (только POST — GET /subjects/available лимитируется отдельно).
+const guestSubjectsLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  keyGenerator: telegramKey,
+  skip: (req) => req.method !== 'POST',
+  message: { message: 'Слишком много запросов' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Заявки — строгий анти-флуд лидов: и по пользователю, и по IP.
+const applicationUserLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  keyGenerator: telegramKey,
+  skip: (req) => req.method !== 'POST',
+  message: { message: 'Слишком много заявок. Попробуйте позже.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+const applicationIpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 15,
+  skip: (req) => req.method !== 'POST',
+  message: { message: 'Слишком много заявок. Попробуйте позже.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Запись результатов практики — высокий порог: живой ученик не превышает,
+// а скриптовый флуд режется. Только POST (чтение покрыто общим apiLimiter).
+const practiceWriteLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 240,
+  keyGenerator: telegramKey,
+  skip: (req) => req.method !== 'POST',
+  message: { message: 'Слишком много запросов' },
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -79,7 +138,8 @@ app.use(cors({
   origin: corsOrigins,
   credentials: true
 }));
-app.use(express.json());
+// Лимит размера тела — защита от memory-абьюза большими payload'ами.
+app.use(express.json({ limit: '64kb' }));
 
 // Кэширование статичных данных (предметы меняются редко)
 app.use('/api/subjects', (req, res, next) => {
@@ -95,16 +155,27 @@ app.use('/api/', apiLimiter);
 // Публичные эндпоинты (бот, проверка)
 app.use('/api/bot-users', botUsersRoutes);
 
-// Публичные роуты (для бота — без auth)
-app.use('/api/bot-test', botTestRoutes); // бот читает вопросы без авторизации
+// Список гостей для админа (вход «под гостем» для проверки) — только admin.
+// Монтируется ДО общего /api/guest, чтобы admin-guard сработал на этом сабпути.
+app.use('/api/guest/admin', telegramAuth, requireRole(['admin']), guestAdminRoutes);
 
-// Все авторизованные пользователи
+// Состояние гостя / список предметов — отдельный лимит по TG ID
+app.use('/api/guest/state', guestStateLimiter);
+app.use('/api/guest/subjects/available', guestStateLimiter);
+app.use('/api/guest/subjects', guestSubjectsLimiter);
+
+// Гостевой доступ — нужен только верифицированный initData (без requireUser)
+app.use('/api/guest', telegramAuth, guestRoutes);
+
+// Все авторизованные пользователи (гость пропускается requireUser, т.к. он User)
 app.use('/api/subjects', telegramAuth, requireUser, subjectRoutes);
-app.use('/api/quiz', telegramAuth, requireUser, quizRoutes);
+// Викторина закрыта для гостя (ТЗ §8)
+app.use('/api/quiz', telegramAuth, requireUser, blockGuests, quizRoutes);
 
-// Студенты + все роли (практика и домашка нужны и преподу)
-app.use('/api/practice', telegramAuth, requireUser, practiceRoutes);
-app.use('/api/homework', telegramAuth, requireUser, homeworkRoutes);
+// Практика доступна гостю (ТЗ §6). Домашка закрыта для гостя (ТЗ §7).
+// practiceWriteLimiter режет флуд POST-запросов (answer/session-summary).
+app.use('/api/practice', telegramAuth, requireUser, practiceWriteLimiter, practiceRoutes);
+app.use('/api/homework', telegramAuth, requireUser, blockGuests, homeworkRoutes);
 
 // Статистика — все роли (студент видит свою, админ/препод/менеджер — общую)
 app.use('/api/stats', telegramAuth, requireUser, statsRoutes);
@@ -119,8 +190,9 @@ app.use('/api/users', telegramAuth, requireRole(['admin', 'manager']), usersRout
 // admin + manager + teacher
 app.use('/api/notify', telegramAuth, requireRole(['admin', 'manager', 'teacher']), notifyRoutes);
 
-// Заявки — POST публичный (из бота), GET/PATCH/resend защищены внутри роута
-app.use('/api/applications', applicationRoutes);
+// Заявки — POST публичный (из бота), GET/PATCH/resend защищены внутри роута.
+// Анти-флуд лидов навешиваем только на создание (лимитеры пропускают не-POST).
+app.use('/api/applications', applicationIpLimiter, applicationUserLimiter, applicationRoutes);
 
 setupQuizSocket(io);
 
@@ -128,10 +200,9 @@ app.get('/', (req, res) => {
   res.json({ message: 'Educa Backend API + Telegram Bot + WebSocket' });
 });
 
-// Keepalive — не даём Railway засыпать
-const SELF_URL = process.env.RAILWAY_STATIC_URL
-  ? `https://${process.env.RAILWAY_STATIC_URL}`
-  : `http://localhost:${PORT}`;
+// Keepalive self-ping (на VPS не обязателен, оставлен как безвредный health-tick).
+// URL берём из PUBLIC_URL/SELF_URL, иначе локальный порт.
+const SELF_URL = process.env.PUBLIC_URL || process.env.SELF_URL || `http://localhost:${PORT}`;
 
 setInterval(() => {
   fetch(SELF_URL).catch(() => {});
@@ -145,6 +216,7 @@ const startServer = async () => {
     console.log(`🔌 WebSocket ready for quizzes`);
     console.log(`📦 Compression enabled`);
     startBot();
+    startGuestScheduler();
   });
 };
 

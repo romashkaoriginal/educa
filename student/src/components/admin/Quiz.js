@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { io } from 'socket.io-client';
 import '../../styles/Quiz.css';
-import { adminFetch } from './adminApi';
+import { adminFetch, getTelegramInitData } from './adminApi';
 
 import { API_URL, SOCKET_URL } from '../../config';
 import { useSectionRefresh } from './useSectionRefresh';
@@ -53,7 +53,9 @@ function Quiz({ subjects, currentUserId, dataRefreshKey = 0 }) {
   // Сокет подключается ТОЛЬКО когда есть код
   useEffect(() => {
     if (view === 'live' && activeQuiz && currentCode && !socket) {
-      const newSocket = io(SOCKET_URL);
+      const newSocket = io(SOCKET_URL, {
+        auth: { initData: getTelegramInitData() },
+      });
 
       newSocket.on('connect', () => {
         newSocket.emit('admin:join-quiz', { quizId: activeQuiz.id });

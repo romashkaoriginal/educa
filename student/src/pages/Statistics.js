@@ -231,7 +231,21 @@ function HomeworkStatsPanel({ homeworkStats, compact = false, subjectId = null }
   );
 }
 
-function Statistics({ studentId }) {
+// Заблокированный для гостя блок домашки в статистике (ТЗ §10):
+// контент заблюрен, поверх — замок, клик открывает модалку заявки.
+function GuestLockedBlock({ onLockedClick, children }) {
+  return (
+    <div className="sd-guest-locked" onClick={onLockedClick}>
+      <div className="sd-guest-locked-content">{children}</div>
+      <div className="sd-guest-locked-overlay">
+        <span className="sd-guest-locked-icon">🔒</span>
+        <span className="sd-guest-locked-text">Доступно только ученикам</span>
+      </div>
+    </div>
+  );
+}
+
+function Statistics({ studentId, isGuest = false, onLockedClick }) {
   const {
     subjects,
     subjectDashboard,
@@ -525,10 +539,10 @@ function Statistics({ studentId }) {
           </button>
           <button
             type="button"
-            className={`practice-tab ${mainTab === 'homework' ? 'active' : ''}`}
-            onClick={() => setMainTab('homework')}
+            className={`practice-tab ${mainTab === 'homework' ? 'active' : ''} ${isGuest ? 'practice-tab--locked' : ''}`}
+            onClick={() => (isGuest ? onLockedClick?.() : setMainTab('homework'))}
           >
-            <span className="practice-tab-icon">📝</span>
+            <span className="practice-tab-icon">📝{isGuest ? ' 🔒' : ''}</span>
             <span className="practice-tab-label">Домашка</span>
           </button>
         </div>
@@ -555,7 +569,7 @@ function Statistics({ studentId }) {
         </div>
       )}
 
-      {showStatsTabs && mainTab === 'homework' && (
+      {showStatsTabs && mainTab === 'homework' && !isGuest && (
         <HomeworkStatsPanel homeworkStats={homeworkStats} subjectId={selectedSubjectId} />
       )}
 
@@ -609,7 +623,17 @@ function Statistics({ studentId }) {
         </div>
       ) : activePracticeView && dashboard ? (
         <div className="sd-dashboard">
-          {showInlineHomework && (
+          {/* Гость: блок домашки всегда виден, но заблокирован (ТЗ §9, §10) */}
+          {isGuest && (
+            <>
+              <div className="sd-section-divider"><span>Домашка</span></div>
+              <GuestLockedBlock onLockedClick={onLockedClick}>
+                <HomeworkStatsPanel homeworkStats={homeworkStats} subjectId={selectedSubjectId} compact />
+              </GuestLockedBlock>
+              <div className="sd-section-divider"><span>Практика</span></div>
+            </>
+          )}
+          {!isGuest && showInlineHomework && (
             <>
               <div className="sd-section-divider"><span>Домашка</span></div>
               <HomeworkStatsPanel homeworkStats={homeworkStats} subjectId={selectedSubjectId} compact />

@@ -386,13 +386,13 @@
 .practice-info { flex: 1; min-width: 0; position: relative; z-index: 1; }
 .practice-info h2 {
   color: #ffffff;
-  font-size: 15px;
-  font-weight: 700;
+  font-size: 21px;
+  font-weight: 800;
   margin: 0 0 2px 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  letter-spacing: -0.2px;
+  letter-spacing: -0.02em;
 }
 .practice-info p { color: rgba(255,255,255,0.82); font-size: 12px; margin: 0; font-weight: 500; }
 
@@ -603,13 +603,13 @@
   font-weight: 700;
   color: var(--kubik-navy);
   margin: 0;
-  letter-spacing: -0.3px;
+  letter-spacing: normal;
   text-wrap: pretty;
 }
 
 /* ===== АДАПТИВНАЯ ПЛОТНОСТЬ: вопрос + варианты ужимаются вместе, чтобы всё влезло без скролла ===== */
 
-/* Размер текста вопроса */
+/* Размер текста вопроса. Объяснение ушло в модалку — вопрос можно держать крупным. */
 .question-density--sm .question-text { font-size: 15px; line-height: 1.35; }
 .question-density--md .question-text { font-size: 14px; line-height: 1.3; }
 .question-density--lg .question-text { font-size: 13px; line-height: 1.28; }
@@ -634,10 +634,10 @@
 .question-density--lg .answers-list { --answers-gap: 6px; gap: var(--answers-gap); }
 .question-density--xl .answers-list { --answers-gap: 5px; gap: var(--answers-gap); }
 
-.question-density--sm .answer-option { padding: 11px 13px; }
-.question-density--md .answer-option { padding: 9px 12px; }
-.question-density--lg .answer-option { padding: 8px 11px; }
-.question-density--xl .answer-option { padding: 7px 10px; }
+.question-density--sm .answer-option { padding: 9px 12px; }
+.question-density--md .answer-option { padding: 8px 11px; }
+.question-density--lg .answer-option { padding: 6px 10px; }
+.question-density--xl .answer-option { padding: 5px 9px; }
 
 /* Буква-маркер ужимается на плотных раскладках */
 .question-density--lg .answer-letter,
@@ -684,7 +684,7 @@
 }
 
 @keyframes questionCardIn {
-  from { opacity: 0; transform: translateY(10px) scale(0.985); }
+  from { opacity: 0; transform: translateY(14px) scale(0.97); }
   to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 
@@ -971,24 +971,7 @@
   cursor: pointer;
 }
 
-.hint-box {
-  background: var(--kubik-pink-soft);
-  border: 1.5px solid var(--kubik-pink);
-  border-radius: 11px;
-  padding: 10px 13px;
-  margin-bottom: 12px;
-  flex: 0 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-}
-
-.question-nav-row { flex-shrink: 0; }
-
-.hint-box--explanation {
-  background: var(--kubik-blue-soft);
-  border-color: var(--kubik-blue);
-}
+/* старый inline hint-box удалён — объяснение теперь в модалке (.explanation-modal) */
 
 .question-nav-row {
   display: flex;
@@ -997,6 +980,7 @@
   gap: 10px;
   margin-top: 12px;
   padding-top: 4px;
+  flex-shrink: 0;
 }
 
 .question-nav-btn {
@@ -1021,8 +1005,29 @@
 .question-nav-btn--forward {
   margin-left: auto;
 }
-.hint-title { font-weight: 700; color: var(--kubik-navy); margin-bottom: 4px; font-size: 13px; }
-.hint-text { color: var(--kubik-text); font-size: 13px; line-height: 1.5; }
+
+/* Основное действие после ответа — взять новый вопрос. Акцентная синяя кнопка. */
+.question-nav-btn--next {
+  margin-left: auto;
+  background: var(--kubik-blue);
+  border-color: var(--kubik-blue);
+  color: #fff;
+  box-shadow: 0 3px 0 0 #255d83, 0 4px 8px rgba(26, 64, 95, 0.18);
+  animation: nextBtnIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 0.12s;
+}
+.question-nav-btn--next:active {
+  background: var(--kubik-blue);
+  transform: translateY(3px);
+  box-shadow: 0 0 0 0 #255d83, 0 1px 3px rgba(26, 64, 95, 0.12);
+}
+
+@keyframes nextBtnIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.hint-title { font-weight: 700; color: var(--kubik-navy); margin-bottom: 4px; font-size: 12px; }
+.hint-text { color: var(--kubik-text); font-size: 12.5px; line-height: 1.4; }
 
 .explanation-box {
   background: var(--kubik-blue-soft);
@@ -1037,6 +1042,114 @@
 }
 .explanation-box .hint-text { font-size: 12.5px; line-height: 1.45; }
 .explanation-box .hint-title { font-size: 12.5px; margin-bottom: 3px; }
+
+/* ========== МОДАЛКА ОБЪЯСНЕНИЯ / ПОДСКАЗКИ ========== */
+/* Объяснение показывается поверх теста, поэтому вопрос и варианты не делят с ним
+   высоту и остаются крупными. Длина объяснения больше не влияет на вмещение. */
+.explanation-modal-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 22px;
+  background: rgba(15, 38, 60, 0.46);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  animation: explanationBackdropIn 0.22s ease both;
+}
+.explanation-modal-overlay.is-closing {
+  animation: explanationBackdropOut 0.22s ease both;
+}
+
+.explanation-modal {
+  width: 100%;
+  max-width: 380px;
+  max-height: 78%;
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  border: 1.5px solid var(--kubik-blue);
+  border-radius: 18px;
+  box-shadow: 0 18px 50px rgba(15, 38, 60, 0.32);
+  overflow: hidden;
+  transform-origin: center center;
+  animation: explanationModalIn 0.32s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.explanation-modal--hint { border-color: var(--kubik-pink); }
+.is-closing .explanation-modal {
+  animation: explanationModalOut 0.24s cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+.explanation-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 13px 14px 10px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--kubik-border);
+}
+.explanation-modal-title {
+  font-family: 'Manrope', sans-serif;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--kubik-navy);
+}
+.explanation-modal-close {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  border: none;
+  background: var(--kubik-blue-soft);
+  color: var(--kubik-navy);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+}
+.explanation-modal-close:active { transform: scale(0.92); }
+
+.explanation-modal-body {
+  padding: 13px 15px 16px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  color: var(--kubik-text);
+  font-size: 14px;
+  line-height: 1.55;
+  font-weight: 500;
+}
+
+@keyframes explanationBackdropIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes explanationBackdropOut {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+@keyframes explanationModalIn {
+  from { opacity: 0; transform: scale(0.82) translateY(10px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes explanationModalOut {
+  from { opacity: 1; transform: scale(1) translateY(0); }
+  to   { opacity: 0; transform: scale(0.86) translateY(8px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .explanation-modal-overlay,
+  .explanation-modal-overlay.is-closing,
+  .explanation-modal,
+  .is-closing .explanation-modal {
+    animation-duration: 0.01ms;
+  }
+}
 
 /* ========== РЕЗУЛЬТАТ ========== */
 .practice-result-body {

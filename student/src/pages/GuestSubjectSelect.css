@@ -1,0 +1,138 @@
+.guest-select {
+  min-height: 100vh;
+  background: linear-gradient(160deg, #f5f3ff, #eef2ff);
+  display: flex;
+  justify-content: center;
+  padding: 32px 18px calc(32px + env(safe-area-inset-bottom));
+  box-sizing: border-box;
+}
+
+.guest-select-container {
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.guest-select-logo {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+  margin-bottom: 12px;
+}
+
+.guest-select-title {
+  font-size: 24px;
+  font-weight: 800;
+  color: #1a1a2e;
+  margin: 0 0 8px;
+  text-align: center;
+}
+
+.guest-select-subtitle {
+  font-size: 14px;
+  color: #6b7280;
+  text-align: center;
+  margin: 0 0 22px;
+  line-height: 1.45;
+}
+
+.guest-select-empty {
+  font-size: 14px;
+  color: #9ca3af;
+  text-align: center;
+  margin: 20px 0;
+}
+
+.guest-select-grid {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.guest-subject-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 15px 16px;
+  background: #fff;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, transform 0.1s;
+  text-align: left;
+}
+
+.guest-subject-card:active {
+  transform: scale(0.99);
+}
+
+.guest-subject-card.active {
+  border-color: #6366f1;
+  background: linear-gradient(135deg, #eef2ff, #f5f3ff);
+}
+
+.guest-subject-icon {
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.guest-subject-name {
+  flex: 1;
+  font-size: 16px;
+  font-weight: 600;
+  color: #1a1a2e;
+}
+
+.guest-subject-check {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  font-weight: 700;
+  color: #6366f1;
+}
+
+.guest-select-error {
+  font-size: 14px;
+  color: #ef4444;
+  text-align: center;
+  margin: 0 0 14px;
+}
+
+.guest-select-continue {
+  width: 100%;
+  padding: 16px;
+  font-size: 17px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  border: none;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+}
+
+.guest-select-continue:active:not(:disabled) {
+  transform: scale(0.99);
+}
+
+.guest-select-continue:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.guest-select-loading {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  background: linear-gradient(160deg, #f5f3ff, #eef2ff);
+}

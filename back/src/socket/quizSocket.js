@@ -1,4 +1,5 @@
 const { Quiz, QuizQuestion, QuizParticipant, QuizAnswer, User } = require('../models');
+const { verifyTelegramInitData, isStaffRole } = require('../middleware/telegramAuth');
 
 const questionTimers = {};
 const activeStudentSockets = new Map();
@@ -11,11 +12,44 @@ function delay(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+function requireStaffSocket(socket) {
+  return socket.data.dbUser && isStaffRole(socket.data.dbUser.role);
+}
+
 function setupQuizSocket(io) {
+  io.use(async (socket, next) => {
+    try {
+      const initData = socket.handshake.auth?.initData
+        || socket.handshake.headers['x-telegram-init-data'];
+      if (!initData) return next(new Error('Unauthorized'));
+
+      const telegramUser = verifyTelegramInitData(initData);
+      if (!telegramUser) return next(new Error('Unauthorized'));
+
+      const dbUser = await User.findOne({
+        where: { telegramId: telegramUser.id },
+        attributes: ['id', 'role', 'isActive', 'isGuest']
+      });
+      if (!dbUser || !dbUser.isActive) return next(new Error('Unauthorized'));
+      if (dbUser.isGuest) return next(new Error('Forbidden'));
+
+      socket.data.dbUser = dbUser;
+      socket.data.telegramUser = telegramUser;
+      next();
+    } catch (error) {
+      console.error('Quiz socket auth error:', error);
+      next(new Error('Unauthorized'));
+    }
+  });
+
   io.on('connection', (socket) => {
-    console.log('🔌 Client connected:', socket.id);
+    console.log('🔌 Client connected:', socket.id, 'user', socket.data.dbUser?.id);
 
     socket.on('admin:join-quiz', async ({ quizId }) => {
+      if (!requireStaffSocket(socket)) {
+        socket.emit('error', { message: 'Access denied' });
+        return;
+      }
       socket.join(`quiz-${quizId}-admin`);
       socket.join(`quiz-${quizId}`);
       console.log(`👨‍💼 Admin joined quiz ${quizId}`);
@@ -24,8 +58,9 @@ function setupQuizSocket(io) {
       io.to(`quiz-${quizId}-admin`).emit('participants:updated', { participants });
     });
 
-    socket.on('student:join-quiz', async ({ quizId, userId, forceReconnect }) => {
+    socket.on('student:join-quiz', async ({ quizId, forceReconnect }) => {
       try {
+        const userId = socket.data.dbUser.id;
         const key = sessionKey(quizId, userId);
         const existingSocketId = activeStudentSockets.get(key);
 
@@ -49,7 +84,7 @@ function setupQuizSocket(io) {
 
         activeStudentSockets.set(key, socket.id);
         socket.join(`quiz-${quizId}`);
-        socket.data = { quizId, userId, role: 'student' };
+        socket.data = { ...socket.data, quizId, userId, role: 'student' };
 
         console.log(`👨‍🎓 Student ${userId} joined quiz ${quizId}`);
 
@@ -83,6 +118,10 @@ function setupQuizSocket(io) {
     });
 
     socket.on('admin:start-quiz', async ({ quizId }) => {
+      if (!requireStaffSocket(socket)) {
+        socket.emit('error', { message: 'Access denied' });
+        return;
+      }
       try {
         await Quiz.update(
           {
@@ -105,6 +144,10 @@ function setupQuizSocket(io) {
     });
 
     socket.on('admin:next-question', async ({ quizId }) => {
+      if (!requireStaffSocket(socket)) {
+        socket.emit('error', { message: 'Access denied' });
+        return;
+      }
       try {
         if (questionTimers[quizId]) {
           clearTimeout(questionTimers[quizId].main);
@@ -134,6 +177,10 @@ function setupQuizSocket(io) {
     });
 
     socket.on('admin:finish-quiz', async ({ quizId }) => {
+      if (!requireStaffSocket(socket)) {
+        socket.emit('error', { message: 'Access denied' });
+        return;
+      }
       try {
         if (questionTimers[quizId]) {
           clearTimeout(questionTimers[quizId].main);
@@ -146,8 +193,9 @@ function setupQuizSocket(io) {
       }
     });
 
-    socket.on('student:submit-answer', async ({ quizId, questionId, userId, selectedAnswer, responseTime }) => {
+    socket.on('student:submit-answer', async ({ quizId, questionId, selectedAnswer, responseTime }) => {
       try {
+        const userId = socket.data.dbUser.id;
         const existing = await QuizAnswer.findOne({ where: { questionId, userId } });
         if (existing) return;
 
@@ -199,7 +247,8 @@ function setupQuizSocket(io) {
       }
     });
 
-    socket.on('student:leave-quiz', ({ quizId, userId }) => {
+    socket.on('student:leave-quiz', ({ quizId }) => {
+      const userId = socket.data.dbUser.id;
       const key = sessionKey(quizId, userId);
       if (activeStudentSockets.get(key) === socket.id) {
         activeStudentSockets.delete(key);

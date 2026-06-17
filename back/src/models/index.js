@@ -27,7 +27,6 @@ const PracticeModeTotals = require('./PracticeModeTotals');
 const PracticeRecentError = require('./PracticeRecentError');
 const BotUser = require('./BotUser');
 const NotificationLog = require('./NotificationLog');
-const BotTest = require('./BotTest');
 const Application = require('./Application');
 
 // ========== СВЯЗИ С SUBJECTS ==========
@@ -40,10 +39,6 @@ Homework.belongsTo(Subject, { foreignKey: 'subjectId', as: 'subject' });
 
 Subject.hasMany(PracticeTopic, { foreignKey: 'subjectId', as: 'practiceTopics' });
 PracticeTopic.belongsTo(Subject, { foreignKey: 'subjectId', as: 'subject' });
-
-// ========== BOTTEST ↔ SUBJECT ==========
-BotTest.belongsTo(Subject, { foreignKey: 'subjectId', as: 'subject' });
-Subject.hasMany(BotTest, { foreignKey: 'subjectId', as: 'botTests' });
 
 // ========== СВЯЗИ BOTUSER ==========
 BotUser.belongsTo(User, { foreignKey: 'userId', as: 'assignedUser' });
@@ -175,6 +170,6 @@ module.exports = {
   PracticeBest, PracticeDailyLog, PracticeQuestionResult, PracticeScoreHistory,
   PracticeStudentTotals, PracticeDailyStats, PracticeTopicTotals,
   PracticeDifficultyTotals, PracticeModeTotals, PracticeRecentError,
-  NotificationLog, BotUser, BotTest, Application,
+  NotificationLog, BotUser, Application,
   syncDatabase
 };

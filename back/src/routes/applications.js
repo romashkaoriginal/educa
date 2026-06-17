@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { Application, Subject } = require('../models');
 const { sendToAmoCRM } = require('../services/amocrm');
+const { markGuestApplicationSent } = require('../services/guestAccess');
 const { telegramAuth, requireRole } = require('../middleware/telegramAuth');
 
 // Доступ к заявкам: admin + manager
@@ -13,25 +14,47 @@ router.post('/', async (req, res) => {
   try {
     const {
       fullName, phone, telegramId, telegramUsername,
-      subjectId, subjectName, testCorrect, testTotal, testAnswers
+      subjectId, subjectName, testCorrect, testTotal, testAnswers,
+      // Гостевые поля (ТЗ §13)
+      source, context, selectedSubjects, userStatus
     } = req.body;
 
     if (!fullName || !phone) {
       return res.status(400).json({ message: 'ФИО и телефон обязательны' });
     }
 
+    // Анти-абьюз тела: ограничиваем длины полей
+    const safeName = String(fullName).trim().slice(0, 100);
+    const safePhone = String(phone).trim().slice(0, 32);
+    if (safeName.length < 2) {
+      return res.status(400).json({ message: 'Введите имя.' });
+    }
+
     const testPercent = testTotal > 0 ? Math.round((testCorrect / testTotal) * 100) : 0;
+    const subjectsArr = (Array.isArray(selectedSubjects) ? selectedSubjects : [])
+      .slice(0, 3)
+      .map((s) => String(s).slice(0, 60));
 
     const application = await Application.create({
-      fullName, phone, telegramId, telegramUsername,
+      fullName: safeName, phone: safePhone, telegramId, telegramUsername,
       subjectId, subjectName,
       testCorrect: testCorrect || 0,
       testTotal: testTotal || 0,
       testPercent,
       testAnswers: testAnswers || [],
+      source: source || null,
+      context: context || null,
+      selectedSubjects: subjectsArr,
+      selectedSubjectsCount: subjectsArr.length,
+      userStatus: userStatus || null,
       status: 'new',
       crmStatus: 'pending'
     });
+
+    // Помечаем у гостя факт отправки заявки (ТЗ §15, §22)
+    if (telegramId) {
+      markGuestApplicationSent(telegramId).catch(() => {});
+    }
 
     // Пытаемся отправить в CRM сразу (фоново)
     sendToAmoCRM(application).then(async (result) => {

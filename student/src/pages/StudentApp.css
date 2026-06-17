@@ -181,11 +181,28 @@
 .nav-icon {
   font-size: 24px;
   transition: filter 0.3s ease;
+  position: relative;
 }
 
 .nav-text {
   font-weight: 600;
   font-size: 11px;
+}
+
+/* Закрытый раздел для гостя (Домашка, Викторина) — серая иконка с замком (ТЗ §7.1, §8.1) */
+.nav-button--locked .nav-icon,
+.nav-button--locked .nav-text {
+  filter: grayscale(1);
+  opacity: 0.5;
+}
+
+.nav-lock {
+  position: absolute;
+  top: -6px;
+  right: -10px;
+  font-size: 12px;
+  filter: none;
+  opacity: 1;
 }
 
 /* Section Styles */

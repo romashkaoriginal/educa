@@ -1,6 +1,6 @@
 const express = require('express');
 const multer = require('multer');
-const { requireRole } = require('../middleware/telegramAuth');
+const { requireRole, assertSelfOrStaff, assertBodyStudentId, assertQueryStudentIdOptional } = require('../middleware/telegramAuth');
 const isAdmin = requireRole(['admin', 'teacher']);
 const isStaff = requireRole(['admin', 'teacher', 'manager']);
 const router = express.Router();
@@ -47,7 +47,7 @@ router.delete('/questions/:questionId', isAdmin, practiceController.deleteQuesti
 // ========== СТУДЕНЧЕСКАЯ ЧАСТЬ ==========
 
 // Получить разделы для студента (с фильтром по его предметам)
-router.get('/student/:studentId', async (req, res) => {
+router.get('/student/:studentId', assertSelfOrStaff('studentId'), async (req, res) => {
   try {
     const { User, Subject, PracticeTopic, PracticeQuestion } = require('../models');
     const sequelize = require('../config/database');
@@ -115,35 +115,35 @@ router.get('/student/:studentId', async (req, res) => {
 // ========== ПОПЫТКИ И СТАТИСТИКА ==========
 
 // Сохранить попытку
-router.post('/attempts', practiceController.saveAttempt);
+router.post('/attempts', assertBodyStudentId, practiceController.saveAttempt);
 
 // Сохранить один ответ сразу после вопроса
-router.post('/answer', practiceController.savePracticeAnswer);
+router.post('/answer', assertBodyStudentId, practiceController.savePracticeAnswer);
 
 // Итог сессии (лучший результат по теме)
-router.post('/session-summary', practiceController.saveSessionSummary);
+router.post('/session-summary', assertBodyStudentId, practiceController.saveSessionSummary);
 
 // Получить статистику студента
-router.get('/stats/:studentId', practiceController.getStudentStats);
+router.get('/stats/:studentId', assertSelfOrStaff('studentId'), practiceController.getStudentStats);
 
 // Получить статистику по топику
-router.get('/topic-stats/:studentId/:topicId', practiceController.getTopicStats);
+router.get('/topic-stats/:studentId/:topicId', assertSelfOrStaff('studentId'), practiceController.getTopicStats);
 
 // Получить стрик (дней подряд)
-router.get('/streak/:studentId', practiceController.getStreak);
+router.get('/streak/:studentId', assertSelfOrStaff('studentId'), practiceController.getStreak);
 
 // Получить вопросы с ошибками
-router.get('/incorrect/:studentId/:topicId', practiceController.getIncorrectQuestions);
+router.get('/incorrect/:studentId/:topicId', assertSelfOrStaff('studentId'), practiceController.getIncorrectQuestions);
 
 // ========== ПРОГНОЗНЫЙ БАЛЛ, ЦЕЛИ, РЕЙТИНГ ==========
 
-router.get('/predicted/:studentId/:subjectId', practiceController.getPredictedScore);
-router.get('/predicted-all/:studentId', practiceController.getPredictedScoreAll);
-router.get('/daily-goal/:studentId', practiceController.getDailyGoal);
-router.get('/leaderboard/:subjectId', practiceController.getLeaderboard);
-router.get('/weak-topics/:studentId/:subjectId', practiceController.getWeakTopicsPractice);
-router.get('/dashboard/:studentId/:subjectId', practiceController.getSubjectDashboard);
-router.get('/score-history/:studentId/:subjectId', practiceController.getScoreHistory);
+router.get('/predicted/:studentId/:subjectId', assertSelfOrStaff('studentId'), practiceController.getPredictedScore);
+router.get('/predicted-all/:studentId', assertSelfOrStaff('studentId'), practiceController.getPredictedScoreAll);
+router.get('/daily-goal/:studentId', assertSelfOrStaff('studentId'), practiceController.getDailyGoal);
+router.get('/leaderboard/:subjectId', assertQueryStudentIdOptional, practiceController.getLeaderboard);
+router.get('/weak-topics/:studentId/:subjectId', assertSelfOrStaff('studentId'), practiceController.getWeakTopicsPractice);
+router.get('/dashboard/:studentId/:subjectId', assertSelfOrStaff('studentId'), practiceController.getSubjectDashboard);
+router.get('/score-history/:studentId/:subjectId', assertSelfOrStaff('studentId'), practiceController.getScoreHistory);
 router.get('/admin-predicted/:studentId', isStaff, practiceController.getAdminPredicted);
 
 module.exports = router;

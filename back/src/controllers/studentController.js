@@ -1,4 +1,11 @@
-const { User, Subject, UserSubject, HomeworkSubmission, HomeworkAnswer, PracticeAttempt, PracticeBest, PracticeDailyLog, BotUser, QuizAnswer, QuizParticipant } = require('../models');
+const {
+  User, Subject, UserSubject, HomeworkSubmission, HomeworkAnswer,
+  PracticeAttempt, PracticeBest, PracticeDailyLog, BotUser, QuizAnswer, QuizParticipant,
+  // Агрегатные таблицы практики — тоже ссылаются на studentId и блокируют удаление
+  PracticeQuestionResult, PracticeScoreHistory, PracticeStudentTotals, PracticeDailyStats,
+  PracticeTopicTotals, PracticeDifficultyTotals, PracticeModeTotals, PracticeRecentError,
+  sequelize
+} = require('../models');
 const { Op } = require('sequelize');
 const { getWebAppUrlSync } = require('../utils/webAppUrl');
 
@@ -39,7 +46,9 @@ function buildSubjectsText(subjects) {
 exports.getAllStudents = async (req, res) => {
   try {
     const students = await User.findAll({
-      where: { role: 'student' },
+      // Гости (isGuest=true) — это role='student', но в список учеников НЕ входят.
+      // [Op.not]: true ловит и false, и null (старые записи без колонки).
+      where: { role: 'student', isGuest: { [Op.not]: true } },
       include: [{
         model: Subject,
         as: 'subjects',
@@ -86,36 +95,56 @@ exports.createStudent = async (req, res) => {
     }
 
     // Проверка: студент уже существует?
+    // Если это ГОСТЬ — переносим (промоутим) его в ученика, сохраняя всю
+    // практику/статистику (она уже привязана к этому User.id) — ТЗ §24.
+    let student = null;
     if (telegramId) {
       const existingStudent = await User.findOne({ where: { telegramId } });
-      if (existingStudent) {
-        return res.status(400).json({ 
-          message: 'Student with this Telegram ID already exists' 
+      if (existingStudent && !existingStudent.isGuest) {
+        return res.status(400).json({
+          message: 'Student with this Telegram ID already exists'
         });
+      }
+      if (existingStudent && existingStudent.isGuest) {
+        // Промоутим гостя
+        await existingStudent.update({
+          firstName,
+          lastName: lastName || null,
+          telegramUsername: telegramUsername || existingStudent.telegramUsername,
+          role: 'student',
+          isActive: true,
+          isGuest: false,
+          guestStatus: 'converted_to_student'
+        });
+        student = existingStudent;
+        // Сбрасываем старые гостевые привязки предметов — назначим новые ниже
+        await UserSubject.destroy({ where: { userId: student.id } });
       }
     }
 
-    // Создаём студента (БЕЗ общих дат доступа)
-    const student = await User.create({
-      telegramId: telegramId || null,
-      telegramUsername: telegramUsername || null,
-      firstName,
-      lastName: lastName || null,
-      role: 'student',
-      isActive: true
-    });
+    // Создаём студента (если не было гостя для промоута)
+    if (!student) {
+      student = await User.create({
+        telegramId: telegramId || null,
+        telegramUsername: telegramUsername || null,
+        firstName,
+        lastName: lastName || null,
+        role: 'student',
+        isActive: true
+      });
+    }
 
     // Привязываем предметы с индивидуальными датами доступа
     if (subjectIds && subjectIds.length > 0) {
       for (const subjectId of subjectIds) {
         const subjectAccess = subjectAccessDates?.[subjectId] || {};
-        
+
         let startDate = subjectAccess.startDate || null;
         let endDate = subjectAccess.endDate || null;
-        
+
         if (startDate === '' || startDate === 'Invalid date') startDate = null;
         if (endDate === '' || endDate === 'Invalid date') endDate = null;
-        
+
         await UserSubject.create({
           userId: student.id,
           subjectId: subjectId,
@@ -437,43 +466,49 @@ exports.deleteStudent = async (req, res) => {
       return res.status(404).json({ message: 'Student not found' });
     }
 
-    // 1. Находим все submissions чтобы удалить их ответы
-    const submissions = await HomeworkSubmission.findAll({
-      where: { userId: studentId },
-      attributes: ['id']
+    // Всё удаление — в транзакции: либо снесли все связанные записи и пользователя,
+    // либо не трогаем ничего (иначе можно оставить «осиротевшего» ученика без данных).
+    await sequelize.transaction(async (t) => {
+      // 1. HomeworkAnswer → HomeworkSubmission
+      const submissions = await HomeworkSubmission.findAll({
+        where: { userId: studentId }, attributes: ['id'], transaction: t
+      });
+      const submissionIds = submissions.map(s => s.id);
+      if (submissionIds.length > 0) {
+        await HomeworkAnswer.destroy({ where: { submissionId: submissionIds }, transaction: t });
+      }
+      await HomeworkSubmission.destroy({ where: { userId: studentId }, transaction: t });
+
+      // 2. Все практические таблицы, ссылающиеся на studentId (включая агрегаты —
+      //    без них падает FK practice_question_results_studentId_fkey и т.д.)
+      const practiceModels = [
+        PracticeAttempt, PracticeBest, PracticeDailyLog,
+        PracticeQuestionResult, PracticeScoreHistory, PracticeStudentTotals,
+        PracticeDailyStats, PracticeTopicTotals, PracticeDifficultyTotals,
+        PracticeModeTotals, PracticeRecentError
+      ];
+      for (const Model of practiceModels) {
+        await Model.destroy({ where: { studentId }, transaction: t });
+      }
+
+      // 3. Викторины
+      await QuizAnswer.destroy({ where: { userId: studentId }, transaction: t });
+      await QuizParticipant.destroy({ where: { userId: studentId }, transaction: t });
+
+      // 4. Предметы
+      await UserSubject.destroy({ where: { userId: studentId }, transaction: t });
+
+      // 5. Снимаем привязку BotUser
+      const botUser = await BotUser.findOne({ where: { userId: studentId }, transaction: t });
+      if (botUser) {
+        botUser.isAssigned = false;
+        botUser.userId = null;
+        await botUser.save({ transaction: t });
+      }
+
+      // 6. Сам студент
+      await student.destroy({ transaction: t });
     });
-    const submissionIds = submissions.map(s => s.id);
-
-    // 2. Удаляем HomeworkAnswer
-    if (submissionIds.length > 0) {
-      await HomeworkAnswer.destroy({ where: { submissionId: submissionIds } });
-    }
-
-    // 3. Удаляем HomeworkSubmission
-    await HomeworkSubmission.destroy({ where: { userId: studentId } });
-
-    // 4. Удаляем PracticeAttempt, PracticeBest, PracticeDailyLog
-    await PracticeAttempt.destroy({ where: { studentId } });
-    await PracticeBest.destroy({ where: { studentId } });
-    await PracticeDailyLog.destroy({ where: { studentId } });
-
-    // 5. Удаляем QuizAnswer и QuizParticipant
-    await QuizAnswer.destroy({ where: { userId: studentId } });
-    await QuizParticipant.destroy({ where: { userId: studentId } });
-
-    // 6. Удаляем UserSubject
-    await UserSubject.destroy({ where: { userId: studentId } });
-
-    // 7. Снимаем привязку BotUser
-    const botUser = await BotUser.findOne({ where: { userId: studentId } });
-    if (botUser) {
-      botUser.isAssigned = false;
-      botUser.userId = null;
-      await botUser.save();
-    }
-
-    // 8. Удаляем студента
-    await student.destroy();
 
     res.json({ message: 'Student deleted successfully' });
   } catch (error) {

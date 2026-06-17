@@ -1,0 +1,87 @@
+.locked-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(15, 15, 30, 0.55);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  animation: locked-fade 0.18s ease;
+}
+
+@keyframes locked-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.locked-modal {
+  width: 100%;
+  max-width: 480px;
+  box-sizing: border-box;
+  background: #fff;
+  border-radius: 24px 24px 0 0;
+  padding: 28px 22px calc(28px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  animation: locked-slide 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes locked-slide {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.locked-modal-icon {
+  font-size: 40px;
+  margin-bottom: 2px;
+}
+
+.locked-modal-text {
+  font-size: 17px;
+  font-weight: 600;
+  color: #1a1a2e;
+  text-align: center;
+  margin: 0;
+}
+
+.locked-modal-question {
+  font-size: 15px;
+  color: #6b7280;
+  text-align: center;
+  margin: 0 0 6px;
+}
+
+.locked-modal-actions {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+  margin-top: 4px;
+}
+
+.locked-modal-btn {
+  flex: 1;
+  padding: 14px;
+  font-size: 16px;
+  font-weight: 600;
+  border-radius: 14px;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+}
+
+.locked-modal-btn:active {
+  transform: scale(0.98);
+}
+
+.locked-modal-btn--primary {
+  color: #fff;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+}
+
+.locked-modal-btn--ghost {
+  color: #6b7280;
+  background: #f3f4f6;
+}
