@@ -311,6 +311,27 @@ function startBot() {
     }
   });
 
+  // Контакт из Mini App (WebApp.requestContact) или reply-кнопки «Поделиться номером».
+  // Telegram присылает номер боту сервис-сообщением msg.contact. Сохраняем его в
+  // BotUser, чтобы Mini App мог подтянуть и подставить в форму заявки.
+  bot.on('contact', async (msg) => {
+    try {
+      const contact = msg.contact;
+      // Принимаем только собственный номер пользователя (не пересланный чужой контакт).
+      if (!contact || (contact.user_id && Number(contact.user_id) !== Number(msg.from.id))) return;
+      const phone = contact.phone_number;
+      if (!phone) return;
+      // Нормализуем: гарантируем ведущий «+».
+      const normalized = phone.startsWith('+') ? phone : `+${phone}`;
+      await BotUser.update(
+        { phone: normalized, phoneSharedAt: new Date() },
+        { where: { telegramId: msg.from.id } }
+      );
+    } catch (e) {
+      console.error('Ошибка сохранения контакта:', e.message);
+    }
+  });
+
   // Текстовые сообщения — сбор заявки в боте (ТЗ §17)
   bot.on('message', async (msg) => {
     if (msg.text && msg.text.startsWith('/')) return;

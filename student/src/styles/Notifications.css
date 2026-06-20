@@ -35,7 +35,7 @@
   cursor: pointer;
   border-bottom: 3px solid transparent;
   margin-bottom: -2px;
-  transition: all 0.2s;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out);
 }
 
 .notif-tab:hover { color: var(--kubik-blue); }
@@ -96,7 +96,7 @@
   font-size: 13px;
   font-weight: 500;
   color: var(--kubik-text);
-  transition: all 0.15s;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out);
   user-select: none;
 }
 
@@ -229,7 +229,7 @@
   font-weight: 700;
   font-size: 15px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out);
   box-shadow: 0 4px 12px rgba(26, 64, 95, 0.2);
   width: 100%;
 }
@@ -398,7 +398,7 @@
   font-weight: 700;
   font-size: 14px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out);
   box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
 }
 
@@ -431,7 +431,7 @@
   font-weight: 600;
   color: var(--kubik-text-soft);
   cursor: pointer;
-  transition: all 0.15s;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out);
 }
 
 .mode-btn:hover { border-color: var(--kubik-blue); color: #1d4ed8; }
@@ -450,7 +450,7 @@
   font-weight: 600;
   color: var(--kubik-text-soft);
   cursor: pointer;
-  transition: all 0.15s;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out);
 }
 
 .pick-student-btn:hover { border-color: var(--kubik-blue); color: #1d4ed8; background: var(--kubik-blue-soft); }
@@ -524,4 +524,20 @@
   padding: 2px 8px;
   border-radius: 6px;
   font-weight: 500;
+}
+
+/* ========== RESPONSIVE (phone tier) ========== */
+@media (max-width: 600px) {
+  .send-mode-switch {
+    flex-wrap: wrap;
+  }
+  .mode-btn {
+    flex: 1 1 calc(50% - 6px);
+    min-height: 40px;
+  }
+  .history-preview-text {
+    max-width: 100%;
+    white-space: normal;
+  }
+  .result-columns { gap: var(--sp-3); }
 }

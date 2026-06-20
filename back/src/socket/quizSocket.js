@@ -58,9 +58,25 @@ function setupQuizSocket(io) {
       io.to(`quiz-${quizId}-admin`).emit('participants:updated', { participants });
     });
 
-    socket.on('student:join-quiz', async ({ quizId, forceReconnect }) => {
+    socket.on('student:join-quiz', async ({ quizId, forceReconnect, studentId }) => {
       try {
-        const userId = socket.data.dbUser.id;
+        // Стафф может играть ОТ ИМЕНИ выбранного ученика (studentId).
+        // Обычный пользователь — всегда сам за себя.
+        const isStaff = isStaffRole(socket.data.dbUser.role);
+        let userId = socket.data.dbUser.id;
+        if (studentId && Number(studentId) !== Number(userId)) {
+          if (!isStaff) {
+            socket.emit('error', { code: 'NO_ACCESS', message: 'Access denied' });
+            return;
+          }
+          const student = await User.findByPk(studentId, { attributes: ['id', 'isActive'] });
+          if (!student || !student.isActive) {
+            socket.emit('error', { code: 'NO_ACCESS', message: 'Ученик не найден' });
+            return;
+          }
+          userId = Number(studentId);
+        }
+        socket.data.effectiveUserId = userId;
         const key = sessionKey(quizId, userId);
         const existingSocketId = activeStudentSockets.get(key);
 
@@ -98,6 +114,7 @@ function setupQuizSocket(io) {
           quiz: {
             id: quiz.id,
             title: quiz.title,
+            description: quiz.description,
             status: quiz.status,
             subject: quiz.subject,
             subjectId: quiz.subjectId,
@@ -195,7 +212,7 @@ function setupQuizSocket(io) {
 
     socket.on('student:submit-answer', async ({ quizId, questionId, selectedAnswer, responseTime }) => {
       try {
-        const userId = socket.data.dbUser.id;
+        const userId = socket.data.effectiveUserId || socket.data.dbUser.id;
         const existing = await QuizAnswer.findOne({ where: { questionId, userId } });
         if (existing) return;
 
@@ -248,7 +265,7 @@ function setupQuizSocket(io) {
     });
 
     socket.on('student:leave-quiz', ({ quizId }) => {
-      const userId = socket.data.dbUser.id;
+      const userId = socket.data.effectiveUserId || socket.data.dbUser.id;
       const key = sessionKey(quizId, userId);
       if (activeStudentSockets.get(key) === socket.id) {
         activeStudentSockets.delete(key);
@@ -295,6 +312,8 @@ async function sendQuestion(io, quizId, question, index) {
   });
 
   const mainTimer = setTimeout(async () => {
+    // Время вышло у всех одновременно. Помечаем конец вопроса (клиент гасит
+    // приём ответов), затем без промежуточных экранов сразу идём дальше.
     io.to(`quiz-${quizId}`).emit('quiz:question-ended', {
       questionId: question.id,
       correctAnswer: question.correctAnswer,
@@ -302,15 +321,8 @@ async function sendQuestion(io, quizId, question, index) {
       maxPoints: question.points
     });
 
-    await delay(4500);
-
-    const quizRow = await Quiz.findByPk(quizId);
-    if (quizRow?.showLeaderboardAfterQuestion !== false) {
-      const participants = await getParticipants(quizId);
-      const ranked = formatLeaderboard(participants);
-      io.to(`quiz-${quizId}`).emit('quiz:leaderboard', { participants: ranked });
-      await delay(3500);
-    }
+    // Короткая техническая пауза, чтобы клиент успел зафиксировать ответ.
+    await delay(400);
 
     const quiz = await Quiz.findByPk(quizId);
     if (!quiz || quiz.status !== 'active') return;
@@ -333,19 +345,6 @@ async function sendQuestion(io, quizId, question, index) {
   }, question.timeLimit * 1000);
 
   questionTimers[quizId] = { main: mainTimer };
-}
-
-function formatLeaderboard(participants) {
-  const sorted = [...participants].sort(
-    (a, b) => (parseFloat(b.totalScore) || 0) - (parseFloat(a.totalScore) || 0)
-  );
-  return sorted.map((p, i) => ({
-    rank: i + 1,
-    userId: p.userId,
-    firstName: p.user?.firstName || 'Ученик',
-    lastName: p.user?.lastName || '',
-    totalScore: parseFloat(p.totalScore) || 0
-  }));
 }
 
 async function getParticipants(quizId) {

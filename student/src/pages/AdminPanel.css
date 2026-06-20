@@ -1,19 +1,8 @@
 ﻿@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
+@import url('../styles/admin-system.css');
 
-:root {
-  --kubik-pink: #FFBEBD;
-  --kubik-pink-soft: #FFF1F0;
-  --kubik-white: #FCFCFA;
-  --kubik-blue: #337BAE;
-  --kubik-blue-soft: #EAF3FA;
-  --kubik-navy: #1A405F;
-  --kubik-border: #ECEAE5;
-  --kubik-text: #2A3744;
-  --kubik-text-soft: #8A95A1;
-  --good: #2E9E6B;
-  --medium: #D9943B;
-  --low: #D75A5A;
-}
+/* Tokens and shared primitives live in admin-system.css.
+   This file owns the panel shell: header, tab navigation, content. */
 
 .admin-panel {
   max-width: 1400px;
@@ -26,15 +15,16 @@
 
 /* ========== HEADER ========== */
 .admin-header {
-  background: linear-gradient(135deg, var(--kubik-navy) 0%, var(--kubik-blue) 100%);
-  padding: 20px 32px;
+  background: var(--brand-gradient);
+  padding: 16px var(--section-pad);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  box-shadow: 0 4px 20px rgba(26, 64, 95, 0.18);
+  gap: var(--sp-3);
+  box-shadow: var(--shadow-md);
   position: sticky;
   top: 0;
-  z-index: 100;
+  z-index: var(--z-sticky);
 }
 
 .admin-header-brand {
@@ -66,28 +56,38 @@
 /* ========== TABS NAVIGATION ========== */
 .admin-tabs {
   display: flex;
-  background: #ffffff;
-  padding: 16px 32px;
-  gap: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  background: var(--surface);
+  padding: 12px var(--section-pad);
+  gap: var(--sp-2);
+  box-shadow: var(--shadow-sm);
+  border-bottom: 1px solid var(--kubik-border);
   overflow-x: auto;
+  scrollbar-width: none;
+  position: sticky;
+  top: 0;
+  z-index: calc(var(--z-sticky) - 1);
+  scroll-snap-type: x proximity;
 }
 
+.admin-tabs::-webkit-scrollbar { display: none; }
+
 .admin-tab {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 12px 24px;
+  gap: var(--sp-2);
+  padding: 10px 18px;
   border: none;
   background: transparent;
-  border-radius: 12px;
+  border-radius: var(--r-md);
   cursor: pointer;
-  transition: all 0.3s ease;
-  font-family: 'Manrope', sans-serif;
-  font-size: 15px;
+  font-family: inherit;
+  font-size: 14px;
   color: var(--kubik-text-soft);
   font-weight: 600;
   white-space: nowrap;
+  scroll-snap-align: start;
+  transition: background var(--t-fast) var(--ease-out),
+              color var(--t-fast) var(--ease-out);
 }
 
 .admin-tab:hover {
@@ -95,14 +95,20 @@
   color: var(--kubik-navy);
 }
 
+.admin-tab:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
 .admin-tab.active {
-  background: linear-gradient(135deg, var(--kubik-navy) 0%, var(--kubik-blue) 100%);
-  color: #ffffff;
-  box-shadow: 0 4px 12px rgba(26, 64, 95, 0.2);
+  background: var(--brand-gradient);
+  color: #fff;
+  box-shadow: var(--shadow-sm);
 }
 
 .tab-icon {
-  font-size: 20px;
+  font-size: 18px;
+  line-height: 1;
 }
 
 .tab-name {
@@ -111,15 +117,7 @@
 
 /* ========== CONTENT ========== */
 .admin-content {
-  padding: 32px;
-}
-
-.admin-section {
-  background: #ffffff;
-  border-radius: 20px;
-  padding: 32px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
-  min-height: 400px;
+  padding: var(--section-pad);
 }
 
 .coming-soon {
@@ -129,14 +127,25 @@
   font-size: 16px;
 }
 
-/* ========== RESPONSIVE ========== */
-@media (max-width: 768px) {
-  .admin-content {
-    padding: 20px 16px;
+/* ========== RESPONSIVE SHELL ========== */
+@media (max-width: 600px) {
+  .admin-title {
+    font-size: 15px;
   }
-
-  .admin-section {
-    padding: 24px 20px;
+  /* On phone the tab bar becomes the primary nav — icon-forward,
+     label hidden to fit more tabs without horizontal hunting. */
+  .admin-tab {
+    flex-direction: column;
+    gap: 3px;
+    padding: 8px 12px;
+    min-width: 60px;
+  }
+  .tab-name {
+    font-size: 10px;
+    font-weight: 600;
+  }
+  .tab-icon {
+    font-size: 20px;
   }
 }
 /* Кнопка обновить — отдельный блок справа */

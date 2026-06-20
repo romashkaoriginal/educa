@@ -542,10 +542,15 @@
 .question-container {
   flex: 1;
   min-height: 0;
-  padding: 10px 16px 14px;
-  overflow: hidden;
+  /* Контент прижат к ВЕРХУ с небольшим отступом (читается сверху вниз).
+     Низ остаётся свободным — это нормально; главное, нет огромной дыры
+     сверху и нет ужимания текста. Длинные вопросы скроллятся. */
+  padding: 16px 16px 20px;
+  overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
+  justify-content: flex-start;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
   scrollbar-color: rgba(51, 123, 174, 0.45) rgba(26, 64, 95, 0.06);
@@ -578,8 +583,8 @@
   background: linear-gradient(135deg, #ffffff 0%, var(--kubik-blue-soft) 150%);
   border: 1.5px solid var(--kubik-border);
   border-radius: 14px;
-  padding: 10px 12px 10px 14px;
-  margin: 0 0 10px 0;
+  padding: 16px 18px;
+  margin: 0 0 14px 0;
   flex: 0 0 auto;
   overflow: hidden;
   animation: questionCardIn 0.4s var(--ease-out) both;
@@ -588,7 +593,7 @@
 .question-card-mark {
   position: absolute;
   top: -10px;
-  left: 6px;
+  left: 8px;
   font-size: 46px;
   font-weight: 800;
   line-height: 1;
@@ -604,84 +609,49 @@
   color: var(--kubik-navy);
   margin: 0;
   letter-spacing: normal;
-  text-wrap: pretty;
-}
-
-/* ===== АДАПТИВНАЯ ПЛОТНОСТЬ: вопрос + варианты ужимаются вместе, чтобы всё влезло без скролла ===== */
-
-/* Размер текста вопроса. Объяснение ушло в модалку — вопрос можно держать крупным. */
-.question-density--sm .question-text { font-size: 15px; line-height: 1.35; }
-.question-density--md .question-text { font-size: 14px; line-height: 1.3; }
-.question-density--lg .question-text { font-size: 13px; line-height: 1.28; }
-.question-density--xl .question-text { font-size: 12px; line-height: 1.26; }
-
-/* Отступы карточки вопроса */
-.question-density--sm .question-card { padding: 10px 12px 10px 14px; margin-bottom: 10px; }
-.question-density--md .question-card { padding: 9px 11px 9px 13px; margin-bottom: 8px; }
-.question-density--lg .question-card { padding: 8px 10px 8px 12px; margin-bottom: 7px; }
-.question-density--xl .question-card { padding: 7px 10px 7px 12px; margin-bottom: 6px; }
-
-/* Размер текста вариантов */
-.question-density--sm .answer-text { font-size: 14px; line-height: 1.35; }
-.question-density--md .answer-text { font-size: 13.5px; line-height: 1.3; }
-.question-density--lg .answer-text { font-size: 13px; line-height: 1.25; }
-.question-density--xl .answer-text { font-size: 12px; line-height: 1.22; }
-
-/* Паддинги и зазор вариантов. gap держим в переменной — её использует
-   анимация выезда (.dismissed), чтобы точно схлопнуть промежуток. */
-.question-density--sm .answers-list { --answers-gap: 9px; gap: var(--answers-gap); }
-.question-density--md .answers-list { --answers-gap: 7px; gap: var(--answers-gap); }
-.question-density--lg .answers-list { --answers-gap: 6px; gap: var(--answers-gap); }
-.question-density--xl .answers-list { --answers-gap: 5px; gap: var(--answers-gap); }
-
-.question-density--sm .answer-option { padding: 9px 12px; }
-.question-density--md .answer-option { padding: 8px 11px; }
-.question-density--lg .answer-option { padding: 6px 10px; }
-.question-density--xl .answer-option { padding: 5px 9px; }
-
-/* Буква-маркер ужимается на плотных раскладках */
-.question-density--lg .answer-letter,
-.question-density--xl .answer-letter {
-  width: 22px;
-  height: 22px;
-  font-size: 11px;
-}
-
-/* Плашка результата ужимается на плотных раскладках */
-.question-density--lg .answer-result-box,
-.question-density--xl .answer-result-box {
-  padding: 9px 14px;
-  margin-top: 10px;
-  gap: 11px;
-}
-.question-density--lg .result-medal,
-.question-density--xl .result-medal {
-  width: 32px;
-  height: 32px;
-}
-.question-density--lg .result-medal-glyph,
-.question-density--xl .result-medal-glyph {
-  font-size: 17px;
-}
-.question-density--lg .result-text,
-.question-density--xl .result-text {
+  /* normal-перенос: текст заполняет строку до конца и переносится только
+     когда реально не влезает (balance/pretty оставляли дыру справа). */
+  text-wrap: normal;
+  word-break: normal;
+  overflow-wrap: break-word;
+  text-align: left;
+  /* Единый размер текста вопроса = размер вариантов (14px) для всех тестов. */
   font-size: 14px;
-}
-.question-density--lg .result-sub,
-.question-density--xl .result-sub {
-  font-size: 11px;
+  line-height: 1.4;
 }
 
-/* Nav-кнопки ужимаются */
-.question-density--lg .question-nav-row,
-.question-density--xl .question-nav-row {
-  margin-top: 8px;
-}
-.question-density--lg .question-nav-btn,
-.question-density--xl .question-nav-btn {
-  padding: 8px 12px;
-  font-size: 12px;
-}
+/* ВОПРОС — единый вид для всех density-классов. Размер совпадает с вариантами. */
+.question-density--sm .question-text,
+.question-density--md .question-text,
+.question-density--lg .question-text,
+.question-density--xl .question-text { font-size: 14px; line-height: 1.4; }
+
+.question-density--sm .question-card,
+.question-density--md .question-card,
+.question-density--lg .question-card,
+.question-density--xl .question-card { padding: 11px 13px; margin-bottom: 10px; }
+
+/* ВАРИАНТЫ ОТВЕТОВ — единый вид для ВСЕХ тестов независимо от density.
+   (Раньше density-классы ужимали текст 14→12px, gap 9→5px, padding 9→5px,
+   из-за чего варианты сливались и размер «прыгал» между вопросами.)
+   Контент теперь скроллится (--app-height), поэтому ужимать не нужно. */
+.question-density--sm .answer-text,
+.question-density--md .answer-text,
+.question-density--lg .answer-text,
+.question-density--xl .answer-text { font-size: 14px; line-height: 1.35; }
+
+.question-density--sm .answers-list,
+.question-density--md .answers-list,
+.question-density--lg .answers-list,
+.question-density--xl .answers-list { --answers-gap: 10px; gap: var(--answers-gap); }
+
+.question-density--sm .answer-option,
+.question-density--md .answer-option,
+.question-density--lg .answer-option,
+.question-density--xl .answer-option { padding: 11px 13px; }
+
+/* Плашка результата и кнопки навигации — единый размер для всех тестов
+   (density-ужимание убрано, чтобы ничего не «прыгало» между вопросами). */
 
 @keyframes questionCardIn {
   from { opacity: 0; transform: translateY(14px) scale(0.97); }
@@ -743,12 +713,23 @@
 
 .answer-option.selected { border-color: var(--kubik-blue); background: var(--kubik-blue-soft); }
 .answer-option.correct {
-  border-color: var(--good);
-  background: #E3F5EC;
+  border-color: #2EB872;
+  background: linear-gradient(135deg, #E8FAF1 0%, #D4F2E3 100%);
   pointer-events: none;
-  animation: answerCorrectPulse 0.9s var(--ease-out) 0.05s 2;
+  box-shadow: 0 0 0 2px rgba(46, 184, 114, 0.18), 0 4px 14px rgba(46, 184, 114, 0.14);
+  animation: answerCorrectReveal 0.55s var(--ease-spring) both;
 }
-.answer-option.wrong { border-color: var(--low); background: #FBE8E8; pointer-events: none; }
+.answer-option.wrong {
+  border-color: #E86B6B;
+  background: linear-gradient(135deg, #FFF0F0 0%, #FBE0E0 100%);
+  pointer-events: none;
+  box-shadow: 0 0 0 2px rgba(232, 107, 107, 0.16), 0 4px 14px rgba(232, 107, 107, 0.12);
+  animation: answerWrongReveal 0.45s var(--ease-out) both;
+}
+.answer-option.muted {
+  opacity: 0.46;
+  filter: saturate(0.65);
+}
 .answer-option.is-locked {
   cursor: default;
   pointer-events: none;
@@ -799,11 +780,66 @@
   }
 }
 
-/* Пульс-подсветка правильного варианта — взгляд сам притягивается */
-@keyframes answerCorrectPulse {
-  0%   { box-shadow: 0 0 0 0 rgba(46, 158, 107, 0); }
-  35%  { box-shadow: 0 0 0 4px rgba(46, 158, 107, 0.28); }
-  100% { box-shadow: 0 0 0 0 rgba(46, 158, 107, 0); }
+/* Пульс-подсветка правильного варианта */
+@keyframes answerCorrectReveal {
+  0%   { transform: scale(0.98); box-shadow: 0 0 0 0 rgba(46, 184, 114, 0); }
+  55%  { transform: scale(1.01); box-shadow: 0 0 0 5px rgba(46, 184, 114, 0.22), 0 4px 14px rgba(46, 184, 114, 0.14); }
+  100% { transform: scale(1); box-shadow: 0 0 0 2px rgba(46, 184, 114, 0.18), 0 4px 14px rgba(46, 184, 114, 0.14); }
+}
+@keyframes answerWrongReveal {
+  0%   { transform: translateX(0); }
+  18%  { transform: translateX(-4px); }
+  36%  { transform: translateX(4px); }
+  54%  { transform: translateX(-3px); }
+  72%  { transform: translateX(2px); }
+  100% { transform: translateX(0); }
+}
+
+.answer-verdict {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px 4px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  animation: verdictPop 0.4s var(--ease-spring) 0.08s both;
+}
+.answer-verdict--correct {
+  color: #157A47;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(46, 184, 114, 0.35);
+}
+.answer-verdict--wrong {
+  color: #B83A3A;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(232, 107, 107, 0.35);
+}
+.answer-verdict-icon {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+}
+.answer-verdict--correct .answer-verdict-icon {
+  background: #2EB872;
+  color: #fff;
+}
+.answer-verdict--wrong .answer-verdict-icon {
+  background: #E86B6B;
+  color: #fff;
+}
+@keyframes verdictPop {
+  from { opacity: 0; transform: scale(0.7); }
+  to   { opacity: 1; transform: scale(1); }
 }
 
 .answer-letter {
@@ -829,118 +865,16 @@
   color: var(--kubik-text-soft);
 }
 
-.answer-text { flex: 1; color: var(--kubik-text); line-height: 1.35; font-weight: 500; }
-.answer-icon { font-size: 18px; font-weight: 700; flex-shrink: 0; }
+.answer-text { flex: 1; color: var(--kubik-text); line-height: 1.35; font-weight: 500; min-width: 0; }
 .correct-icon { color: var(--good); }
 .wrong-icon { color: var(--low); }
 
-/* Результат ответа — яркая плашка-итог, визуально не похожа на варианты */
-.answer-result-box {
-  position: relative;
-  border-radius: 16px;
-  padding: 11px 15px;
-  margin-top: 11px;
-  display: flex;
-  align-items: center;
-  gap: 13px;
-  flex-shrink: 0;
-  overflow: hidden;
-  color: #fff;
-  border: none;
-  animation: resultBannerIn 0.5s var(--ease-spring) both;
-}
-
-/* Светящийся блик в углу */
-.answer-result-box::after {
-  content: '';
-  position: absolute;
-  top: -40px;
-  right: -20px;
-  width: 120px;
-  height: 120px;
-  background: radial-gradient(circle, rgba(255,255,255,0.28) 0%, transparent 70%);
-  pointer-events: none;
-}
-
-.answer-result-box.correct-result {
-  background: linear-gradient(135deg, #2EB872 0%, #1C8F57 100%);
-  box-shadow: 0 8px 22px rgba(28, 143, 87, 0.32);
-}
-.answer-result-box.wrong-result {
-  background: linear-gradient(135deg, #E86B6B 0%, #C44545 100%);
-  box-shadow: 0 8px 22px rgba(196, 69, 69, 0.30);
-}
-
-/* Круглый медальон с галочкой/крестиком */
-.result-medal {
-  position: relative;
-  z-index: 1;
-  flex-shrink: 0;
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.22);
-  border: 2px solid rgba(255, 255, 255, 0.45);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  animation: resultMedalPop 0.55s var(--ease-spring) 0.1s both;
-}
-
-.result-medal-glyph {
-  font-size: 20px;
-  font-weight: 900;
-  line-height: 1;
-  color: #fff;
-}
-
-/* Пульсирующее кольцо вокруг медальона */
-.result-medal::before {
-  content: '';
-  position: absolute;
-  inset: -2px;
-  border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.6);
-  animation: resultMedalRing 0.7s ease-out 0.15s both;
-}
-
-.result-body {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-}
-
-.result-text {
-  font-size: 16px;
-  font-weight: 800;
-  letter-spacing: -0.3px;
-  line-height: 1.15;
-}
-
-.result-sub {
-  font-size: 12px;
-  font-weight: 500;
-  color: rgba(255, 255, 255, 0.85);
-  line-height: 1.2;
-}
-
-@keyframes resultBannerIn {
-  from { opacity: 0; transform: translateY(14px) scale(0.96); }
-  to   { opacity: 1; transform: translateY(0) scale(1); }
-}
-
-@keyframes resultMedalPop {
-  0%   { transform: scale(0) rotate(-20deg); }
-  60%  { transform: scale(1.18) rotate(6deg); }
-  100% { transform: scale(1) rotate(0deg); }
-}
-
-@keyframes resultMedalRing {
-  0%   { opacity: 0.8; transform: scale(1); }
-  100% { opacity: 0; transform: scale(1.55); }
+@media (prefers-reduced-motion: reduce) {
+  .answer-option.correct,
+  .answer-option.wrong,
+  .answer-verdict {
+    animation: none;
+  }
 }
 
 @keyframes slideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
@@ -1543,6 +1477,61 @@
   margin: 4px 0 8px;
   flex: 1;
   align-items: center;
+  position: relative;
+}
+
+/* Кольцо кликабельно, когда балл недоступен — по тапу всплывает подсказка */
+.predicted-score-ring.is-tappable {
+  cursor: pointer;
+}
+.predicted-score-ring.is-tappable:active {
+  transform: scale(0.97);
+}
+
+/* Маленький «?» под процентом на заблокированном кольце */
+.predicted-score-ring-q {
+  display: block;
+  margin-top: 1px;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--kubik-blue);
+  opacity: 0.8;
+}
+
+/* Всплывающая подсказка над кольцом */
+.predicted-hint-tooltip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 260px;
+  background: var(--kubik-navy, #1a405f);
+  color: #fff;
+  font-size: 12.5px;
+  line-height: 1.4;
+  padding: 10px 13px;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(26, 64, 95, 0.28);
+  z-index: 50;
+  text-align: center;
+  animation: predictedHintIn 0.16s ease;
+}
+.predicted-hint-tooltip strong { font-weight: 800; }
+.predicted-hint-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: var(--kubik-navy, #1a405f);
+}
+
+@keyframes predictedHintIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(4px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 
 .predicted-score-ring {
@@ -2258,14 +2247,21 @@
 }
 
 .hero-goal-col {
+  /* Колонка по высоте = только кольцо (44px), а подпись «N из M» парит
+     над кольцом абсолютно. Тогда кольцо цели и огонёк (оба 44px) стоят
+     на ОДНОЙ линии в hero-ряду (align-items: center). */
+  position: relative;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 4px;
+  justify-content: center;
   flex-shrink: 0;
 }
 
 .hero-goal-caption {
+  position: absolute;
+  bottom: calc(100% + 2px);
+  left: 50%;
+  transform: translateX(-50%);
   font-size: 10px;
   font-weight: 700;
   color: rgba(255, 255, 255, 0.9);

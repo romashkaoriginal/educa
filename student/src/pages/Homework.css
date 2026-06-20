@@ -85,6 +85,94 @@
   gap: 16px;
 }
 
+/* Кликабельная шапка-тоггл (сброс кнопочных стилей) */
+.hw-card-toggle {
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: stretch;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.hw-card-toggle:active {
+  opacity: 0.92;
+}
+
+.hw-card-top-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.hw-card-chevron {
+  font-size: 14px;
+  color: var(--kubik-text-soft);
+  transition: transform 0.22s cubic-bezier(0.22, 0.9, 0.3, 1);
+}
+.homework-card.is-expanded .hw-card-chevron {
+  transform: rotate(180deg);
+}
+
+/* Свёрнутая карточка — компактнее */
+.homework-card.is-collapsed {
+  gap: 12px;
+  padding: 16px 18px;
+}
+
+/* Компактная сводка в свёрнутом виде — часть кликабельной зоны тоггла */
+.hw-card-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  pointer-events: none;
+}
+
+.hw-summary-chip {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--kubik-blue-soft);
+  color: var(--kubik-navy);
+}
+.hw-summary-chip--score {
+  background: rgba(34, 160, 107, 0.12);
+  color: #15803d;
+}
+.hw-summary-chip--urgent {
+  background: rgba(215, 90, 90, 0.12);
+  color: #b91c1c;
+}
+.hw-summary-chip--warning {
+  background: rgba(217, 148, 59, 0.14);
+  color: #b45309;
+}
+.hw-summary-chip--ok {
+  background: var(--kubik-blue-soft);
+  color: var(--kubik-blue);
+}
+
+/* Раскрываемое тело */
+.hw-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  animation: hwBodyIn 0.28s ease-out;
+}
+@keyframes hwBodyIn {
+  0%   { opacity: 0; transform: translateY(-6px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
 .hw-card-heading {
   min-width: 0;
   flex: 1;

@@ -5,7 +5,7 @@ NEW_PASSWORD="${1:?Usage: bash rotate-db-password.sh NEW_PASSWORD}"
 
 cd /opt/educa
 
-# Убрать Supabase — DATABASE_URL задаёт docker-compose.yml
+# DATABASE_URL задаёт docker-compose.yml (локальный Postgres на VPS) — чистим из .env.production
 sed -i '/^DATABASE_URL=/d' /opt/educa/back/.env.production
 sed -i '/^DATABASE_SSL=/d' /opt/educa/back/.env.production
 

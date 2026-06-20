@@ -49,7 +49,7 @@
   font-weight: 700;
   font-size: 15px;
   cursor: pointer;
-  transition: all 0.3s;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out);
   box-shadow: 0 4px 12px rgba(26, 64, 95, 0.2);
 }
 
@@ -68,7 +68,7 @@
   border-radius: 8px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out);
 }
 
 .back-btn:hover {
@@ -84,7 +84,7 @@
   border-radius: 8px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.3s;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out);
 }
 
 .delete-btn:hover {
@@ -124,7 +124,7 @@
   border: 2px solid var(--kubik-border);
   border-radius: 16px;
   padding: 20px;
-  transition: all 0.3s;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out);
   position: relative;
 }
 
@@ -259,7 +259,7 @@
   border-radius: 10px;
   font-size: 14px;
   margin-bottom: 16px;
-  transition: all 0.2s;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out);
 }
 
 .form-input:focus,
@@ -273,85 +273,6 @@
 .form-textarea {
   min-height: 80px;
   resize: vertical;
-}
-
-/* ========== НАСТРОЙКИ ВИКТОРИНЫ (чекбоксы) ========== */
-.quiz-settings-block {
-  margin-bottom: 24px;
-  padding: 18px;
-  background: var(--kubik-blue-soft);
-  border: 1px solid var(--kubik-border);
-  border-radius: 14px;
-}
-
-.quiz-settings-block h3 {
-  margin: 0 0 14px;
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--kubik-navy);
-}
-
-.quiz-setting-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 12px 14px;
-  margin-bottom: 8px;
-  background: white;
-  border: 1px solid var(--kubik-border);
-  border-radius: 12px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  line-height: 1.45;
-  color: var(--kubik-navy);
-  transition: border-color 0.15s, box-shadow 0.15s;
-}
-
-.quiz-setting-row:last-child {
-  margin-bottom: 0;
-}
-
-.quiz-setting-row:hover {
-  border-color: rgba(51, 123, 174, 0.45);
-  box-shadow: 0 4px 12px rgba(51, 123, 174, 0.08);
-}
-
-.quiz-setting-row input[type="checkbox"] {
-  appearance: none;
-  -webkit-appearance: none;
-  width: 22px;
-  height: 22px;
-  min-width: 22px;
-  margin-top: 1px;
-  border: 2px solid var(--kubik-blue);
-  border-radius: 6px;
-  background: white;
-  cursor: pointer;
-  position: relative;
-  transition: background 0.15s, border-color 0.15s;
-}
-
-.quiz-setting-row input[type="checkbox"]:checked {
-  background: linear-gradient(135deg, var(--kubik-navy) 0%, var(--kubik-blue) 100%);
-  border-color: var(--kubik-navy);
-}
-
-.quiz-setting-row input[type="checkbox"]:checked::after {
-  content: '';
-  position: absolute;
-  left: 6px;
-  top: 2px;
-  width: 5px;
-  height: 10px;
-  border: solid white;
-  border-width: 0 2px 2px 0;
-  transform: rotate(45deg);
-}
-
-.quiz-setting-row input[type="checkbox"]:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(51, 123, 174, 0.25);
 }
 
 /* ========== ВОПРОСЫ ========== */
@@ -416,7 +337,7 @@
   border-radius: 50%;
   font-weight: 700;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out);
 }
 
 .remove-btn:hover {
@@ -484,7 +405,7 @@
   font-weight: 700;
   cursor: pointer;
   margin-top: 16px;
-  transition: all 0.3s;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out);
   box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
 }
 
@@ -698,7 +619,7 @@
   border-radius: 10px;
   font-weight: 700;
   cursor: pointer;
-  transition: all 0.3s;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out);
 }
 
 .next-button:hover {
@@ -714,7 +635,7 @@
   border-radius: 10px;
   font-weight: 700;
   cursor: pointer;
-  transition: all 0.3s;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out);
 }
 
 .finish-button:hover {
@@ -817,7 +738,7 @@
   padding: 12px;
   border-radius: 8px;
   margin-bottom: 8px;
-  transition: all 0.2s;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out);
 }
 
 .leader-item:hover {
@@ -1001,7 +922,7 @@
   border: 2px solid var(--kubik-border);
   border-radius: 12px;
   padding: 16px;
-  transition: all 0.2s;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out);
 }
 
 .question-stat-card:hover {
@@ -1076,7 +997,7 @@
   display: flex;
   align-items: center;
   gap: 16px;
-  transition: all 0.2s;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out);
 }
 
 .result-participant:hover {
@@ -1162,7 +1083,7 @@
   align-items: center;
   gap: 12px;
   background: var(--kubik-white);
-  transition: all 0.2s;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out);
   user-select: none;
 }
 
@@ -1195,7 +1116,7 @@
   padding: 12px;
   border-radius: 8px;
   margin-bottom: 12px;
-  border-left: 4px solid;
+  border: 1px solid var(--kubik-border);
 }
 
 .answer-item.correct {
@@ -1272,7 +1193,7 @@
   border-radius: 8px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.3s;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out);
 }
 
 .view-results-btn:hover {
@@ -1331,7 +1252,7 @@
   border: none;
   border-radius: 12px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out);
 }
 
 .generate-code-btn:hover, .regenerate-btn:hover {
@@ -1389,7 +1310,7 @@
   border: none;
   border-radius: 12px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out);
 }
 
 .generate-code-btn:hover, .regenerate-btn:hover {
@@ -1446,7 +1367,7 @@
   border: none;
   border-radius: 12px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out);
 }
 .generate-code-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(30,64,175,0.3); }
 .generate-code-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
@@ -1459,7 +1380,7 @@
   border: 2px solid var(--kubik-blue);
   border-radius: 10px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out);
 }
 .regenerate-btn:hover { background: var(--kubik-blue-soft); }
 .regenerate-btn:disabled { opacity: 0.6; cursor: not-allowed; }
@@ -1494,7 +1415,7 @@
   border: none;
   border-radius: 12px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out);
 }
 
 .generate-code-btn:hover, .regenerate-btn:hover {
@@ -1551,7 +1472,7 @@
   border: none;
   border-radius: 12px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out);
 }
 .generate-code-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(30,64,175,0.3); }
 .generate-code-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
@@ -1564,7 +1485,7 @@
   border: 2px solid var(--kubik-blue);
   border-radius: 10px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out);
 }
 .regenerate-btn:hover { background: var(--kubik-blue-soft); }
 .regenerate-btn:disabled { opacity: 0.6; cursor: not-allowed; }
@@ -1606,4 +1527,25 @@
   font-size: 14px;
   color: var(--kubik-text-soft);
   font-weight: 500;
+}
+
+/* ========== RESPONSIVE (phone tier) ========== */
+@media (max-width: 600px) {
+  .header-actions {
+    width: 100%;
+  }
+  .header-actions > * {
+    flex: 1 1 auto;
+  }
+  .breadcrumbs {
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+  /* Live lobby: code and controls go full width and tappable */
+  .live-side > * {
+    width: 100%;
+  }
+  .answer-item {
+    padding: 10px 12px;
+  }
 }

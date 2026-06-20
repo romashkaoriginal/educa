@@ -13,12 +13,19 @@ function GuestSubjectSelect({ onDone }) {
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
+  const ALLOWED_SUBJECTS = ['математ', 'англ', 'русск', 'физик'];
+
   useEffect(() => {
     const load = async () => {
       try {
         const res = await apiFetch(`${API_URL}/guest/subjects/available`);
         const data = await res.json();
-        setSubjects(data.subjects || []);
+        const all = data.subjects || [];
+        const filtered = all.filter((s) => {
+          const name = (s.name || '').toLowerCase();
+          return ALLOWED_SUBJECTS.some((kw) => name.includes(kw));
+        });
+        setSubjects(filtered);
       } catch (e) {
         console.error('Error loading guest subjects:', e);
       } finally {
@@ -26,7 +33,7 @@ function GuestSubjectSelect({ onDone }) {
       }
     };
     load();
-  }, []);
+  }, []); // eslint-disable-line
 
   const toggle = (id) => {
     setError('');

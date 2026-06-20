@@ -37,7 +37,9 @@ const Homework = sequelize.define('Homework', {
   },
   createdBy: {
     type: DataTypes.INTEGER,
-    allowNull: false,
+    // nullable: при удалении автора-сотрудника домашка остаётся «без автора»
+    // (createdBy=NULL), а не удаляется вместе с ним.
+    allowNull: true,
     references: {
       model: 'users',
       key: 'id'

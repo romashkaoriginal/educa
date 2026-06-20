@@ -18,7 +18,7 @@
   border: 2px solid var(--kubik-border);
   border-radius: 10px;
   font-size: 14px;
-  transition: all 0.2s;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out);
 }
 
 .search-input:focus {
@@ -41,7 +41,7 @@
   border: 2px solid var(--kubik-border);
   border-radius: 12px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out);
   text-align: left;
 }
 
@@ -123,7 +123,7 @@
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out);
 }
 
 .back-btn:hover {
@@ -407,7 +407,7 @@
   border-radius: 10px;
   background: white;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out);
   text-align: left;
   margin-bottom: 6px;
 }
@@ -701,4 +701,18 @@
   font-size: 13px;
   color: var(--kubik-text-soft);
   margin: 0;
+}
+
+/* ========== RESPONSIVE (phone tier) ========== */
+@media (max-width: 600px) {
+  /* Sidebar becomes a horizontal pick list above the content */
+  .as-sidebar {
+    max-height: none;
+  }
+  .as-stat-item {
+    font-size: 13px;
+  }
+  .as-hw-subject-header {
+    align-items: flex-start;
+  }
 }

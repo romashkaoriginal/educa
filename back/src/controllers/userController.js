@@ -223,24 +223,31 @@ exports.deleteUser = async (req, res) => {
     }
 
     if (user.role === 'student') {
-      return res.status(400).json({ 
-        message: 'Cannot delete student through this endpoint. Use /students/:id instead' 
+      return res.status(400).json({
+        message: 'Cannot delete student through this endpoint. Use /students/:id instead'
       });
     }
 
+    const { Homework, Quiz, BotUser, sequelize } = require('../models');
     const telegramId = user.telegramId;
-    await user.destroy();
 
-    // Обновляем BotUser
-    if (telegramId) {
-      const { BotUser } = require('../models');
-      const botUser = await BotUser.findOne({ where: { telegramId } });
-      if (botUser) {
-        botUser.isAssigned = false;
-        botUser.userId = null;
-        await botUser.save();
+    await sequelize.transaction(async (t) => {
+      // Контент, созданный сотрудником, НЕ удаляем — отвязываем (createdBy=NULL).
+      await Homework.update({ createdBy: null }, { where: { createdBy: user.id }, transaction: t });
+      await Quiz.update({ createdBy: null }, { where: { createdBy: user.id }, transaction: t });
+
+      // Отвязываем BotUser
+      if (telegramId) {
+        const botUser = await BotUser.findOne({ where: { telegramId }, transaction: t });
+        if (botUser) {
+          botUser.isAssigned = false;
+          botUser.userId = null;
+          await botUser.save({ transaction: t });
+        }
       }
-    }
+
+      await user.destroy({ transaction: t });
+    });
 
     res.json({ message: 'User deleted successfully' });
   } catch (error) {

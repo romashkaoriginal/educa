@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { Quiz, QuizQuestion, QuizParticipant, QuizAnswer, User, Subject } = require('../models');
 const { Op } = require('sequelize');
-const { requireRole, assertSelfOrStaff, assertBodyStudentId } = require('../middleware/telegramAuth');
+const { requireRole, assertSelfOrStaff, assertBodyStudentId, isStaffRole } = require('../middleware/telegramAuth');
 const isAdmin = requireRole(['admin', 'teacher']);
 
 // Генерация уникального кода
@@ -158,7 +158,10 @@ router.get('/code/:accessCode', async (req, res) => {
     const code = req.params.accessCode.toUpperCase();
     const studentId = req.query.studentId ? parseInt(req.query.studentId, 10) : null;
 
-    if (!studentId || Number(studentId) !== Number(req.dbUser.id)) {
+    // Стафф (admin/teacher/manager) может проверять викторину за любого ученика;
+    // обычный пользователь — только за себя.
+    const isStaff = isStaffRole(req.dbUser?.role);
+    if (!studentId || (!isStaff && Number(studentId) !== Number(req.dbUser.id))) {
       return res.status(403).json({ code: 'NO_ACCESS', message: 'Access denied' });
     }
 

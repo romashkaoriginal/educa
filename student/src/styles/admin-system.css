@@ -1,0 +1,571 @@
+/* ============================================================
+   ADMIN DESIGN SYSTEM
+   Shared tokens, primitives and responsive shell for the whole
+   admin panel. Imported once from AdminPanel.css. Preserves the
+   Kubik brand (navy + blue, Manrope) while unifying the component
+   vocabulary and making every section adaptive down to phone.
+   Per-section stylesheets may extend these, but should not
+   redefine the primitives below.
+   ============================================================ */
+
+:root {
+  /* ---- Brand (Kubik) ---- */
+  --kubik-pink: #FFBEBD;
+  --kubik-pink-soft: #FFF1F0;
+  --kubik-white: #FCFCFA;
+  --kubik-blue: #337BAE;
+  --kubik-blue-soft: #EAF3FA;
+  --kubik-navy: #1A405F;
+  --kubik-border: #ECEAE5;
+  --kubik-text: #2A3744;
+  --kubik-text-soft: #6B7783;
+
+  /* ---- Semantic state ---- */
+  --good: #2E9E6B;
+  --good-soft: #E7F4EE;
+  --medium: #C77E2A;
+  --medium-soft: #FBF1E2;
+  --low: #CE4E4E;
+  --low-soft: #FBEAEA;
+
+  /* ---- Surfaces ---- */
+  --surface: #ffffff;
+  --surface-sunken: #F7F6F3;
+  --brand-gradient: linear-gradient(135deg, var(--kubik-navy) 0%, var(--kubik-blue) 100%);
+
+  /* ---- Focus ring ---- */
+  --focus-ring: 0 0 0 3px rgba(51, 123, 174, 0.22);
+
+  /* ---- Elevation (single defined shadow per level, never paired with a heavy border) ---- */
+  --shadow-sm: 0 1px 2px rgba(26, 64, 95, 0.06);
+  --shadow-md: 0 4px 14px rgba(26, 64, 95, 0.10);
+  --shadow-lg: 0 16px 40px rgba(26, 64, 95, 0.18);
+
+  /* ---- Radius ---- */
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-pill: 999px;
+
+  /* ---- Spacing scale ---- */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+
+  /* ---- Section padding (fluid, collapses on small screens) ---- */
+  --section-pad: clamp(18px, 4vw, 32px);
+
+  /* ---- Motion ---- */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --t-fast: 140ms;
+  --t-mid: 200ms;
+
+  /* ---- Z-index scale (semantic, never arbitrary) ---- */
+  --z-sticky: 100;
+  --z-dropdown: 200;
+  --z-modal-backdrop: 1000;
+  --z-modal: 1001;
+  --z-toast: 1100;
+}
+
+/* ============================================================
+   SECTION SHELL
+   ============================================================ */
+.admin-section {
+  background: var(--surface);
+  border-radius: var(--r-lg);
+  padding: var(--section-pad);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--kubik-border);
+  min-height: 360px;
+}
+
+.admin-fade-in {
+  animation: adminFadeIn var(--t-mid) var(--ease-out);
+}
+
+@keyframes adminFadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ---- Section header ---- */
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+  margin-bottom: var(--sp-6);
+}
+
+.section-header h2 {
+  font-size: clamp(20px, 3.2vw, 26px);
+  font-weight: 800;
+  color: var(--kubik-navy);
+  margin: 0;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+.section-description {
+  color: var(--kubik-text-soft);
+  font-size: 14px;
+  line-height: 1.5;
+  margin: calc(var(--sp-6) * -1 + var(--sp-2)) 0 var(--sp-6);
+  max-width: 70ch;
+}
+
+.header-actions {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* ============================================================
+   BUTTONS — one vocabulary, all states
+   ============================================================ */
+.btn-primary,
+.add-button,
+.primary-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  padding: 11px 20px;
+  border: none;
+  border-radius: var(--r-md);
+  background: var(--brand-gradient);
+  color: #fff;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: var(--shadow-sm);
+  transition: filter var(--t-fast) var(--ease-out),
+              box-shadow var(--t-fast) var(--ease-out),
+              transform var(--t-fast) var(--ease-out);
+}
+
+.btn-primary:hover,
+.add-button:hover,
+.primary-btn:hover {
+  filter: brightness(1.06);
+  box-shadow: var(--shadow-md);
+}
+
+.btn-primary:active,
+.add-button:active,
+.primary-btn:active {
+  transform: translateY(1px);
+  filter: brightness(0.98);
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  padding: 11px 20px;
+  border: 1px solid var(--kubik-border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--kubik-text);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color var(--t-fast) var(--ease-out),
+              background var(--t-fast) var(--ease-out),
+              color var(--t-fast) var(--ease-out);
+}
+
+.btn-secondary:hover {
+  border-color: var(--kubik-blue);
+  background: var(--kubik-blue-soft);
+  color: var(--kubik-navy);
+}
+
+.btn-primary:focus-visible,
+.btn-secondary:focus-visible,
+.add-button:focus-visible,
+.primary-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.btn-primary:disabled,
+.btn-secondary:disabled,
+.add-button:disabled,
+.primary-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  filter: none;
+  box-shadow: none;
+}
+
+/* Icon-only buttons */
+.icon-btn,
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--kubik-border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--kubik-text);
+  font-size: 16px;
+  cursor: pointer;
+  transition: border-color var(--t-fast) var(--ease-out),
+              background var(--t-fast) var(--ease-out);
+}
+
+.icon-btn:hover,
+.btn-icon:hover {
+  border-color: var(--kubik-blue);
+  background: var(--kubik-blue-soft);
+}
+
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 9px 16px;
+  border: 1px solid var(--kubik-border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--kubik-navy);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color var(--t-fast) var(--ease-out),
+              background var(--t-fast) var(--ease-out);
+}
+
+.back-btn:hover {
+  border-color: var(--kubik-blue);
+  background: var(--kubik-blue-soft);
+}
+
+/* ============================================================
+   FORM CONTROLS — shared field vocabulary
+   ============================================================ */
+.search-input,
+.filter-select,
+.form-input,
+.cleanup-select,
+.date-text-input {
+  width: 100%;
+  padding: 11px 16px;
+  border: 1px solid var(--kubik-border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--kubik-text);
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1.3;
+  transition: border-color var(--t-fast) var(--ease-out),
+              box-shadow var(--t-fast) var(--ease-out);
+}
+
+.search-input::placeholder,
+.form-input::placeholder,
+.date-text-input::placeholder {
+  color: var(--kubik-text-soft);
+}
+
+.search-input:focus,
+.filter-select:focus,
+.form-input:focus,
+.cleanup-select:focus,
+.date-text-input:focus {
+  outline: none;
+  border-color: var(--kubik-blue);
+  box-shadow: var(--focus-ring);
+}
+
+.filter-select,
+.cleanup-select {
+  cursor: pointer;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-4);
+}
+
+.form-group > label,
+.form-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--kubik-text);
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--sp-4);
+}
+
+/* Search input keeps a sensible cap on wide screens but goes fluid on small */
+.search-input {
+  max-width: 320px;
+}
+
+/* ============================================================
+   MODAL — single source of truth, escapes overflow via fixed
+   ============================================================ */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 31, 43, 0.55);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-4);
+  z-index: var(--z-modal-backdrop);
+  animation: adminFadeIn var(--t-fast) var(--ease-out);
+}
+
+.modal-content,
+.modal {
+  background: var(--surface);
+  border-radius: var(--r-lg);
+  width: 100%;
+  max-width: 720px;
+  max-height: min(90vh, 900px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  box-shadow: var(--shadow-lg);
+  z-index: var(--z-modal);
+  animation: adminModalIn var(--t-mid) var(--ease-out);
+}
+
+@keyframes adminModalIn {
+  from { opacity: 0; transform: translateY(16px) scale(0.99); }
+  to   { opacity: 1; transform: none; }
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--sp-4);
+  padding: var(--sp-5) var(--section-pad);
+  border-bottom: 1px solid var(--kubik-border);
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+  z-index: 1;
+}
+
+.modal-header h2 {
+  font-size: clamp(18px, 2.6vw, 22px);
+  font-weight: 800;
+  color: var(--kubik-navy);
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.modal-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--kubik-border);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--kubik-text);
+  font-size: 18px;
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease-out),
+              border-color var(--t-fast) var(--ease-out);
+}
+
+.modal-close:hover {
+  background: var(--kubik-blue-soft);
+  border-color: var(--kubik-blue);
+}
+
+.modal-actions {
+  display: flex;
+  gap: var(--sp-3);
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  padding: var(--sp-5) var(--section-pad);
+  border-top: 1px solid var(--kubik-border);
+  position: sticky;
+  bottom: 0;
+  background: var(--surface);
+}
+
+/* ============================================================
+   EMPTY / LOADING STATES
+   ============================================================ */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--sp-3);
+  padding: clamp(40px, 9vw, 72px) var(--sp-5);
+  color: var(--kubik-text-soft);
+}
+
+.empty-icon {
+  font-size: 44px;
+  line-height: 1;
+  opacity: 0.85;
+}
+
+.empty-state h3,
+.empty-state strong {
+  color: var(--kubik-text);
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.empty-state p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  max-width: 42ch;
+}
+
+/* Skeletons */
+.skeleton-line {
+  height: 14px;
+  border-radius: var(--r-sm);
+  background: linear-gradient(90deg,
+    var(--surface-sunken) 25%,
+    #eceae5 37%,
+    var(--surface-sunken) 63%);
+  background-size: 400% 100%;
+  animation: adminShimmer 1.3s ease-in-out infinite;
+}
+
+@keyframes adminShimmer {
+  from { background-position: 100% 0; }
+  to   { background-position: 0 0; }
+}
+
+/* ============================================================
+   BADGES — semantic pills, no side-stripes
+   ============================================================ */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: 4px 10px;
+  border-radius: var(--r-pill);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.badge--good   { background: var(--good-soft);   color: var(--good); }
+.badge--medium { background: var(--medium-soft); color: var(--medium); }
+.badge--low    { background: var(--low-soft);    color: var(--low); }
+
+/* ============================================================
+   SCROLLBARS (subtle, consistent)
+   ============================================================ */
+.admin-panel ::-webkit-scrollbar { width: 10px; height: 10px; }
+.admin-panel ::-webkit-scrollbar-thumb {
+  background: #d8d5cd;
+  border-radius: var(--r-pill);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+.admin-panel ::-webkit-scrollbar-thumb:hover { background: #c4c0b6; background-clip: content-box; }
+
+/* ============================================================
+   RESPONSIVE SHELL
+   ============================================================ */
+
+/* Tablet */
+@media (max-width: 900px) {
+  .form-row { grid-template-columns: 1fr; }
+}
+
+/* Phone */
+@media (max-width: 600px) {
+  .section-header {
+    align-items: stretch;
+  }
+  .section-header .header-actions {
+    width: 100%;
+  }
+  /* Make primary actions full-width and tappable on phone */
+  .header-actions .btn-primary,
+  .header-actions .add-button,
+  .header-actions .primary-btn,
+  .header-actions .btn-secondary {
+    flex: 1 1 auto;
+    min-height: 44px;
+  }
+  .search-input { max-width: none; }
+
+  .modal-overlay { padding: 0; align-items: flex-end; }
+  .modal-content,
+  .modal {
+    max-width: none;
+    max-height: 94vh;
+    border-radius: var(--r-lg) var(--r-lg) 0 0;
+    animation: adminSheetIn var(--t-mid) var(--ease-out);
+  }
+  @keyframes adminSheetIn {
+    from { transform: translateY(100%); }
+    to   { transform: none; }
+  }
+  .modal-actions {
+    flex-direction: column-reverse;
+  }
+  .modal-actions .btn-primary,
+  .modal-actions .btn-secondary {
+    width: 100%;
+    min-height: 46px;
+  }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .admin-fade-in,
+  .modal-overlay,
+  .modal-content,
+  .modal,
+  .skeleton-line,
+  .admin-refresh-btn.spinning .admin-refresh-icon {
+    animation: none !important;
+  }
+  .btn-primary,
+  .btn-secondary,
+  .add-button,
+  .primary-btn,
+  .back-btn,
+  .icon-btn,
+  .btn-icon,
+  .search-input,
+  .filter-select,
+  .form-input,
+  .modal-close {
+    transition: none !important;
+  }
+}

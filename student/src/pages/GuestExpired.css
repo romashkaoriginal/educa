@@ -1,5 +1,9 @@
 .guest-expired {
   min-height: 100vh;
+  min-height: var(--app-height, 100dvh);
+  max-height: var(--app-height, 100dvh);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   background: linear-gradient(160deg, #f5f3ff, #eef2ff);
   display: flex;
   align-items: center;
@@ -18,8 +22,8 @@
 }
 
 .guest-expired-logo {
-  width: 60px;
-  height: 60px;
+  width: 100px;
+  height: 100px;
   object-fit: contain;
   margin-bottom: 16px;
 }

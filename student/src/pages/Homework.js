@@ -282,6 +282,15 @@ function StudentHomework({ studentId }) {
   const [showResult, setShowResult] = useState(false);
   const [result, setResult] = useState(null);
   const [startTime, setStartTime] = useState(null);
+  const [expandedHw, setExpandedHw] = useState(() => new Set()); // id раскрытых карточек; по умолчанию все свёрнуты
+
+  const toggleHwExpand = (id) => {
+    setExpandedHw(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
 
   const [drag, setDrag] = useState({
     active: false,
@@ -364,7 +373,7 @@ function StudentHomework({ studentId }) {
     setShowResult(false);
     setResult(null);
     // Обновляем данные только если реально сдали домашку
-    if (wasSubmitted) refreshAfterHomework();
+    if (wasSubmitted) refreshAfterHomework(selectedHomework?.subjectId || selectedHomework?.subject?.id);
   };
 
   const resetHomeRef = useRef(() => {});
@@ -549,7 +558,7 @@ function StudentHomework({ studentId }) {
         setResult(prev => ({ ...prev, attemptsUsed: data.attemptsUsed, maxAttempts: data.maxAttempts }));
       }
       // Фоново обновляем список домашек чтобы при переходе уже было актуально
-      refreshAfterHomework();
+      refreshAfterHomework(selectedHomework?.subjectId || selectedHomework?.subject?.id);
     }).catch(e => console.error('Error submitting homework:', e));
   };
 
@@ -1206,20 +1215,45 @@ function StudentHomework({ studentId }) {
         <div className="homeworks-grid">
           {filteredHomeworks.map(homework => {
             const card = getHomeworkCardState(homework);
+            const isExpanded = expandedHw.has(homework.id);
 
             return (
-              <article key={homework.id} className={`homework-card hw-status-${card.status}`}>
-                <div className="hw-card-top">
-                  <div className="hw-card-heading">
-                    <h3 className="hw-card-title">{homework.title}</h3>
-                    <p className="hw-card-subject">
-                      <span className="hw-card-subject-icon">{homework.subject?.icon}</span>
-                      {homework.subject?.name}
-                    </p>
+              <article key={homework.id} className={`homework-card hw-status-${card.status} ${isExpanded ? 'is-expanded' : 'is-collapsed'}`}>
+                <button
+                  type="button"
+                  className="hw-card-toggle"
+                  onClick={() => toggleHwExpand(homework.id)}
+                  aria-expanded={isExpanded}
+                >
+                  <div className="hw-card-top">
+                    <div className="hw-card-heading">
+                      <h3 className="hw-card-title">{homework.title}</h3>
+                      <p className="hw-card-subject">
+                        <span className="hw-card-subject-icon">{homework.subject?.icon}</span>
+                        {homework.subject?.name}
+                      </p>
+                    </div>
+                    <div className="hw-card-top-right">
+                      <span className={`hw-status-badge ${card.status}`}>{card.statusLabel}</span>
+                      <span className="hw-card-chevron" aria-hidden="true">▾</span>
+                    </div>
                   </div>
-                  <span className={`hw-status-badge ${card.status}`}>{card.statusLabel}</span>
-                </div>
 
+                  {!isExpanded && (
+                    <div className="hw-card-summary">
+                      <span className="hw-summary-chip">{card.questionCount} вопр.</span>
+                      {card.hasResult && (
+                        <span className="hw-summary-chip hw-summary-chip--score">{card.bestResultText}</span>
+                      )}
+                      <span className={`hw-summary-chip hw-summary-chip--${card.deadlineHint.tone}`}>
+                        {card.deadlineHint.text}
+                      </span>
+                    </div>
+                  )}
+                </button>
+
+                {isExpanded && (
+                <div className="hw-card-body">
                 {homework.description && (
                   <p className="hw-card-description">{homework.description}</p>
                 )}
@@ -1269,6 +1303,8 @@ function StudentHomework({ studentId }) {
                 >
                   {card.actionLabel}
                 </button>
+                </div>
+                )}
               </article>
             );
           })}

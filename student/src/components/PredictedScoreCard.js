@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 
 function getNextScoreMilestone(score) {
   if (score >= 100) return null;
@@ -67,6 +67,21 @@ function getPredictedEncouragement(predictedScore) {
 }
 
 function PredictedScoreCard({ predictedScore, subjectName }) {
+  // Tooltip-подсказка при недоступном балле (по тапу на кольцо)
+  const [showHint, setShowHint] = useState(false);
+  const ringWrapRef = useRef(null);
+
+  useEffect(() => {
+    if (!showHint) return;
+    const onDocClick = (e) => {
+      if (ringWrapRef.current && !ringWrapRef.current.contains(e.target)) {
+        setShowHint(false);
+      }
+    };
+    document.addEventListener('click', onDocClick);
+    return () => document.removeEventListener('click', onDocClick);
+  }, [showHint]);
+
   if (!predictedScore) return null;
 
   const scoreDelta = predictedScore.delta;
@@ -101,14 +116,20 @@ function PredictedScoreCard({ predictedScore, subjectName }) {
         )}
       </div>
 
-      <div className="predicted-score-ring-wrap">
+      <div
+        className="predicted-score-ring-wrap"
+        ref={ringWrapRef}
+      >
         <div
-          className={`predicted-score-ring ${scoreRingClass}`}
+          className={`predicted-score-ring ${scoreRingClass} ${!predictedScore.unlocked ? 'is-tappable' : ''}`}
           style={{
             '--score-pct': predictedScore.unlocked
               ? `${predictedScore.score}%`
               : `${unlockPercent}%`
           }}
+          role={!predictedScore.unlocked ? 'button' : undefined}
+          tabIndex={!predictedScore.unlocked ? 0 : undefined}
+          onClick={!predictedScore.unlocked ? (e) => { e.stopPropagation(); setShowHint(v => !v); } : undefined}
         >
           {predictedScore.unlocked ? (
             <span className="predicted-score-ring-inner">
@@ -118,9 +139,17 @@ function PredictedScoreCard({ predictedScore, subjectName }) {
           ) : (
             <span className="predicted-score-ring-inner locked">
               <span className="predicted-score-ring-value">{unlockPercent}%</span>
+              <span className="predicted-score-ring-q" aria-hidden>?</span>
             </span>
           )}
         </div>
+
+        {!predictedScore.unlocked && showHint && (
+          <div className="predicted-hint-tooltip" role="tooltip">
+            Чтобы открыть балл на ЦТ/ЦЭ, реши ещё <strong>{predictedScore.needed ?? 50}</strong> заданий
+            в практике по этому предмету. Балл считается автоматически, как наберётся минимум.
+          </div>
+        )}
       </div>
 
       {predictedScore.unlocked ? (

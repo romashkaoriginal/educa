@@ -42,34 +42,48 @@ async function calculateHomeworkScore(studentId, subjectId) {
   const accessStart = userSubject?.accessStartDate ? new Date(userSubject.accessStartDate) : null;
   const now = new Date();
 
-  const homeworks = await Homework.findAll({
-    where: {
-      subjectId: subId,
-      isActive: true,
-      openDate: { [Op.lte]: now }
-    },
+  const allSubjectHomeworks = await Homework.findAll({
+    where: { subjectId: subId, isActive: true },
     attributes: ['id', 'title', 'openDate'],
     include: [{ model: HomeworkQuestion, as: 'questions', attributes: ['id'] }]
   });
+  const allSubjectHwIds = new Set(allSubjectHomeworks.map((h) => h.id));
 
-  // ТЗ 5.2: прошлые домашки, недоступные на момент подключения, не учитываются
-  const available = homeworks.filter((hw) => {
+  const submissions = await HomeworkSubmission.findAll({
+    where: { userId: sid },
+    attributes: ['id', 'homeworkId', 'totalScore']
+  });
+
+  const submittedHwIds = new Set(
+    submissions.map((s) => s.homeworkId).filter((hwId) => allSubjectHwIds.has(hwId))
+  );
+
+  const homeworks = allSubjectHomeworks.filter((hw) => new Date(hw.openDate) <= now);
+
+  // ТЗ 5.2: прошлые домашки до подключения не учитываются — кроме уже сданных учеником
+  const availableByRule = homeworks.filter((hw) => {
     if (!accessStart) return true;
+    if (submittedHwIds.has(hw.id)) return true;
     return new Date(hw.openDate) >= accessStart;
   });
+
+  // Домашки с попыткой всегда входят в расчёт (в т.ч. закрытые по closeDate)
+  const submittedExtra = submittedHwIds.size
+    ? allSubjectHomeworks.filter((hw) => submittedHwIds.has(hw.id))
+    : [];
+
+  const availableMap = new Map();
+  [...availableByRule, ...submittedExtra].forEach((hw) => availableMap.set(hw.id, hw));
+  const available = [...availableMap.values()];
 
   if (available.length === 0) return emptyHomework();
 
   const hwIds = available.map((h) => h.id);
-
-  const submissions = await HomeworkSubmission.findAll({
-    where: { userId: sid, homeworkId: { [Op.in]: hwIds } },
-    attributes: ['id', 'homeworkId', 'totalScore']
-  });
+  const relevantSubmissions = submissions.filter((s) => hwIds.includes(s.homeworkId));
 
   // Лучшая попытка на каждую домашку (по набранному баллу)
   const bestByHw = {};
-  submissions.forEach((s) => {
+  relevantSubmissions.forEach((s) => {
     const cur = bestByHw[s.homeworkId];
     if (!cur || (s.totalScore || 0) > (cur.totalScore || 0)) {
       bestByHw[s.homeworkId] = s;

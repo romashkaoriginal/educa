@@ -40,7 +40,19 @@ const BotUser = sequelize.define('BotUser', {
     type: DataTypes.BOOLEAN,
     defaultValue: false
   },
-  
+
+  // Телефон, которым пользователь поделился через кнопку Telegram (requestContact).
+  // Номер приходит боту сервис-сообщением и сохраняется сюда для подстановки в форму заявки.
+  phone: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+
+  phoneSharedAt: {
+    type: DataTypes.DATE,
+    allowNull: true
+  },
+
   // Связь с User (если назначен в систему)
   userId: {
     type: DataTypes.INTEGER,

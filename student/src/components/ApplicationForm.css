@@ -36,6 +36,21 @@
   background: #f9fafb;
   outline: none;
   transition: border-color 0.15s, background 0.15s;
+  /* Явные цвета: в тёмной теме Telegram WebView текст/каретка иначе
+     наследуют белый и становятся невидимыми / «уезжают» из поля. */
+  color: #1a1a2e;
+  caret-color: #1a1a2e;
+  -webkit-text-fill-color: #1a1a2e;
+  text-align: left;
+  direction: ltr;
+}
+
+/* Плейсхолдер серым (явно перебиваем -webkit-text-fill-color инпута,
+   иначе в Telegram WebView плейсхолдер красится тёмным как сам текст). */
+.app-form-input::placeholder {
+  color: #9ca3af;
+  -webkit-text-fill-color: #9ca3af;
+  opacity: 1;
 }
 
 .app-form-input:focus {
@@ -99,6 +114,31 @@
   color: #ef4444;
   text-align: center;
   margin: 0;
+}
+
+/* Кнопка «подставить номер из Telegram» — вторичная, в фирменном TG-синем */
+.app-form-tg-contact {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 8px;
+  padding: 12px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #2481cc;
+  background: rgba(36, 129, 204, 0.08);
+  border: 1.5px solid rgba(36, 129, 204, 0.3);
+  border-radius: 14px;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s, opacity 0.15s;
+}
+
+.app-form-tg-contact:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.app-form-tg-contact:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .app-form-success {

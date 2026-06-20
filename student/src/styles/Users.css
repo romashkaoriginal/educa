@@ -76,7 +76,7 @@
   border: 2px solid var(--kubik-border);
   border-radius: 12px;
   font-size: 15px;
-  transition: all 0.3s ease;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out);
 }
 
 .search-input:focus {
@@ -92,7 +92,7 @@
   font-size: 15px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out);
   background: #ffffff;
   min-width: 200px;
 }
@@ -112,7 +112,7 @@
   font-weight: 700;
   font-size: 14px;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out);
   box-shadow: 0 4px 12px rgba(26, 64, 95, 0.2);
   white-space: nowrap;
 }
@@ -134,7 +134,7 @@
   border: 2px solid var(--kubik-border);
   border-radius: 16px;
   padding: 24px;
-  transition: all 0.3s ease;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out);
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -146,15 +146,15 @@
 }
 
 .user-card.admin {
-  border-left: 4px solid #DC2626;
+  border-color: rgba(220, 38, 38, 0.45);
 }
 
 .user-card.teacher {
-  border-left: 4px solid #2563EB;
+  border-color: rgba(37, 99, 235, 0.45);
 }
 
 .user-card.manager {
-  border-left: 4px solid var(--good);
+  border-color: rgba(46, 158, 107, 0.5);
 }
 
 /* ========== USER CARD HEADER ========== */
@@ -273,7 +273,7 @@
   border-radius: 10px;
   font-size: 18px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out);
 }
 
 .action-btn:hover {
@@ -421,7 +421,7 @@
   border-radius: 50%;
   font-size: 20px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -474,7 +474,7 @@
   border: 2px solid var(--kubik-border);
   border-radius: 10px;
   font-size: 15px;
-  transition: all 0.3s ease;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out);
 }
 
 .form-group input:focus {
@@ -503,7 +503,7 @@
 
 .role-option {
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out);
 }
 
 .role-option input[type="radio"] {
@@ -518,7 +518,7 @@
   border: 2px solid var(--kubik-border);
   border-radius: 12px;
   background: #ffffff;
-  transition: all 0.3s ease;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out);
 }
 
 .role-option:hover .role-option-content {
@@ -585,7 +585,7 @@
   font-weight: 700;
   font-size: 15px;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out);
 }
 
 .btn-primary {
@@ -640,5 +640,18 @@
   .role-stats {
     flex-direction: column;
     align-items: flex-start;
+  }
+}
+
+/* Phone tier: tighter card padding, full-width header actions. */
+@media (max-width: 600px) {
+  .header-actions {
+    width: 100%;
+  }
+  .header-actions > * {
+    flex: 1 1 auto;
+  }
+  .user-card {
+    padding: var(--sp-4);
   }
 }

@@ -239,7 +239,8 @@ function GuestLockedBlock({ onLockedClick, children }) {
       <div className="sd-guest-locked-content">{children}</div>
       <div className="sd-guest-locked-overlay">
         <span className="sd-guest-locked-icon">🔒</span>
-        <span className="sd-guest-locked-text">Доступно только ученикам</span>
+        <span className="sd-guest-locked-text">Доступно только ученикам кубика</span>
+        <span className="sd-guest-locked-cta">Записаться</span>
       </div>
     </div>
   );
@@ -264,6 +265,7 @@ function Statistics({ studentId, isGuest = false, onLockedClick }) {
   const [loadError, setLoadError] = useState(false);
   const [openSections, setOpenSections] = useState({ topics: false, difficulty: false, errors: false });
   const [scoreBreakdownOpen, setScoreBreakdownOpen] = useState(false);
+  const [showScoreHint, setShowScoreHint] = useState(false); // подсказка при недоступном балле
   const lastRefreshKeyRef = useRef(null);
 
   const subjectIdMatch = (a, b) => Number(a) === Number(b);
@@ -351,6 +353,7 @@ function Statistics({ studentId, isGuest = false, onLockedClick }) {
       subjectId: selectedSubjectId,
       mode: actionType === 'topic' ? 'topic' : actionType === 'weak' ? 'weak' : 'general',
       topicId: topicId || undefined,
+      returnToStats: true,
     });
   };
 
@@ -381,7 +384,7 @@ function Statistics({ studentId, isGuest = false, onLockedClick }) {
 
       const headlines = [
         'Хочешь узнать свой балл ЦТ?',
-        'Открой прогноз — начни решать',
+        'Чтобы увидеть свои баллы — начни решать',
         needed <= 10 ? 'Ещё чуть-чуть — и прогноз готов!' : 'Ты уже на пути к прогнозу',
       ];
       const headline = solved === 0 ? headlines[0] : needed <= 10 ? headlines[2] : headlines[1];
@@ -503,10 +506,14 @@ function Statistics({ studentId, isGuest = false, onLockedClick }) {
                   type="button"
                   className={`sd-hero-score-ring ${ringUnlocked ? 'unlocked' : 'locked'}${scoreBreakdownOpen ? ' sd-hero-score-ring--open' : ''}`}
                   style={{ '--score-pct': ringPct }}
-                  onClick={() => ringUnlocked && setScoreBreakdownOpen((v) => !v)}
-                  aria-expanded={scoreBreakdownOpen}
-                  aria-label={scoreBreakdownOpen ? 'Скрыть разбивку балла' : 'Показать разбивку балла'}
-                  disabled={!ringUnlocked}
+                  onClick={() => {
+                    if (ringUnlocked) setScoreBreakdownOpen((v) => !v);
+                    else setShowScoreHint((v) => !v);
+                  }}
+                  aria-expanded={ringUnlocked ? scoreBreakdownOpen : showScoreHint}
+                  aria-label={ringUnlocked
+                    ? (scoreBreakdownOpen ? 'Скрыть разбивку балла' : 'Показать разбивку балла')
+                    : 'Как открыть балл'}
                 >
                   {ringUnlocked ? (
                     <>
@@ -517,6 +524,14 @@ function Statistics({ studentId, isGuest = false, onLockedClick }) {
                     <span className="sd-hero-score-val sd-hero-score-val--lock">?</span>
                   )}
                 </button>
+
+                {!ringUnlocked && showScoreHint && (
+                  <div className="sd-score-hint-tooltip" role="tooltip">
+                    Чтобы открыть балл на ЦТ/ЦЭ, реши ещё <strong>{neededForUnlock}</strong>{' '}
+                    {neededForUnlock === 1 ? 'задание' : (neededForUnlock < 5 ? 'задания' : 'заданий')} в практике.
+                    Балл посчитается автоматически.
+                  </div>
+                )}
               </div>
             </div>
             <span className="sd-hero-score-label">баллов ЦТ</span>

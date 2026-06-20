@@ -36,12 +36,22 @@ function App() {
         setIsTelegramWebApp(true);
         tg.ready();
         tg.expand();
-        
+
         // Скрываем кнопку "назад"
         tg.BackButton.hide();
-        
+
         // ОТКЛЮЧАЕМ вертикальные свайпы чтобы не закрывалась
         Promise.resolve(tg.disableVerticalSwipes?.()).catch(() => {});
+
+        // --app-height = реальная видимая высота Telegram-вьюпорта.
+        // Ставим глобально и рано, чтобы все экраны (выбор предметов, окончание
+        // доступа, StudentApp) не уезжали за нижний край и докручивались до конца.
+        const applyAppHeight = () => {
+          const h = tg.viewportStableHeight || tg.viewportHeight || window.innerHeight;
+          if (h) document.documentElement.style.setProperty('--app-height', `${h}px`);
+        };
+        applyAppHeight();
+        tg.onEvent?.('viewportChanged', applyAppHeight);
 
         const user = tg.initDataUnsafe?.user;
         
@@ -150,12 +160,11 @@ function App() {
               }
             })
             .catch(() => {});
-        } else if (role === 'student') {
-          setUserRole('student');
-          setSelectedRole('student');
-          setLoading(false);
         } else {
-          // Роль не определена — проверяем гостевой режим
+          // role === 'student' ИЛИ роль не определена.
+          // ВАЖНО: гость — это тоже User с role='student' (isGuest=true), поэтому
+          // /auth/telegram отдаёт его как ученика. Нельзя сразу пускать в StudentApp —
+          // resolveGuestMode через /guest/state корректно различит гостя и ученика.
           await resolveGuestMode();
         }
       } else {

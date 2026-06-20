@@ -1,6 +1,7 @@
 const {
   PracticeTopic, PracticeQuestion, PracticeAttempt, PracticeBest, PracticeDailyLog,
-  PracticeQuestionResult, PracticeScoreHistory, PracticeDailyStats, Subject, User
+  PracticeQuestionResult, PracticeScoreHistory, PracticeDailyStats,
+  PracticeTopicTotals, PracticeRecentError, Subject, User
 } = require('../models');
 const { Op } = require('sequelize');
 const sequelize = require('../config/database');
@@ -393,27 +394,37 @@ exports.updateTopic = async (req, res) => {
   }
 };
 
-// Удалить топик
+// Удалить топик (каскадно, в транзакции).
+// Чистим ВСЕ таблицы, ссылающиеся на topicId и на questionId вопросов темы,
+// иначе FK (напр. practice_recent_errors_questionId_fkey) блокируют удаление.
 exports.deleteTopic = async (req, res) => {
   try {
     const { topicId } = req.params;
     const topic = await PracticeTopic.findByPk(topicId);
     if (!topic) return res.status(404).json({ message: 'Topic not found' });
 
-    const questions = await PracticeQuestion.findAll({ where: { topicId: topic.id }, attributes: ['id'] });
-    const questionIds = questions.map(q => q.id);
+    await sequelize.transaction(async (t) => {
+      const tid = topic.id;
+      // 1. Таблицы со ссылкой на topicId
+      await PracticeRecentError.destroy({ where: { topicId: tid }, transaction: t });
+      await PracticeAttempt.destroy({ where: { topicId: tid }, transaction: t });
+      await PracticeQuestionResult.destroy({ where: { topicId: tid }, transaction: t });
+      await PracticeBest.destroy({ where: { topicId: tid }, transaction: t });
+      await PracticeTopicTotals.destroy({ where: { topicId: tid }, transaction: t });
 
-    if (questionIds.length > 0) {
-      await PracticeAttempt.destroy({ where: { questionId: questionIds } }).catch(() => {});
-      await PracticeQuestionResult.destroy({ where: { questionId: questionIds } }).catch(() => {});
-    } else {
-      await PracticeQuestionResult.destroy({ where: { topicId: topic.id } }).catch(() => {});
-    }
+      // 2. На случай записей, привязанных только по questionId (без topicId)
+      const questions = await PracticeQuestion.findAll({ where: { topicId: tid }, attributes: ['id'], transaction: t });
+      const questionIds = questions.map(q => q.id);
+      if (questionIds.length > 0) {
+        await PracticeRecentError.destroy({ where: { questionId: questionIds }, transaction: t });
+        await PracticeAttempt.destroy({ where: { questionId: questionIds }, transaction: t });
+        await PracticeQuestionResult.destroy({ where: { questionId: questionIds }, transaction: t });
+      }
 
-    await PracticeBest.destroy({ where: { topicId: topic.id } });
-
-    await PracticeQuestion.destroy({ where: { topicId: topic.id } });
-    await topic.destroy();
+      // 3. Сами вопросы и тема
+      await PracticeQuestion.destroy({ where: { topicId: tid }, transaction: t });
+      await topic.destroy({ transaction: t });
+    });
 
     res.json({ message: 'Topic deleted' });
   } catch (error) {
@@ -498,13 +509,21 @@ exports.toggleQuestion = async (req, res) => {
   }
 };
 
-// Удалить вопрос
+// Удалить вопрос (каскадно — чистим записи, ссылающиеся на questionId).
 exports.deleteQuestion = async (req, res) => {
   try {
     const { questionId } = req.params;
     const question = await PracticeQuestion.findByPk(questionId);
     if (!question) return res.status(404).json({ message: 'Question not found' });
-    await question.destroy();
+
+    await sequelize.transaction(async (t) => {
+      const qid = question.id;
+      await PracticeRecentError.destroy({ where: { questionId: qid }, transaction: t });
+      await PracticeAttempt.destroy({ where: { questionId: qid }, transaction: t });
+      await PracticeQuestionResult.destroy({ where: { questionId: qid }, transaction: t });
+      await question.destroy({ transaction: t });
+    });
+
     res.json({ message: 'Question deleted' });
   } catch (error) {
     console.error('Delete question error:', error);

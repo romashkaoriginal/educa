@@ -7,7 +7,6 @@ import { API_URL } from '../../config';
 import { useSectionRefresh } from './useSectionRefresh';
 import { useConfirmDelete } from './useConfirmDelete';
 import { getDeleteConfirm } from './cascadeDeleteMessages';
-
 function Practice({ dataRefreshKey = 0 }) {
   const { confirmDelete, ConfirmDeleteDialog } = useConfirmDelete();
   const [subjects, setSubjects] = useState([]);
@@ -288,6 +287,9 @@ function Practice({ dataRefreshKey = 0 }) {
         setShowQuestionModal(false);
         resetQuestionForm();
         await refreshQuestionsAndTopicCount();
+      } else {
+        const data = await response.json().catch(() => ({}));
+        alert(data.message || 'Не удалось создать вопрос');
       }
     } catch (error) {
       console.error('Error creating question:', error);
@@ -320,6 +322,9 @@ function Practice({ dataRefreshKey = 0 }) {
         setEditingQuestion(null);
         resetQuestionForm();
         await refreshQuestionsAndTopicCount();
+      } else {
+        const data = await response.json().catch(() => ({}));
+        alert(data.message || 'Не удалось сохранить вопрос');
       }
     } catch (error) {
       console.error('Error updating question:', error);
@@ -530,6 +535,7 @@ function Practice({ dataRefreshKey = 0 }) {
             </div>
           </div>
         )}
+        {ConfirmDeleteDialog}
       </div>
     );
   }

@@ -61,6 +61,7 @@
 
 .cleanup-btn {
   width: 100%;
+  min-height: 44px;
   padding: 12px 16px;
   border: none;
   border-radius: 12px;
@@ -68,6 +69,21 @@
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;
+  transition: filter var(--t-fast) var(--ease-out),
+              transform var(--t-fast) var(--ease-out);
+}
+
+.cleanup-btn:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+.cleanup-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.cleanup-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 .cleanup-btn:disabled {
@@ -112,4 +128,14 @@
 .cleanup-muted {
   padding: 24px 32px;
   color: var(--kubik-text-soft);
+}
+
+/* ========== RESPONSIVE ========== */
+@media (max-width: 600px) {
+  .cleanup-page {
+    padding: var(--sp-5) var(--sp-4) var(--sp-8);
+  }
+  .cleanup-card {
+    padding: var(--sp-4);
+  }
 }

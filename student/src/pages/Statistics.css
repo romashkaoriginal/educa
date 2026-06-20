@@ -36,6 +36,10 @@
   min-height: calc(136px + env(safe-area-inset-top, 0px));
   max-height: calc(136px + env(safe-area-inset-top, 0px));
   padding: calc(14px + env(safe-area-inset-top, 0px)) 16px 38px;
+  /* Поднимаем hero над контентом статистики, чтобы всплывающая подсказка
+     баллов (внутри hero) ложилась ПОВЕРХ блоков дашборда, а не под них. */
+  position: relative;
+  z-index: 20;
 }
 
 .sd-hero .practice-hero-row {
@@ -233,6 +237,47 @@
 
 .sd-hero-score-ring.locked {
   background: conic-gradient(rgba(255,255,255,0.3) 100%, transparent 0);
+  cursor: pointer;
+}
+.sd-hero-score-ring.locked:active {
+  transform: scale(0.95);
+}
+
+/* Подсказка при недоступном балле (по тапу на кольцо «?») */
+.sd-score-hint-tooltip {
+  position: absolute;
+  top: calc(100% + 10px);
+  /* Кольцо у правого края экрана — раскрываем подсказку ВЛЕВО от него,
+     прижав к правому краю кластера, чтобы не уезжала за экран. */
+  right: -8px;
+  left: auto;
+  width: max-content;
+  max-width: min(260px, 72vw);
+  background: var(--kubik-navy, #1a405f);
+  color: #fff;
+  font-size: 12.5px;
+  line-height: 1.4;
+  font-weight: 500;
+  padding: 10px 13px;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(26, 64, 95, 0.3);
+  z-index: 2000;
+  text-align: left;
+  animation: sdScoreHintIn 0.16s ease;
+}
+.sd-score-hint-tooltip strong { font-weight: 800; }
+/* Стрелка указывает на кольцо (справа сверху) */
+.sd-score-hint-tooltip::after {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  right: 22px;
+  border: 6px solid transparent;
+  border-bottom-color: var(--kubik-navy, #1a405f);
+}
+@keyframes sdScoreHintIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 .sd-hero-score-val {
@@ -1613,6 +1658,17 @@
   font-size: 14px;
   font-weight: 600;
   color: #4b5563;
+}
+
+.sd-guest-locked-cta {
+  margin-top: 4px;
+  padding: 8px 20px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  border-radius: 20px;
+  pointer-events: none;
 }
 
 /* Заблокированный таб «Домашка» в статистике для гостя */

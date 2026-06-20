@@ -181,7 +181,7 @@
   border-radius: 6px;
   font-size: 13px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out);
   margin-top: 8px;
 }
 
@@ -365,7 +365,7 @@
   border: 2px solid var(--kubik-border);
   border-radius: 8px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out);
 }
 
 .tf-option:hover {
@@ -420,7 +420,7 @@
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out);
 }
 
 .cancel-btn:hover {
@@ -521,7 +521,7 @@
   border-radius: 8px;
   cursor: pointer;
   font-size: 16px;
-  transition: all 0.2s;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -662,7 +662,7 @@
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out);
 }
 
 .back-btn:hover {
@@ -730,7 +730,7 @@
   padding: 24px;
   text-align: center;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out);
   box-shadow: 0 2px 8px rgba(0,0,0,0.06);
 }
 
@@ -771,7 +771,7 @@
   padding: 20px;
   text-align: center;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out);
   box-shadow: 0 2px 6px rgba(0,0,0,0.05);
 }
 
@@ -806,4 +806,43 @@
   padding: 3px 10px;
   border-radius: 10px;
   display: inline-block;
+}
+
+/* ========== RESPONSIVE ========== */
+/* Phone: the two-up field rows stack, dense month grid tightens. */
+@media (max-width: 600px) {
+  .form-row,
+  .numeric-inputs {
+    grid-template-columns: 1fr;
+  }
+
+  .homework-form {
+    max-width: none;
+  }
+
+  .questions-section {
+    margin-top: var(--sp-6);
+    padding-top: var(--sp-6);
+  }
+
+  .hw-subjects-grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: var(--sp-3);
+  }
+  .hw-months-grid {
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: var(--sp-3);
+  }
+
+  .hw-breadcrumbs {
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+}
+
+@media (max-width: 380px) {
+  .hw-subjects-grid,
+  .hw-months-grid {
+    grid-template-columns: 1fr 1fr;
+  }
 }

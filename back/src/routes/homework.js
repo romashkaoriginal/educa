@@ -316,7 +316,20 @@ router.delete('/:id', isAdmin, async (req, res) => {
       return res.status(404).json({ message: 'Homework not found' });
     }
 
-    await homework.destroy();
+    // Каскад в транзакции: answers → submissions/questions → homework.
+    // Иначе FK (homework_answers.questionId / submissionId) блокируют удаление.
+    await sequelize.transaction(async (t) => {
+      const submissions = await HomeworkSubmission.findAll({ where: { homeworkId: id }, attributes: ['id'], transaction: t });
+      const submissionIds = submissions.map(s => s.id);
+      const questions = await HomeworkQuestion.findAll({ where: { homeworkId: id }, attributes: ['id'], transaction: t });
+      const questionIds = questions.map(q => q.id);
+
+      if (submissionIds.length) await HomeworkAnswer.destroy({ where: { submissionId: submissionIds }, transaction: t });
+      if (questionIds.length) await HomeworkAnswer.destroy({ where: { questionId: questionIds }, transaction: t });
+      await HomeworkSubmission.destroy({ where: { homeworkId: id }, transaction: t });
+      await HomeworkQuestion.destroy({ where: { homeworkId: id }, transaction: t });
+      await homework.destroy({ transaction: t });
+    });
 
     res.json({ message: 'Homework deleted successfully' });
   } catch (error) {

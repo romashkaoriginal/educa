@@ -2,9 +2,11 @@ const { Sequelize } = require('sequelize');
 require('dotenv').config();
 
 const databaseUrl = process.env.DATABASE_URL;
+// SSL включаем только явно (DATABASE_SSL=true) или при sslmode=require в URL.
+// На VPS БД — локальный Postgres в docker-сети, SSL не нужен (DATABASE_SSL=false).
 const useSsl =
   process.env.DATABASE_SSL === 'true' ||
-  /supabase\.co|sslmode=require/i.test(databaseUrl || '');
+  /sslmode=require/i.test(databaseUrl || '');
 
 const sequelize = new Sequelize(databaseUrl, {
   dialect: 'postgres',

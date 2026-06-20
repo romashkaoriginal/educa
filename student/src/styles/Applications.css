@@ -33,7 +33,7 @@
   font-weight: 600;
   color: var(--kubik-text-soft);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out);
 }
 
 .apps-filter:hover { border-color: var(--kubik-blue); color: var(--kubik-navy); }

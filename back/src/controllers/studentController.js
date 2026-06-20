@@ -498,12 +498,14 @@ exports.deleteStudent = async (req, res) => {
       // 4. Предметы
       await UserSubject.destroy({ where: { userId: studentId }, transaction: t });
 
-      // 5. Снимаем привязку BotUser
-      const botUser = await BotUser.findOne({ where: { userId: studentId }, transaction: t });
-      if (botUser) {
-        botUser.isAssigned = false;
-        botUser.userId = null;
-        await botUser.save({ transaction: t });
+      // 5. Полностью удаляем BotUser-запись (а не просто отвязываем).
+      // Иначе удалённый ученик остаётся в списке «пользователей бота» в админке
+      // и снова всплывает как кандидат на добавление, хотя боту ничего не писал.
+      // Снова появится только если сам напишет боту (registerBotUser создаст запись).
+      // Удаляем по обоим ключам: привязка по userId и по telegramId самого ученика.
+      await BotUser.destroy({ where: { userId: studentId }, transaction: t });
+      if (student.telegramId) {
+        await BotUser.destroy({ where: { telegramId: student.telegramId }, transaction: t });
       }
 
       // 6. Сам студент

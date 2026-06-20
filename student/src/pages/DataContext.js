@@ -388,11 +388,17 @@ export const DataProvider = ({ children, studentId }) => {
     return newStreak;
   }, [loadPractice, loadPracticeStats, loadStreak, loadDailyGoal, loadPredictedScore, loadScoreHistory, loadLeaderboard, loadSubjectDashboard]);
 
-  const refreshAfterHomework = useCallback(async () => {
+  const refreshAfterHomework = useCallback(async (subjectId) => {
     loadedRef.current.homework = false;
     loadedRef.current.homeworkStats = false;
-    await Promise.all([loadHomeworks(true), loadHomeworkStats(true)]);
-  }, [loadHomeworks, loadHomeworkStats]);
+    await Promise.all([
+      loadHomeworks(true),
+      loadHomeworkStats(true),
+      subjectId ? loadPredictedScore(subjectId) : Promise.resolve(),
+      subjectId ? loadSubjectDashboard(subjectId) : Promise.resolve(),
+    ]);
+    if (subjectId) refreshDashboard();
+  }, [loadHomeworks, loadHomeworkStats, loadPredictedScore, loadSubjectDashboard, refreshDashboard]);
 
   const value = {
     subjects, practiceTopics, homeworks, practiceStats, homeworkStats,

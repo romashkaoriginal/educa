@@ -63,18 +63,13 @@ function findScoreNearDate(history, daysAgo, getLocalDateStr) {
 function findScoreBeforeToday(history, getLocalDateStr) {
   const today = getLocalDateStr();
   let lastBeforeToday = null;
-  let firstToday = null;
   for (const h of history) {
     const d = typeof h.date === 'string' ? h.date.slice(0, 10) : getLocalDateStr(new Date(h.date));
     if (d < today) {
       lastBeforeToday = h;
-    } else if (d === today && !firstToday) {
-      firstToday = h;
     }
   }
-  if (lastBeforeToday) return lastBeforeToday.score;
-  if (firstToday) return firstToday.score;
-  return null;
+  return lastBeforeToday ? lastBeforeToday.score : null;
 }
 
 function computeTodayDelta(history, currentScore, getLocalDateStr) {
@@ -360,7 +355,7 @@ async function buildSubjectDashboard(studentId, subjectId, helpers) {
   const monthAgoScore = prediction.unlocked ? findScoreNearDate(historyPoints, 30, getLocalDateStr) : null;
   const weekDelta = prediction.unlocked && weekAgoScore != null ? prediction.score - weekAgoScore : null;
   const monthDelta = prediction.unlocked && monthAgoScore != null ? prediction.score - monthAgoScore : null;
-  const todayDelta = prediction.unlocked
+  const todayDelta = prediction.unlocked && todayCorrect > 0
     ? computeTodayDelta(historyPoints, prediction.score, getLocalDateStr)
     : null;
 

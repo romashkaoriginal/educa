@@ -348,7 +348,7 @@ function HeroMetricHint({ id, openId, onToggle, hint, children, align = 'center'
   );
 }
 
-function Practice({ studentId, isTabActive = true }) {
+function Practice({ studentId, isTabActive = true, onClose, onActivate }) {
   // Используем данные из контекста
   const {
     practiceTopics, subjects, refreshAfterPractice, loading: contextLoading,
@@ -852,11 +852,14 @@ function Practice({ studentId, isTabActive = true }) {
     }
   };
 
+  const returnToStatsRef = useRef(false);
+
   const practiceIntentRef = useRef(null);
   useEffect(() => {
     if (!practiceIntent || !subjects.length) return;
     if (practiceIntentRef.current === practiceIntent) return;
     practiceIntentRef.current = practiceIntent;
+    returnToStatsRef.current = !!practiceIntent.returnToStats;
 
     const subject = subjects.find((s) => Number(s.id) === Number(practiceIntent.subjectId));
     if (!subject) {
@@ -867,7 +870,6 @@ function Practice({ studentId, isTabActive = true }) {
 
     const run = async () => {
       setSelectedSubject(subject);
-      setActiveTab('practice');
 
       try {
         if (practiceIntent.mode === 'weak') {
@@ -878,6 +880,7 @@ function Practice({ studentId, isTabActive = true }) {
           if (questionsList.length === 0) {
             alert(data?.message || 'Нет заданий для тренировки');
           } else {
+            onActivate?.();
             startPracticeFromQuestions(
               { id: `weak-${subject.id}`, name: 'Слабые темы', subjectId: subject.id },
               questionsList,
@@ -889,7 +892,10 @@ function Practice({ studentId, isTabActive = true }) {
           setPracticeLoading(false);
         } else if (practiceIntent.mode === 'topic' && practiceIntent.topicId) {
           const topic = practiceTopics.find((t) => t.id === practiceIntent.topicId);
-          if (topic) await startPractice(topic);
+          if (topic) {
+            onActivate?.();
+            await startPractice(topic);
+          }
         } else {
           setPracticeLoading(true);
           const goalData = await loadDailyGoal();
@@ -898,6 +904,7 @@ function Practice({ studentId, isTabActive = true }) {
           if (allQuestions.length === 0) {
             alert('Нет доступных заданий');
           } else {
+            onActivate?.();
             startPracticeFromQuestions(
               { id: `general-${subject.id}`, name: 'Практика', subjectId: subject.id },
               allQuestions,
@@ -1174,6 +1181,12 @@ function Practice({ studentId, isTabActive = true }) {
     const practiceSnapshot = activePractice;
     const subjectId = practiceSnapshot?.subjectId || selectedSubject?.id;
 
+    // Сначала уведомляем родителя (переключение таба) — до сброса activePractice,
+    // чтобы список практики не мелькал перед переходом в статистику.
+    const wasFromStats = returnToStatsRef.current;
+    returnToStatsRef.current = false;
+    onClose?.({ returnToStats: wasFromStats });
+
     setActivePractice(null);
     setQuestions([]);
     questionsRef.current = [];
@@ -1191,7 +1204,9 @@ function Practice({ studentId, isTabActive = true }) {
     pendingAutoNextSessionRef.current = null;
     clearPrefetch();
 
-    setActiveTab('practice');
+    if (!wasFromStats) {
+      setActiveTab('practice');
+    }
 
     if (answersToSave.length > 0) {
       await savePracticeSession(answersToSave, practiceSnapshot);
@@ -1201,6 +1216,7 @@ function Practice({ studentId, isTabActive = true }) {
   };
 
   const backToSubjects = () => {
+    returnToStatsRef.current = false;
     setSelectedSubject(null);
     setActiveTab('practice');
   };
@@ -1247,13 +1263,14 @@ function Practice({ studentId, isTabActive = true }) {
     const canGoForward = currentQuestionIndex < questions.length - 1;
     // На последнем (текущем) вопросе после ответа — кнопка взять новый вопрос
     const canAdvance = answered && currentQuestionIndex === questions.length - 1;
+    const backLabel = returnToStatsRef.current ? '← Назад в статистику' : '← Назад к списку';
 
     if (!currentQuestion) {
       return renderPracticeOverlay(
         <div className="practice-mode">
           <div className="practice-header">
             <button type="button" className="back-button" onClick={closePractice}>
-              ← Назад к списку
+              {backLabel}
             </button>
             <div className="practice-info">
               <h2>{headerTitle}</h2>
@@ -1269,7 +1286,7 @@ function Practice({ studentId, isTabActive = true }) {
       <div className="practice-mode">
         <div className="practice-header">
           <button className="back-button" onClick={closePractice}>
-            ← Назад к списку
+            {backLabel}
           </button>
           <div className="practice-info">
             <h2>{headerTitle}</h2>
@@ -1404,20 +1421,14 @@ function Practice({ studentId, isTabActive = true }) {
               const isSelected = answered && selectedAnswer === index;
               const showCorrect = answered && index === currentQuestion.correctAnswer;
               const showWrong = answered && isSelected && !isCorrect;
-
-              // После ответа сворачиваем лишние варианты, чтобы освободить место под объяснение:
-              // верный ответ + (если ошибся) выбранный неверный остаются, остальные убираются.
-              // Свежий ответ (animateDismiss) — уезжают за экран (.dismissed). Возврат к
-              // отвеченному вопросу — сразу скрыты без анимации (.collapsed).
-              const hidden = answered && !showCorrect && !showWrong;
-              const dismissClass = hidden ? (animateDismiss ? 'dismissed' : 'collapsed') : '';
+              const showMuted = answered && !showCorrect && !showWrong;
 
               return (
                 <div
                   key={`${currentQuestion.id}-${index}`}
                   role="button"
                   tabIndex={-1}
-                  className={`answer-option ${isSelected ? 'selected' : ''} ${showCorrect ? 'correct' : ''} ${showWrong ? 'wrong' : ''} ${answered ? 'is-locked' : ''} ${dismissClass}`}
+                  className={`answer-option ${isSelected ? 'selected' : ''} ${showCorrect ? 'correct' : ''} ${showWrong ? 'wrong' : ''} ${showMuted ? 'muted' : ''} ${answered ? 'is-locked' : ''}`}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => !answered && submitAnswer(index)}
                 >
@@ -1427,26 +1438,24 @@ function Practice({ studentId, isTabActive = true }) {
                   <span className="answer-text">
                     {option}
                   </span>
+                  {answered && showCorrect && (
+                    <span className="answer-verdict answer-verdict--correct" aria-label="Правильный ответ">
+                      <span className="answer-verdict-icon">✓</span>
+                      <span className="answer-verdict-label">
+                        {isSelected ? 'Верно' : 'Правильный'}
+                      </span>
+                    </span>
+                  )}
+                  {answered && showWrong && (
+                    <span className="answer-verdict answer-verdict--wrong" aria-label="Неверный ответ">
+                      <span className="answer-verdict-icon">✕</span>
+                      <span className="answer-verdict-label">Неверно</span>
+                    </span>
+                  )}
                 </div>
               );
             })}
           </div>
-
-          {answered && (
-            <div className={`answer-result-box ${isCorrect ? 'correct-result' : 'wrong-result'}`}>
-              <div className="result-medal" aria-hidden>
-                <span className="result-medal-glyph">{isCorrect ? '✓' : '✕'}</span>
-              </div>
-              <div className="result-body">
-                <span className="result-text">
-                  {isCorrect ? 'Верно!' : 'Не верно'}
-                </span>
-                <span className="result-sub">
-                  {isCorrect ? 'Отличная работа' : 'Запомни правильный ответ'}
-                </span>
-              </div>
-            </div>
-          )}
 
           {(canGoBack || canGoForward || canAdvance) && (
             <div className="question-nav-row">

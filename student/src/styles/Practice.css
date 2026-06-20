@@ -152,7 +152,7 @@
   border-radius: 16px;
   padding: 24px;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   text-align: center;
 }
@@ -186,7 +186,7 @@
   background: white;
   border-radius: 16px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  transition: all 0.3s ease;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out);
   overflow: hidden;
 }
 
@@ -286,7 +286,7 @@
   font-weight: 600;
   font-size: 14px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out);
 }
 
 .btn-primary {
@@ -343,7 +343,7 @@
   border-radius: 16px;
   padding: 20px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  transition: all 0.3s;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out);
 }
 
 .question-card.inactive {
@@ -454,9 +454,9 @@
 }
 
 .question-explanation {
-  padding: 12px;
+  padding: 12px 14px;
   background: var(--kubik-blue-soft);
-  border-left: 4px solid var(--kubik-blue);
+  border: 1px solid rgba(51, 123, 174, 0.25);
   border-radius: 8px;
   font-size: 14px;
   color: var(--kubik-navy);
@@ -644,7 +644,7 @@
   font-weight: 600;
   color: var(--kubik-text);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out);
 }
 
 .btn-expand:hover {
@@ -706,4 +706,30 @@
 /* question-text и question-options внутри body не нужен нижний margin у последнего */
 .question-body .question-options {
   margin-bottom: 0;
+}
+
+/* ========== RESPONSIVE (phone tier) ========== */
+@media (max-width: 600px) {
+  .breadcrumbs {
+    flex-wrap: wrap;
+    row-gap: 4px;
+    font-size: 13px;
+  }
+  .questions-expand-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--sp-2);
+  }
+  .questions-expand-btns {
+    width: 100%;
+  }
+  .questions-expand-btns > * {
+    flex: 1 1 auto;
+  }
+  .header-actions {
+    width: 100%;
+  }
+  .header-actions > * {
+    flex: 1 1 auto;
+  }
 }

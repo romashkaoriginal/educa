@@ -153,7 +153,12 @@ function Quiz({ subjects, currentUserId, dataRefreshKey = 0 }) {
         body: JSON.stringify({ ...formData, subjectId: parseInt(formData.subjectId), questions, createdBy: currentUserId || 1 })
       });
       if (response.ok) {
-        setFormData({ title: '', description: '', subjectId: '' });
+        setFormData({
+          title: '', description: '', subjectId: '',
+          showLeaderboardAfterQuestion: true,
+          showQuestionReview: true,
+          showExplanations: true
+        });
         setQuestions([]);
         setView('list');
         loadQuizzes();
@@ -501,33 +506,6 @@ function Quiz({ subjects, currentUserId, dataRefreshKey = 0 }) {
             <option value="">Выберите предмет</option>
             {subjects.map(s => <option key={s.id} value={s.id}>{s.icon} {s.name}</option>)}
           </select>
-          <div className="quiz-settings-block">
-            <h3>Настройки викторины</h3>
-            <label className="quiz-setting-row">
-              <input
-                type="checkbox"
-                checked={formData.showLeaderboardAfterQuestion}
-                onChange={(e) => setFormData({ ...formData, showLeaderboardAfterQuestion: e.target.checked })}
-              />
-              Показывать лидерборд после каждого вопроса
-            </label>
-            <label className="quiz-setting-row">
-              <input
-                type="checkbox"
-                checked={formData.showQuestionReview}
-                onChange={(e) => setFormData({ ...formData, showQuestionReview: e.target.checked })}
-              />
-              Показывать список вопросов с результатами в конце
-            </label>
-            <label className="quiz-setting-row">
-              <input
-                type="checkbox"
-                checked={formData.showExplanations}
-                onChange={(e) => setFormData({ ...formData, showExplanations: e.target.checked })}
-              />
-              Показывать объяснения к вопросам
-            </label>
-          </div>
           <div className="questions-section">
             <h3>Вопросы ({questions.length})</h3>
             {questions.map((q, i) => (

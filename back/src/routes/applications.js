@@ -1,12 +1,38 @@
 const express = require('express');
 const router = express.Router();
-const { Application, Subject } = require('../models');
+const { Application, Subject, BotUser } = require('../models');
 const { sendToAmoCRM } = require('../services/amocrm');
 const { markGuestApplicationSent } = require('../services/guestAccess');
 const { telegramAuth, requireRole } = require('../middleware/telegramAuth');
 
 // Доступ к заявкам: admin + manager
 const canManage = requireRole(['admin', 'manager']);
+
+// GET /api/applications/shared-phone — телефон, которым пользователь поделился
+// через кнопку Telegram (WebApp.requestContact). Бот сохраняет его в BotUser;
+// фронт поллит этот эндпоинт после нажатия кнопки. Отдаём только СВОЙ номер
+// (по telegramId из initData) и только свежий (за последние 5 минут).
+router.get('/shared-phone', telegramAuth, async (req, res) => {
+  try {
+    const telegramId = req.telegramUser?.id;
+    if (!telegramId) return res.status(401).json({ message: 'No auth' });
+
+    const botUser = await BotUser.findOne({
+      where: { telegramId },
+      attributes: ['phone', 'phoneSharedAt']
+    });
+
+    const FRESH_MS = 5 * 60 * 1000;
+    const fresh = botUser?.phone
+      && botUser.phoneSharedAt
+      && (Date.now() - new Date(botUser.phoneSharedAt).getTime() <= FRESH_MS);
+
+    res.json({ phone: fresh ? botUser.phone : null });
+  } catch (error) {
+    console.error('Get shared phone error:', error);
+    res.status(500).json({ message: 'Ошибка сервера' });
+  }
+});
 
 // POST /api/applications — создать заявку (из бота, без авторизации)
 // Бот отправляет напрямую, поэтому без telegramAuth

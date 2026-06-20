@@ -18,7 +18,7 @@ function StudentAppContent({ selectedStudent, isGuest = false, applicationSent =
   const [lockedModal, setLockedModal] = useState(null);
   const {
     subjects,
-    preloadAllData, loadStreak, practiceIntent, refreshDashboard,
+    preloadAllData, loadStreak, refreshDashboard,
     requestPracticeHome, requestHomeworkHome,
   } = useData();
 
@@ -27,21 +27,33 @@ function StudentAppContent({ selectedStudent, isGuest = false, applicationSent =
     preloadAllData();
   }, []); // eslint-disable-line
 
-  useEffect(() => {
-    if (practiceIntent && activeTab !== 'practice') {
-      setActiveTab('practice');
-    }
-  }, [practiceIntent]); // eslint-disable-line
+  // Таб практики переключается внутри самого компонента Practice после запуска теста,
+  // чтобы список практики не мелькал перед оверлеем теста.
 
   // Глобально включаем подтверждение закрытия — всегда, для всех разделов
   useEffect(() => {
     const tg = window.Telegram?.WebApp;
+
+    // Высота приложения = реальная видимая высота Telegram-вьюпорта.
+    // В Telegram 100vh/100dvh бывает больше viewportStableHeight (своя шапка/жесты),
+    // из-за чего низ приложения уходит за экран и последний ряд (напр. 3-я карточка
+    // предмета) обрезается под нижней панелью. Привязываемся к реальной высоте.
+    const applyViewportHeight = () => {
+      const h = tg?.viewportStableHeight || tg?.viewportHeight || window.innerHeight;
+      if (h) document.documentElement.style.setProperty('--app-height', `${h}px`);
+    };
+    applyViewportHeight();
+    tg?.onEvent?.('viewportChanged', applyViewportHeight);
+    window.addEventListener('resize', applyViewportHeight);
+
     if (tg) {
       Promise.resolve(tg.enableClosingConfirmation?.()).catch(() => {});
       Promise.resolve(tg.disableVerticalSwipes?.()).catch(() => {});
     }
     return () => {
       tg?.disableClosingConfirmation?.();
+      tg?.offEvent?.('viewportChanged', applyViewportHeight);
+      window.removeEventListener('resize', applyViewportHeight);
     };
   }, []);
 
@@ -91,6 +103,12 @@ function StudentAppContent({ selectedStudent, isGuest = false, applicationSent =
     return tabOrder.indexOf(to) > tabOrder.indexOf(from) ? 'forward' : 'backward';
   };
 
+  const handlePracticeClose = ({ returnToStats } = {}) => {
+    if (returnToStats) {
+      handleTabChange('stats');
+    }
+  };
+
   const tabs = [
     { id: 'practice', name: 'Практика', icon: '💪' },
     { id: 'homework', name: 'Домашка', icon: '📝', locked: isGuest },
@@ -105,7 +123,7 @@ function StudentAppContent({ selectedStudent, isGuest = false, applicationSent =
       <main className="content">
         <div className="tab-viewport">
           {[
-            { id: 'practice', el: <Practice studentId={selectedStudent.id} isTabActive={activeTab === 'practice'} /> },
+            { id: 'practice', el: <Practice studentId={selectedStudent.id} isTabActive={activeTab === 'practice'} onClose={handlePracticeClose} onActivate={() => setActiveTab('practice')} /> },
             { id: 'homework', el: <Homework studentId={selectedStudent.id} /> },
             { id: 'quiz', el: <Quiz studentId={selectedStudent.id} studentName={`${selectedStudent.firstName || ''} ${selectedStudent.lastName || ''}`.trim() || 'Ученик'} /> },
             { id: 'stats', el: <Statistics studentId={selectedStudent.id} isGuest={isGuest} onLockedClick={() => setLockedModal({ context: 'locked_statistics_homework', source: 'TG Mini App — закрытый раздел' })} /> },

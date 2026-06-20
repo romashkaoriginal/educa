@@ -27,8 +27,10 @@
 .student-app {
   max-width: 480px;
   width: 100%;
-  height: 100%;
-  max-height: 100dvh;
+  /* --app-height = реальная высота Telegram-вьюпорта (ставится из JS).
+     Фолбэк 100dvh для обычного браузера. */
+  height: var(--app-height, 100dvh);
+  max-height: var(--app-height, 100dvh);
   margin: 0 auto;
   background: var(--kubik-white);
   box-shadow: 0 0 50px rgba(26, 64, 95, 0.06);

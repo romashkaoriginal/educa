@@ -29,9 +29,197 @@ function useCountUp(target, duration = 900, active = true) {
   return value;
 }
 
+// Тактильный отклик: Telegram HapticFeedback, иначе navigator.vibrate.
+function haptic(type = 'light') {
+  try {
+    const tg = window.Telegram?.WebApp?.HapticFeedback;
+    if (tg) {
+      if (type === 'success' || type === 'error' || type === 'warning') {
+        tg.notificationOccurred(type);
+      } else {
+        tg.impactOccurred(type); // 'light' | 'medium' | 'heavy' | 'rigid' | 'soft'
+      }
+      return;
+    }
+  } catch (_) { /* ignore */ }
+  try {
+    if (navigator.vibrate) {
+      const map = { light: 10, medium: 20, heavy: 35, success: [15, 40, 15], error: [40, 30, 40], warning: 30 };
+      navigator.vibrate(map[type] || 10);
+    }
+  } catch (_) { /* ignore */ }
+}
+
 function formatQuizLine(subjectName, title, separator = '.') {
   if (subjectName && title) return `${subjectName}${separator} ${title}`;
   return title || subjectName || 'Викторина';
+}
+
+// Детерминированный выбор из массива по «семени» (чтобы статус не прыгал при ре-рендере).
+function pick(arr, seed) {
+  if (!arr.length) return null;
+  return arr[Math.abs(seed) % arr.length];
+}
+
+const QUIZ_RANK_AWARDS = {
+  legendary: [
+    ['👑', 'Абсолютный чемпион', 'Идеальная игра: ни одной ошибки.'],
+    ['💎', 'Алмазная серия', '100% точность. Так проходят викторины мастера.'],
+    ['⚡', 'Молния без промаха', 'Быстро, точно и без единого лишнего движения.'],
+    ['🌌', 'Космический уровень', 'Все ответы попали точно в цель.'],
+    ['🧠', 'Гений раунда', 'Сегодня мозг работал как турбина.'],
+    ['🏛️', 'Легенда класса', 'Такой результат хочется показывать всем.'],
+    ['🪄', 'Маг точных ответов', 'Ни одной ошибки — почти фокус.'],
+    ['🚀', 'Орбита победителя', 'Ты улетел выше всех ожиданий.'],
+    ['🔥', 'Безошибочный режим', 'Полная концентрация и чистая победа.'],
+    ['🦉', 'Мудрец викторины', 'Ответы были спокойные, точные и уверенные.']
+  ],
+  gold: [
+    ['🏆', 'Чемпион викторины', 'Первое место. Никто не набрал больше.'],
+    ['🥇', 'Золотой финиш', 'Ты забрал вершину таблицы.'],
+    ['🦁', 'Лидер прайда', 'Уверенно вышел первым.'],
+    ['⚔️', 'Победитель дуэли', 'Соперники были близко, но ты выше.'],
+    ['🎖️', 'Командир результата', 'Первое место добыто по делу.'],
+    ['🌟', 'Звезда раунда', 'Сегодня таблица начинается с тебя.'],
+    ['🚩', 'Флаг на вершине', 'Ты закрепился на первом месте.'],
+    ['🧭', 'Капитан зачёта', 'Вёл игру и довёл её до победы.'],
+    ['💫', 'Первый импульс', 'Отличный рывок и лучший итог.'],
+    ['🦅', 'Высота чемпиона', 'Сверху видно всю таблицу.']
+  ],
+  silver: [
+    ['🥈', 'Серебряный рывок', 'Второе место — очень близко к золоту.'],
+    ['🚀', 'Почти орбита', 'Ещё немного, и первое место твоё.'],
+    ['🛡️', 'Сильный претендент', 'Ты в призёрах и держишь высокий темп.'],
+    ['🌙', 'Серебряная точность', 'Спокойно и уверенно забрал вторую строчку.'],
+    ['⚙️', 'Механика успеха', 'Результат собран почти идеально.'],
+    ['🎯', 'В шаге от вершины', 'Очень крепкая игра.'],
+    ['💪', 'Главный преследователь', 'Ты ближе всех к чемпиону.'],
+    ['🪽', 'Высокий полёт', 'Пьедестал уже твой.'],
+    ['📈', 'Рывок наверх', 'Таблица точно заметила этот результат.']
+  ],
+  bronze: [
+    ['🥉', 'Бронзовый пьедестал', 'Третье место — ты среди лучших.'],
+    ['🔥', 'Горячая тройка', 'Призовое место добыто в борьбе.'],
+    ['🧩', 'Точный сборщик', 'Хорошо собрал ответы и попал в топ-3.'],
+    ['🎖️', 'Медаль за напор', 'Бронза смотрится заслуженно.'],
+    ['🌄', 'Вершина рядом', 'Ты уже на пьедестале.'],
+    ['⚡', 'Быстрый призёр', 'Третья строчка и сильный результат.'],
+    ['🦊', 'Хитрый ход', 'Умная игра вывела в тройку.'],
+    ['🏅', 'Призовой зачёт', 'Ты закончил викторину с медалью.']
+  ],
+  elite: [
+    ['🌟', 'Элита раунда', 'Ты в верхушке таблицы.'],
+    ['💫', 'Топ-рывок', 'Результат заметно выше среднего.'],
+    ['🛰️', 'На высокой орбите', 'Ты держишься рядом с лидерами.'],
+    ['🧨', 'Сильный взрыв', 'Мощная игра без лишнего шума.'],
+    ['🎯', 'Точный охотник', 'Много попаданий и высокий итог.'],
+    ['🔭', 'Дальняя цель взята', 'Ты уверенно попал в верхнюю часть таблицы.'],
+    ['🧠', 'Умный темп', 'Верные решения привели высоко.'],
+    ['🏹', 'Стрела в топ', 'Твой результат улетел вверх.'],
+    ['📌', 'Закрепился наверху', 'Хорошая позиция среди участников.']
+  ],
+  great: [
+    ['🚀', 'Отличный старт', 'Ты в верхней части таблицы.'],
+    ['🔥', 'Сильная игра', 'Темп хороший, результат крепкий.'],
+    ['💪', 'Уверенный игрок', 'Ты явно был в форме.'],
+    ['⚡', 'Быстрый разгон', 'Хороший темп дал хороший итог.'],
+    ['🧭', 'Верный курс', 'Двигаешься к призовым местам.'],
+    ['🎮', 'Комбо собрано', 'Несколько точных ответов сделали разницу.'],
+    ['📈', 'Плюс к рейтингу', 'После такого хочется сыграть ещё.'],
+    ['🦾', 'Железная попытка', 'Крепко, собрано, уверенно.'],
+    ['🌊', 'Хорошая волна', 'Поймал ритм и прошёл достойно.']
+  ],
+  sharp: [
+    ['🎯', 'Меткий стрелок', 'Высокая точность — отличный знак.'],
+    ['🔬', 'Точный аналитик', 'Ошибок мало, мышление работает чисто.'],
+    ['🧠', 'Холодная голова', 'Ответы были продуманными.'],
+    ['🪶', 'Тонкая настройка', 'Точность уже есть, осталось добавить скорость.'],
+    ['📐', 'Выверенный ответ', 'Ты умеешь выбирать аккуратно.'],
+    ['🧿', 'Глаз-алмаз', 'Много точных попаданий.'],
+    ['🧩', 'Собрал логику', 'Ответы легли в правильный порядок.'],
+    ['🦉', 'Спокойная точность', 'Не спешил зря и попал куда нужно.']
+  ],
+  good: [
+    ['👏', 'Хороший результат', 'Викторина пройдена достойно.'],
+    ['💪', 'Крепкая игра', 'Есть база, есть движение вперёд.'],
+    ['🧱', 'Надёжный фундамент', 'На этом результате можно строить дальше.'],
+    ['🎒', 'Боевой зачёт', 'Ты справился и забрал опыт.'],
+    ['🛠️', 'Режим прокачки', 'Ещё немного практики — и место выше.'],
+    ['🌤️', 'Светлый прогресс', 'Хорошая попытка с понятным ростом.'],
+    ['🧭', 'Курс найден', 'Следующая викторина может быть сильнее.'],
+    ['🎲', 'Игра засчитана', 'Опыт получен, выводы сделаны.'],
+    ['🚶', 'Шаг вперёд', 'Каждая такая игра двигает выше.']
+  ],
+  grow: [
+    ['🌱', 'Старт положен', 'Это начало. Практика быстро подтянет результат.'],
+    ['🧪', 'Первая проба', 'Ошибки показывают, что повторить дальше.'],
+    ['🛤️', 'Маршрут построен', 'Теперь понятно, куда расти.'],
+    ['🔧', 'Режим настройки', 'Чуть практики — и баллы начнут подниматься.'],
+    ['🧗', 'Подъём начался', 'Сегодня не вершина, но движение есть.'],
+    ['🌿', 'Росток результата', 'Следующая попытка может удивить.'],
+    ['📚', 'Материал найден', 'Разбор ошибок даст быстрый прирост.'],
+    ['🧯', 'Спокойный рестарт', 'Не страшно ошибаться, важно продолжать.']
+  ]
+};
+
+function awardFrom(tier, seed, fallbackTier = 'good') {
+  const pool = QUIZ_RANK_AWARDS[tier] || QUIZ_RANK_AWARDS[fallbackTier];
+  const [emoji, title, subtitle] = pick(pool, seed);
+  return { tier, emoji, title, subtitle };
+}
+
+// Большая база «званий» в зависимости от места, числа участников и точности.
+// Возвращает данные для награды на финальном экране.
+function getQuizRankStatus({ rank, total, accuracy = 0, correct = 0, totalQuestions = 0 }) {
+  const r = Number(rank) || 0;
+  const n = Number(total) || 0;
+  const acc = Number(accuracy) || 0;
+  const seed = r * 7 + n * 13 + correct * 3 + Math.round(acc); // стабильное семя
+  const perfect = totalQuestions > 0 && correct >= totalQuestions;
+  // Доля сверху: 0 — лучший, 1 — последний
+  const topFraction = n > 1 ? (r - 1) / (n - 1) : 0;
+
+  let award;
+  if (perfect) {
+    award = awardFrom('legendary', seed);
+  } else if (r === 1 && n > 1) {
+    award = awardFrom('gold', seed);
+  } else if (r === 2 && n > 2) {
+    award = awardFrom('silver', seed);
+  } else if (r === 3 && n > 3) {
+    award = awardFrom('bronze', seed);
+  } else if (n >= 5 && topFraction <= 0.1) {
+    award = awardFrom('elite', seed);
+  } else if (n >= 4 && topFraction <= 0.34) {
+    award = awardFrom('great', seed);
+  } else if (acc >= 80) {
+    award = awardFrom('sharp', seed);
+  } else if (n >= 3 && topFraction <= 0.7) {
+    award = awardFrom('good', seed);
+  } else if (acc < 40) {
+    award = awardFrom('grow', seed);
+  } else {
+    award = awardFrom('good', seed);
+  }
+
+  const rarityByTier = {
+    legendary: 'легендарное звание',
+    gold: 'золотое звание',
+    silver: 'серебряное звание',
+    bronze: 'бронзовое звание',
+    elite: 'элитное звание',
+    great: 'сильное звание',
+    sharp: 'звание за точность',
+    good: 'боевое звание',
+    grow: 'звание роста'
+  };
+
+  return {
+    ...award,
+    rarity: rarityByTier[award.tier] || 'звание',
+    placeLine: r && n ? `${r} место из ${n}` : 'место будет в истории',
+    accuracyLine: totalQuestions ? `${correct}/${totalQuestions} верных · ${acc}% точность` : `${acc}% точность`
+  };
 }
 
 function formatScore(value) {
@@ -62,32 +250,30 @@ function QuizShell({ children, className = '', sessionLock = false }) {
   );
 }
 
-function MiniLeaderboard({ participants, studentId, myRank, compact = false }) {
-  const top = participants.slice(0, compact ? 5 : 8);
-  if (top.length === 0) {
-    return <p className="quiz-ui-sidebar__empty">Пока нет результатов</p>;
-  }
+// Горизонтальная полоса лидерборда для экрана вопроса (эргономичнее сайдбара)
+function MiniLeaderboardBar({ participants, studentId, myRank }) {
+  if (participants.length === 0) return null;
+  const top = participants.slice(0, 3);
+  const meInTop = top.some((p) => p.userId === studentId);
+  const medals = ['🥇', '🥈', '🥉'];
   return (
-    <>
-      <ol className="quiz-ui-mini-lb">
-        {top.map((p) => (
-          <li
+    <div className="quiz-ui-lb-bar" aria-label="Лидерборд">
+      <div className="quiz-ui-lb-bar__list">
+        {top.map((p, i) => (
+          <span
             key={p.userId}
-            className={`quiz-ui-mini-lb__row${p.userId === studentId ? ' is-me' : ''}${p.rank === 1 ? ' is-top1' : ''}`}
+            className={`quiz-ui-lb-bar__item${p.userId === studentId ? ' is-me' : ''}`}
           >
-            <span className="quiz-ui-mini-lb__rank">{p.rank}.</span>
-            <span className="quiz-ui-mini-lb__name">
-              {p.userId === studentId ? 'Вы' : p.firstName}
-              {!compact && p.userId !== studentId && p.lastName?.[0] ? ` ${p.lastName[0]}.` : ''}
-            </span>
-            <span className="quiz-ui-mini-lb__score">{formatScore(p.totalScore)}</span>
-          </li>
+            <span className="quiz-ui-lb-bar__medal">{medals[i]}</span>
+            <span className="quiz-ui-lb-bar__name">{p.userId === studentId ? 'Вы' : p.firstName}</span>
+            <span className="quiz-ui-lb-bar__score">{formatScore(p.totalScore)}</span>
+          </span>
         ))}
-      </ol>
-      {myRank > 0 && (
-        <p className="quiz-ui-sidebar__footer">#{myRank} из {participants.length}</p>
+      </div>
+      {!meInTop && myRank > 0 && (
+        <span className="quiz-ui-lb-bar__me">#{myRank} из {participants.length}</span>
       )}
-    </>
+    </div>
   );
 }
 
@@ -122,13 +308,12 @@ function Quiz({ studentId, studentName = 'Ученик' }) {
   const [answered, setAnswered] = useState(false);
   const [timedOut, setTimedOut] = useState(false);
   const [answerFeedback, setAnswerFeedback] = useState(null);
+  const [questionTransition, setQuestionTransition] = useState(false);
 
-  const [questionResult, setQuestionResult] = useState(null);
   const [myScore, setMyScore] = useState(0);
   const [finalResults, setFinalResults] = useState(null);
   const [resultsSource, setResultsSource] = useState('live');
   const [showErrorsDetail, setShowErrorsDetail] = useState(false);
-  const [leaderboardMeta, setLeaderboardMeta] = useState({ previousRank: null, currentRank: null });
   const [enterTab, setEnterTab] = useState('join');
 
   const questionStartTime = useRef(null);
@@ -136,7 +321,6 @@ function Quiz({ studentId, studentName = 'Ученик' }) {
   const selectedAnswerRef = useRef(null);
   const timedOutRef = useRef(false);
   const currentQuestionRef = useRef(null);
-  const prevRankRef = useRef(null);
 
   // Счёт для финального экрана (хук на верхнем уровне — без нарушения правил React)
   const finalScoreTarget = view === 'results' ? (parseFloat(finalResults?.me?.totalScore) || 0) : 0;
@@ -167,7 +351,7 @@ function Quiz({ studentId, studentName = 'Ученик' }) {
 
   useEffect(() => { loadQuizHistory(); }, [loadQuizHistory]);
 
-  const sessionLocked = ['lobby', 'playing', 'question-result', 'leaderboard'].includes(view);
+  const sessionLocked = ['lobby', 'playing'].includes(view);
 
   useEffect(() => {
     const appRoot = document.querySelector('.student-app');
@@ -193,6 +377,7 @@ function Quiz({ studentId, studentName = 'Ученик' }) {
     timedOutRef.current = true;
     setTimedOut(true);
     setAnswered(true);
+    haptic('warning');
   }, [timeLeft, view, answered, currentQuestion]);
 
   const setupSocketListeners = (newSocket, quizData, forceReconnect = false) => {
@@ -217,8 +402,8 @@ function Quiz({ studentId, studentName = 'Ученик' }) {
       setTimedOut(false);
       selectedAnswerRef.current = null;
       timedOutRef.current = false;
-      setQuestionResult(null);
       setAnswerFeedback(null);
+      setQuestionTransition(false);
       setView('playing');
       questionStartTime.current = Date.now();
     });
@@ -229,74 +414,21 @@ function Quiz({ studentId, studentName = 'Ученик' }) {
         setAnswerFeedback({
           isCorrect: data.isCorrect,
           earned: parseFloat(data.score) || 0,
-          maxPoints: parseFloat(data.maxPoints) || 0,
           correctAnswer: data.correctAnswer
         });
+        haptic(data.isCorrect ? 'success' : 'error');
         if (data.totalScore != null) {
           setMyScore(parseFloat(data.totalScore) || 0);
         }
       }
     });
 
-    newSocket.on('quiz:question-ended', async ({ correctAnswer, explanation, maxPoints, questionId }) => {
-      const wasTimedOut = timedOutRef.current;
-      let mySelected = selectedAnswerRef.current;
-      let earned = 0;
-
-      try {
-        const res = await apiFetch(`${API_URL}/quiz/${quizData.id}/results`);
-        if (res.ok) {
-          const data = await res.json();
-          const me = data.participants?.find((p) => p.userId === studentId);
-          const ans = me?.answers?.find((a) => a.questionId === questionId);
-          if (ans) {
-            earned = parseFloat(ans.score) || 0;
-            mySelected = ans.selectedAnswer;
-            setMyScore(parseFloat(me.totalScore) || 0);
-          }
-        }
-      } catch (_) { /* use local state */ }
-
-      const isCorrect = !wasTimedOut && mySelected === correctAnswer;
-
-      setQuestionResult({
-        isCorrect,
-        timedOut: wasTimedOut,
-        selectedAnswer: wasTimedOut ? null : mySelected,
-        correctAnswer,
-        explanation,
-        earned,
-        maxPoints: maxPoints || 0,
-        options: currentQuestionRef.current?.options || [],
-        myRank: null
-      });
-
-      if (quizData.showLeaderboardAfterQuestion !== false) {
-        try {
-          const res = await apiFetch(`${API_URL}/quiz/${quizData.id}/results`);
-          if (res.ok) {
-            const data = await res.json();
-            const sorted = [...(data.participants || [])].sort(
-              (a, b) => (parseFloat(b.totalScore) || 0) - (parseFloat(a.totalScore) || 0)
-            );
-            const rank = sorted.findIndex((p) => p.userId === studentId) + 1;
-            if (rank > 0) {
-              setQuestionResult((prev) => ({ ...prev, myRank: rank, totalParticipants: sorted.length }));
-            }
-          }
-        } catch (_) { /* optional rank */ }
-      }
-
-      setView('question-result');
-    });
-
-    newSocket.on('quiz:leaderboard', ({ participants: ranked }) => {
-      const list = ranked || [];
-      const newRank = list.findIndex((p) => p.userId === studentId) + 1;
-      setLeaderboardMeta({ previousRank: prevRankRef.current, currentRank: newRank || null });
-      if (newRank > 0) prevRankRef.current = newRank;
-      setParticipants(list);
-      setView('leaderboard');
+    // Вопрос завершён у всех одновременно. Без промежуточных экранов:
+    // гасим приём ответов и ждём следующий вопрос (или финал).
+    newSocket.on('quiz:question-ended', () => {
+      timedOutRef.current = true;
+      setAnswered(true);
+      setQuestionTransition(true);
     });
 
     newSocket.on('participants:updated', ({ participants: list }) => {
@@ -333,7 +465,8 @@ function Quiz({ studentId, studentName = 'Ученик' }) {
 
     newSocket.emit('student:join-quiz', {
       quizId: quizData.id,
-      forceReconnect
+      forceReconnect,
+      studentId
     });
   };
 
@@ -395,10 +528,13 @@ function Quiz({ studentId, studentName = 'Ученик' }) {
       const res = await apiFetch(`${API_URL}/quiz/${quizId}/results`);
       if (!res.ok) return;
       const data = await res.json();
-      const me = data.participants?.find((p) => p.userId === studentId);
-      const rank = data.participants?.findIndex((p) => p.userId === studentId) + 1;
-      if (me) me.rank = rank;
-      setFinalResults({ quiz: data.quiz, me, participants: data.participants });
+      const rankedParticipants = (data.participants || []).map((p) => {
+        const score = parseFloat(p.totalScore) || 0;
+        const rank = (data.participants || []).filter((other) => (parseFloat(other.totalScore) || 0) > score).length + 1;
+        return { ...p, rank };
+      });
+      const me = rankedParticipants.find((p) => p.userId === studentId);
+      setFinalResults({ quiz: data.quiz, me, participants: rankedParticipants });
       if (me) setMyScore(parseFloat(me.totalScore) || 0);
     } catch (e) {
       console.error('Load final results:', e);
@@ -439,6 +575,7 @@ function Quiz({ studentId, studentName = 'Ученик' }) {
 
   const submitAnswer = (answerIndex) => {
     if (answered || timeLeft <= 0 || !currentQuestion || !socket) return;
+    haptic('medium');
     setSelectedAnswer(answerIndex);
     selectedAnswerRef.current = answerIndex;
     setAnswered(true);
@@ -466,7 +603,6 @@ function Quiz({ studentId, studentName = 'Ученик' }) {
     setParticipants([]);
     setMyScore(0);
     setFinalResults(null);
-    setQuestionResult(null);
     setAnswerFeedback(null);
     setFinishedInfo(null);
     setReconnectOffer(null);
@@ -474,6 +610,7 @@ function Quiz({ studentId, studentName = 'Ученик' }) {
     setResultsSource('live');
     setShowErrorsDetail(false);
     setEnterTab('join');
+    setQuestionTransition(false);
   };
 
   const goToPractice = () => {
@@ -525,6 +662,9 @@ function Quiz({ studentId, studentName = 'Ученик' }) {
         <div className="quiz-ui-lobby__pulse"><span>✓</span></div>
         <span className="quiz-ui__eyebrow">Комната ожидания</span>
         <h1 className="quiz-ui__title">{formatQuizLine(quiz?.subject?.name, quiz?.title, ':')}</h1>
+        {quiz?.description && (
+          <p className="quiz-ui-lobby__desc">{quiz.description}</p>
+        )}
         <div className="quiz-ui-status-chip">Ты подключён</div>
         <div className="quiz-ui-info-grid">
           <div className="quiz-ui-info-row"><span>Ты подключён как</span><span>{studentName}</span></div>
@@ -553,65 +693,97 @@ function Quiz({ studentId, studentName = 'Ученик' }) {
     }
 
     const timeLimit = currentQuestion.timeLimit || 1;
-    const timeProgress = Math.max(0, Math.min(100, (timeLeft / timeLimit) * 100));
+    const timeRatio = Math.max(0, Math.min(1, timeLeft / timeLimit));
     const showInstantFeedback = leaderboardEnabled && answerFeedback;
+    const isUrgent = timeLeft <= 5;
 
     return (
-      <QuizShell className={`quiz-ui-play${leaderboardEnabled ? ' quiz-ui-play--with-lb' : ''}`} sessionLock>
-        <div className="quiz-ui-play-layout">
+      <QuizShell className={`quiz-ui-play${leaderboardEnabled ? ' quiz-ui-play--with-lb' : ''}${isUrgent ? ' quiz-ui-play--urgent' : ''}`} sessionLock>
+        <div className="quiz-ui-aurora" aria-hidden="true">
+          <span className="quiz-ui-aurora__blob quiz-ui-aurora__blob--1" />
+          <span className="quiz-ui-aurora__blob quiz-ui-aurora__blob--2" />
+          <span className="quiz-ui-aurora__blob quiz-ui-aurora__blob--3" />
+        </div>
+        <div className="quiz-ui-play-stack">
+          {questionTransition && (
+            <div className="quiz-ui-transition" aria-live="polite">
+              <div className="quiz-ui-transition__spinner" />
+              <span>Следующий вопрос…</span>
+            </div>
+          )}
+          {leaderboardEnabled && (
+            <MiniLeaderboardBar participants={participants} studentId={studentId} myRank={myRank} />
+          )}
           <div className="quiz-ui-play-main">
             <header className="quiz-ui-play__header">
               <div className="quiz-ui-play__meta">
                 <span className="quiz-ui-play__label">Вопрос {questionIndex + 1} из {totalQuestions}</span>
-                <div className="quiz-ui-segments">
+                <div className="quiz-ui-qnums">
                   {Array.from({ length: totalQuestions }, (_, i) => (
-                    <div
+                    <span
                       key={i}
-                      className={`quiz-ui-segment${i < questionIndex ? ' is-done' : ''}${i === questionIndex ? ' is-current' : ''}`}
-                    />
+                      className={`quiz-ui-qnum${i < questionIndex ? ' is-done' : ''}${i === questionIndex ? ' is-current' : ''}`}
+                    >
+                      {i + 1}
+                    </span>
                   ))}
                 </div>
               </div>
+              <div
+                className={`quiz-ui-timer-ring ${isUrgent ? 'is-urgent' : ''}`}
+                style={{ '--qz-ring': timeRatio }}
+                role="timer"
+                aria-label={`Осталось ${timeLeft} секунд`}
+              >
+                <svg viewBox="0 0 44 44" aria-hidden="true">
+                  <circle className="quiz-ui-timer-ring__track" cx="22" cy="22" r="19" />
+                  <circle className="quiz-ui-timer-ring__progress" cx="22" cy="22" r="19" />
+                </svg>
+                <span className="quiz-ui-timer-ring__value">{timeLeft}</span>
+              </div>
               <ScoreChip score={myScore} />
             </header>
-
-            <div className={`quiz-ui-timer-bar ${timeLeft <= 5 ? 'is-urgent' : ''}`}>
-              <div className="quiz-ui-timer-bar__top">
-                <span className="quiz-ui-timer-bar__label">Осталось времени</span>
-                <span className="quiz-ui-timer-bar__value">{timeLeft} сек.</span>
-              </div>
-              <div className="quiz-ui-timer-bar__track">
-                <div className="quiz-ui-timer-bar__fill" style={{ width: `${timeProgress}%` }} />
-              </div>
-            </div>
 
             <div className="quiz-ui-card quiz-ui-question-card">
               <h2>{currentQuestion.questionText}</h2>
               <div className="quiz-ui-points-badge">Баллы за вопрос: до {currentQuestion.points || 1}</div>
 
-              <div className="quiz-ui-answers" key={currentQuestion.id}>
+              <div className={`quiz-ui-answers${answered ? ' is-answered' : ''}`} key={currentQuestion.id}>
                 {currentQuestion.options.map((option, index) => {
                   const letter = String.fromCharCode(65 + index);
-                  const isSelected = answered && selectedAnswer === index;
+                  const isMine = selectedAnswer === index;
                   const isLocked = answered || timeLeft <= 0;
-                  const isCorrectOption = showInstantFeedback && index === answerFeedback.correctAnswer;
-                  const isWrongSelected = showInstantFeedback && isSelected && !answerFeedback.isCorrect;
+                  // Подсветка появляется только после ответа сервера (showInstantFeedback).
+                  const revealed = showInstantFeedback;
+                  const isCorrectOption = revealed && index === answerFeedback.correctAnswer;
+                  const isWrongMine = revealed && isMine && !answerFeedback.isCorrect;
+                  // До прихода фидбэка свой выбор просто отмечен «галочкой принято».
+                  const isPicked = isMine && answered && !revealed;
+                  // чужие варианты после раскрытия — приглушаем (но не правильный/свой)
+                  const isMuted = revealed && !isCorrectOption && !isWrongMine;
+                  const cls = [
+                    'quiz-ui-answer',
+                    `quiz-ui-answer--${index}`,
+                    isPicked ? 'is-picked' : '',
+                    isCorrectOption ? 'is-correct' : '',
+                    isWrongMine ? 'is-wrong' : '',
+                    isMuted ? 'is-muted' : ''
+                  ].filter(Boolean).join(' ');
                   return (
                     <button
                       key={`${currentQuestion.id}-${index}`}
                       type="button"
-                      className={`quiz-ui-answer quiz-ui-answer--${index} ${isSelected ? 'is-selected' : ''} ${isLocked ? 'is-locked' : ''} ${isCorrectOption ? 'is-correct' : ''} ${isWrongSelected ? 'is-wrong' : ''}`}
+                      className={cls}
                       onClick={() => submitAnswer(index)}
                       onPointerUp={(e) => e.currentTarget.blur()}
                       disabled={isLocked}
+                      aria-disabled={isLocked}
                     >
                       <span className="quiz-ui-answer__mark">{letter}</span>
                       <span className="quiz-ui-answer__text">{option}</span>
                       {isCorrectOption && <span className="quiz-ui-answer__icon">✓</span>}
-                      {isWrongSelected && <span className="quiz-ui-answer__icon">✗</span>}
-                      {isSelected && answered && !showInstantFeedback && (
-                        <span className="quiz-ui-answer__check">✓</span>
-                      )}
+                      {isWrongMine && <span className="quiz-ui-answer__icon">✗</span>}
+                      {isPicked && <span className="quiz-ui-answer__check">✓</span>}
                     </button>
                   );
                 })}
@@ -620,13 +792,7 @@ function Quiz({ studentId, studentName = 'Ученик' }) {
               {showInstantFeedback && (
                 <div className={`quiz-ui-toast ${answerFeedback.isCorrect ? 'quiz-ui-toast--correct' : 'quiz-ui-toast--wrong'}`}>
                   {answerFeedback.isCorrect ? (
-                    <>
-                      ✓ Верно! +{formatScore(answerFeedback.earned)}
-                      {answerFeedback.maxPoints > 0 ? ` из ${formatScore(answerFeedback.maxPoints)}` : ''} баллов
-                      {answerFeedback.maxPoints > 0 && answerFeedback.earned < answerFeedback.maxPoints && (
-                        <span className="quiz-ui-toast__hint"> · быстрее = больше баллов</span>
-                      )}
-                    </>
+                    <>✓ Верно! +{formatScore(answerFeedback.earned)} баллов</>
                   ) : (
                     <>✗ Неверно. 0 баллов</>
                   )}
@@ -645,132 +811,6 @@ function Quiz({ studentId, studentName = 'Ученик' }) {
               )}
             </div>
           </div>
-
-          {leaderboardEnabled && (
-            <aside className="quiz-ui-sidebar" aria-label="Лидерборд">
-              <h3 className="quiz-ui-sidebar__title">🏆 Топ</h3>
-              <MiniLeaderboard participants={participants} studentId={studentId} myRank={myRank} compact />
-            </aside>
-          )}
-        </div>
-      </QuizShell>
-    );
-  }
-
-  // ========== РЕЗУЛЬТАТ ВОПРОСА (§6) ==========
-  if (view === 'question-result' && questionResult) {
-    const options = questionResult.options?.length
-      ? questionResult.options
-      : (currentQuestion?.options || []);
-    const opt = (idx) => (options[idx] ?? `#${idx + 1}`);
-    const title = questionResult.isCorrect
-      ? 'Верно!'
-      : (questionResult.timedOut ? 'Время вышло' : 'Неверно');
-    const showRank = leaderboardEnabled && questionResult.myRank > 0;
-
-    return (
-      <QuizShell className="quiz-ui-qresult-screen" sessionLock>
-        <div className={`quiz-ui-play-layout${leaderboardEnabled ? ' quiz-ui-play-layout--with-lb' : ''}`}>
-          <div className={`quiz-ui-card quiz-ui-qresult ${questionResult.isCorrect ? 'is-correct' : 'is-wrong'}`}>
-          <div className="quiz-ui-qresult__icon">{questionResult.isCorrect ? '✓' : '✗'}</div>
-          <h2 className="quiz-ui-qresult__title">{title}</h2>
-
-          {questionResult.isCorrect ? (
-            <>
-              <p className="quiz-ui-qresult__score">
-                +{formatScore(questionResult.earned)}
-                {questionResult.maxPoints > 0 ? ` из ${formatScore(questionResult.maxPoints)}` : ''} баллов
-              </p>
-              <div className="quiz-ui-qresult__details">
-                <div className="quiz-ui-qresult__row">
-                  <span className="quiz-ui-qresult__label">Правильный ответ:</span>
-                  <strong>{opt(questionResult.correctAnswer)}</strong>
-                </div>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="quiz-ui-qresult__details">
-                {!questionResult.timedOut && questionResult.selectedAnswer != null && (
-                  <div className="quiz-ui-qresult__row">
-                    <span className="quiz-ui-qresult__label">Твой ответ:</span>
-                    <strong>{opt(questionResult.selectedAnswer)}</strong>
-                  </div>
-                )}
-                <div className="quiz-ui-qresult__row">
-                  <span className="quiz-ui-qresult__label">Правильный ответ:</span>
-                  <strong>{opt(questionResult.correctAnswer)}</strong>
-                </div>
-              </div>
-              <p className="quiz-ui-qresult__score">Ты получил: 0 баллов</p>
-            </>
-          )}
-
-          {questionResult.explanation && (
-            <div className="quiz-ui-qresult__details">
-              <div className="quiz-ui-qresult__row">
-                <span className="quiz-ui-qresult__label">Объяснение:</span>
-                <p>{questionResult.explanation}</p>
-              </div>
-            </div>
-          )}
-
-          {showRank && (
-            <p className="quiz-ui-qresult__rank">
-              Твоё место: {questionResult.myRank} из {questionResult.totalParticipants || participantCount}
-            </p>
-          )}
-
-          <p className="quiz-ui-hint">Ожидайте следующий вопрос…</p>
-          </div>
-          {leaderboardEnabled && (
-            <aside className="quiz-ui-sidebar" aria-label="Лидерборд">
-              <h3 className="quiz-ui-sidebar__title">🏆 Топ</h3>
-              <MiniLeaderboard participants={participants} studentId={studentId} myRank={myRank} compact />
-            </aside>
-          )}
-        </div>
-      </QuizShell>
-    );
-  }
-
-  // ========== ЛИДЕРБОРД (§7) ==========
-  if (view === 'leaderboard') {
-    const rankChange = leaderboardMeta.previousRank && leaderboardMeta.currentRank
-      ? leaderboardMeta.previousRank - leaderboardMeta.currentRank
-      : 0;
-
-    return (
-      <QuizShell className="quiz-ui-lb quiz-ui-lb--session" sessionLock>
-        <div className="quiz-ui-play-layout quiz-ui-play-layout--with-lb">
-          <div className="quiz-ui-lb-main">
-            <h2 className="quiz-ui-lb__title">Лидерборд</h2>
-            <ol className="quiz-ui-lb__list quiz-ui-lb__list--compact">
-              {participants.slice(0, 8).map((p) => (
-                <li
-                  key={p.userId}
-                  className={`quiz-ui-lb__row${p.userId === studentId ? ' is-me' : ''}${p.rank === 1 ? ' is-top1' : ''}`}
-                >
-                  <span className="quiz-ui-lb__rank">{p.rank}.</span>
-                  <span className="quiz-ui-lb__name">
-                    {p.userId === studentId ? 'Вы' : p.firstName}
-                    {p.userId !== studentId && p.lastName?.[0] ? ` ${p.lastName[0]}.` : ''}
-                  </span>
-                  <span className="quiz-ui-lb__score">{formatScore(p.totalScore)}</span>
-                </li>
-              ))}
-            </ol>
-            {rankChange !== 0 && (
-              <p className={`quiz-ui-lb__change ${rankChange > 0 ? 'is-up' : 'is-down'}`}>
-                {rankChange > 0 ? `↑ +${rankChange}` : `↓ ${rankChange}`}
-              </p>
-            )}
-            <p className="quiz-ui-hint">Ожидайте следующий вопрос…</p>
-          </div>
-          <aside className="quiz-ui-sidebar" aria-label="Твоё место">
-            <h3 className="quiz-ui-sidebar__title">🏆 Топ</h3>
-            <MiniLeaderboard participants={participants} studentId={studentId} myRank={myRank} compact />
-          </aside>
         </div>
       </QuizShell>
     );
@@ -784,7 +824,6 @@ function Quiz({ studentId, studentName = 'Ученик' }) {
     const unanswered = Math.max(0, (me.totalQuestions || 0) - answeredCount);
     const wrongCount = wrongAnswers.length;
     const accuracy = me.accuracy ?? (me.totalQuestions ? Math.round((me.correctAnswers / me.totalQuestions) * 100) : 0);
-    const isPastView = resultsSource === 'history' || resultsSource === 'enter';
     const showReview = q?.showQuestionReview !== false;
     const showExplanations = q?.showExplanations !== false;
     const practiceSubjectId = q?.subjectId || q?.subject?.id;
@@ -792,11 +831,32 @@ function Quiz({ studentId, studentName = 'Ученик' }) {
 
     const getAnswerForQuestion = (questionId) => (me.answers || []).find((a) => a.questionId === questionId);
 
+    const rankStatus = getQuizRankStatus({
+      rank: me.rank,
+      total: finalResults.participants?.length || 0,
+      accuracy,
+      correct: me.correctAnswers || 0,
+      totalQuestions: me.totalQuestions || 0
+    });
+
     return (
       <QuizShell>
-        <div className="quiz-ui-final__hero">
-          <h1>{isPastView ? 'Результат викторины' : 'Викторина завершена'}</h1>
-          <p>{formatQuizLine(q?.subject?.name, q?.title, ':')}</p>
+        <div className={`quiz-ui-final__hero quiz-ui-final__hero--${rankStatus.tier}`}>
+          <span className="quiz-ui-final__spark quiz-ui-final__spark--left" aria-hidden="true" />
+          <span className="quiz-ui-final__spark quiz-ui-final__spark--right" aria-hidden="true" />
+          <div className="quiz-ui-achievement">
+            <div className="quiz-ui-achievement__rarity">{rankStatus.rarity}</div>
+            <div className="quiz-ui-achievement__badge">
+              <span className="quiz-ui-achievement__emoji">{rankStatus.emoji}</span>
+            </div>
+            <div className="quiz-ui-achievement__title">{rankStatus.title}</div>
+            <div className="quiz-ui-achievement__subtitle">{rankStatus.subtitle}</div>
+            <div className="quiz-ui-achievement__meta">
+              <span>{rankStatus.placeLine}</span>
+              <span>{rankStatus.accuracyLine}</span>
+            </div>
+          </div>
+          <p className="quiz-ui-final__quiz-name">{formatQuizLine(q?.subject?.name, q?.title, ':')}</p>
           <div className="quiz-ui-final__score">
             {animatedScore}
             <span>баллов</span>
