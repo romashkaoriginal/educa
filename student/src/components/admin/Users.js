@@ -66,7 +66,7 @@ function Users({ dataRefreshKey = 0 }) {
     setLoadingBotUsers(true);
     try {
       const response = await adminFetch(
-        `${API_URL}/bot-users?sortBy=${botUsersSortBy}&order=${botUsersSortOrder}&filter=${botUsersFilter}`
+        `${API_URL}/bot-users/admin-list?sortBy=${botUsersSortBy}&order=${botUsersSortOrder}&filter=${botUsersFilter}`
       );
       const data = await response.json();
       setBotUsers(data.botUsers || []);

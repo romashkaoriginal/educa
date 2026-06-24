@@ -2,6 +2,8 @@ const axios = require('axios');
 const TelegramBot = require('node-telegram-bot-api');
 const { User, BotUser, Application } = require('./models');
 const { refreshWebAppUrl, getWebAppUrlSync } = require('./utils/webAppUrl');
+const { parseUtm } = require('./utils/utm');
+const { getBotUserUtmFields } = require('./services/botUserUtm');
 const guestAccess = require('./services/guestAccess');
 
 const token = process.env.BOT_TOKEN;
@@ -63,9 +65,9 @@ function isStartThrottled(telegramId) {
   return false;
 }
 
-async function registerBotUser(user) {
+async function registerBotUser(user, utm = null) {
   try {
-    const [botUser] = await BotUser.findOrCreate({
+    const [botUser, created] = await BotUser.findOrCreate({
       where: { telegramId: user.id },
       defaults: {
         telegramId: user.id,
@@ -76,15 +78,20 @@ async function registerBotUser(user) {
         isBot: user.is_bot || false,
         firstInteractionAt: new Date(),
         lastInteractionAt: new Date(),
-        messageCount: 1
+        messageCount: 1,
+        ...(utm ? { ...utm, utmFirstSeenAt: new Date() } : {})
       }
     });
-    if (botUser && !botUser._options?.isNewRecord) {
-      await botUser.update({
+    if (!created) {
+      const updateFields = {
         lastInteractionAt: new Date(),
         messageCount: (botUser.messageCount || 0) + 1,
         telegramUsername: user.username || botUser.telegramUsername
-      });
+      };
+      if (utm) {
+        Object.assign(updateFields, { ...utm, utmFirstSeenAt: new Date() });
+      }
+      await botUser.update(updateFields);
     }
   } catch (e) {
     console.error('Ошибка регистрации:', e.message);
@@ -165,16 +172,22 @@ function startBot() {
   });
 
   // /start
-  bot.onText(/\/start/, async (msg) => {
+  bot.onText(/\/start(?:\s+(.+))?/, async (msg, match) => {
     const chatId = msg.chat.id;
     const user = msg.from;
     const firstName = user.first_name || 'Пользователь';
+    const startParam = match?.[1]?.trim() || null;
+    const utm = parseUtm(startParam);
 
-    // Анти-флуд: игнорируем слишком частые /start от одного пользователя
-    if (isStartThrottled(user.id)) return;
+    if (isStartThrottled(user.id)) {
+      if (utm) {
+        registerBotUser(user, utm).catch((e) => console.error('[UTM] throttled save error:', e.message));
+      }
+      return;
+    }
 
     try {
-      await registerBotUser(user);
+      await registerBotUser(user, utm);
       const systemUser = await checkUserRole(user.id);
 
       // ===== Ученик / сотрудник =====
@@ -380,6 +393,8 @@ function startBot() {
           }
         } catch {}
 
+        const utmFields = await getBotUserUtmFields(appSession.telegramId);
+
         const application = await Application.create({
           fullName: appSession.fullName,
           phone,
@@ -391,7 +406,8 @@ function startBot() {
           selectedSubjectsCount: selectedSubjects.length,
           userStatus,
           status: 'new',
-          crmStatus: 'pending'
+          crmStatus: 'pending',
+          ...utmFields
         });
 
         await guestAccess.markGuestApplicationSent(appSession.telegramId).catch(() => {});

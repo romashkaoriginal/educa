@@ -88,8 +88,14 @@ const BotUser = sequelize.define('BotUser', {
     defaultValue: 0
   },
 
-  // Счётчики попыток по датам и предметам
-  // Формат: { "2026-06-02": { "test_42": 1, "app_42": 0 } }
+  utmSource: { type: DataTypes.STRING, allowNull: true },
+  utmMedium: { type: DataTypes.STRING, allowNull: true },
+  utmCampaign: { type: DataTypes.STRING, allowNull: true },
+  utmContent: { type: DataTypes.STRING, allowNull: true },
+  utmTerm: { type: DataTypes.STRING, allowNull: true },
+  utmRaw: { type: DataTypes.STRING, allowNull: true },
+  utmFirstSeenAt: { type: DataTypes.DATE, allowNull: true },
+
   dailyLimits: {
     type: DataTypes.JSONB,
     defaultValue: {}

@@ -3,6 +3,8 @@ const router = express.Router();
 const { Application, Subject, BotUser } = require('../models');
 const { sendToAmoCRM } = require('../services/amocrm');
 const { markGuestApplicationSent } = require('../services/guestAccess');
+const { getBotUserUtmFields, saveBotUserUtm } = require('../services/botUserUtm');
+const { utmToFields } = require('../utils/utm');
 const { telegramAuth, requireRole } = require('../middleware/telegramAuth');
 
 // Доступ к заявкам: admin + manager
@@ -42,8 +44,16 @@ router.post('/', async (req, res) => {
       fullName, phone, telegramId, telegramUsername,
       subjectId, subjectName, testCorrect, testTotal, testAnswers,
       // Гостевые поля (ТЗ §13)
-      source, context, selectedSubjects, userStatus
+      source, context, selectedSubjects, userStatus,
+      utmSource, utmMedium, utmCampaign, utmContent, utmTerm, utmRaw
     } = req.body;
+
+    let utmFields = await getBotUserUtmFields(telegramId);
+    if (!utmFields.utmSource && utmSource) {
+      const bodyUtm = utmToFields({ utmSource, utmMedium, utmCampaign, utmContent, utmTerm, utmRaw });
+      utmFields = bodyUtm;
+      if (telegramId) saveBotUserUtm(telegramId, bodyUtm).catch(() => {});
+    }
 
     if (!fullName || !phone) {
       return res.status(400).json({ message: 'ФИО и телефон обязательны' });
@@ -74,7 +84,8 @@ router.post('/', async (req, res) => {
       selectedSubjectsCount: subjectsArr.length,
       userStatus: userStatus || null,
       status: 'new',
-      crmStatus: 'pending'
+      crmStatus: 'pending',
+      ...utmFields
     });
 
     // Помечаем у гостя факт отправки заявки (ТЗ §15, §22)

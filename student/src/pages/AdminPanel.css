@@ -71,6 +71,30 @@
 
 .admin-tabs::-webkit-scrollbar { display: none; }
 
+/* На десктопе (мышь, без тача) показываем тонкий скроллбар,
+   чтобы можно было перематывать разделы без зума. */
+@media (min-width: 768px) and (hover: hover) and (pointer: fine) {
+  .admin-tabs {
+    scrollbar-width: thin;
+    scrollbar-color: var(--kubik-border) transparent;
+    padding-bottom: 8px;
+  }
+  .admin-tabs::-webkit-scrollbar {
+    display: block;
+    height: 8px;
+  }
+  .admin-tabs::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .admin-tabs::-webkit-scrollbar-thumb {
+    background: var(--kubik-border);
+    border-radius: 4px;
+  }
+  .admin-tabs::-webkit-scrollbar-thumb:hover {
+    background: var(--kubik-text-soft);
+  }
+}
+
 .admin-tab {
   display: inline-flex;
   align-items: center;

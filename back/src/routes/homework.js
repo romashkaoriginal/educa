@@ -1,4 +1,5 @@
 const express = require('express');
+const multer = require('multer');
 const {
   requireRole,
   isStaffRole,
@@ -11,6 +12,7 @@ const { Homework, HomeworkQuestion, HomeworkSubmission, HomeworkAnswer, User, Su
 const { Op } = require('sequelize');
 
 const router = express.Router();
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 // ВНИМАНИЕ: correctAnswer НЕ скрываем у ученика.
 // Домашка использует correctAnswer на клиенте: для вопросов типа
@@ -72,6 +74,200 @@ router.get('/all', isAdmin, async (req, res) => {
   } catch (error) {
     console.error('Get all homeworks error:', error);
     res.status(500).json({ message: 'Server error' });
+  }
+});
+
+const HW_TYPE_ALIASES = {
+  single: 'single_choice', single_choice: 'single_choice',
+  multiple: 'multiple_choice', multiple_choice: 'multiple_choice',
+  short: 'short_answer', short_answer: 'short_answer',
+  numeric: 'numeric', number: 'numeric',
+  matching: 'matching',
+  ordering: 'ordering',
+  fill: 'fill_blanks', fill_blanks: 'fill_blanks',
+  truefalse: 'true_false', true_false: 'true_false', tf: 'true_false',
+};
+
+router.get('/import-template', isAdmin, async (req, res) => {
+  try {
+    const ExcelJS = require('exceljs');
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('Questions');
+
+    sheet.columns = [
+      { header: 'type', width: 16 },
+      { header: 'question', width: 40 },
+      { header: 'a', width: 18 },
+      { header: 'b', width: 18 },
+      { header: 'c', width: 18 },
+      { header: 'd', width: 18 },
+      { header: 'correct', width: 30 },
+      { header: 'tolerance', width: 10 },
+      { header: 'points', width: 8 },
+      { header: 'explanation', width: 30 },
+    ];
+
+    // Примеры по каждому типу вопроса
+    sheet.addRow(['single', 'Чему равно 2+2?', '3', '4', '5', '6', 'b', '', 10, 'Простое сложение']);
+    sheet.addRow(['multiple', 'Какие числа чётные?', '2', '3', '4', '5', 'a,c', '', 10, '']);
+    sheet.addRow(['truefalse', 'Земля круглая?', '', '', '', '', 'true', '', 5, '']);
+    sheet.addRow(['short', 'Столица Франции?', '', '', '', '', 'Париж | Paris', '', 10, '']);
+    sheet.addRow(['numeric', 'Ускорение свободного падения (м/с²)?', '', '', '', '', '9.8', '0.1', 10, '']);
+    sheet.addRow(['ordering', 'Расставьте по возрастанию', '', '', '', '', '1 | 2 | 3 | 4', '', 10, 'Элементы через | в правильном порядке']);
+    sheet.addRow(['matching', 'Соедините страну и столицу', '', '', '', '', 'Россия=Москва ; Франция=Париж', '', 10, 'Пары лево=право через ;']);
+    sheet.addRow(['fill', 'Столица России — это ___, а Франции — ___', '', '', '', '', 'Москва ; Париж | Paris', '', 10, 'Пропуски через ; , варианты через |']);
+
+    // Лист с инструкцией
+    const info = workbook.addWorksheet('Инструкция');
+    info.columns = [{ width: 18 }, { width: 80 }];
+    const infoRows = [
+      ['type', 'Тип вопроса: single, multiple, short, numeric, matching, ordering, fill, truefalse'],
+      ['question', 'Текст вопроса. Для fill используйте ___ на месте пропусков'],
+      ['a, b, c, d', 'Варианты ответов — только для single и multiple'],
+      ['correct', 'Правильный ответ, зависит от типа (см. ниже)'],
+      ['', ''],
+      ['single', 'correct = буква варианта: a / b / c / d'],
+      ['multiple', 'correct = буквы через запятую: a,c'],
+      ['truefalse', 'correct = true или false'],
+      ['short', 'correct = допустимые ответы через | (вертикальная черта): Париж | Paris'],
+      ['numeric', 'correct = число (9.8), tolerance = допустимая погрешность ±'],
+      ['ordering', 'correct = элементы в правильном порядке через |: Первый | Второй | Третий'],
+      ['matching', 'correct = пары "лево=право" через ; : Россия=Москва ; Франция=Париж'],
+      ['fill', 'correct = ответы по пропускам через ; , для каждого пропуска варианты через |: Москва ; Париж | Paris'],
+      ['', ''],
+      ['points', 'Баллы за вопрос (по умолчанию 10)'],
+      ['explanation', 'Необязательное пояснение к ответу'],
+    ];
+    infoRows.forEach(r => info.addRow(r));
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename=homework_template.xlsx');
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (error) {
+    console.error('Homework import template error:', error);
+    res.status(500).json({ message: 'Не удалось сформировать шаблон' });
+  }
+});
+
+// Парсит одну строку Excel в объект вопроса домашки.
+// Возвращает { question } либо { error }.
+function parseHomeworkRow(row) {
+  const typeRaw = String(row.type || '').trim().toLowerCase();
+  const questionText = String(row.question || '').trim();
+  const correctRaw = String(row.correct ?? '').trim();
+  const points = parseInt(row.points, 10) || 10;
+  const explanation = String(row.explanation || '').trim() || null;
+
+  const questionType = HW_TYPE_ALIASES[typeRaw];
+  if (!questionType) {
+    return { error: `неизвестный тип "${row.type}" (допустимо: single, multiple, short, numeric, matching, ordering, fill, truefalse)` };
+  }
+  if (!questionText) return { error: 'пустой текст вопроса' };
+
+  const LETTER_MAP = { a: 0, b: 1, c: 2, d: 3 };
+  const base = { questionType, questionText, explanation, points };
+
+  switch (questionType) {
+    case 'single_choice': {
+      const options = [row.a, row.b, row.c, row.d].map(v => String(v || '').trim()).filter(Boolean);
+      if (options.length < 2) return { error: 'нужно минимум 2 варианта (колонки a–d)' };
+      const idx = LETTER_MAP[correctRaw.toLowerCase()];
+      if (idx === undefined || idx >= options.length) return { error: `correct должен быть буквой существующего варианта (a–d), получено "${correctRaw}"` };
+      return { question: { ...base, options, correctAnswer: idx } };
+    }
+    case 'multiple_choice': {
+      const options = [row.a, row.b, row.c, row.d].map(v => String(v || '').trim()).filter(Boolean);
+      if (options.length < 2) return { error: 'нужно минимум 2 варианта (колонки a–d)' };
+      const letters = correctRaw.toLowerCase().split(/[,\s]+/).filter(Boolean);
+      const indices = letters.map(l => LETTER_MAP[l]);
+      if (indices.length === 0 || indices.some(i => i === undefined || i >= options.length)) {
+        return { error: `correct должен быть буквами вариантов через запятую (напр. a,c), получено "${correctRaw}"` };
+      }
+      return { question: { ...base, options, correctAnswer: indices } };
+    }
+    case 'true_false': {
+      const v = correctRaw.toLowerCase();
+      if (!['true', 'false', 'да', 'нет', 'верно', 'неверно'].includes(v)) {
+        return { error: `correct должен быть true или false, получено "${correctRaw}"` };
+      }
+      const isTrue = ['true', 'да', 'верно'].includes(v);
+      return { question: { ...base, options: null, correctAnswer: isTrue } };
+    }
+    case 'short_answer': {
+      const variants = correctRaw.split('|').map(s => s.trim()).filter(Boolean);
+      if (variants.length === 0) return { error: 'укажите хотя бы один правильный ответ в correct' };
+      return { question: { ...base, options: null, correctAnswer: variants } };
+    }
+    case 'numeric': {
+      const value = parseFloat(String(correctRaw).replace(',', '.'));
+      if (Number.isNaN(value)) return { error: `correct должен быть числом, получено "${correctRaw}"` };
+      const tolerance = parseFloat(String(row.tolerance || '').replace(',', '.')) || 0;
+      return { question: { ...base, options: null, correctAnswer: { value, tolerance } } };
+    }
+    case 'ordering': {
+      const items = correctRaw.split('|').map(s => s.trim()).filter(Boolean);
+      if (items.length < 2) return { error: 'укажите минимум 2 элемента в correct через | в правильном порядке' };
+      return { question: { ...base, options: null, correctAnswer: items } };
+    }
+    case 'matching': {
+      const pairs = correctRaw.split(';').map(s => s.trim()).filter(Boolean).map(p => {
+        const [left, right] = p.split('=').map(x => (x || '').trim());
+        return { left, right };
+      });
+      if (pairs.length === 0 || pairs.some(p => !p.left || !p.right)) {
+        return { error: 'укажите пары в формате "лево=право" через ; (напр. Россия=Москва ; Франция=Париж)' };
+      }
+      return { question: { ...base, options: pairs, correctAnswer: pairs } };
+    }
+    case 'fill_blanks': {
+      // Каждый пропуск через ; ; внутри пропуска варианты через |
+      const blanks = correctRaw.split(';').map(b => b.split('|').map(s => s.trim()).filter(Boolean)).filter(arr => arr.length);
+      if (blanks.length === 0) return { error: 'укажите ответы для пропусков в correct (через ; , варианты через |)' };
+      return { question: { ...base, options: null, correctAnswer: blanks } };
+    }
+    default:
+      return { error: 'неподдерживаемый тип' };
+  }
+}
+
+// Импорт вопросов домашки из Excel — возвращает распарсенные вопросы клиенту,
+// который добавляет их в форму (создание/сохранение происходит общим эндпоинтом).
+router.post('/import-questions', isAdmin, upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'Файл не загружен' });
+
+    const ExcelJS = require('exceljs');
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(req.file.buffer);
+    const sheet = workbook.worksheets[0];
+    if (!sheet) return res.status(400).json({ message: 'В файле нет листов' });
+
+    const headerRow = sheet.getRow(1).values.slice(1).map(h => String(h || '').trim().toLowerCase());
+    const rows = [];
+    sheet.eachRow((row, rowNumber) => {
+      if (rowNumber === 1) return;
+      const obj = {};
+      row.values.slice(1).forEach((val, i) => { if (headerRow[i]) obj[headerRow[i]] = val ?? ''; });
+      // пропускаем полностью пустые строки
+      if (Object.values(obj).some(v => String(v).trim())) rows.push(obj);
+    });
+
+    if (rows.length === 0) return res.status(400).json({ message: 'Файл пустой или не содержит данных' });
+
+    const questions = [];
+    const errors = [];
+    rows.forEach((row, i) => {
+      const rowNum = i + 2;
+      const result = parseHomeworkRow(row);
+      if (result.error) errors.push({ row: rowNum, reason: result.error });
+      else questions.push(result.question);
+    });
+
+    res.json({ imported: questions.length, skipped: errors.length, errors, questions });
+  } catch (error) {
+    console.error('Import homework questions error:', error);
+    res.status(500).json({ message: 'Ошибка при импорте' });
   }
 });
 
@@ -157,7 +353,7 @@ router.get('/student/:studentId', assertSelfOrStaff('studentId'), async (req, re
         userId: studentId,
         homeworkId: { [Op.in]: homeworks.map(h => h.id) }
       },
-      attributes: ['homeworkId', 'attemptNumber', 'totalScore', 'maxScore'],
+      attributes: ['homeworkId', 'attemptNumber', 'totalScore', 'maxScore', 'correctCount'],
       order: [['attemptNumber', 'DESC']]
     });
 
@@ -167,14 +363,15 @@ router.get('/student/:studentId', assertSelfOrStaff('studentId'), async (req, re
         submissionsMap[sub.homeworkId] = {
           attempts: 0,
           bestScore: 0,
+          bestCorrectCount: 0,
           maxScore: sub.maxScore
         };
       }
       submissionsMap[sub.homeworkId].attempts++;
-      submissionsMap[sub.homeworkId].bestScore = Math.max(
-        submissionsMap[sub.homeworkId].bestScore, 
-        sub.totalScore
-      );
+      if (sub.totalScore > submissionsMap[sub.homeworkId].bestScore) {
+        submissionsMap[sub.homeworkId].bestScore = sub.totalScore;
+        submissionsMap[sub.homeworkId].bestCorrectCount = sub.correctCount ?? null;
+      }
     });
 
     const homeworksWithStats = homeworks.map(hw => {
@@ -252,7 +449,6 @@ router.put('/:id', isAdmin, async (req, res) => {
       return res.status(404).json({ message: 'Homework not found' });
     }
 
-    // Update homework
     await homework.update({
       title,
       description,
@@ -262,7 +458,6 @@ router.put('/:id', isAdmin, async (req, res) => {
       maxAttempts
     });
 
-    // Delete old questions and create new ones
     await HomeworkQuestion.destroy({ where: { homeworkId: id } });
 
     const questionPromises = questions.map(q => 
@@ -343,7 +538,6 @@ router.post('/submit', assertBodyStudentId, async (req, res) => {
   try {
     const { homeworkId, studentId, answers, timeSpent } = req.body;
 
-    // Get homework with questions
     const homework = await Homework.findByPk(homeworkId, {
       include: [{
         model: HomeworkQuestion,
@@ -356,13 +550,11 @@ router.post('/submit', assertBodyStudentId, async (req, res) => {
       return res.status(404).json({ message: 'Homework not found' });
     }
 
-    // Check if homework is open
     const now = new Date();
     if (now < new Date(homework.openDate) || now > new Date(homework.closeDate)) {
       return res.status(400).json({ message: 'Homework is not open for submissions' });
     }
 
-    // Check attempts
     const submissionCount = await HomeworkSubmission.count({
       where: { homeworkId, userId: studentId }
     });
@@ -371,7 +563,6 @@ router.post('/submit', assertBodyStudentId, async (req, res) => {
       return res.status(400).json({ message: 'Maximum attempts reached' });
     }
 
-    // Calculate score
     let totalScore = 0;
     let maxScore = 0;
     const gradedAnswers = [];
@@ -392,11 +583,12 @@ router.post('/submit', assertBodyStudentId, async (req, res) => {
       });
     });
 
-    // Create submission using raw SQL (bypass Sequelize constraint cache)
+    const correctCount = gradedAnswers.filter(a => a.isCorrect).length;
+
     const insertResult = await sequelize.query(`
-      INSERT INTO homework_submissions 
-      ("homeworkId", "userId", "attemptNumber", "totalScore", "maxScore", "submittedAt", "timeSpent", "status")
-      VALUES (:homeworkId, :userId, :attemptNumber, :totalScore, :maxScore, NOW(), :timeSpent, 'submitted')
+      INSERT INTO homework_submissions
+      ("homeworkId", "userId", "attemptNumber", "totalScore", "maxScore", "correctCount", "submittedAt", "timeSpent", "status")
+      VALUES (:homeworkId, :userId, :attemptNumber, :totalScore, :maxScore, :correctCount, NOW(), :timeSpent, 'submitted')
       RETURNING *
     `, {
       replacements: {
@@ -405,6 +597,7 @@ router.post('/submit', assertBodyStudentId, async (req, res) => {
         attemptNumber: submissionCount + 1,
         totalScore,
         maxScore,
+        correctCount,
         timeSpent
       }
     });
@@ -416,7 +609,6 @@ router.post('/submit', assertBodyStudentId, async (req, res) => {
       return res.status(500).json({ message: 'Failed to create submission' });
     }
 
-    // Create answers
     const answerPromises = gradedAnswers.map(ans =>
       HomeworkAnswer.create({
         submissionId: submission.id,
@@ -428,12 +620,12 @@ router.post('/submit', assertBodyStudentId, async (req, res) => {
 
     await Promise.all(answerPromises);
 
-    res.json({ 
+    res.json({
       message: 'Homework submitted successfully',
       submissionId: submission.id,
       totalScore,
       maxScore,
-      correctAnswers: gradedAnswers.filter(a => a.isCorrect).length,
+      correctAnswers: correctCount,
       timeSpent,
       attemptsUsed: submissionCount + 1,
       maxAttempts: homework.maxAttempts,

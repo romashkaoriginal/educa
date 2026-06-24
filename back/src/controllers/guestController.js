@@ -2,6 +2,7 @@
 const { Op } = require('sequelize');
 const { User, Subject } = require('../models');
 const guestAccess = require('../services/guestAccess');
+const { saveBotUserUtm } = require('../services/botUserUtm');
 
 // GET /api/guest/state — состояние гостя/ученика по верифицированному telegramId.
 // Фронт зовёт на старте Mini App, чтобы понять режим (ученик / выбор предметов /
@@ -51,6 +52,24 @@ exports.adminListGuests = async (req, res) => {
     res.json({ guests });
   } catch (error) {
     console.error('Admin guest list error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+exports.trackUtm = async (req, res) => {
+  try {
+    const telegramId = req.telegramUser?.id;
+    if (!telegramId) return res.status(401).json({ message: 'No Telegram user' });
+
+    const { utmSource, utmMedium, utmCampaign, utmContent, utmTerm, utmRaw } = req.body;
+    if (!utmSource) return res.json({ saved: false });
+
+    const saved = await saveBotUserUtm(telegramId, {
+      utmSource, utmMedium, utmCampaign, utmContent, utmTerm, utmRaw,
+    });
+    res.json({ saved });
+  } catch (error) {
+    console.error('Guest track UTM error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };

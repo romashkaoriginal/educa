@@ -481,7 +481,12 @@ function AdminStatistics({ currentUser, dataRefreshKey = 0 }) {
                                 <div className="hw-stat-result">
                                   <div className="hw-stat-score">
                                     <span className="hw-score-label">Лучший результат:</span>
-                                    <span className="hw-score-value">{sub.totalScore}/{sub.maxScore} ({pct}%)</span>
+                                    <span className="hw-score-value">
+                                      {sub.correctAnswers != null
+                                        ? `${sub.correctAnswers}/${sub.totalAnswers} вопр.`
+                                        : `${sub.totalScore}/${sub.maxScore} б.`}
+                                      {' '}({pct}%)
+                                    </span>
                                   </div>
                                   <div className="progress-bar">
                                     <div className="progress-fill" style={{

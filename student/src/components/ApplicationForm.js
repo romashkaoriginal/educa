@@ -2,21 +2,8 @@ import React, { useState } from 'react';
 import './ApplicationForm.css';
 import { apiFetch } from '../pages/api';
 import { API_URL } from '../config';
+import { getStoredUtm } from '../utils/utm';
 
-// Форма заявки внутри Mini App (ТЗ §12, §14).
-// Открывается из модалки закрытого раздела, из блока домашки в статистике
-// и с экрана окончания доступа.
-//
-// Props:
-//   source          — источник заявки (ТЗ §13), напр. "TG Mini App — закрытый раздел"
-//   context         — контекст: locked_homework / locked_quiz / locked_statistics_homework / guest_expired
-//   selectedSubjects — массив имён предметов гостя
-//   userStatus      — 'guest' | 'trial'
-//   onSuccess       — колбэк после успешной отправки (помечаем applicationSent)
-//   onClose         — закрыть форму
-
-// Телефон вводится в формате +375 XX XXX-XX-XX. Префикс +375 фиксированный,
-// пользователь набирает только 9 цифр после него.
 
 // Достаём из ввода 9 «национальных» цифр (без кода страны 375).
 function extractLocalDigits(raw) {
@@ -50,21 +37,19 @@ function ApplicationForm({
   onClose,
 }) {
   const [name, setName] = useState('');
-  const [phone, setPhone] = useState(''); // храним только 9 локальных цифр
+  const [phone, setPhone] = useState('');
   const [agree, setAgree] = useState(true);
   const [errors, setErrors] = useState({});
-  const [status, setStatus] = useState('idle'); // idle | sending | success | error
-  const [contactStatus, setContactStatus] = useState('idle'); // idle | waiting | error
+  const [status, setStatus] = useState('idle');
+  const [contactStatus, setContactStatus] = useState('idle');
 
   const tg = typeof window !== 'undefined' ? window.Telegram?.WebApp : null;
-  // Кнопка «номер из Telegram» доступна только в TG-окружении с поддержкой requestContact.
   const canShareContact = !!(tg && typeof tg.requestContact === 'function');
 
   const handlePhoneChange = (e) => {
     setPhone(extractLocalDigits(e.target.value));
   };
 
-  // Поллим бэк, пока бот не получит и не сохранит номер (или таймаут).
   const pollSharedPhone = async () => {
     const deadline = Date.now() + 6000;
     while (Date.now() < deadline) {
@@ -113,6 +98,7 @@ function ApplicationForm({
     setStatus('sending');
     try {
       const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+      const utm = getStoredUtm();
       const response = await apiFetch(`${API_URL}/applications`, {
         method: 'POST',
         body: JSON.stringify({
@@ -124,6 +110,7 @@ function ApplicationForm({
           context,
           selectedSubjects,
           userStatus,
+          ...(utm || {}),
         }),
       });
 

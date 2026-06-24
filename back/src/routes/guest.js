@@ -9,6 +9,9 @@ const guestController = require('../controllers/guestController');
 // Состояние гостя/ученика
 router.get('/state', guestController.getState);
 
+// UTM из URL Mini App → BotUser (для заявок)
+router.post('/utm', guestController.trackUtm);
+
 // Предметы для выбора (пересечение списка ТЗ и активных предметов БД)
 router.get('/subjects/available', guestController.getAvailableSubjects);
 

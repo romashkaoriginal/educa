@@ -16,6 +16,7 @@ const HomeworkSubmission = sequelize.define('HomeworkSubmission', {
   attemptNumber: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 },
   totalScore: { type: DataTypes.INTEGER, defaultValue: 0 },
   maxScore: { type: DataTypes.INTEGER, allowNull: true },
+  correctCount: { type: DataTypes.INTEGER, allowNull: true },
   submittedAt: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
   timeSpent: { type: DataTypes.INTEGER, allowNull: true },
   status: { type: DataTypes.STRING, defaultValue: 'submitted' }

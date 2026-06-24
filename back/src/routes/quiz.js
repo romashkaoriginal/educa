@@ -1,9 +1,11 @@
 const express = require('express');
+const multer = require('multer');
 const router = express.Router();
 const { Quiz, QuizQuestion, QuizParticipant, QuizAnswer, User, Subject } = require('../models');
 const { Op } = require('sequelize');
 const { requireRole, assertSelfOrStaff, assertBodyStudentId, isStaffRole } = require('../middleware/telegramAuth');
 const isAdmin = requireRole(['admin', 'teacher']);
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 // Генерация уникального кода
 function generateAccessCode() {
@@ -149,6 +151,106 @@ router.post('/create', isAdmin, async (req, res) => {
   } catch (error) {
     console.error('Create quiz error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+router.get('/import-template', isAdmin, async (req, res) => {
+  try {
+    const ExcelJS = require('exceljs');
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('Questions');
+    sheet.columns = [
+      { header: 'question', width: 40 },
+      { header: 'a', width: 18 },
+      { header: 'b', width: 18 },
+      { header: 'c', width: 18 },
+      { header: 'd', width: 18 },
+      { header: 'correct', width: 10 },
+      { header: 'time', width: 8 },
+      { header: 'points', width: 8 },
+      { header: 'explanation', width: 30 },
+    ];
+    sheet.addRow(['Чему равно 2+2?', '3', '4', '5', '6', 'b', 30, 1, 'Простое сложение']);
+    sheet.addRow(['Столица Франции?', 'Берлин', 'Париж', 'Рим', 'Мадрид', 'b', 20, 1, '']);
+
+    const info = workbook.addWorksheet('Инструкция');
+    info.columns = [{ width: 18 }, { width: 80 }];
+    [
+      ['question', 'Текст вопроса'],
+      ['a, b, c, d', 'Четыре варианта ответа (заполните все)'],
+      ['correct', 'Буква правильного варианта: a / b / c / d'],
+      ['time', 'Время на ответ в секундах (по умолчанию 30)'],
+      ['points', 'Баллы за вопрос (по умолчанию 1, можно дробные)'],
+      ['explanation', 'Необязательное пояснение к ответу'],
+    ].forEach(r => info.addRow(r));
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename=quiz_template.xlsx');
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (error) {
+    console.error('Quiz import template error:', error);
+    res.status(500).json({ message: 'Не удалось сформировать шаблон' });
+  }
+});
+
+// Импорт вопросов викторины из Excel — возвращает распарсенные вопросы клиенту,
+// который добавляет их в форму (создание происходит общим /create).
+router.post('/import-questions', isAdmin, upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'Файл не загружен' });
+
+    const ExcelJS = require('exceljs');
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(req.file.buffer);
+    const sheet = workbook.worksheets[0];
+    if (!sheet) return res.status(400).json({ message: 'В файле нет листов' });
+
+    const headerRow = sheet.getRow(1).values.slice(1).map(h => String(h || '').trim().toLowerCase());
+    const rows = [];
+    sheet.eachRow((row, rowNumber) => {
+      if (rowNumber === 1) return;
+      const obj = {};
+      row.values.slice(1).forEach((val, i) => { if (headerRow[i]) obj[headerRow[i]] = val ?? ''; });
+      if (Object.values(obj).some(v => String(v).trim())) rows.push(obj);
+    });
+
+    if (rows.length === 0) return res.status(400).json({ message: 'Файл пустой или не содержит данных' });
+
+    const LETTER_MAP = { a: 0, b: 1, c: 2, d: 3 };
+    const questions = [];
+    const errors = [];
+
+    rows.forEach((row, i) => {
+      const rowNum = i + 2;
+      const questionText = String(row.question || '').trim();
+      const options = [row.a, row.b, row.c, row.d].map(v => String(v || '').trim());
+      const correct = String(row.correct || '').trim().toLowerCase();
+      const timeLimit = parseInt(row.time, 10) || 30;
+      const points = parseFloat(String(row.points || '').replace(',', '.')) || 1;
+      const explanation = String(row.explanation || '').trim() || null;
+
+      if (!questionText) { errors.push({ row: rowNum, reason: 'пустой текст вопроса' }); return; }
+      if (options.some(o => !o)) { errors.push({ row: rowNum, reason: 'заполните все 4 варианта (a–d)' }); return; }
+      if (!(correct in LETTER_MAP)) {
+        errors.push({ row: rowNum, reason: `correct должен быть буквой a / b / c / d, получено "${correct}"` });
+        return;
+      }
+
+      questions.push({
+        questionText,
+        options,
+        correctAnswer: LETTER_MAP[correct],
+        timeLimit,
+        points,
+        explanation,
+      });
+    });
+
+    res.json({ imported: questions.length, skipped: errors.length, errors, questions });
+  } catch (error) {
+    console.error('Import quiz questions error:', error);
+    res.status(500).json({ message: 'Ошибка при импорте' });
   }
 });
 

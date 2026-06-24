@@ -51,6 +51,13 @@ function Homework({ subjects, currentUserId, dataRefreshKey = 0 }) {
     points: 10
   });
 
+  const [editingQuestionIndex, setEditingQuestionIndex] = useState(null);
+
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importFile, setImportFile] = useState(null);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importResult, setImportResult] = useState(null);
+
   useEffect(() => {
     loadHomeworks();
   }, []);
@@ -80,6 +87,8 @@ function Homework({ subjects, currentUserId, dataRefreshKey = 0 }) {
     });
     setQuestions([]);
     setEditingHomework(null);
+    setEditingQuestionIndex(null);
+    resetCurrentQuestion();
     setShowCreateModal(true);
   };
 
@@ -97,6 +106,8 @@ function Homework({ subjects, currentUserId, dataRefreshKey = 0 }) {
       });
       setQuestions(data.homework.questions || []);
       setEditingHomework(homework);
+      setEditingQuestionIndex(null);
+      resetCurrentQuestion();
       setShowCreateModal(true);
     } catch (error) {
       console.error('Error loading homework:', error);
@@ -119,7 +130,6 @@ function Homework({ subjects, currentUserId, dataRefreshKey = 0 }) {
         : `${API_URL}/homework/create`;
       const method = editingHomework ? 'PUT' : 'POST';
 
-      // Конвертируем локальное время в UTC (datetime-local возвращает локальное)
       const openDateUTC = formData.openDate ? new Date(formData.openDate).toISOString() : null;
       const closeDateUTC = formData.closeDate ? new Date(formData.closeDate).toISOString() : null;
 
@@ -177,7 +187,35 @@ function Homework({ subjects, currentUserId, dataRefreshKey = 0 }) {
       ...currentQuestion,
       correctAnswer: currentQuestion.correctAnswer === null ? '' : currentQuestion.correctAnswer
     };
-    setQuestions([...questions, questionToAdd]);
+    if (editingQuestionIndex !== null) {
+      const updated = [...questions];
+      updated[editingQuestionIndex] = questionToAdd;
+      setQuestions(updated);
+      setEditingQuestionIndex(null);
+    } else {
+      setQuestions([...questions, questionToAdd]);
+    }
+    resetCurrentQuestion();
+  };
+
+  const startEditQuestion = (index) => {
+    const q = questions[index];
+    setCurrentQuestion({
+      questionType: q.questionType || 'single_choice',
+      questionText: q.questionText || '',
+      options: q.options || ['', '', '', ''],
+      correctAnswer: q.correctAnswer ?? null,
+      explanation: q.explanation || '',
+      points: q.points || 10,
+    });
+    setEditingQuestionIndex(index);
+    setTimeout(() => {
+      document.querySelector('.add-question-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
+  };
+
+  const cancelEditQuestion = () => {
+    setEditingQuestionIndex(null);
     resetCurrentQuestion();
   };
 
@@ -229,6 +267,57 @@ function Homework({ subjects, currentUserId, dataRefreshKey = 0 }) {
 
   const removeQuestion = (index) => {
     setQuestions(questions.filter((_, i) => i !== index));
+  };
+
+  const downloadTemplate = async () => {
+    try {
+      const response = await adminFetch(`${API_URL}/homework/import-template`);
+      if (!response.ok) throw new Error('bad response');
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'homework_template.xlsx';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      alert('Ошибка скачивания шаблона');
+    }
+  };
+
+  const openImportModal = () => {
+    setImportFile(null);
+    setImportResult(null);
+    setShowImportModal(true);
+  };
+
+  const handleImport = async () => {
+    if (!importFile) return;
+    setImportLoading(true);
+    setImportResult(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', importFile);
+      const response = await adminFetch(`${API_URL}/homework/import-questions`, {
+        method: 'POST',
+        body: formData
+      });
+      const data = await response.json();
+      if (response.ok) {
+        if (data.questions?.length) {
+          setQuestions(prev => [...prev, ...data.questions]);
+        }
+        setShowImportModal(false);
+      } else {
+        setImportResult({ error: data.message || 'Ошибка импорта' });
+      }
+    } catch (e) {
+      setImportResult({ error: 'Ошибка сети: ' + e.message });
+    } finally {
+      setImportLoading(false);
+    }
   };
 
   const viewResults = async (homework) => {
@@ -513,6 +602,70 @@ function Homework({ subjects, currentUserId, dataRefreshKey = 0 }) {
   if (showCreateModal) {
     return (
       <div className="admin-section">
+        {showImportModal && (
+          <div className="import-modal-overlay" onClick={() => !importLoading && setShowImportModal(false)}>
+            <div className="import-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="import-modal-header">
+                <h2>📥 Загрузка вопросов из Excel</h2>
+                <button type="button" className="import-modal-close" onClick={() => !importLoading && setShowImportModal(false)}>✕</button>
+              </div>
+              <div className="import-modal-body">
+                <div className="import-format-hint">
+                  <strong>Формат файла (.xlsx):</strong><br />
+                  <span className="import-hint-key">type</span> — тип вопроса: single / multiple / short / numeric / matching / ordering / fill / truefalse<br />
+                  <span className="import-hint-key">question</span> — текст вопроса (для fill используйте ___ на месте пропусков)<br />
+                  <span className="import-hint-key">a, b, c, d</span> — варианты (для single / multiple)<br />
+                  <span className="import-hint-key">correct</span> — ответ: буква (a), буквы (a,c), true/false, число, варианты через | , пары «лево=право» через ;<br />
+                  <span className="import-hint-key">points</span> — баллы (по умолчанию 10), <span className="import-hint-key">explanation</span> — необязательно
+                </div>
+                <button type="button" className="btn-secondary import-template-btn" onClick={downloadTemplate}>
+                  ⬇️ Скачать пример Excel
+                </button>
+                <div className="import-file-group">
+                  <label>Выберите файл .xlsx</label>
+                  <input
+                    type="file"
+                    accept=".xlsx,.xls"
+                    className="import-file-input"
+                    onChange={(e) => { setImportFile(e.target.files[0] || null); setImportResult(null); }}
+                  />
+                </div>
+
+                {importResult && !importResult.error && (
+                  <div className="import-result-ok">
+                    ✅ Добавлено вопросов: <strong>{importResult.imported}</strong>
+                    {importResult.skipped > 0 && (
+                      <>, пропущено: <strong>{importResult.skipped}</strong></>
+                    )}
+                    {importResult.errors?.length > 0 && (
+                      <div className="import-result-errors">
+                        {importResult.errors.map((er, i) => (
+                          <div key={i}>Строка {er.row}: {er.reason}</div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {importResult?.error && (
+                  <div className="import-result-error">❌ {importResult.error}</div>
+                )}
+              </div>
+              <div className="import-modal-footer">
+                <button type="button" className="cancel-btn" onClick={() => !importLoading && setShowImportModal(false)}>
+                  {importResult && !importResult.error ? 'Готово' : 'Отмена'}
+                </button>
+                <button
+                  type="button"
+                  className="save-btn"
+                  onClick={handleImport}
+                  disabled={!importFile || importLoading}
+                >
+                  {importLoading ? 'Загружаю...' : 'Загрузить'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         <div className="section-header">
           <button className="back-btn" onClick={() => setShowCreateModal(false)}>← Назад</button>
           <h2>{editingHomework ? 'Редактировать домашку' : 'Создать домашку'}</h2>
@@ -562,7 +715,12 @@ function Homework({ subjects, currentUserId, dataRefreshKey = 0 }) {
           </div>
 
           <div className="questions-section">
-            <h3>Вопросы ({questions.length})</h3>
+            <div className="questions-section-header">
+              <h3>Вопросы ({questions.length})</h3>
+              <button type="button" className="import-excel-btn" onClick={openImportModal}>
+                📥 Загрузить из Excel
+              </button>
+            </div>
             {questions.length > 0 && (
               <div className="questions-list">
                 {questions.map((q, index) => (
@@ -574,6 +732,7 @@ function Homework({ subjects, currentUserId, dataRefreshKey = 0 }) {
                         {QUESTION_TYPES.find(t => t.value === q.questionType)?.label}
                       </span>
                       <span className="question-points">{q.points} баллов</span>
+                      <button type="button" className="edit-question-btn" onClick={() => startEditQuestion(index)}>✏️</button>
                       <button type="button" className="remove-question-btn" onClick={() => removeQuestion(index)}>✕</button>
                     </div>
                     <p className="question-text">{q.questionText}</p>
@@ -583,7 +742,7 @@ function Homework({ subjects, currentUserId, dataRefreshKey = 0 }) {
             )}
 
             <div className="add-question-form">
-              <h4>Добавить вопрос</h4>
+              <h4>{editingQuestionIndex !== null ? `Редактировать вопрос #${editingQuestionIndex + 1}` : 'Добавить вопрос'}</h4>
               <div className="form-group">
                 <label>Тип вопроса</label>
                 <select value={currentQuestion.questionType}
@@ -611,7 +770,14 @@ function Homework({ subjects, currentUserId, dataRefreshKey = 0 }) {
                 <input type="number" min="1" value={currentQuestion.points}
                   onChange={(e) => setCurrentQuestion({ ...currentQuestion, points: parseInt(e.target.value) || 10 })} />
               </div>
-              <button type="button" className="add-question-btn" onClick={addQuestion}>+ Добавить вопрос</button>
+              <div className="question-form-actions">
+                <button type="button" className="add-question-btn" onClick={addQuestion}>
+                  {editingQuestionIndex !== null ? '💾 Сохранить вопрос' : '+ Добавить вопрос'}
+                </button>
+                {editingQuestionIndex !== null && (
+                  <button type="button" className="cancel-edit-question-btn" onClick={cancelEditQuestion}>Отмена</button>
+                )}
+              </div>
             </div>
           </div>
 

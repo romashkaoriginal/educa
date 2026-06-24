@@ -82,6 +82,13 @@ const Application = sequelize.define('Application', {
     type: DataTypes.ENUM('new', 'in_progress', 'completed', 'rejected'),
     defaultValue: 'new'
   },
+  utmSource: { type: DataTypes.STRING, allowNull: true },
+  utmMedium: { type: DataTypes.STRING, allowNull: true },
+  utmCampaign: { type: DataTypes.STRING, allowNull: true },
+  utmContent: { type: DataTypes.STRING, allowNull: true },
+  utmTerm: { type: DataTypes.STRING, allowNull: true },
+  utmRaw: { type: DataTypes.STRING, allowNull: true },
+
   // Статус передачи в CRM
   crmStatus: {
     type: DataTypes.ENUM('pending', 'sent', 'error'),

@@ -400,7 +400,10 @@
   top: 0;
   left: 0;
   right: 0;
-  bottom: var(--student-bottom-nav-offset);
+  /* bottom управляется через visualViewport JS — не ставим bottom здесь,
+     чтобы Android-клавиатура не сжимала контейнер.
+     Высота тоже выставляется через JS (vv.height). Fallback: 100dvh. */
+  height: 100dvh;
   width: 100%;
   max-width: 480px;
   margin: 0 auto;
@@ -482,6 +485,8 @@
   display: flex;
   flex-direction: column;
   -webkit-overflow-scrolling: touch;
+  /* Тянем скролл до самого низа, чтобы input был виден при открытой клавиатуре */
+  overscroll-behavior: contain;
 }
 
 .homework-mode .question-container {
@@ -494,7 +499,8 @@
   border-radius: 14px;
   padding: 12px 14px;
   margin-bottom: 0;
-  overflow: hidden;
+  /* Убираем overflow:hidden — он обрезает input при открытой клавиатуре */
+  overflow: visible;
 }
 
 .homework-mode .question-header {
@@ -556,11 +562,22 @@
 .homework-mode-answer {
   flex: 1;
   min-height: 0;
-  overflow: hidden;
+  overflow: visible;
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
   align-items: stretch;
+}
+
+/* Для типов с текстовым вводом — убираем flex-сжатие, чтобы input не уходил за экран */
+.homework-mode-answer--short_answer,
+.homework-mode-answer--text_input,
+.homework-mode-answer--numeric,
+.homework-mode-answer--number_input,
+.homework-mode-answer--fill_blanks,
+.homework-mode-answer--fill_in_blank {
+  overflow: visible;
+  flex-shrink: 0;
 }
 
 .homework-mode-footer {
@@ -735,11 +752,15 @@
 }
 
 .homework-mode .short-answer-input input,
-.homework-mode .numeric-input input {
-  padding: 10px 12px;
+.homework-mode .numeric-input input,
+.homework-mode .blank-input {
+  padding: 12px 14px;
   font-size: 16px;
   width: 100%;
   box-sizing: border-box;
+  min-height: 48px;
+  border-radius: 10px;
+  scroll-margin-bottom: 120px;
 }
 
 .homework-mode-answer--single_choice .question-options,

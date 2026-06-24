@@ -10,6 +10,7 @@ import AdminPanel from './pages/AdminPanel';
 
 import { API_URL } from './config';
 import { apiFetch } from './pages/api';
+import { collectUtm, storeUtm } from './utils/utm';
 
 function App() {
   const [selectedRole, setSelectedRole] = useState(null);
@@ -36,6 +37,15 @@ function App() {
         setIsTelegramWebApp(true);
         tg.ready();
         tg.expand();
+
+        const utm = collectUtm();
+        if (utm?.utmSource) {
+          storeUtm(utm);
+          apiFetch(`${API_URL}/guest/utm`, {
+            method: 'POST',
+            body: JSON.stringify(utm),
+          }).catch(() => {});
+        }
 
         // Скрываем кнопку "назад"
         tg.BackButton.hide();
@@ -203,7 +213,7 @@ function App() {
           </p>
 
           <a
-            href="https://t.me/educa1488_bot"
+            href="https://t.me/ct_kubik_bot"
             className="telegram-button"
             target="_blank"
             rel="noopener noreferrer"

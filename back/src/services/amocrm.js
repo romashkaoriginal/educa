@@ -10,6 +10,13 @@
 
 function buildNoteText(application) {
   const selectedSubjects = Array.isArray(application.selectedSubjects) ? application.selectedSubjects : [];
+  const utmLines = [
+    application.utmSource ? `utm_source: ${application.utmSource}` : '',
+    application.utmMedium ? `utm_medium: ${application.utmMedium}` : '',
+    application.utmCampaign ? `utm_campaign: ${application.utmCampaign}` : '',
+    application.utmContent ? `utm_content: ${application.utmContent}` : '',
+    application.utmTerm ? `utm_term: ${application.utmTerm}` : '',
+  ].filter(Boolean);
   return [
     `Заявка: ${application.source || 'Telegram'}`,
     application.context ? `Контекст: ${application.context}` : '',
@@ -19,6 +26,7 @@ function buildNoteText(application) {
     (application.testTotal > 0) ? `Результат теста: ${application.testCorrect}/${application.testTotal} (${application.testPercent}%)` : '',
     application.telegramId ? `Telegram ID: ${application.telegramId}` : '',
     application.telegramUsername ? `Telegram: @${application.telegramUsername}` : '',
+    utmLines.length ? `\n--- UTM ---\n${utmLines.join('\n')}` : '',
     `Дата заявки: ${new Date(application.createdAt || Date.now()).toLocaleString('ru-RU')}`,
   ].filter(Boolean).join('\n');
 }
@@ -55,7 +63,7 @@ async function sendToAmoCRM(application) {
         ip: '0.0.0.0',
         referer: application.telegramUsername
           ? `https://t.me/${application.telegramUsername}`
-          : 'https://t.me/educa1488_bot'
+          : 'https://t.me/ct_kubik_bot'
       },
       _embedded: {
         leads: [{ name: `Заявка: ${application.fullName}` }],

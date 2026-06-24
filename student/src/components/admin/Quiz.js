@@ -31,6 +31,11 @@ function Quiz({ subjects, currentUserId, dataRefreshKey = 0 }) {
     correctAnswer: 0, timeLimit: 30, points: 1, explanation: ''
   });
 
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importFile, setImportFile] = useState(null);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importResult, setImportResult] = useState(null);
+
   // Live режим
   const [participants, setParticipants] = useState([]);
   const [leaderboard, setLeaderboard] = useState([]);
@@ -142,6 +147,57 @@ function Quiz({ subjects, currentUserId, dataRefreshKey = 0 }) {
   };
 
   const removeQuestion = (index) => setQuestions(questions.filter((_, i) => i !== index));
+
+  const downloadTemplate = async () => {
+    try {
+      const response = await adminFetch(`${API_URL}/quiz/import-template`);
+      if (!response.ok) throw new Error('bad response');
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'quiz_template.xlsx';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      alert('Ошибка скачивания шаблона');
+    }
+  };
+
+  const openImportModal = () => {
+    setImportFile(null);
+    setImportResult(null);
+    setShowImportModal(true);
+  };
+
+  const handleImport = async () => {
+    if (!importFile) return;
+    setImportLoading(true);
+    setImportResult(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', importFile);
+      const response = await adminFetch(`${API_URL}/quiz/import-questions`, {
+        method: 'POST',
+        body: formData
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setImportResult(data);
+        if (data.questions?.length) {
+          setQuestions(prev => [...prev, ...data.questions]);
+        }
+      } else {
+        setImportResult({ error: data.message || 'Ошибка импорта' });
+      }
+    } catch (e) {
+      setImportResult({ error: 'Ошибка сети: ' + e.message });
+    } finally {
+      setImportLoading(false);
+    }
+  };
 
   const saveQuiz = async () => {
     if (!formData.title || !formData.subjectId) { alert('Заполните название и предмет'); return; }
@@ -493,6 +549,70 @@ function Quiz({ subjects, currentUserId, dataRefreshKey = 0 }) {
   if (view === 'create') {
     return (
       <div className="admin-section">
+        {showImportModal && (
+          <div className="import-modal-overlay" onClick={() => !importLoading && setShowImportModal(false)}>
+            <div className="import-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="import-modal-header">
+                <h2>📥 Загрузка вопросов из Excel</h2>
+                <button type="button" className="import-modal-close" onClick={() => !importLoading && setShowImportModal(false)}>✕</button>
+              </div>
+              <div className="import-modal-body">
+                <div className="import-format-hint">
+                  <strong>Формат файла (.xlsx):</strong><br />
+                  <span className="import-hint-key">question</span> — текст вопроса<br />
+                  <span className="import-hint-key">a, b, c, d</span> — четыре варианта ответа<br />
+                  <span className="import-hint-key">correct</span> — буква правильного варианта: a / b / c / d<br />
+                  <span className="import-hint-key">time</span> — время на ответ, сек (по умолчанию 30)<br />
+                  <span className="import-hint-key">points</span> — баллы (по умолчанию 1), <span className="import-hint-key">explanation</span> — необязательно
+                </div>
+                <button type="button" className="btn-secondary import-template-btn" onClick={downloadTemplate}>
+                  ⬇️ Скачать пример Excel
+                </button>
+                <div className="import-file-group">
+                  <label>Выберите файл .xlsx</label>
+                  <input
+                    type="file"
+                    accept=".xlsx,.xls"
+                    className="import-file-input"
+                    onChange={(e) => { setImportFile(e.target.files[0] || null); setImportResult(null); }}
+                  />
+                </div>
+
+                {importResult && !importResult.error && (
+                  <div className="import-result-ok">
+                    ✅ Добавлено вопросов: <strong>{importResult.imported}</strong>
+                    {importResult.skipped > 0 && (
+                      <>, пропущено: <strong>{importResult.skipped}</strong></>
+                    )}
+                    {importResult.errors?.length > 0 && (
+                      <div className="import-result-errors">
+                        {importResult.errors.map((er, i) => (
+                          <div key={i}>Строка {er.row}: {er.reason}</div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {importResult?.error && (
+                  <div className="import-result-error">❌ {importResult.error}</div>
+                )}
+              </div>
+              <div className="import-modal-footer">
+                <button type="button" className="import-btn-secondary" onClick={() => !importLoading && setShowImportModal(false)}>
+                  {importResult && !importResult.error ? 'Готово' : 'Отмена'}
+                </button>
+                <button
+                  type="button"
+                  className="import-btn-primary"
+                  onClick={handleImport}
+                  disabled={!importFile || importLoading}
+                >
+                  {importLoading ? 'Загружаю...' : 'Загрузить'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         <div className="section-header">
           <button className="back-btn" onClick={() => setView('list')}>← Назад</button>
           <h2>Создать викторину</h2>
@@ -507,7 +627,12 @@ function Quiz({ subjects, currentUserId, dataRefreshKey = 0 }) {
             {subjects.map(s => <option key={s.id} value={s.id}>{s.icon} {s.name}</option>)}
           </select>
           <div className="questions-section">
-            <h3>Вопросы ({questions.length})</h3>
+            <div className="questions-section-header">
+              <h3>Вопросы ({questions.length})</h3>
+              <button type="button" className="import-excel-btn" onClick={openImportModal}>
+                📥 Загрузить из Excel
+              </button>
+            </div>
             {questions.map((q, i) => (
               <div key={i} className="question-item">
                 <div className="q-num">{i + 1}</div>

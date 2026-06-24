@@ -18,6 +18,44 @@ const HOMEWORK_SUBJECT_CARD_BACKGROUNDS = [
   { match: ['англ', 'english'], image: homeworkEnglishBg },
 ];
 
+function scrollInputIntoView(inputEl) {
+  if (!inputEl) return;
+  const body = inputEl.closest('.homework-mode-body');
+  if (!body) {
+    inputEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    return;
+  }
+  const bodyRect = body.getBoundingClientRect();
+  const inputRect = inputEl.getBoundingClientRect();
+  const margin = 24;
+  if (inputRect.bottom > bodyRect.bottom - margin) {
+    body.scrollBy({ top: inputRect.bottom - bodyRect.bottom + margin, behavior: 'smooth' });
+  } else if (inputRect.top < bodyRect.top + margin) {
+    body.scrollBy({ top: inputRect.top - bodyRect.top - margin, behavior: 'smooth' });
+  }
+}
+
+function isHwAnswerFilled(answer, questionType) {
+  if (answer === undefined || answer === null) return false;
+  if (questionType === 'short_answer' || questionType === 'text_input') {
+    return String(answer).trim().length > 0;
+  }
+  if (questionType === 'numeric' || questionType === 'number_input') {
+    const num = parseFloat(String(answer).replace(',', '.'));
+    return Number.isFinite(num);
+  }
+  if (questionType === 'fill_blanks' || questionType === 'fill_in_blank') {
+    return Array.isArray(answer) && answer.every((v) => String(v ?? '').trim().length > 0);
+  }
+  return true;
+}
+
+function parseNumericAnswer(value) {
+  if (typeof value === 'number') return value;
+  const num = parseFloat(String(value).replace(',', '.').trim());
+  return Number.isFinite(num) ? num : NaN;
+}
+
 function getHomeworkSubjectCardBg(subject) {
   const haystack = `${subject?.name || ''} ${subject?.icon || ''}`.toLowerCase();
   const found = HOMEWORK_SUBJECT_CARD_BACKGROUNDS.find(({ match }) =>
@@ -218,6 +256,7 @@ function getHomeworkCardState(homework, now = new Date()) {
     || (homework.questions || []).reduce((sum, q) => sum + (q.points || 0), 0);
   const usedAttempts = homework.stats?.attempts || 0;
   const bestScore = homework.stats?.bestScore || 0;
+  const bestCorrectCount = homework.stats?.bestCorrectCount ?? null;
   const hasResult = bestScore > 0;
   const attemptsExhausted = homework.maxAttempts && usedAttempts >= homework.maxAttempts;
   const isExpired = minutesLeft <= 0;
@@ -250,7 +289,8 @@ function getHomeworkCardState(homework, now = new Date()) {
     ? `${usedAttempts} / ${homework.maxAttempts}`
     : usedAttempts > 0 ? `${usedAttempts}` : '∞';
 
-  const bestResultText = hasResult ? `${bestScore} / ${maxScore}` : '—';
+  const bestCorrectDisplay = bestCorrectCount !== null ? bestCorrectCount : bestScore;
+  const bestResultText = hasResult ? `${bestCorrectDisplay} / ${questionCount} вопр.` : '—';
 
   return {
     questionCount,
@@ -305,7 +345,45 @@ function StudentHomework({ studentId }) {
 
   const orderingListRefs = useRef({});
   const initialOrderRef = useRef({});
-  const matchingStateRef = useRef({}); // { [questionIndex]: { connections, rightOrder } }
+  const matchingStateRef = useRef({});
+  const hwModeRef = useRef(null);
+
+  const hwActive = !!(selectedHomework && questions.length > 0 && !showResult);
+  useEffect(() => {
+    if (!hwActive) return;
+
+    const vv = window.visualViewport;
+    const tg = window.Telegram?.WebApp;
+
+    const applyViewport = () => {
+      const el = hwModeRef.current;
+      if (!el) return;
+      if (!vv) {
+        el.style.height = '';
+        el.style.top = '';
+        return;
+      }
+      const tgH = tg?.viewportStableHeight || tg?.viewportHeight;
+      const height = tgH ? Math.min(vv.height, tgH) : vv.height;
+      el.style.height = `${height}px`;
+      el.style.top = `${vv.offsetTop}px`;
+    };
+
+    applyViewport();
+    vv?.addEventListener('resize', applyViewport);
+    vv?.addEventListener('scroll', applyViewport);
+    tg?.onEvent?.('viewportChanged', applyViewport);
+
+    return () => {
+      vv?.removeEventListener('resize', applyViewport);
+      vv?.removeEventListener('scroll', applyViewport);
+      const el = hwModeRef.current;
+      if (el) {
+        el.style.height = '';
+        el.style.top = '';
+      }
+    };
+  }, [hwActive, currentQuestionIndex]);
 
   useEffect(() => {
     if (subjects.length === 1 && !selectedSubject) {
@@ -316,8 +394,7 @@ function StudentHomework({ studentId }) {
   useEffect(() => {
     const tg = window.Telegram?.WebApp;
     if (!tg) return;
-    // Свайпы всегда заблокированы глобально, closingConfirmation управляется в StudentApp
-    tg.disableVerticalSwipes?.();
+      tg.disableVerticalSwipes?.();
     if (selectedHomework && !showResult) tg.expand?.();
   }, [selectedHomework, showResult]);
 
@@ -327,7 +404,6 @@ function StudentHomework({ studentId }) {
 
   const backToSubjects = () => setSelectedSubject(null);
 
-  // ОПТИМИЗАЦИЯ: используем вопросы из DataContext, не делаем лишний fetch
   const startHomework = async (homework) => {
     if (homework.questions && homework.questions.length > 0) {
       setSelectedHomework(homework);
@@ -340,7 +416,6 @@ function StudentHomework({ studentId }) {
       setStartTime(Date.now());
       return;
     }
-    // Запасной вариант — загрузить с сервера если вопросов нет в кэше
     try {
       const response = await apiFetch(`${API_URL}/homework/${homework.id}`);
       const data = await response.json();
@@ -372,7 +447,6 @@ function StudentHomework({ studentId }) {
     setAnswers({});
     setShowResult(false);
     setResult(null);
-    // Обновляем данные только если реально сдали домашку
     if (wasSubmitted) refreshAfterHomework(selectedHomework?.subjectId || selectedHomework?.subject?.id);
   };
 
@@ -425,7 +499,6 @@ function StudentHomework({ studentId }) {
     if (!drag.active) return;
     const { questionIndex, fromIndex, overIndex, items } = drag;
     if (fromIndex !== overIndex && overIndex !== null && overIndex >= 0) {
-      // Вставка (не свап) — убираем элемент с fromIndex и вставляем в overIndex
       const newItems = [...items];
       const [moved] = newItems.splice(fromIndex, 1);
       newItems.splice(overIndex, 0, moved);
@@ -457,7 +530,6 @@ function StudentHomework({ studentId }) {
     };
   }, [drag.active, handlePointerMove, handlePointerUp]);
 
-  // Проверка ответа локально — те же правила что на бэкенде
   const checkAnswerLocal = (question, userAnswer) => {
     const correct = question.correctAnswer;
     switch (question.questionType) {
@@ -478,9 +550,10 @@ function StudentHomework({ studentId }) {
       }
       case 'numeric':
       case 'number_input': {
-        if (typeof userAnswer !== 'number') return false;
+        const num = parseNumericAnswer(userAnswer);
+        if (Number.isNaN(num)) return false;
         const tol = correct?.tolerance || 0;
-        return Math.abs(userAnswer - (correct?.value ?? correct)) <= tol;
+        return Math.abs(num - (correct?.value ?? correct)) <= tol;
       }
       case 'matching': {
         // userAnswer может быть {connections, pairs} или [{left,right}]
@@ -511,18 +584,19 @@ function StudentHomework({ studentId }) {
 
   const submitHomework = () => {
     const timeSpent = Math.floor((Date.now() - startTime) / 1000);
-    const answersArray = Object.values(answers).map(ans => {
-      // matching хранится как {connections, pairs} — отправляем только pairs
+    const answersArray = questions.map((question, index) => {
+      const ans = answers[index];
       if (ans && ans.pairs) return ans.pairs;
+      if (question.questionType === 'numeric' || question.questionType === 'number_input') {
+        return parseNumericAnswer(ans);
+      }
       return ans;
     });
 
-    // Считаем результат локально — мгновенно
     let totalScore = 0;
     let maxScore = 0;
     questions.forEach((question, index) => {
       const rawAnswer = Object.values(answers)[index];
-      // matching хранит {connections, pairs} — берём pairs для проверки
       const userAnswer = rawAnswer?.pairs || rawAnswer;
       const isCorrect = checkAnswerLocal(question, userAnswer);
       maxScore += question.points || 1;
@@ -531,7 +605,6 @@ function StudentHomework({ studentId }) {
 
     const percentage = maxScore > 0 ? Math.round(totalScore / maxScore * 100) : 0;
 
-    // Показываем результат МГНОВЕННО
     setResult({
       totalScore,
       maxScore,
@@ -542,7 +615,6 @@ function StudentHomework({ studentId }) {
     });
     setShowResult(true);
 
-    // Отправляем на бэк фоново — не блокируем UI
     apiFetch(`${API_URL}/homework/submit`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -553,11 +625,9 @@ function StudentHomework({ studentId }) {
         timeSpent,
       }),
     }).then(res => res.json()).then(data => {
-      // Обновляем попытки если бэк вернул данные
       if (data.attemptsUsed !== undefined) {
         setResult(prev => ({ ...prev, attemptsUsed: data.attemptsUsed, maxAttempts: data.maxAttempts }));
       }
-      // Фоново обновляем список домашек чтобы при переходе уже было актуально
       refreshAfterHomework(selectedHomework?.subjectId || selectedHomework?.subject?.id);
     }).catch(e => console.error('Error submitting homework:', e));
   };
@@ -613,6 +683,7 @@ function StudentHomework({ studentId }) {
           <div className="short-answer-input">
             <input
               type="text"
+              enterKeyHint="done"
               placeholder="Введите ответ"
               value={answers[index] || ''}
               onChange={(e) => handleAnswer(index, e.target.value)}
@@ -625,11 +696,17 @@ function StudentHomework({ studentId }) {
         return (
           <div className="numeric-input">
             <input
-              type="number"
-              step="any"
+              type="text"
+              inputMode="decimal"
+              enterKeyHint="done"
               placeholder="Введите число"
-              value={answers[index] || ''}
-              onChange={(e) => handleAnswer(index, parseFloat(e.target.value))}
+              value={answers[index] ?? ''}
+              onChange={(e) => {
+                const raw = e.target.value.replace(',', '.');
+                if (raw === '' || /^-?\d*\.?\d*$/.test(raw)) {
+                  handleAnswer(index, raw === '' ? undefined : raw);
+                }
+              }}
             />
           </div>
         );
@@ -637,8 +714,7 @@ function StudentHomework({ studentId }) {
       case 'matching': {
         const pairs = question.correctAnswer || question.options || [];
 
-        // Инициализируем состояние для этого вопроса
-        if (!matchingStateRef.current[index]) {
+            if (!matchingStateRef.current[index]) {
           matchingStateRef.current[index] = {
             rightOrder: [...pairs.map((_, i) => i)].sort(() => Math.random() - 0.5),
             connections: {} // { leftIdx: rightIdx }
@@ -652,7 +728,6 @@ function StudentHomework({ studentId }) {
 
         const updateConnections = (newConns) => {
           matchingStateRef.current[index].connections = newConns;
-          // Конвертируем в формат [{left, right}] для бэкенда
           const result = pairs.map((p, li) => ({
             left: p.left,
             right: newConns[li] !== undefined ? pairs[newConns[li]].right : ''
@@ -752,6 +827,7 @@ function StudentHomework({ studentId }) {
                   {partIndex < parts.length - 1 && (
                     <input
                       type="text"
+                      enterKeyHint="done"
                       className="blank-input"
                       value={blankAnswers[partIndex] || ''}
                       onChange={(e) => {
@@ -1089,10 +1165,20 @@ function StudentHomework({ studentId }) {
     const currentQuestion = questions[currentQuestionIndex];
     const progress = ((currentQuestionIndex + 1) / questions.length) * 100;
     const isLastQuestion = currentQuestionIndex === questions.length - 1;
-    const canProceed = answers[currentQuestionIndex] !== undefined;
+    const canProceed = isHwAnswerFilled(answers[currentQuestionIndex], currentQuestion.questionType);
 
     return renderHomeworkOverlay(
-      <div className="homework-mode">
+      <div
+        className="homework-mode"
+        ref={hwModeRef}
+        onFocusCapture={(e) => {
+          const t = e.target;
+          if (t.tagName !== 'INPUT' && t.tagName !== 'TEXTAREA') return;
+          requestAnimationFrame(() => {
+            setTimeout(() => scrollInputIntoView(t), 350);
+          });
+        }}
+      >
         <div className="homework-mode-header">
           <button type="button" className="back-button" onClick={closeHomework}>← Назад</button>
           <div className="homework-info">
@@ -1265,7 +1351,7 @@ function StudentHomework({ studentId }) {
                   </div>
                   <div className="hw-metric">
                     <span className="hw-metric-label">Макс. баллов</span>
-                    <span className="hw-metric-value">{card.maxScore}</span>
+                    <span className="hw-metric-value">{card.maxScore} б.</span>
                   </div>
                   <div className="hw-metric">
                     <span className="hw-metric-label">Попытки</span>

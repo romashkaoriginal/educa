@@ -2,6 +2,50 @@
 
 /* ========== АДМИН СТАТИСТИКА ========== */
 
+/* Переключатели Практика / Домашка */
+.stats-tabs {
+  display: inline-flex;
+  gap: 6px;
+  padding: 4px;
+  background: var(--kubik-blue-soft);
+  border: 1px solid var(--kubik-border);
+  border-radius: var(--r-md);
+}
+
+.stats-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 18px;
+  border: none;
+  background: transparent;
+  border-radius: calc(var(--r-md) - 4px);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--kubik-text-soft);
+  white-space: nowrap;
+  transition: background var(--t-fast) var(--ease-out),
+              color var(--t-fast) var(--ease-out),
+              box-shadow var(--t-fast) var(--ease-out);
+}
+
+.stats-tab:hover {
+  color: var(--kubik-navy);
+}
+
+.stats-tab:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.stats-tab.active {
+  background: var(--brand-gradient);
+  color: #fff;
+  box-shadow: var(--shadow-sm);
+}
+
 .section-description {
   color: var(--kubik-text-soft);
   font-size: 14px;

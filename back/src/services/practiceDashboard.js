@@ -390,10 +390,12 @@ async function buildSubjectDashboard(studentId, subjectId, helpers) {
     };
   }
 
-  const topicStats = Object.entries(topicAgg).map(([topicId, agg]) => {
+  const allTopicIds = Object.keys(topicMap).map(Number);
+  const topicStats = allTopicIds.map((topicId) => {
     const meta = topicMap[topicId] || {};
-    const total = agg.total;
-    const correct = agg.correct;
+    const agg = topicAgg[topicId];
+    const total = agg ? agg.total : 0;
+    const correct = agg ? agg.correct : 0;
     const errors = total - correct;
     const accuracy = total > 0 ? Math.round(correct / total * 100) : 0;
     const totalQuestions = totalQuestionsByTopic[topicId] || 0;
@@ -403,7 +405,7 @@ async function buildSubjectDashboard(studentId, subjectId, helpers) {
       ? Math.min(100, Math.round(uniqueSolved / totalQuestions * 100))
       : 0;
     return {
-      id: parseInt(topicId, 10),
+      id: topicId,
       name: meta.name || 'Тема',
       icon: meta.icon || '📝',
       solved: total,
@@ -413,11 +415,15 @@ async function buildSubjectDashboard(studentId, subjectId, helpers) {
       totalQuestions,
       uniqueSolved,
       completionPercent,
-      status: status.key,
-      statusLabel: status.label,
-      lastAt: agg.lastAt
+      status: total === 0 ? 'not_started' : status.key,
+      statusLabel: total === 0 ? 'Не начата' : status.label,
+      lastAt: agg ? agg.lastAt : null
     };
-  }).sort((a, b) => a.accuracy - b.accuracy);
+  }).sort((a, b) => {
+    if (a.status === 'not_started' && b.status !== 'not_started') return 1;
+    if (b.status === 'not_started' && a.status !== 'not_started') return -1;
+    return a.accuracy - b.accuracy;
+  });
 
   const weakTopics = topicStats
     .filter(t => t.solved >= WEAK_TOPIC_MIN && (t.status === 'weak' || t.status === 'review'))

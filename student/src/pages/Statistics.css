@@ -1194,6 +1194,7 @@
 .sd-status--good { background: #E8F8F0; color: var(--good); }
 .sd-status--mastered { background: linear-gradient(135deg, #E8F8F0, var(--kubik-blue-soft)); color: var(--good); }
 .sd-status--learning { background: #f5f5f5; color: var(--kubik-text-soft); }
+.sd-status--not-started { background: #f0f0f0; color: #9ca3af; }
 
 /* Difficulty */
 .sd-diff-hint {

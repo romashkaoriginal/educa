@@ -16,6 +16,7 @@ const STATUS_CLASS = {
   good: 'sd-status--good',
   mastered: 'sd-status--mastered',
   learning: 'sd-status--learning',
+  not_started: 'sd-status--not-started',
 };
 
 function pluralRu(n, one, few, many) {
@@ -728,7 +729,9 @@ function Statistics({ studentId, isGuest = false, onLockedClick }) {
                   <span className="sd-topic-icon">{t.icon}</span>
                   <div className="sd-topic-info">
                     <span className="sd-topic-name">{t.name}</span>
-                    <span className="sd-topic-meta">{t.accuracy}% верно</span>
+                    <span className="sd-topic-meta">
+                      {t.status === 'not_started' ? 'Тема ещё не начата' : `${t.accuracy}% верно · ${t.solved} попыток`}
+                    </span>
                   </div>
                   <span className={`sd-status ${STATUS_CLASS[t.status] || ''}`}>{t.statusLabel}</span>
                   <span className="sd-topic-go">→</span>
