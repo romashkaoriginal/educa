@@ -34,42 +34,81 @@ exports.getAllUsers = async (req, res) => {
 exports.createUser = async (req, res) => {
   try {
     const { telegramId, telegramUsername, firstName, lastName, role } = req.body;
-
-    // Валидация роли
-    if (!['admin', 'teacher', 'manager'].includes(role)) {
-      return res.status(400).json({ 
-        message: 'Invalid role. Allowed: admin, teacher, manager' 
-      });
-    }
-
-    // Валидация обязательных полей
-    if (!telegramId || !firstName || !lastName) {
-      return res.status(400).json({ 
-        message: 'Required fields: telegramId, firstName, lastName' 
-      });
-    }
-
-    // Проверка существования пользователя с таким Telegram ID
-    const existingUser = await User.findOne({ where: { telegramId } });
-    if (existingUser) {
-      return res.status(400).json({ 
-        message: 'User with this Telegram ID already exists' 
-      });
-    }
-
-    // Создание пользователя
-    const user = await User.create({
-      telegramId,
-      telegramUsername: telegramUsername || null,
-      firstName,
-      lastName,
-      role,
-      isActive: true
-    });
-
-    // ВАЖНО: Обновляем BotUser если такой есть
     const { BotUser } = require('../models');
-    const botUser = await BotUser.findOne({ where: { telegramId } });
+
+    if (!['admin', 'teacher', 'manager'].includes(role)) {
+      return res.status(400).json({
+        message: 'Недопустимая роль. Допустимо: admin, teacher, manager'
+      });
+    }
+
+    // lastName не обязателен — у многих в Telegram фамилии нет
+    if (!telegramId || !firstName) {
+      return res.status(400).json({
+        message: 'Обязательные поля: telegramId, firstName'
+      });
+    }
+
+    const tid = String(telegramId).trim();
+    if (!/^\d+$/.test(tid)) {
+      return res.status(400).json({ message: 'Некорректный Telegram ID' });
+    }
+
+    const name = String(firstName).trim();
+    if (!name) {
+      return res.status(400).json({
+        message: 'Обязательные поля: telegramId, firstName'
+      });
+    }
+    const surname = lastName != null && String(lastName).trim() !== ''
+      ? String(lastName).trim()
+      : null;
+    const username = telegramUsername
+      ? String(telegramUsername).replace(/^@/, '').trim() || null
+      : null;
+
+    let user = await User.findOne({ where: { telegramId: tid } });
+
+    if (user && ['admin', 'teacher', 'manager'].includes(user.role) && !user.isGuest) {
+      return res.status(400).json({
+        message: 'Пользователь с этим Telegram ID уже есть в системе'
+      });
+    }
+
+    if (user) {
+      // Гость / ученик → назначаем роль сотрудника, сохраняя User.id
+      const wasGuestOrStudent = user.isGuest || user.role === 'student';
+      await user.update({
+        firstName: name,
+        lastName: surname !== null ? surname : user.lastName,
+        telegramUsername: username !== null ? username : user.telegramUsername,
+        role,
+        isActive: true,
+        isGuest: false,
+        guestStatus: null,
+        guestStartedAt: null,
+        guestExpiresAt: null,
+        guestSubjectsChosen: false,
+        guestReminderSentAt: null,
+        guestApplicationSent: false
+      });
+
+      if (wasGuestOrStudent) {
+        const { UserSubject } = require('../models');
+        await UserSubject.destroy({ where: { userId: user.id } });
+      }
+    } else {
+      user = await User.create({
+        telegramId: tid,
+        telegramUsername: username,
+        firstName: name,
+        lastName: surname,
+        role,
+        isActive: true
+      });
+    }
+
+    const botUser = await BotUser.findOne({ where: { telegramId: tid } });
     if (botUser) {
       botUser.isAssigned = true;
       botUser.userId = user.id;

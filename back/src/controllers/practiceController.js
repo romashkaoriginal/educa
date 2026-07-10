@@ -1092,7 +1092,16 @@ exports.getQuestionsImportTemplate = async (req, res) => {
     const ExcelJS = require('exceljs');
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('Questions');
-    sheet.addRow(['question', 'a', 'b', 'c', 'd', 'correct', 'difficulty', 'explanation']);
+    sheet.columns = [
+      { header: 'question', width: 40 },
+      { header: 'a', width: 18 },
+      { header: 'b', width: 18 },
+      { header: 'c', width: 18 },
+      { header: 'd', width: 18 },
+      { header: 'correct', width: 10 },
+      { header: 'difficulty', width: 12 },
+      { header: 'explanation', width: 30 },
+    ];
     sheet.addRow(['Чему равно 2+2?', '3', '4', '5', '6', 'b', 'easy', 'Простое сложение']);
 
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');

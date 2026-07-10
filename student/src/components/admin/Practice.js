@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import * as XLSX from 'xlsx';
 import '../../styles/Practice.css';
 import { adminFetch } from './adminApi';
 
@@ -118,16 +117,19 @@ function Practice({ dataRefreshKey = 0 }) {
     if (selectedTopic) loadQuestions();
   });
 
-  const downloadTemplate = () => {
+  const downloadTemplate = async () => {
     try {
-      const rows = [
-        ['question', 'a', 'b', 'c', 'd', 'correct', 'difficulty', 'explanation'],
-        ['Чему равно 2+2?', '3', '4', '5', '6', 'b', 'easy', 'Простое сложение'],
-      ];
-      const sheet = XLSX.utils.aoa_to_sheet(rows);
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, sheet, 'Questions');
-      XLSX.writeFile(workbook, 'questions_template.xlsx');
+      const response = await adminFetch(`${API_URL}/practice/questions/import-template`);
+      if (!response.ok) throw new Error('bad response');
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'questions_template.xlsx';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
     } catch (e) {
       alert('Ошибка скачивания шаблона');
     }
@@ -780,7 +782,7 @@ function Practice({ dataRefreshKey = 0 }) {
                 Колонки: <code>question</code>, <code>a</code>, <code>b</code>, <code>c</code>, <code>d</code>, <code>correct</code>, <code>difficulty</code>, <code>explanation</code><br />
                 <span className="import-hint-key">correct</span> — строчная буква: a / b / c / d<br />
                 <span className="import-hint-key">difficulty</span> — easy / medium / hard (по умолчанию medium)<br />
-                <span className="import-hint-key">explanation</span> — необязательно, можно оставить пустым
+                <span className="import-hint-key">explanation</span> — объяснение
               </div>
 
               <button type="button" className="btn-secondary import-template-btn" onClick={downloadTemplate}>

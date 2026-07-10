@@ -124,6 +124,11 @@ function Users({ dataRefreshKey = 0 }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (!formData.telegramId?.trim() || !formData.firstName?.trim()) {
+      alert('Укажите Telegram ID и имя');
+      return;
+    }
     
     try {
       const url = isEditing 
@@ -132,24 +137,31 @@ function Users({ dataRefreshKey = 0 }) {
       
       const method = isEditing ? 'PUT' : 'POST';
 
+      const payload = {
+        ...formData,
+        telegramId: formData.telegramId.trim(),
+        firstName: formData.firstName.trim(),
+        lastName: formData.lastName?.trim() || '',
+        telegramUsername: formData.telegramUsername?.trim() || ''
+      };
+
       const response = await adminFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(payload)
       });
 
       if (response.ok) {
         setShowAddModal(false);
         resetForm();
         await loadUsers();
-      refresh('users');
         refresh('users');
         if (addMode === 'bot') {
           await loadBotUsers();
         }
       } else {
-        const error = await response.json();
-        alert(`Ошибка: ${error.message}`);
+        const error = await response.json().catch(() => ({}));
+        alert(`Ошибка: ${error.message || response.statusText || 'не удалось сохранить'}`);
       }
     } catch (error) {
       console.error('Error saving user:', error);
@@ -475,10 +487,12 @@ function Users({ dataRefreshKey = 0 }) {
                     <div className="form-group">
                       <label>Telegram ID</label>
                       <input
-                        type="number"
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
                         placeholder="123456789"
                         value={formData.telegramId}
-                        onChange={(e) => setFormData({...formData, telegramId: e.target.value})}
+                        onChange={(e) => setFormData({...formData, telegramId: e.target.value.replace(/\D/g, '')})}
                         disabled={isEditing}
                       />
                       {isEditing && <small>Telegram ID нельзя изменить</small>}
