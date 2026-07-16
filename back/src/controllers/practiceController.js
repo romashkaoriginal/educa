@@ -1,10 +1,12 @@
 const {
-  PracticeTopic, PracticeQuestion, PracticeAttempt, PracticeBest, PracticeDailyLog,
+  PracticeTopic, PracticeQuestion, PracticeImage, PracticeAttempt, PracticeBest, PracticeDailyLog,
   PracticeQuestionResult, PracticeScoreHistory, PracticeDailyStats,
   PracticeTopicTotals, PracticeRecentError, Subject, User
 } = require('../models');
 const { Op } = require('sequelize');
 const sequelize = require('../config/database');
+const practiceImages = require('../services/practiceImages');
+const { checkQuestionFits, FIT_ERROR_MESSAGE } = require('../services/practiceFit');
 const { calculatePredictedScore, getGrowthTopicIds, CONFIG } = require('../services/predictedScore');
 const { calculateHomeworkScore } = require('../services/homeworkScore');
 const { buildSubjectDashboard } = require('../services/practiceDashboard');
@@ -442,7 +444,11 @@ exports.getQuestionsByTopic = async (req, res) => {
     // Скрытие correctAnswer здесь ломает весь раздел практики — не убирать.
     const questions = await PracticeQuestion.findAll({
       where: { topicId },
-      attributes: ['id', 'questionText', 'options', 'correctAnswer', 'explanation', 'difficulty', 'isActive', 'createdAt'],
+      attributes: ['id', 'questionText', 'questionImageId', 'options', 'correctAnswer', 'explanation', 'hintImageId', 'difficulty', 'isActive', 'createdAt'],
+      include: [
+        { model: PracticeImage, as: 'questionImage', attributes: ['id', 'storageKey', 'width', 'height'] },
+        { model: PracticeImage, as: 'hintImage', attributes: ['id', 'storageKey', 'width', 'height'] }
+      ],
       order: [['createdAt', 'ASC']]
     });
     res.json({ questions });
@@ -452,17 +458,82 @@ exports.getQuestionsByTopic = async (req, res) => {
   }
 };
 
+// Допустимое число вариантов ответа для ручного создания/редактирования вопроса.
+const MIN_OPTIONS = 2;
+const MAX_OPTIONS = 4;
+
+function isValidOptionsList(options) {
+  return Array.isArray(options)
+    && options.length >= MIN_OPTIONS
+    && options.length <= MAX_OPTIONS
+    && options.every((o) => typeof o === 'string' && o.trim());
+}
+
+// correctAnswer — непустой массив уникальных индексов в пределах options (multiple choice).
+function isValidCorrectAnswer(correctAnswer, optionsLength) {
+  if (!Array.isArray(correctAnswer) || correctAnswer.length === 0) return false;
+  const unique = new Set(correctAnswer);
+  if (unique.size !== correctAnswer.length) return false;
+  return correctAnswer.every((i) => Number.isInteger(i) && i >= 0 && i < optionsLength);
+}
+
+// Нормализует id изображения из тела запроса: число, либо null (снять картинку),
+// либо undefined (не трогать поле).
+function parseImageId(value) {
+  if (value === undefined) return undefined;
+  if (value === null || value === '' || value === 'null') return null;
+  const n = parseInt(value, 10);
+  return Number.isInteger(n) ? n : null;
+}
+
+// Общие проверки содержания вопроса и подсказки (ТЗ §1, §2.3, §4.2).
+// Возвращает строку с ошибкой или null.
+function validateQuestionContent({ questionText, questionImageId, explanation, hintImageId, options }) {
+  const hasText = !!(questionText && String(questionText).trim());
+  const hasImage = !!questionImageId;
+  if (!hasText && !hasImage) {
+    return 'Добавьте текст вопроса или изображение.';
+  }
+
+  // Подсказка «включена», только если задан её текст или изображение, поэтому
+  // пустой подсказки с флагом «включена» в этой модели быть не может (ТЗ §2.3).
+  void explanation; void hintImageId;
+
+  const fit = checkQuestionFits({ questionText, options, hasImage });
+  if (!fit.fits) {
+    return FIT_ERROR_MESSAGE;
+  }
+  return null;
+}
+
 // Создать вопрос
 exports.createQuestion = async (req, res) => {
   try {
     const { topicId, questionText, options, correctAnswer, explanation, difficulty } = req.body;
-    if (!topicId || !questionText || !options || options.length !== 4) {
-      return res.status(400).json({ message: 'topicId, questionText, and 4 options required' });
+    const questionImageId = parseImageId(req.body.questionImageId);
+    const hintImageId = parseImageId(req.body.hintImageId);
+
+    if (!topicId || !isValidOptionsList(options)) {
+      return res.status(400).json({ message: `topicId и от ${MIN_OPTIONS} до ${MAX_OPTIONS} вариантов ответа обязательны` });
     }
-    if (correctAnswer < 0 || correctAnswer > 3) return res.status(400).json({ message: 'correctAnswer must be 0-3' });
+    if (!isValidCorrectAnswer(correctAnswer, options.length)) {
+      return res.status(400).json({ message: 'Выберите хотя бы один правильный вариант ответа' });
+    }
+
+    const validationError = validateQuestionContent({
+      questionText, questionImageId, explanation, hintImageId, options
+    });
+    if (validationError) {
+      return res.status(400).json({ message: validationError });
+    }
+
     const question = await PracticeQuestion.create({
-      topicId, questionText, options, correctAnswer,
-      explanation: explanation || '',
+      topicId,
+      questionText: questionText || null,
+      questionImageId: questionImageId || null,
+      options, correctAnswer,
+      explanation: explanation || null,
+      hintImageId: hintImageId || null,
       difficulty: difficulty || 'medium',
       isActive: true
     });
@@ -480,16 +551,111 @@ exports.updateQuestion = async (req, res) => {
     const { questionText, options, correctAnswer, explanation, difficulty } = req.body;
     const question = await PracticeQuestion.findByPk(questionId);
     if (!question) return res.status(404).json({ message: 'Question not found' });
-    if (questionText) question.questionText = questionText;
-    if (options && options.length === 4) question.options = options;
-    if (typeof correctAnswer === 'number') question.correctAnswer = correctAnswer;
-    if (explanation !== undefined) question.explanation = explanation;
+
+    const questionImageId = parseImageId(req.body.questionImageId);
+    const hintImageId = parseImageId(req.body.hintImageId);
+
+    if (options !== undefined && !isValidOptionsList(options)) {
+      return res.status(400).json({ message: `Нужно от ${MIN_OPTIONS} до ${MAX_OPTIONS} заполненных вариантов ответа` });
+    }
+
+    // Итоговое состояние (с учётом полей, которые могут не прийти).
+    const nextText = questionText !== undefined ? questionText : question.questionText;
+    const nextOptions = options !== undefined ? options : question.options;
+    const nextExplanation = explanation !== undefined ? explanation : question.explanation;
+    const nextQuestionImageId = questionImageId !== undefined ? questionImageId : question.questionImageId;
+    const nextHintImageId = hintImageId !== undefined ? hintImageId : question.hintImageId;
+
+    const validationError = validateQuestionContent({
+      questionText: nextText,
+      questionImageId: nextQuestionImageId,
+      explanation: nextExplanation,
+      hintImageId: nextHintImageId,
+      options: nextOptions
+    });
+    if (validationError) {
+      return res.status(400).json({ message: validationError });
+    }
+
+    const nextCorrectAnswer = correctAnswer !== undefined ? correctAnswer : question.correctAnswer;
+    if (!isValidCorrectAnswer(nextCorrectAnswer, nextOptions.length)) {
+      return res.status(400).json({ message: 'Выберите хотя бы один правильный вариант ответа' });
+    }
+
+    const prevQuestionImageId = question.questionImageId;
+    const prevHintImageId = question.hintImageId;
+
+    if (questionText !== undefined) question.questionText = questionText || null;
+    if (options !== undefined) question.options = options;
+    if (correctAnswer !== undefined) question.correctAnswer = correctAnswer;
+    if (explanation !== undefined) question.explanation = explanation || null;
     if (difficulty) question.difficulty = difficulty;
+    if (questionImageId !== undefined) question.questionImageId = questionImageId;
+    if (hintImageId !== undefined) question.hintImageId = hintImageId;
     await question.save();
+
+    // Осиротевшие после замены картинки файлы удаляем (ТЗ §5.4).
+    if (questionImageId !== undefined && prevQuestionImageId && prevQuestionImageId !== questionImageId) {
+      await practiceImages.deleteImageIfOrphan(prevQuestionImageId, { excludeQuestionId: question.id });
+    }
+    if (hintImageId !== undefined && prevHintImageId && prevHintImageId !== hintImageId) {
+      await practiceImages.deleteImageIfOrphan(prevHintImageId, { excludeQuestionId: question.id });
+    }
+
     res.json({ question });
   } catch (error) {
     console.error('Update question error:', error);
     res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Загрузка и оптимизация изображения (ТЗ §5.3). Возвращает метаданные картинки.
+exports.uploadImage = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'Файл не загружен' });
+    }
+    const image = await practiceImages.processAndStore(req.file.buffer);
+    res.json({
+      image: {
+        id: image.id,
+        storageKey: image.storageKey,
+        width: image.width,
+        height: image.height,
+        fileSize: image.fileSize
+      }
+    });
+  } catch (error) {
+    if (error.isImageError) {
+      return res.status(400).json({ message: error.message });
+    }
+    console.error('Upload image error:', error);
+    res.status(500).json({ message: 'Не удалось обработать изображение' });
+  }
+};
+
+// Раздача оптимизированного файла (ТЗ §7 — кеширование).
+exports.serveImage = async (req, res) => {
+  try {
+    const { key } = req.params;
+    // Защита от path traversal: только имя файла из storageKey.
+    if (!/^[a-zA-Z0-9._-]+$/.test(key)) {
+      return res.status(400).end();
+    }
+    const image = await PracticeImage.findOne({ where: { storageKey: key } });
+    if (!image) return res.status(404).end();
+
+    const filePath = practiceImages.storagePath(key);
+    const fs = require('fs');
+    if (!fs.existsSync(filePath)) return res.status(404).end();
+
+    res.setHeader('Content-Type', image.mimeType);
+    // Файлы иммутабельны (имя содержит хеш) — кешируем надолго.
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    fs.createReadStream(filePath).pipe(res);
+  } catch (error) {
+    console.error('Serve image error:', error);
+    res.status(500).end();
   }
 };
 
@@ -516,6 +682,8 @@ exports.deleteQuestion = async (req, res) => {
     const question = await PracticeQuestion.findByPk(questionId);
     if (!question) return res.status(404).json({ message: 'Question not found' });
 
+    const { questionImageId, hintImageId } = question;
+
     await sequelize.transaction(async (t) => {
       const qid = question.id;
       await PracticeRecentError.destroy({ where: { questionId: qid }, transaction: t });
@@ -523,6 +691,10 @@ exports.deleteQuestion = async (req, res) => {
       await PracticeQuestionResult.destroy({ where: { questionId: qid }, transaction: t });
       await question.destroy({ transaction: t });
     });
+
+    // Удаляем картинки, если они больше нигде не используются (ТЗ §5.4).
+    await practiceImages.deleteImageIfOrphan(questionImageId);
+    await practiceImages.deleteImageIfOrphan(hintImageId);
 
     res.json({ message: 'Question deleted' });
   } catch (error) {
@@ -1169,10 +1341,25 @@ exports.importQuestionsFromExcel = async (req, res) => {
         errors.push({ row: rowNum, reason: 'не все варианты ответов заполнены' });
         return;
       }
-      if (!(correct in CORRECT_MAP)) {
+      // Несколько правильных вариантов через запятую/точку с запятой/пробел (напр. "a,c").
+      const correctLetters = correct.split(/[,;\s]+/).filter(Boolean);
+      const invalidLetter = correctLetters.find((l) => !(l in CORRECT_MAP));
+      if (correctLetters.length === 0 || invalidLetter) {
         errors.push({
           row: rowNum,
-          reason: `некорректное значение correct: "${correct}" (допустимо: a, b, c, d)`,
+          reason: `некорректное значение correct: "${correct}" (допустимо: a, b, c, d — можно несколько через запятую)`,
+        });
+        return;
+      }
+      const correctIndexes = [...new Set(correctLetters.map((l) => CORRECT_MAP[l]))];
+
+      // Та же проверка помещаемости, что и в ручном редакторе (ТЗ §4.2).
+      // Через Excel картинок нет, поэтому hasImage=false.
+      const fit = checkQuestionFits({ questionText: q, options: [a, b, c, d], hasImage: false });
+      if (!fit.fits) {
+        errors.push({
+          row: rowNum,
+          reason: 'вопрос не помещается на одном экране — сократите условие или варианты',
         });
         return;
       }
@@ -1181,7 +1368,7 @@ exports.importQuestionsFromExcel = async (req, res) => {
         topicId: parseInt(topicId, 10),
         questionText: q,
         options: [a, b, c, d],
-        correctAnswer: CORRECT_MAP[correct],
+        correctAnswer: correctIndexes,
         explanation,
         difficulty: VALID_DIFFICULTY.includes(diffRaw) ? diffRaw : 'medium',
         isActive: true,

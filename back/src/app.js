@@ -17,6 +17,7 @@ const statsRoutes = require('./routes/stats');
 const adminRoutes = require('./routes/admin');
 const homeworkRoutes = require('./routes/homework');
 const practiceRoutes = require('./routes/practice');
+const practiceImagesRoutes = require('./routes/practiceImages');
 const usersRoutes = require('./routes/users');
 const botUsersRoutes = require('./routes/botUsers');
 const quizRoutes = require('./routes/quiz');
@@ -99,6 +100,11 @@ app.use('/api/subjects', (req, res, next) => {
 });
 
 app.use('/api/auth', authLimiter, authRoutes);
+
+// Публичная раздача изображений практики — ДО apiLimiter и telegramAuth:
+// файлы иммутабельны и кешируются, а <img> не шлёт telegram-заголовок.
+app.use('/api/practice-images', practiceImagesRoutes);
+
 app.use('/api/', apiLimiter);
 
 // Публичные эндпоинты (бот, проверка)

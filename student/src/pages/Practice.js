@@ -11,6 +11,18 @@ import physSubjectBg from '../assets/phys.png';
 import russSubjectBg from '../assets/russ.png';
 import englishSubjectBg from '../assets/english.png';
 
+// URL оптимизированного изображения практики по storageKey (ТЗ §7).
+const practiceImageUrl = (storageKey) =>
+  storageKey ? `${API_URL}/practice-images/${storageKey}` : null;
+
+// Точное совпадение множеств индексов (multiple choice: верно, только если
+// выбраны все правильные варианты и ни одного лишнего).
+const sameAnswerSet = (a, b) => {
+  if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+  const setB = new Set(b);
+  return a.every((v) => setB.has(v));
+};
+
 const SUBJECT_CARD_BACKGROUNDS = [
   { match: ['математ', 'math'], image: mathSubjectBg },
   { match: ['физик', 'phys'], image: physSubjectBg },
@@ -371,7 +383,9 @@ function Practice({ studentId, isTabActive = true, onClose, onActivate }) {
   const [activePractice, setActivePractice] = useState(null);
   const [questions, setQuestions] = useState([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [selectedAnswer, setSelectedAnswer] = useState(null);
+  // Массив выбранных индексов (multiple choice) — до подтверждения копится тут,
+  // после ответа хранит зафиксированный набор.
+  const [selectedAnswer, setSelectedAnswer] = useState([]);
   const [userAnswers, setUserAnswers] = useState([]);
   const [remainingQuestions, setRemainingQuestions] = useState([]);
   const [sessionAnswers, setSessionAnswers] = useState([]);
@@ -379,6 +393,8 @@ function Practice({ studentId, isTabActive = true, onClose, onActivate }) {
   const [answered, setAnswered] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
   const [showExplanationHint, setShowExplanationHint] = useState(false);
+  // Полноэкранный просмотрщик изображения (ТЗ §3.2).
+  const [lightboxSrc, setLightboxSrc] = useState(null);
   // Фаза закрытия модалки объяснения — держим её в DOM на время анимации сворачивания.
   const [explanationClosing, setExplanationClosing] = useState(false);
   const explanationCloseTimerRef = useRef(null);
@@ -544,12 +560,19 @@ function Practice({ studentId, isTabActive = true, onClose, onActivate }) {
     if (!Array.isArray(options)) options = [];
     options = options.map((opt) => String(opt ?? '').trim()).filter(Boolean);
     if (options.length < 2) return null;
-    const correctAnswer = Number.isInteger(question.correctAnswer)
+
+    // correctAnswer — массив индексов (multiple choice). Раньше было одно число —
+    // приводим к массиву для обратной совместимости на переходный период.
+    const rawCorrect = Array.isArray(question.correctAnswer)
       ? question.correctAnswer
-      : parseInt(question.correctAnswer, 10);
-    if (!Number.isInteger(correctAnswer) || correctAnswer < 0 || correctAnswer >= options.length) {
-      return null;
-    }
+      : [question.correctAnswer];
+    const correctAnswer = [...new Set(
+      rawCorrect
+        .map((v) => (Number.isInteger(v) ? v : parseInt(v, 10)))
+        .filter((v) => Number.isInteger(v) && v >= 0 && v < options.length)
+    )];
+    if (correctAnswer.length === 0) return null;
+
     return {
       ...question,
       questionText: String(question.questionText || '').trim(),
@@ -671,7 +694,7 @@ function Practice({ studentId, isTabActive = true, onClose, onActivate }) {
     return {
       ...normalized,
       options: indices.map((i) => normalized.options[i]),
-      correctAnswer: indices.indexOf(normalized.correctAnswer),
+      correctAnswer: normalized.correctAnswer.map((oldIdx) => indices.indexOf(oldIdx)),
     };
   };
 
@@ -774,7 +797,7 @@ function Practice({ studentId, isTabActive = true, onClose, onActivate }) {
     setRemainingQuestions([]);
     setSessionAnswers([]);
     setCurrentQuestionIndex(0);
-    setSelectedAnswer(null);
+    setSelectedAnswer([]);
     setUserAnswers([]);
     setAnswered(false);
     setShowExplanationHint(false);
@@ -1009,13 +1032,17 @@ function Practice({ studentId, isTabActive = true, onClose, onActivate }) {
     }, 240); // должно совпадать с длительностью explanationModalOut
   };
 
-  const submitAnswer = async (answerIndex) => {
+  // answerIndexes — массив выбранных вариантов (multiple choice, подтверждено кнопкой).
+  const submitAnswer = async (answerIndexes) => {
     if (answered) return; // Предотвращаем повторный клик
+    if (!answerIndexes || answerIndexes.length === 0) return;
 
     const currentQuestion = questions[currentQuestionIndex];
-    const correct = answerIndex === currentQuestion.correctAnswer;
+    const correct = sameAnswerSet(answerIndexes, currentQuestion.correctAnswer);
+    // Анимации (орб/всплеск) привязаны к одной кнопке — берём первую выбранную.
+    const anchorIndex = answerIndexes[0];
 
-    setSelectedAnswer(answerIndex);
+    setSelectedAnswer(answerIndexes);
     setAnswered(true);
     setIsCorrect(correct);
     setAnimateDismiss(true);
@@ -1026,7 +1053,7 @@ function Practice({ studentId, isTabActive = true, onClose, onActivate }) {
 
     const answerPayload = {
       questionId: currentQuestion.id,
-      selectedAnswer: answerIndex,
+      selectedAnswer: answerIndexes,
       correctAnswer: currentQuestion.correctAnswer,
       isCorrect: correct,
     };
@@ -1034,10 +1061,10 @@ function Practice({ studentId, isTabActive = true, onClose, onActivate }) {
     // Дофамин: вибрация + конфетти; шкала и сохранение — когда орб долетит
     if (correct) {
       haptic('success');
-      launchBurst(answerIndex);
+      launchBurst(anchorIndex);
       setConfetti(true);
       setTimeout(() => setConfetti(false), 1200);
-      launchOrbToGoal(answerIndex, currentQuestion, answerPayload, practiceSnapshot);
+      launchOrbToGoal(anchorIndex, currentQuestion, answerPayload, practiceSnapshot);
     } else {
       haptic('error');
       persistPracticeAnswerRemote(currentQuestion, answerPayload, practiceSnapshot);
@@ -1076,7 +1103,7 @@ function Practice({ studentId, isTabActive = true, onClose, onActivate }) {
     }
     if (!nextQ) return;
 
-    setSelectedAnswer(null);
+    setSelectedAnswer([]);
     setAnswered(false);
     setIsCorrect(false);
     setAnimateDismiss(false);
@@ -1097,6 +1124,18 @@ function Practice({ studentId, isTabActive = true, onClose, onActivate }) {
     return undefined;
   }, [activePractice, currentQuestionIndex, questions[currentQuestionIndex]?.id]);
 
+  // Фоновая предзагрузка изображения следующего вопроса (ТЗ §7): не грузим
+  // все сразу, только соседний, чтобы картинка была готова к показу.
+  useEffect(() => {
+    if (!activePractice) return;
+    const next = questions[currentQuestionIndex + 1];
+    const key = next?.questionImage?.storageKey;
+    if (key && typeof Image !== 'undefined') {
+      const img = new Image();
+      img.src = practiceImageUrl(key);
+    }
+  }, [activePractice, currentQuestionIndex, questions]);
+
   const restoreQuestionState = (index) => {
     const ans = userAnswers[index];
     if (ans) {
@@ -1104,7 +1143,7 @@ function Practice({ studentId, isTabActive = true, onClose, onActivate }) {
       setAnswered(true);
       setIsCorrect(ans.isCorrect);
     } else {
-      setSelectedAnswer(null);
+      setSelectedAnswer([]);
       setAnswered(false);
       setIsCorrect(false);
     }
@@ -1192,7 +1231,7 @@ function Practice({ studentId, isTabActive = true, onClose, onActivate }) {
     questionsRef.current = [];
     questionPoolRef.current = [];
     setCurrentQuestionIndex(0);
-    setSelectedAnswer(null);
+    setSelectedAnswer([]);
     setUserAnswers([]);
     setAnswered(false);
     setShowExplanationHint(false);
@@ -1312,7 +1351,7 @@ function Practice({ studentId, isTabActive = true, onClose, onActivate }) {
             (g) => Number(g.subjectId) === Number(activePractice?.subjectId)
           );
           const baseSolved = goal?.solved || 0;
-          const target = goal?.goal || 50;
+          const target = goal?.goal || dailyGoal?.dailyGoal || 15;
           const liveSolved = baseSolved + sessionSolved;
           const pct = Math.min(100, Math.round((liveSolved / target) * 100));
           const complete = liveSolved >= target;
@@ -1396,7 +1435,7 @@ function Practice({ studentId, isTabActive = true, onClose, onActivate }) {
                   {currentQuestion.difficulty === 'hard' && '🔴 Сложный'}
                 </span>
               )}
-              {currentQuestion.explanation && (
+              {(currentQuestion.explanation || currentQuestion.hintImage) && (
                 <button
                   type="button"
                   className="hint-button"
@@ -1409,19 +1448,49 @@ function Practice({ studentId, isTabActive = true, onClose, onActivate }) {
           </div>
 
           <div
-            className="question-card"
+            className={`question-card ${!currentQuestion.questionText ? 'question-card--image-only' : ''}`}
             key={`q-${currentQuestion.id}`}
           >
-            <span className="question-card-mark" aria-hidden>“</span>
-            <h3 className="question-text">{currentQuestion.questionText}</h3>
+            {/* Порядок: изображение → текст → варианты (ТЗ §3.1) */}
+            {currentQuestion.questionImage && (
+              <div
+                className="question-image"
+                onClick={() => setLightboxSrc(practiceImageUrl(currentQuestion.questionImage.storageKey))}
+                style={
+                  currentQuestion.questionImage.width && currentQuestion.questionImage.height
+                    ? { aspectRatio: `${currentQuestion.questionImage.width} / ${currentQuestion.questionImage.height}` }
+                    : undefined
+                }
+              >
+                <img
+                  src={practiceImageUrl(currentQuestion.questionImage.storageKey)}
+                  alt="Изображение вопроса"
+                  loading="eager"
+                />
+              </div>
+            )}
+            {currentQuestion.questionText && (
+              <>
+                <span className="question-card-mark" aria-hidden>“</span>
+                <h3 className="question-text">{currentQuestion.questionText}</h3>
+              </>
+            )}
           </div>
 
           <div className="answers-list" key={currentQuestion.id}>
             {currentQuestion.options.map((option, index) => {
-              const isSelected = answered && selectedAnswer === index;
-              const showCorrect = answered && index === currentQuestion.correctAnswer;
-              const showWrong = answered && isSelected && !isCorrect;
+              const isSelected = selectedAnswer.includes(index);
+              const isCorrectOption = currentQuestion.correctAnswer.includes(index);
+              const showCorrect = answered && isCorrectOption;
+              const showWrong = answered && isSelected && !isCorrectOption;
               const showMuted = answered && !showCorrect && !showWrong;
+
+              const toggleOption = () => {
+                if (answered) return;
+                setSelectedAnswer((prev) => (
+                  prev.includes(index) ? prev.filter((i) => i !== index) : [...prev, index]
+                ));
+              };
 
               return (
                 <div
@@ -1430,7 +1499,7 @@ function Practice({ studentId, isTabActive = true, onClose, onActivate }) {
                   tabIndex={-1}
                   className={`answer-option ${isSelected ? 'selected' : ''} ${showCorrect ? 'correct' : ''} ${showWrong ? 'wrong' : ''} ${showMuted ? 'muted' : ''} ${answered ? 'is-locked' : ''}`}
                   onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => !answered && submitAnswer(index)}
+                  onClick={toggleOption}
                 >
                   <span className="answer-letter">
                     {String.fromCharCode(65 + index)}
@@ -1452,10 +1521,24 @@ function Practice({ studentId, isTabActive = true, onClose, onActivate }) {
                       <span className="answer-verdict-label">Неверно</span>
                     </span>
                   )}
+                  {!answered && isSelected && (
+                    <span className="answer-verdict-icon answer-check-mark" aria-hidden>✓</span>
+                  )}
                 </div>
               );
             })}
           </div>
+
+          {!answered && (
+            <button
+              type="button"
+              className="answer-submit-btn"
+              disabled={selectedAnswer.length === 0}
+              onClick={() => submitAnswer(selectedAnswer)}
+            >
+              Ответить
+            </button>
+          )}
 
           {(canGoBack || canGoForward || canAdvance) && (
             <div className="question-nav-row">
@@ -1479,7 +1562,7 @@ function Practice({ studentId, isTabActive = true, onClose, onActivate }) {
           )}
         </div>
 
-        {(showExplanationHint || explanationClosing) && currentQuestion.explanation && (
+        {(showExplanationHint || explanationClosing) && (currentQuestion.explanation || currentQuestion.hintImage) && (
           <div
             className={`explanation-modal-overlay ${explanationClosing ? 'is-closing' : ''}`}
             onClick={closeExplanation}
@@ -1504,10 +1587,44 @@ function Practice({ studentId, isTabActive = true, onClose, onActivate }) {
                 </button>
               </div>
               <div className="explanation-modal-body">
-                {currentQuestion.explanation}
+                {currentQuestion.hintImage && (
+                  <div
+                    className="explanation-modal-image"
+                    onClick={() => setLightboxSrc(practiceImageUrl(currentQuestion.hintImage.storageKey))}
+                  >
+                    <img
+                      src={practiceImageUrl(currentQuestion.hintImage.storageKey)}
+                      alt="Изображение подсказки"
+                    />
+                  </div>
+                )}
+                {currentQuestion.explanation && (
+                  <div className="explanation-modal-text">{currentQuestion.explanation}</div>
+                )}
               </div>
             </div>
           </div>
+        )}
+
+        {/* Полноэкранный просмотрщик изображения (ТЗ §3.2): закрытие по фону/кнопке */}
+        {lightboxSrc && typeof document !== 'undefined' && createPortal(
+          <div className="image-lightbox-overlay" onClick={() => setLightboxSrc(null)}>
+            <button
+              type="button"
+              className="image-lightbox-close"
+              onClick={() => setLightboxSrc(null)}
+              aria-label="Закрыть"
+            >
+              ✕
+            </button>
+            <img
+              className="image-lightbox-img"
+              src={lightboxSrc}
+              alt="Изображение вопроса"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>,
+          document.body
         )}
       </div>
     );

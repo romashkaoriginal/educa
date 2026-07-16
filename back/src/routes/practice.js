@@ -21,6 +21,13 @@ router.put('/topics/:topicId', isAdmin, practiceController.updateTopic);
 // Удалить раздел
 router.delete('/topics/:topicId', isAdmin, practiceController.deleteTopic);
 
+// ========== ИЗОБРАЖЕНИЯ ==========
+
+// Загрузка изображения (условие или подсказка). Возвращает { image }.
+// Раздача файла — в публичном роуте practiceImages (см. app.js), т.к. <img>
+// не может слать telegram-заголовок авторизации.
+router.post('/images', isAdmin, upload.single('image'), practiceController.uploadImage);
+
 // ========== ВОПРОСЫ ==========
 
 // Шаблон Excel (до /questions/:topicId, иначе import-template попадёт в :topicId)

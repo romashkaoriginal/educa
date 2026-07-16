@@ -14,6 +14,7 @@ const HomeworkSubmission = require('./HomeworkSubmission');
 const HomeworkAnswer = require('./HomeworkAnswer');
 const PracticeTopic = require('./PracticeTopic');
 const PracticeQuestion = require('./PracticeQuestion');
+const PracticeImage = require('./PracticeImage');
 const PracticeAttempt = require('./PracticeAttempt');
 const PracticeBest = require('./PracticeBest');
 const PracticeDailyLog = require('./PracticeDailyLog');
@@ -89,6 +90,10 @@ HomeworkAnswer.belongsTo(HomeworkQuestion, { foreignKey: 'questionId', as: 'ques
 PracticeTopic.hasMany(PracticeQuestion, { foreignKey: 'topicId', as: 'questions' });
 PracticeQuestion.belongsTo(PracticeTopic, { foreignKey: 'topicId' });
 
+// Изображения условия и подсказки (ТЗ §5.1). SET NULL при удалении картинки.
+PracticeQuestion.belongsTo(PracticeImage, { foreignKey: 'questionImageId', as: 'questionImage' });
+PracticeQuestion.belongsTo(PracticeImage, { foreignKey: 'hintImageId', as: 'hintImage' });
+
 PracticeAttempt.belongsTo(User, { foreignKey: 'studentId', as: 'student' });
 PracticeAttempt.belongsTo(PracticeTopic, { foreignKey: 'topicId', as: 'topic' });
 PracticeAttempt.belongsTo(PracticeQuestion, { foreignKey: 'questionId', as: 'question' });
@@ -151,9 +156,30 @@ PracticeRecentError.belongsTo(PracticeQuestion, { foreignKey: 'questionId', as: 
 PracticeRecentError.belongsTo(PracticeTopic, { foreignKey: 'topicId', as: 'topic' });
 User.hasMany(PracticeRecentError, { foreignKey: 'studentId', as: 'practiceRecentErrors' });
 
+// Ручная миграция practice_questions.correct_answer: integer → json (массив
+// индексов, поддержка нескольких правильных вариантов). sequelize.sync({alter})
+// не умеет сам сконвертировать integer в json (нет каста 5::json), поэтому
+// колонку меняем вручную ДО alter-синка. Идемпотентно — проверяем текущий тип.
+const migrateCorrectAnswerToJson = async () => {
+  const [rows] = await sequelize.query(`
+    SELECT data_type FROM information_schema.columns
+    WHERE table_name = 'practice_questions' AND column_name = 'correct_answer'
+  `);
+  if (rows.length === 0 || rows[0].data_type === 'json' || rows[0].data_type === 'jsonb') {
+    return; // таблицы ещё нет, либо уже мигрировано
+  }
+  await sequelize.query(`
+    ALTER TABLE practice_questions
+    ALTER COLUMN correct_answer TYPE json
+    USING json_build_array(correct_answer)
+  `);
+  console.log('✅ practice_questions.correct_answer migrated integer → json');
+};
+
 // Синхронизация
 const syncDatabase = async () => {
   try {
+    await migrateCorrectAnswerToJson();
     await sequelize.sync({ alter: true });
     console.log('✅ Database synced (alter mode)');
   } catch (error) {
@@ -166,7 +192,7 @@ module.exports = {
   User, Subject, UserSubject,
   Quiz, QuizQuestion, QuizParticipant, QuizAnswer,
   Homework, HomeworkQuestion, HomeworkSubmission, HomeworkAnswer,
-  PracticeTopic, PracticeQuestion, PracticeAttempt,
+  PracticeTopic, PracticeQuestion, PracticeImage, PracticeAttempt,
   PracticeBest, PracticeDailyLog, PracticeQuestionResult, PracticeScoreHistory,
   PracticeStudentTotals, PracticeDailyStats, PracticeTopicTotals,
   PracticeDifficultyTotals, PracticeModeTotals, PracticeRecentError,

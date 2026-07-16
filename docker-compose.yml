@@ -26,6 +26,10 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-educa}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-educa}
       DATABASE_SSL: 'false'
+      PRACTICE_UPLOAD_DIR: /app/uploads/practice
+    volumes:
+      # Изображения практики хранятся вне БД, в персистентном volume (ТЗ §5.1).
+      - practice_uploads:/app/uploads
     ports:
       - '127.0.0.1:5000:5000'
     depends_on:
@@ -45,3 +49,4 @@ services:
 
 volumes:
   postgres_data:
+  practice_uploads:

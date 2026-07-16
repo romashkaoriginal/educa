@@ -876,10 +876,49 @@ function StudentHomework({ studentId }) {
   if (showResult && result) {
     const percentage = result.percentage || Math.round((result.totalScore / result.maxScore) * 100);
 
+    const formatWrongUserAnswer = (question, userAnswer) => {
+      if (userAnswer == null || userAnswer === '') return '—';
+
+      switch (question.questionType) {
+        case 'single_choice':
+          return question.options?.[userAnswer] ?? String(userAnswer);
+        case 'multiple_choice':
+          return Array.isArray(userAnswer)
+            ? userAnswer.map((idx) => question.options?.[idx] ?? idx).join(', ')
+            : '—';
+        case 'true_false':
+          return userAnswer === true ? 'Верно' : userAnswer === false ? 'Неверно' : '—';
+        case 'matching': {
+          const pairs = userAnswer?.pairs || userAnswer || [];
+          return Array.isArray(pairs)
+            ? pairs.map((pair) => `${pair.left || '—'} -> ${pair.right || '—'}`).join('; ')
+            : '—';
+        }
+        case 'ordering':
+          return Array.isArray(userAnswer) ? userAnswer.join(' -> ') : '—';
+        case 'fill_blanks':
+        case 'fill_in_blank':
+          return Array.isArray(userAnswer) ? userAnswer.join(', ') : String(userAnswer);
+        default:
+          return String(userAnswer);
+      }
+    };
+
     const renderAnswerReview = (question, index) => {
       const userAnswer = answers[index];
       const correct = question.correctAnswer;
       const isOk = checkAnswerLocal(question, userAnswer);
+
+      if (!isOk) {
+        return (
+          <div className="result-answers">
+            <div className="result-answer wrong-answer">
+              <span className="answer-text">Неверно. Твой ответ: <strong>{formatWrongUserAnswer(question, userAnswer)}</strong></span>
+              <span className="wrong-mark">✕</span>
+            </div>
+          </div>
+        );
+      }
 
       switch (question.questionType) {
         case 'single_choice': {

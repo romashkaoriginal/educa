@@ -581,9 +581,11 @@
   flex: 1;
 }
 
-.option-input input[type="radio"] {
+.option-input input[type="radio"],
+.option-input input[type="checkbox"] {
   width: 20px;
   height: 20px;
+  flex-shrink: 0;
   cursor: pointer;
 }
 
@@ -732,4 +734,180 @@
   .header-actions > * {
     flex: 1 1 auto;
   }
+}
+/* ========== ИЗОБРАЖЕНИЯ В ВОПРОСАХ (админка) ========== */
+
+.form-section {
+  border: 1px solid var(--kubik-border);
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 16px;
+}
+.form-section-title {
+  font-weight: 600;
+  color: var(--kubik-text);
+  margin-bottom: 10px;
+  font-size: 14px;
+}
+
+.image-upload-field label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+  color: var(--kubik-text-soft);
+}
+.image-upload-dropzone {
+  border: 2px dashed var(--kubik-border);
+  border-radius: 12px;
+  padding: 22px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  text-align: center;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out);
+}
+.image-upload-dropzone:hover,
+.image-upload-dropzone.is-dragover {
+  border-color: var(--kubik-blue);
+  background: var(--kubik-blue-soft);
+}
+.image-upload-icon { font-size: 26px; }
+.image-upload-hint { font-size: 14px; color: var(--kubik-text); }
+.image-upload-sub { font-size: 12px; color: var(--kubik-text-soft); }
+
+.image-upload-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.image-upload-preview img {
+  max-width: 100%;
+  max-height: 220px;
+  object-fit: contain;
+  border-radius: 10px;
+  border: 1px solid var(--kubik-border);
+  background: var(--kubik-white);
+  align-self: flex-start;
+}
+.image-upload-preview-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.image-upload-error {
+  margin-top: 6px;
+  color: var(--low);
+  font-size: 13px;
+}
+
+.question-form-error {
+  background: var(--kubik-pink-soft);
+  color: var(--low);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 14px;
+  font-size: 14px;
+}
+
+.import-images-note {
+  background: var(--kubik-blue-soft);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 13px;
+  color: var(--kubik-text-soft);
+  margin-bottom: 12px;
+}
+
+/* Превью изображений в списке вопросов */
+.question-body-image img {
+  max-width: 100%;
+  max-height: 200px;
+  object-fit: contain;
+  border-radius: 8px;
+  border: 1px solid var(--kubik-border);
+  margin-bottom: 10px;
+}
+.question-body-image--hint img { max-height: 140px; }
+
+/* Мобильное превью 360×640 */
+.mobile-preview-wrap {
+  display: flex;
+  justify-content: center;
+}
+.mobile-preview-frame {
+  width: 360px;
+  max-width: 100%;
+  min-height: 320px;
+  border: 1px solid var(--kubik-border);
+  border-radius: 14px;
+  padding: 12px;
+  background: var(--kubik-white);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.mobile-preview-meta { font-size: 12px; color: var(--kubik-text-soft); }
+.mobile-preview-image {
+  display: flex;
+  justify-content: center;
+}
+.mobile-preview-image img {
+  max-width: 100%;
+  max-height: 205px; /* ~32% от 640 */
+  object-fit: contain;
+}
+.mobile-preview-text {
+  font-size: 16px;
+  line-height: 1.375;
+  color: var(--kubik-text);
+}
+.mobile-preview-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.mobile-preview-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 6px 12px;
+  border: 1px solid var(--kubik-border);
+  border-radius: 10px;
+  font-size: 15px;
+}
+.mobile-preview-option > span:first-child {
+  font-weight: 700;
+  color: var(--kubik-blue);
+}
+.mobile-preview-warning {
+  margin-top: 10px;
+  background: var(--kubik-pink-soft);
+  color: var(--low);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
+.option-remove-btn {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--kubik-border);
+  background: var(--kubik-white);
+  color: var(--low);
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.option-remove-btn:hover { background: var(--kubik-pink-soft); }
+
+.option-add-btn {
+  margin-top: 4px;
 }

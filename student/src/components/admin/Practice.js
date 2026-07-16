@@ -6,6 +6,66 @@ import { API_URL } from '../../config';
 import { useSectionRefresh } from './useSectionRefresh';
 import { useConfirmDelete } from './useConfirmDelete';
 import { getDeleteConfirm } from './cascadeDeleteMessages';
+import ImageUploadField, { imageUrl } from './ImageUploadField';
+import { checkQuestionFits, FIT_ERROR_MESSAGE } from '../../utils/questionFit';
+// Допустимое число вариантов ответа при ручном создании/редактировании.
+const MIN_OPTIONS = 2;
+const MAX_OPTIONS = 4;
+
+// correctAnswer хранится как массив индексов (multiple choice, ТЗ уточнение).
+const toCorrectSet = (correctAnswer) =>
+  new Set(Array.isArray(correctAnswer) ? correctAnswer : [correctAnswer]);
+
+// Мобильное превью вопроса на контрольном экране 360×640 (ТЗ §4.2).
+// Показывает порядок «изображение → текст → варианты» и предупреждает,
+// если по эвристике вопрос не помещается.
+function QuestionMobilePreview({ form }) {
+  const hasImage = !!form.questionImage;
+  const hasText = !!form.questionText.trim();
+  const fit = checkQuestionFits({
+    questionText: form.questionText,
+    options: form.options,
+    hasImage,
+  });
+
+  return (
+    <div className="form-group">
+      <label>Мобильное превью (360×640)</label>
+      <div className="mobile-preview-wrap">
+        <div className="mobile-preview-frame">
+          <div className="mobile-preview-meta">
+            {form.difficulty === 'easy' && '🟢 Легкий'}
+            {form.difficulty === 'medium' && '🟡 Средний'}
+            {form.difficulty === 'hard' && '🔴 Сложный'}
+          </div>
+          {hasImage && (
+            <div className="mobile-preview-image">
+              <img src={imageUrl(form.questionImage.storageKey)} alt="Превью вопроса" />
+            </div>
+          )}
+          {hasText && (
+            <div className="mobile-preview-text">{form.questionText}</div>
+          )}
+          <div className="mobile-preview-options">
+            {form.options.map((opt, i) => (
+              <div key={i} className="mobile-preview-option">
+                <span>{String.fromCharCode(65 + i)}</span>
+                <span>{opt || '—'}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      {!fit.fits && (
+        <div className="mobile-preview-warning">
+          ⚠️ Вопрос может не поместиться на одном экране ({fit.estimated}px из {fit.available}px).
+          Сократите текст или варианты.
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Practice({ dataRefreshKey = 0 }) {
   const { confirmDelete, ConfirmDeleteDialog } = useConfirmDelete();
   const [subjects, setSubjects] = useState([]);
@@ -33,11 +93,14 @@ function Practice({ dataRefreshKey = 0 }) {
   
   const [questionForm, setQuestionForm] = useState({
     questionText: '',
+    questionImage: null,
     options: ['', '', '', ''],
-    correctAnswer: 0,
+    correctAnswer: [0],
     explanation: '',
+    hintImage: null,
     difficulty: 'medium'
   });
+  const [questionError, setQuestionError] = useState('');
 
   useEffect(() => {
     loadSubjects();
@@ -191,11 +254,40 @@ function Practice({ dataRefreshKey = 0 }) {
   const resetQuestionForm = () => {
     setQuestionForm({
       questionText: '',
+      questionImage: null,
       options: ['', '', '', ''],
-      correctAnswer: 0,
+      correctAnswer: [0],
       explanation: '',
+      hintImage: null,
       difficulty: 'medium'
     });
+    setQuestionError('');
+  };
+
+  // Клиентская проверка перед сохранением (ТЗ §2.3). Возвращает текст ошибки или null.
+  const validateQuestion = () => {
+    const hasText = !!questionForm.questionText.trim();
+    const hasImage = !!questionForm.questionImage;
+    if (!hasText && !hasImage) {
+      return 'Добавьте текст вопроса или изображение.';
+    }
+    if (questionForm.options.some((o) => !o.trim())) {
+      return 'Заполните все варианты ответа.';
+    }
+    if (!questionForm.correctAnswer || questionForm.correctAnswer.length === 0) {
+      return 'Выберите хотя бы один правильный вариант ответа.';
+    }
+    // Подсказка в этой модели «включена», только если задан её текст или картинка,
+    // поэтому пустой она быть не может по построению — отдельной проверки не нужно.
+    const fit = checkQuestionFits({
+      questionText: questionForm.questionText,
+      options: questionForm.options,
+      hasImage,
+    });
+    if (!fit.fits) {
+      return FIT_ERROR_MESSAGE;
+    }
+    return null;
   };
 
   const handleCreateTopic = async (e) => {
@@ -273,14 +365,27 @@ function Practice({ dataRefreshKey = 0 }) {
     }
   };
 
+  const buildQuestionPayload = () => ({
+    questionText: questionForm.questionText,
+    questionImageId: questionForm.questionImage?.id ?? null,
+    options: questionForm.options,
+    correctAnswer: questionForm.correctAnswer,
+    explanation: questionForm.explanation,
+    hintImageId: questionForm.hintImage?.id ?? null,
+    difficulty: questionForm.difficulty,
+  });
+
   const handleCreateQuestion = async (e) => {
     e.preventDefault();
+    const err = validateQuestion();
+    if (err) { setQuestionError(err); return; }
+    setQuestionError('');
     try {
       const response = await adminFetch(`${API_URL}/practice/questions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...questionForm,
+          ...buildQuestionPayload(),
           topicId: selectedTopic.id
         })
       });
@@ -291,32 +396,39 @@ function Practice({ dataRefreshKey = 0 }) {
         await refreshQuestionsAndTopicCount();
       } else {
         const data = await response.json().catch(() => ({}));
-        alert(data.message || 'Не удалось создать вопрос');
+        setQuestionError(data.message || 'Не удалось создать вопрос');
       }
     } catch (error) {
       console.error('Error creating question:', error);
+      setQuestionError('Ошибка сети');
     }
   };
 
   const handleEditQuestion = (question) => {
     setEditingQuestion(question);
     setQuestionForm({
-      questionText: question.questionText,
+      questionText: question.questionText || '',
+      questionImage: question.questionImage || null,
       options: question.options,
-      correctAnswer: question.correctAnswer,
+      correctAnswer: Array.from(toCorrectSet(question.correctAnswer)),
       explanation: question.explanation || '',
+      hintImage: question.hintImage || null,
       difficulty: question.difficulty || 'medium'
     });
+    setQuestionError('');
     setShowQuestionModal(true);
   };
 
   const handleUpdateQuestion = async (e) => {
     e.preventDefault();
+    const err = validateQuestion();
+    if (err) { setQuestionError(err); return; }
+    setQuestionError('');
     try {
       const response = await adminFetch(`${API_URL}/practice/questions/${editingQuestion.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(questionForm)
+        body: JSON.stringify(buildQuestionPayload())
       });
 
       if (response.ok) {
@@ -326,10 +438,11 @@ function Practice({ dataRefreshKey = 0 }) {
         await refreshQuestionsAndTopicCount();
       } else {
         const data = await response.json().catch(() => ({}));
-        alert(data.message || 'Не удалось сохранить вопрос');
+        setQuestionError(data.message || 'Не удалось сохранить вопрос');
       }
     } catch (error) {
       console.error('Error updating question:', error);
+      setQuestionError('Ошибка сети');
     }
   };
 
@@ -611,9 +724,11 @@ function Practice({ dataRefreshKey = 0 }) {
                   <span className="question-expand-icon">{isExpanded ? '▼' : '▶'}</span>
                   <span className="question-number">#{index + 1}</span>
                   <span className="question-preview">
-                    {question.questionText.length > 70
-                      ? question.questionText.slice(0, 70) + '...'
-                      : question.questionText}
+                    {question.questionText
+                      ? (question.questionText.length > 70
+                          ? question.questionText.slice(0, 70) + '...'
+                          : question.questionText)
+                      : '🖼️ Вопрос с изображением'}
                   </span>
                   {!question.isActive && <span className="inactive-badge">скрыт</span>}
                 </div>
@@ -652,24 +767,40 @@ function Practice({ dataRefreshKey = 0 }) {
               {/* Тело — только если развёрнут */}
               {isExpanded && (
                 <div className="question-body">
-                  <div className="question-text">{question.questionText}</div>
+                  {question.questionImage && (
+                    <div className="question-body-image">
+                      <img src={imageUrl(question.questionImage.storageKey)} alt="Изображение вопроса" />
+                    </div>
+                  )}
+                  {question.questionText && (
+                    <div className="question-text">{question.questionText}</div>
+                  )}
 
                   <div className="question-options">
-                    {question.options.map((option, idx) => (
-                      <div 
-                        key={idx} 
-                        className={`option ${idx === question.correctAnswer ? 'correct' : ''}`}
-                      >
-                        <span className="option-letter">{String.fromCharCode(65 + idx)}</span>
-                        <span className="option-text">{option}</span>
-                        {idx === question.correctAnswer && <span className="correct-mark">✓</span>}
-                      </div>
-                    ))}
+                    {(() => {
+                      const correctSet = toCorrectSet(question.correctAnswer);
+                      return question.options.map((option, idx) => (
+                        <div
+                          key={idx}
+                          className={`option ${correctSet.has(idx) ? 'correct' : ''}`}
+                        >
+                          <span className="option-letter">{String.fromCharCode(65 + idx)}</span>
+                          <span className="option-text">{option}</span>
+                          {correctSet.has(idx) && <span className="correct-mark">✓</span>}
+                        </div>
+                      ));
+                    })()}
                   </div>
 
-                  {question.explanation && (
+                  {(question.explanation || question.hintImage) && (
                     <div className="question-explanation">
-                      <strong>💡 Объяснение:</strong> {question.explanation}
+                      <strong>💡 Подсказка:</strong>
+                      {question.hintImage && (
+                        <div className="question-body-image question-body-image--hint">
+                          <img src={imageUrl(question.hintImage.storageKey)} alt="Изображение подсказки" />
+                        </div>
+                      )}
+                      {question.explanation && <span> {question.explanation}</span>}
                     </div>
                   )}
                 </div>
@@ -695,18 +826,29 @@ function Practice({ dataRefreshKey = 0 }) {
             </div>
 
             <form onSubmit={editingQuestion ? handleUpdateQuestion : handleCreateQuestion}>
-              <div className="form-group">
-                <label>Текст вопроса *</label>
-                <textarea
-                  value={questionForm.questionText}
-                  onChange={(e) => setQuestionForm({...questionForm, questionText: e.target.value})}
-                  rows="3"
-                  required
-                />
+              {/* Содержание вопроса: текст и/или изображение (ТЗ §2.1) */}
+              <div className="form-section">
+                <div className="form-section-title">Содержание вопроса</div>
+                <div className="form-group">
+                  <label>Текст вопроса</label>
+                  <textarea
+                    value={questionForm.questionText}
+                    onChange={(e) => setQuestionForm({...questionForm, questionText: e.target.value})}
+                    rows="3"
+                    placeholder="Можно оставить пустым, если добавлено изображение"
+                  />
+                </div>
+                <div className="form-group">
+                  <ImageUploadField
+                    label="Изображение вопроса"
+                    value={questionForm.questionImage}
+                    onChange={(img) => setQuestionForm((f) => ({ ...f, questionImage: img }))}
+                  />
+                </div>
               </div>
 
               <div className="form-group">
-                <label>Варианты ответа *</label>
+                <label>Варианты ответа * (от {MIN_OPTIONS} до {MAX_OPTIONS})</label>
                 {questionForm.options.map((option, idx) => (
                   <div key={idx} className="option-input">
                     <span className="option-letter">{String.fromCharCode(65 + idx)}</span>
@@ -721,24 +863,72 @@ function Practice({ dataRefreshKey = 0 }) {
                       required
                     />
                     <input
-                      type="radio"
-                      name="correctAnswer"
-                      checked={questionForm.correctAnswer === idx}
-                      onChange={() => setQuestionForm({...questionForm, correctAnswer: idx})}
+                      type="checkbox"
+                      checked={questionForm.correctAnswer.includes(idx)}
+                      onChange={(e) => {
+                        const next = e.target.checked
+                          ? [...questionForm.correctAnswer, idx]
+                          : questionForm.correctAnswer.filter((i) => i !== idx);
+                        setQuestionForm({...questionForm, correctAnswer: next});
+                      }}
                       title="Правильный ответ"
                     />
+                    {questionForm.options.length > MIN_OPTIONS && (
+                      <button
+                        type="button"
+                        className="btn-icon danger option-remove-btn"
+                        title="Удалить вариант"
+                        onClick={() => {
+                          const newOptions = questionForm.options.filter((_, i) => i !== idx);
+                          // Сдвигаем индексы правильных ответов после удаления варианта idx.
+                          const newCorrect = questionForm.correctAnswer
+                            .filter((i) => i !== idx)
+                            .map((i) => (i > idx ? i - 1 : i));
+                          setQuestionForm({
+                            ...questionForm,
+                            options: newOptions,
+                            correctAnswer: newCorrect.length > 0 ? newCorrect : [0],
+                          });
+                        }}
+                      >
+                        ✕
+                      </button>
+                    )}
                   </div>
                 ))}
+                {questionForm.options.length < MAX_OPTIONS && (
+                  <button
+                    type="button"
+                    className="btn-secondary option-add-btn"
+                    onClick={() => setQuestionForm({
+                      ...questionForm,
+                      options: [...questionForm.options, '']
+                    })}
+                  >
+                    + Добавить вариант
+                  </button>
+                )}
               </div>
 
-              <div className="form-group">
-                <label>Объяснение</label>
-                <textarea
-                  value={questionForm.explanation}
-                  onChange={(e) => setQuestionForm({...questionForm, explanation: e.target.value})}
-                  rows="2"
-                  placeholder="Почему это правильный ответ?"
-                />
+              {/* Подсказка: текст и/или изображение (ТЗ §2.2) */}
+              <div className="form-section">
+                <div className="form-section-title">Подсказка</div>
+                <div className="form-group">
+                  <label>Текст подсказки</label>
+                  <textarea
+                    value={questionForm.explanation}
+                    onChange={(e) => setQuestionForm({...questionForm, explanation: e.target.value})}
+                    rows="2"
+                    placeholder="Объяснение или подсказка (необязательно)"
+                  />
+                </div>
+                <div className="form-group">
+                  <ImageUploadField
+                    label="Изображение подсказки"
+                    value={questionForm.hintImage}
+                    onChange={(img) => setQuestionForm((f) => ({ ...f, hintImage: img }))}
+                  />
+                </div>
               </div>
 
               <div className="form-group">
@@ -752,6 +942,13 @@ function Practice({ dataRefreshKey = 0 }) {
                   <option value="hard">🔴 Сложный</option>
                 </select>
               </div>
+
+              {/* Мобильное превью контрольного экрана 360×640 (ТЗ §4.2) */}
+              <QuestionMobilePreview form={questionForm} />
+
+              {questionError && (
+                <div className="question-form-error">⚠️ {questionError}</div>
+              )}
 
               <div className="modal-actions">
                 <button type="button" className="btn-secondary" onClick={() => {
@@ -780,9 +977,14 @@ function Practice({ dataRefreshKey = 0 }) {
               <div className="import-format-hint">
                 <strong>Формат файла (.xlsx):</strong><br />
                 Колонки: <code>question</code>, <code>a</code>, <code>b</code>, <code>c</code>, <code>d</code>, <code>correct</code>, <code>difficulty</code>, <code>explanation</code><br />
-                <span className="import-hint-key">correct</span> — строчная буква: a / b / c / d<br />
+                <span className="import-hint-key">correct</span> — строчная буква: a / b / c / d (несколько правильных — через запятую, напр. "a,c")<br />
                 <span className="import-hint-key">difficulty</span> — easy / medium / hard (по умолчанию medium)<br />
                 <span className="import-hint-key">explanation</span> — объяснение
+              </div>
+
+              <div className="import-images-note">
+                Через Excel загружаются только текстовые вопросы. Изображения к условию
+                и подсказке можно добавить после импорта в редакторе вопроса.
               </div>
 
               <button type="button" className="btn-secondary import-template-btn" onClick={downloadTemplate}>
