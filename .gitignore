@@ -4,6 +4,7 @@ package-lock.json
 
 # Environment variables
 .env
+.env.*
 .env.local
 .env.*.local
 .env.production
@@ -11,6 +12,7 @@ back/.env.production
 
 # Docker secrets (root)
 !.env.example
+!.env.*.example
 
 # Build outputs
 /admin/build/
