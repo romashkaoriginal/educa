@@ -3,7 +3,7 @@ import './StudentApp.css';
 import kubikLogo from '../assets/kubik-logo-transparent.png';
 import Practice from './Practice';
 import Homework from './Homework';
-import Quiz from './Quiz';
+import Lesson from './Lesson';
 import Statistics from './Statistics';
 import LockedSectionModal from '../components/LockedSectionModal';
 import { DataProvider, useData } from './DataContext';
@@ -20,6 +20,7 @@ function StudentAppContent({ selectedStudent, isGuest = false, applicationSent =
     subjects,
     preloadAllData, loadStreak, refreshDashboard,
     requestPracticeHome, requestHomeworkHome,
+    lessonNotice, dismissLessonNotice,
   } = useData();
 
   // Грузим данные один раз при монтировании — без ожидания, сразу показываем UI
@@ -60,10 +61,10 @@ function StudentAppContent({ selectedStudent, isGuest = false, applicationSent =
   const [prevTab, setPrevTab] = useState(null);
   const [animating, setAnimating] = useState(false);
 
-  const tabOrder = ['practice', 'homework', 'quiz', 'stats'];
+  const tabOrder = ['practice', 'lesson', 'homework', 'stats'];
 
-  // Для гостя Домашка и Викторина закрыты (ТЗ §7, §8)
-  const LOCKED_FOR_GUEST = { homework: 'locked_homework', quiz: 'locked_quiz' };
+  // Для гостя Домашка и Занятие закрыты.
+  const LOCKED_FOR_GUEST = { homework: 'locked_homework', lesson: 'locked_lesson' };
 
   const handleTabChange = (tabId) => {
     if (animating) return;
@@ -111,8 +112,8 @@ function StudentAppContent({ selectedStudent, isGuest = false, applicationSent =
 
   const tabs = [
     { id: 'practice', name: 'Практика', icon: '💪' },
+    { id: 'lesson', name: 'Занятие', icon: '🎓', locked: isGuest },
     { id: 'homework', name: 'Домашка', icon: '📝', locked: isGuest },
-    { id: 'quiz', name: 'Викторина', icon: '🎯', locked: isGuest },
     { id: 'stats', name: 'Статистика', icon: '📊' },
   ];
 
@@ -124,15 +125,15 @@ function StudentAppContent({ selectedStudent, isGuest = false, applicationSent =
         <div className="tab-viewport">
           {[
             { id: 'practice', el: <Practice studentId={selectedStudent.id} isTabActive={activeTab === 'practice'} onClose={handlePracticeClose} onActivate={() => setActiveTab('practice')} /> },
+            { id: 'lesson', el: <Lesson studentId={selectedStudent.id} studentName={`${selectedStudent.firstName || ''} ${selectedStudent.lastName || ''}`.trim() || 'Ученик'} isTabActive={activeTab === 'lesson'} /> },
             { id: 'homework', el: <Homework studentId={selectedStudent.id} /> },
-            { id: 'quiz', el: <Quiz studentId={selectedStudent.id} studentName={`${selectedStudent.firstName || ''} ${selectedStudent.lastName || ''}`.trim() || 'Ученик'} /> },
             { id: 'stats', el: <Statistics studentId={selectedStudent.id} isGuest={isGuest} onLockedClick={() => setLockedModal({ context: 'locked_statistics_homework', source: 'TG Mini App — закрытый раздел' })} /> },
           ].map(({ id, el }) => {
             const isActive = id === activeTab;
             const isPrev = id === prevTab;
             // Practice держим смонтированным всегда, чтобы активный тест не прерывался
             // при уходе на другой таб — он просто прячется через .tab-hidden.
-            const keepMounted = id === 'practice';
+            const keepMounted = id === 'practice' || id === 'lesson';
             if (!isActive && !isPrev && !keepMounted) return null;
             const dir = prevTab ? getDirection(prevTab, activeTab) : 'forward';
             let cls = 'tab-panel';
@@ -148,6 +149,21 @@ function StudentAppContent({ selectedStudent, isGuest = false, applicationSent =
           })}
         </div>
       </main>
+
+      {lessonNotice?.type === 'started' && activeTab !== 'lesson' && (
+        <button
+          type="button"
+          className="lesson-global-notice"
+          onClick={() => {
+            dismissLessonNotice();
+            handleTabChange('lesson');
+          }}
+        >
+          <span className="lesson-global-notice__dot" aria-hidden="true" />
+          <span><strong>Занятие началось</strong><small>Открыть раздел</small></span>
+          <span aria-hidden="true">→</span>
+        </button>
+      )}
 
       <nav className="bottom-navigation">
         {tabs.map(tab => (

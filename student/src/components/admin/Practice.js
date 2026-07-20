@@ -271,6 +271,9 @@ function Practice({ dataRefreshKey = 0 }) {
     if (!hasText && !hasImage) {
       return 'Добавьте текст вопроса или изображение.';
     }
+    if (hasText && hasImage) {
+      return 'В вопросе может быть либо текст, либо изображение — не одновременно.';
+    }
     if (questionForm.options.some((o) => !o.trim())) {
       return 'Заполните все варианты ответа.';
     }

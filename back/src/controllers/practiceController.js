@@ -1,3 +1,4 @@
+const fs = require('fs');
 const {
   PracticeTopic, PracticeQuestion, PracticeImage, PracticeAttempt, PracticeBest, PracticeDailyLog,
   PracticeQuestionResult, PracticeScoreHistory, PracticeDailyStats,
@@ -328,11 +329,6 @@ async function persistPracticeAnswer({
   }
 }
 
-/** @deprecated use syncDailyGoalLog — kept for callers migrating from unique counts */
-async function syncDailyUniqueLog(studentId, subjectId, dateStr) {
-  return syncDailyGoalLog(studentId, subjectId, dateStr);
-}
-
 // ========== АДМИН ФУНКЦИИ ==========
 
 // Получить разделы практики по предмету
@@ -488,16 +484,18 @@ function parseImageId(value) {
 
 // Общие проверки содержания вопроса и подсказки (ТЗ §1, §2.3, §4.2).
 // Возвращает строку с ошибкой или null.
-function validateQuestionContent({ questionText, questionImageId, explanation, hintImageId, options }) {
+// Подсказка «включена», только если задан её текст или изображение, поэтому
+// пустой подсказки с флагом «включена» в этой модели быть не может (ТЗ §2.3) —
+// explanation/hintImageId сюда не передаются, отдельной проверки не нужно.
+function validateQuestionContent({ questionText, questionImageId, options }) {
   const hasText = !!(questionText && String(questionText).trim());
   const hasImage = !!questionImageId;
   if (!hasText && !hasImage) {
     return 'Добавьте текст вопроса или изображение.';
   }
-
-  // Подсказка «включена», только если задан её текст или изображение, поэтому
-  // пустой подсказки с флагом «включена» в этой модели быть не может (ТЗ §2.3).
-  void explanation; void hintImageId;
+  if (hasText && hasImage) {
+    return 'В вопросе может быть либо текст, либо изображение — не одновременно.';
+  }
 
   const fit = checkQuestionFits({ questionText, options, hasImage });
   if (!fit.fits) {
@@ -594,13 +592,15 @@ exports.updateQuestion = async (req, res) => {
     if (hintImageId !== undefined) question.hintImageId = hintImageId;
     await question.save();
 
-    // Осиротевшие после замены картинки файлы удаляем (ТЗ §5.4).
-    if (questionImageId !== undefined && prevQuestionImageId && prevQuestionImageId !== questionImageId) {
-      await practiceImages.deleteImageIfOrphan(prevQuestionImageId, { excludeQuestionId: question.id });
-    }
-    if (hintImageId !== undefined && prevHintImageId && prevHintImageId !== hintImageId) {
-      await practiceImages.deleteImageIfOrphan(prevHintImageId, { excludeQuestionId: question.id });
-    }
+    // Осиротевшие после замены картинки файлы удаляем (ТЗ §5.4) — независимо, параллельно.
+    await Promise.all([
+      (questionImageId !== undefined && prevQuestionImageId && prevQuestionImageId !== questionImageId)
+        ? practiceImages.deleteImageIfOrphan(prevQuestionImageId, { excludeQuestionId: question.id })
+        : null,
+      (hintImageId !== undefined && prevHintImageId && prevHintImageId !== hintImageId)
+        ? practiceImages.deleteImageIfOrphan(prevHintImageId, { excludeQuestionId: question.id })
+        : null
+    ]);
 
     res.json({ question });
   } catch (error) {
@@ -646,8 +646,11 @@ exports.serveImage = async (req, res) => {
     if (!image) return res.status(404).end();
 
     const filePath = practiceImages.storagePath(key);
-    const fs = require('fs');
-    if (!fs.existsSync(filePath)) return res.status(404).end();
+    try {
+      await fs.promises.access(filePath);
+    } catch {
+      return res.status(404).end();
+    }
 
     res.setHeader('Content-Type', image.mimeType);
     // Файлы иммутабельны (имя содержит хеш) — кешируем надолго.
@@ -692,9 +695,11 @@ exports.deleteQuestion = async (req, res) => {
       await question.destroy({ transaction: t });
     });
 
-    // Удаляем картинки, если они больше нигде не используются (ТЗ §5.4).
-    await practiceImages.deleteImageIfOrphan(questionImageId);
-    await practiceImages.deleteImageIfOrphan(hintImageId);
+    // Удаляем картинки, если они больше нигде не используются (ТЗ §5.4) — параллельно.
+    await Promise.all([
+      practiceImages.deleteImageIfOrphan(questionImageId),
+      practiceImages.deleteImageIfOrphan(hintImageId)
+    ]);
 
     res.json({ message: 'Question deleted' });
   } catch (error) {
@@ -960,7 +965,11 @@ exports.getIncorrectQuestions = async (req, res) => {
     if (!best || best.percent === 100) return res.json({ questions: [] });
     const questions = await PracticeQuestion.findAll({
       where: { topicId, isActive: true },
-      attributes: ['id', 'questionText', 'options', 'correctAnswer', 'explanation', 'difficulty'],
+      attributes: ['id', 'questionText', 'questionImageId', 'options', 'correctAnswer', 'explanation', 'hintImageId', 'difficulty'],
+      include: [
+        { model: PracticeImage, as: 'questionImage', attributes: ['id', 'storageKey', 'width', 'height'] },
+        { model: PracticeImage, as: 'hintImage', attributes: ['id', 'storageKey', 'width', 'height'] }
+      ],
       order: [['createdAt', 'ASC']]
     });
     res.json({ questions });
@@ -1145,7 +1154,11 @@ exports.getWeakTopicsPractice = async (req, res) => {
 
     const questions = await PracticeQuestion.findAll({
       where: { topicId: errorTopicIds, isActive: true },
-      attributes: ['id', 'questionText', 'options', 'correctAnswer', 'explanation', 'difficulty', 'topicId'],
+      attributes: ['id', 'questionText', 'questionImageId', 'options', 'correctAnswer', 'explanation', 'hintImageId', 'difficulty', 'topicId'],
+      include: [
+        { model: PracticeImage, as: 'questionImage', attributes: ['id', 'storageKey', 'width', 'height'] },
+        { model: PracticeImage, as: 'hintImage', attributes: ['id', 'storageKey', 'width', 'height'] }
+      ],
       order: [['createdAt', 'ASC']]
     });
 

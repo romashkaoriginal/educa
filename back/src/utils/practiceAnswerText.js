@@ -11,14 +11,27 @@ function parseOptions(options) {
   return [];
 }
 
-function formatPracticeOption(options, index) {
+function formatSingleOption(opts, index) {
   if (index == null || Number.isNaN(Number(index))) return null;
   const idx = parseInt(index, 10);
-  if (idx < 0) return null;
-  const opts = parseOptions(options);
-  if (!opts.length || idx >= opts.length) return null;
+  if (idx < 0 || idx >= opts.length) return null;
   const text = String(opts[idx] ?? '').trim();
   return text || null;
+}
+
+// index — один индекс варианта, либо массив индексов (multiple choice).
+function formatPracticeOption(options, index) {
+  const opts = parseOptions(options);
+  if (!opts.length) return null;
+
+  if (Array.isArray(index)) {
+    const texts = index
+      .map((i) => formatSingleOption(opts, i))
+      .filter(Boolean);
+    return texts.length ? texts.join(', ') : null;
+  }
+
+  return formatSingleOption(opts, index);
 }
 
 function buildRecentErrorPayload(row) {

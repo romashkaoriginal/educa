@@ -9,7 +9,7 @@ import ApplicationForm from './ApplicationForm';
 //   open             — показывать ли модалку
 //   onClose          — закрыть
 //   source           — источник заявки для CRM
-//   context          — контекст: locked_homework / locked_quiz / locked_statistics_homework
+//   context          — контекст: locked_homework / locked_lesson / locked_statistics_homework
 //   selectedSubjects — имена предметов гостя
 //   applicationSent  — уже оставлял заявку?
 //   onApplicationSent — колбэк после успешной отправки (поднять флаг наверх)

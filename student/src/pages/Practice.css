@@ -2469,7 +2469,6 @@
   to   { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 
-/* Название темы в прохождении */
 .question-meta-row {
   display: flex;
   flex-direction: column;
@@ -2478,18 +2477,16 @@
   flex-shrink: 0;
 }
 
-.practice-session-topic {
-  text-align: center;
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--kubik-blue);
-  line-height: 1.35;
-  padding: 0 12px;
-  letter-spacing: -0.1px;
-}
-
 .question-meta-row .question-header {
   margin-bottom: 0;
+}
+
+/* Левая группа шапки вопроса: бейдж темы (слабые темы) + сложность */
+.question-header-start {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
 }
 
 /* ========== КНОПКИ РЕЖИМОВ ПРАКТИКИ ========== */
@@ -2720,50 +2717,25 @@
 }
 /* ========== ИЗОБРАЖЕНИЯ В ВОПРОСАХ (ученик) ========== */
 
-/* Место под картинку резервируется через aspect-ratio на самом контейнере
-   (задаётся инлайн из width/height), поэтому скачка после загрузки нет (ТЗ §3.2). */
-.question-image {
-  width: 100%;
-  max-height: 24dvh;            /* с текстом — до ~22-24% высоты (ТЗ §4.1) */
-  margin-bottom: 12px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  cursor: zoom-in;
-  overflow: hidden;
-}
-.question-image img {
-  max-width: 100%;
-  max-height: 24dvh;
-  width: auto;
-  height: auto;
-  object-fit: contain;          /* не обрезать, сохранять пропорции (ТЗ §3.2) */
-  border-radius: 10px;
-}
-
-/* Вопрос без текста — картинке отдаём больше места (ТЗ §4.1). */
-.question-card--image-only .question-image,
-.question-card--image-only .question-image img {
-  max-height: 34dvh;
-}
+/* Вопрос без текста — карточка не занимает места, картинка открывается кнопкой. */
 .question-card--image-only {
   background: transparent;
   border: none;
   padding: 0;
 }
 
-/* При плотных вопросах ужимаем картинку вместе с остальным (ТЗ §4.1). */
-.question-density--lg .question-image,
-.question-density--lg .question-image img { max-height: 20dvh; }
-.question-density--xl .question-image,
-.question-density--xl .question-image img { max-height: 18dvh; }
+/* Кнопки изображения и подсказки — общей группой справа от бейджа сложности */
+.question-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 
-/* Изображение в подсказке */
+/* Изображение в модалке (вопроса или подсказки) */
 .explanation-modal-image {
   display: flex;
   justify-content: center;
   margin-bottom: 12px;
-  cursor: zoom-in;
 }
 .explanation-modal-image img {
   max-width: 100%;
@@ -2772,47 +2744,6 @@
   border-radius: 10px;
 }
 .explanation-modal-text { white-space: pre-wrap; }
-
-/* Полноэкранный просмотрщик (лайтбокс) */
-.image-lightbox-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  background: rgba(0, 0, 0, 0.88);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  cursor: zoom-out;
-  animation: lightboxIn 0.18s var(--ease-out) both;
-}
-@keyframes lightboxIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-.image-lightbox-img {
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
-  cursor: default;
-  touch-action: pinch-zoom;     /* масштабирование щипком в WebView */
-}
-.image-lightbox-close {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  border: none;
-  background: rgba(255, 255, 255, 0.15);
-  color: #fff;
-  font-size: 20px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
 
 /* Кнопка подтверждения ответа (multiple choice: клик по варианту — toggle,
    отправка — по кнопке). */

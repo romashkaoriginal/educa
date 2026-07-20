@@ -25,8 +25,13 @@ const notifyRoutes = require('./routes/notify');
 const applicationRoutes = require('./routes/applications');
 const guestRoutes = require('./routes/guest');
 const guestAdminRoutes = require('./routes/guestAdmin');
+const lessonRoutes = require('./routes/lesson');
+const lessonAdminRoutes = require('./routes/lessonAdmin');
+const setupSocketAuth = require('./socket/authMiddleware');
 const setupQuizSocket = require('./socket/quizSocket');
+const setupLessonSocket = require('./socket/lessonSocket');
 const { startGuestScheduler } = require('./services/guestScheduler');
+const { startLessonScheduler, stopLessonScheduler } = require('./services/lessonScheduler');
 const { telegramAuth, requireUser, requireAdmin, requireRole, blockGuests } = require('./middleware/telegramAuth');
 
 const app = express();
@@ -101,9 +106,9 @@ app.use('/api/subjects', (req, res, next) => {
 
 app.use('/api/auth', authLimiter, authRoutes);
 
-// Публичная раздача изображений практики — ДО apiLimiter и telegramAuth:
-// файлы иммутабельны и кешируются, а <img> не шлёт telegram-заголовок.
-app.use('/api/practice-images', practiceImagesRoutes);
+// Публичная раздача изображений практики — без telegramAuth (<img> не шлёт
+// telegram-заголовок), но под тем же apiLimiter, что и остальные /api/*.
+app.use('/api/practice-images', apiLimiter, practiceImagesRoutes);
 
 app.use('/api/', apiLimiter);
 
@@ -125,6 +130,8 @@ app.use('/api/quiz', telegramAuth, requireUser, blockGuests, quizRoutes);
 // Практика доступна гостю (ТЗ §6). Домашка закрыта для гостя (ТЗ §7).
 app.use('/api/practice', telegramAuth, requireUser, practiceRoutes);
 app.use('/api/homework', telegramAuth, requireUser, blockGuests, homeworkRoutes);
+app.use('/api/lesson', telegramAuth, requireUser, blockGuests, lessonRoutes);
+app.use('/api/lesson-admin', telegramAuth, requireRole(['admin', 'teacher']), lessonAdminRoutes);
 
 // Статистика — все роли (студент видит свою, админ/препод/менеджер — общую)
 app.use('/api/stats', telegramAuth, requireUser, statsRoutes);
@@ -142,7 +149,9 @@ app.use('/api/notify', telegramAuth, requireRole(['admin', 'manager', 'teacher']
 // Заявки — POST публичный (из бота), GET/PATCH/resend защищены внутри роута.
 app.use('/api/applications', applicationRoutes);
 
+setupSocketAuth(io);
 setupQuizSocket(io);
+setupLessonSocket(io);
 
 app.get('/', (req, res) => {
   res.json({ message: 'Educa Backend API + Telegram Bot + WebSocket' });
@@ -161,16 +170,18 @@ const startServer = async () => {
 
   server.listen(PORT, () => {
     console.log(`🚀 Server running on http://localhost:${PORT}`);
-    console.log(`🔌 WebSocket ready for quizzes`);
+    console.log(`🔌 WebSocket ready for quizzes and lessons`);
     console.log(`📦 Compression enabled`);
     startBot();
     startGuestScheduler();
+    startLessonScheduler();
   });
 };
 
 process.on('SIGTERM', () => {
   console.log('\n🛑 Получен сигнал завершения...');
   stopBot();
+  stopLessonScheduler();
   process.exit(0);
 });
 

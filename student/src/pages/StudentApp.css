@@ -39,6 +39,49 @@
   overflow: hidden;
 }
 
+.lesson-global-notice {
+  position: fixed;
+  z-index: 1100;
+  left: 16px;
+  right: 16px;
+  bottom: calc(var(--student-bottom-nav-offset) + 10px);
+  max-width: 520px;
+  margin: 0 auto;
+  min-height: 58px;
+  padding: 11px 14px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--kubik-navy);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  font: inherit;
+  box-shadow: 0 6px 14px rgba(26, 64, 95, 0.22);
+  cursor: pointer;
+  animation: lessonNoticeIn 220ms var(--ease-out) both;
+}
+
+.lesson-global-notice > span:nth-child(2) { flex: 1; display: grid; gap: 2px; }
+.lesson-global-notice small { color: rgba(255,255,255,.76); font-size: 12px; }
+.lesson-global-notice__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ff6b6b;
+  box-shadow: 0 0 0 5px rgba(255,107,107,.2);
+}
+
+@keyframes lessonNoticeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lesson-global-notice { animation: none; }
+}
+
 /* Доступность: видимый фокус для клавиатуры/ассистивных устройств */
 .student-app button:focus-visible,
 .student-app a:focus-visible,

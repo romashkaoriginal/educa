@@ -187,7 +187,9 @@ async function recordPracticeStatsIncrement({
         questionId: qid,
         topicId: tid,
         answeredAt,
-        selectedAnswer: Number.isInteger(selectedAnswer) ? selectedAnswer : parseInt(selectedAnswer, 10) || 0
+        // selectedAnswer — массив индексов (multiple choice); поддерживаем и старый
+        // скалярный вызов на переходный период.
+        selectedAnswer: Array.isArray(selectedAnswer) ? selectedAnswer : [selectedAnswer]
       }, { transaction });
       await trimRecentErrors(sid, subId, transaction);
     }

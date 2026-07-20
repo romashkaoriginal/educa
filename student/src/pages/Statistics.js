@@ -137,11 +137,12 @@ function CollapsibleSection({ id, title, icon, open, onToggle, children, badge }
 }
 
 function countHomeworkSubjects(homeworkStats) {
-  const names = new Set();
+  const ids = new Set();
   homeworkStats?.homeworks?.forEach((hw) => {
-    names.add(hw.subject?.name || 'Без предмета');
+    const id = hw.subjectId ?? hw.subject?.id;
+    if (id != null) ids.add(Number(id));
   });
-  return names.size;
+  return ids.size;
 }
 
 function HomeworkStatsPanel({ homeworkStats, compact = false, subjectId = null }) {

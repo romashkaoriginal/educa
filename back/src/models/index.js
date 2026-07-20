@@ -29,6 +29,21 @@ const PracticeRecentError = require('./PracticeRecentError');
 const BotUser = require('./BotUser');
 const NotificationLog = require('./NotificationLog');
 const Application = require('./Application');
+const Group = require('./Group');
+const GroupStudent = require('./GroupStudent');
+const TeacherSubject = require('./TeacherSubject');
+const Lesson = require('./Lesson');
+const LessonGroup = require('./LessonGroup');
+const LessonAttendance = require('./LessonAttendance');
+const LessonMaterial = require('./LessonMaterial');
+const LessonQuestion = require('./LessonQuestion');
+const LessonReaction = require('./LessonReaction');
+const LessonPoll = require('./LessonPoll');
+const LessonPollOption = require('./LessonPollOption');
+const LessonPollAnswer = require('./LessonPollAnswer');
+const LessonQuiz = require('./LessonQuiz');
+const LessonQuizQuestion = require('./LessonQuizQuestion');
+const LessonQuizAnswer = require('./LessonQuizAnswer');
 
 // ========== СВЯЗИ С SUBJECTS ==========
 
@@ -156,6 +171,71 @@ PracticeRecentError.belongsTo(PracticeQuestion, { foreignKey: 'questionId', as: 
 PracticeRecentError.belongsTo(PracticeTopic, { foreignKey: 'topicId', as: 'topic' });
 User.hasMany(PracticeRecentError, { foreignKey: 'studentId', as: 'practiceRecentErrors' });
 
+// ========== LESSON ==========
+Subject.hasMany(Group, { foreignKey: 'subjectId', as: 'groups' });
+Group.belongsTo(Subject, { foreignKey: 'subjectId', as: 'subject' });
+
+Group.belongsToMany(User, { through: GroupStudent, foreignKey: 'groupId', otherKey: 'userId', as: 'students' });
+User.belongsToMany(Group, { through: GroupStudent, foreignKey: 'userId', otherKey: 'groupId', as: 'groups' });
+GroupStudent.belongsTo(Group, { foreignKey: 'groupId', as: 'group' });
+GroupStudent.belongsTo(User, { foreignKey: 'userId', as: 'student' });
+
+User.belongsToMany(Group, { through: TeacherSubject, foreignKey: 'teacherId', otherKey: 'groupId', as: 'teachingGroups' });
+Group.belongsToMany(User, { through: TeacherSubject, foreignKey: 'groupId', otherKey: 'teacherId', as: 'teachers' });
+TeacherSubject.belongsTo(User, { foreignKey: 'teacherId', as: 'teacher' });
+TeacherSubject.belongsTo(Group, { foreignKey: 'groupId', as: 'group' });
+TeacherSubject.belongsTo(Subject, { foreignKey: 'subjectId', as: 'subject' });
+
+Lesson.belongsTo(Subject, { foreignKey: 'subjectId', as: 'subject' });
+Subject.hasMany(Lesson, { foreignKey: 'subjectId', as: 'lessons' });
+Lesson.belongsTo(User, { foreignKey: 'teacherId', as: 'teacher' });
+User.hasMany(Lesson, { foreignKey: 'teacherId', as: 'teachingLessons' });
+Lesson.belongsTo(User, { foreignKey: 'createdBy', as: 'creator' });
+Lesson.belongsToMany(Group, { through: LessonGroup, foreignKey: 'lessonId', otherKey: 'groupId', as: 'groups' });
+Group.belongsToMany(Lesson, { through: LessonGroup, foreignKey: 'groupId', otherKey: 'lessonId', as: 'lessons' });
+LessonGroup.belongsTo(Lesson, { foreignKey: 'lessonId', as: 'lesson' });
+LessonGroup.belongsTo(Group, { foreignKey: 'groupId', as: 'group' });
+
+Lesson.hasMany(LessonAttendance, { foreignKey: 'lessonId', as: 'attendance' });
+LessonAttendance.belongsTo(Lesson, { foreignKey: 'lessonId', as: 'lesson' });
+LessonAttendance.belongsTo(User, { foreignKey: 'userId', as: 'student' });
+
+Lesson.hasMany(LessonMaterial, { foreignKey: 'lessonId', as: 'materials' });
+LessonMaterial.belongsTo(Lesson, { foreignKey: 'lessonId', as: 'lesson' });
+LessonMaterial.belongsTo(Homework, { foreignKey: 'homeworkId', as: 'homework' });
+LessonMaterial.belongsTo(User, { foreignKey: 'createdBy', as: 'creator' });
+
+Lesson.hasMany(LessonQuestion, { foreignKey: 'lessonId', as: 'studentQuestions' });
+LessonQuestion.belongsTo(Lesson, { foreignKey: 'lessonId', as: 'lesson' });
+LessonQuestion.belongsTo(User, { foreignKey: 'userId', as: 'student' });
+
+Lesson.hasMany(LessonReaction, { foreignKey: 'lessonId', as: 'reactions' });
+LessonReaction.belongsTo(Lesson, { foreignKey: 'lessonId', as: 'lesson' });
+LessonReaction.belongsTo(User, { foreignKey: 'userId', as: 'student' });
+
+Lesson.hasMany(LessonPoll, { foreignKey: 'lessonId', as: 'polls' });
+LessonPoll.belongsTo(Lesson, { foreignKey: 'lessonId', as: 'lesson' });
+LessonPoll.hasMany(LessonPollOption, { foreignKey: 'pollId', as: 'options' });
+LessonPollOption.belongsTo(LessonPoll, { foreignKey: 'pollId', as: 'poll' });
+LessonPoll.hasMany(LessonPollAnswer, { foreignKey: 'pollId', as: 'answers' });
+LessonPollAnswer.belongsTo(LessonPoll, { foreignKey: 'pollId', as: 'poll' });
+LessonPollOption.hasMany(LessonPollAnswer, { foreignKey: 'optionId', as: 'answers' });
+LessonPollAnswer.belongsTo(LessonPollOption, { foreignKey: 'optionId', as: 'option' });
+LessonPollAnswer.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+
+Lesson.hasMany(LessonQuiz, { foreignKey: 'lessonId', as: 'quizzes' });
+LessonQuiz.belongsTo(Lesson, { foreignKey: 'lessonId', as: 'lesson' });
+LessonQuiz.hasMany(LessonQuizQuestion, { foreignKey: 'lessonQuizId', as: 'questions' });
+LessonQuizQuestion.belongsTo(LessonQuiz, { foreignKey: 'lessonQuizId', as: 'quiz' });
+LessonQuizQuestion.belongsTo(PracticeImage, { foreignKey: 'questionImageId', as: 'questionImage' });
+LessonQuizQuestion.belongsTo(PracticeImage, { foreignKey: 'hintImageId', as: 'hintImage' });
+LessonQuizQuestion.belongsTo(PracticeQuestion, { foreignKey: 'sourcePracticeQuestionId', as: 'sourceQuestion' });
+LessonQuiz.hasMany(LessonQuizAnswer, { foreignKey: 'lessonQuizId', as: 'answers' });
+LessonQuizAnswer.belongsTo(LessonQuiz, { foreignKey: 'lessonQuizId', as: 'quiz' });
+LessonQuizQuestion.hasMany(LessonQuizAnswer, { foreignKey: 'questionId', as: 'answers' });
+LessonQuizAnswer.belongsTo(LessonQuizQuestion, { foreignKey: 'questionId', as: 'question' });
+LessonQuizAnswer.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+
 // Ручная миграция practice_questions.correct_answer: integer → json (массив
 // индексов, поддержка нескольких правильных вариантов). sequelize.sync({alter})
 // не умеет сам сконвертировать integer в json (нет каста 5::json), поэтому
@@ -163,27 +243,47 @@ User.hasMany(PracticeRecentError, { foreignKey: 'studentId', as: 'practiceRecent
 const migrateCorrectAnswerToJson = async () => {
   const [rows] = await sequelize.query(`
     SELECT data_type FROM information_schema.columns
-    WHERE table_name = 'practice_questions' AND column_name = 'correct_answer'
+    WHERE table_name = 'practice_questions' AND column_name = 'correctAnswer'
   `);
   if (rows.length === 0 || rows[0].data_type === 'json' || rows[0].data_type === 'jsonb') {
     return; // таблицы ещё нет, либо уже мигрировано
   }
   await sequelize.query(`
     ALTER TABLE practice_questions
-    ALTER COLUMN correct_answer TYPE json
-    USING json_build_array(correct_answer)
+    ALTER COLUMN "correctAnswer" TYPE json
+    USING json_build_array("correctAnswer")
   `);
   console.log('✅ practice_questions.correct_answer migrated integer → json');
+};
+
+// Та же миграция для practice_recent_errors.selected_answer (ТЗ на multiple choice
+// затронул и запись «мой ответ» в недавних ошибках).
+const migrateSelectedAnswerToJson = async () => {
+  const [rows] = await sequelize.query(`
+    SELECT data_type FROM information_schema.columns
+    WHERE table_name = 'practice_recent_errors' AND column_name = 'selectedAnswer'
+  `);
+  if (rows.length === 0 || rows[0].data_type === 'json' || rows[0].data_type === 'jsonb') {
+    return;
+  }
+  await sequelize.query(`
+    ALTER TABLE practice_recent_errors
+    ALTER COLUMN "selectedAnswer" TYPE json
+    USING (CASE WHEN "selectedAnswer" IS NULL THEN NULL ELSE json_build_array("selectedAnswer") END)
+  `);
+  console.log('✅ practice_recent_errors.selected_answer migrated integer → json');
 };
 
 // Синхронизация
 const syncDatabase = async () => {
   try {
     await migrateCorrectAnswerToJson();
+    await migrateSelectedAnswerToJson();
     await sequelize.sync({ alter: true });
     console.log('✅ Database synced (alter mode)');
   } catch (error) {
     console.error('❌ Error connecting to database:', error);
+    throw error;
   }
 };
 
@@ -197,5 +297,9 @@ module.exports = {
   PracticeStudentTotals, PracticeDailyStats, PracticeTopicTotals,
   PracticeDifficultyTotals, PracticeModeTotals, PracticeRecentError,
   NotificationLog, BotUser, Application,
+  Group, GroupStudent, TeacherSubject, Lesson, LessonGroup,
+  LessonAttendance, LessonMaterial, LessonQuestion, LessonReaction,
+  LessonPoll, LessonPollOption, LessonPollAnswer,
+  LessonQuiz, LessonQuizQuestion, LessonQuizAnswer,
   syncDatabase
 };

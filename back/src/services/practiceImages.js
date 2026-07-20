@@ -88,6 +88,10 @@ async function processAndStore(buffer) {
   let outBuffer = optimized.data;
   let outFormat = 'webp';
   let outMime = 'image/webp';
+  // Итоговые размеры: из результата кодирования WebP, либо из исходных
+  // метаданных, если оставляем оригинал — второй sharp(...).metadata() не нужен.
+  let outWidth = optimized.info.width;
+  let outHeight = optimized.info.height;
 
   // Если WebP получился больше оригинала — оставляем оригинал (ТЗ §5.3.8),
   // но только для уже безопасных растровых форматов.
@@ -95,6 +99,8 @@ async function processAndStore(buffer) {
     outBuffer = buffer;
     outFormat = meta.format === 'jpeg' ? 'jpg' : meta.format;
     outMime = `image/${meta.format}`;
+    outWidth = meta.width;
+    outHeight = meta.height;
   }
 
   const fileHash = crypto.createHash('sha256').update(outBuffer).digest('hex');
@@ -105,9 +111,6 @@ async function processAndStore(buffer) {
     return existing;
   }
 
-  // Итоговые размеры (могли измениться после resize/поворота).
-  const finalMeta = await sharp(outBuffer).metadata();
-
   const storageKey = `${fileHash.slice(0, 16)}_${Date.now()}.${outFormat === 'jpg' ? 'jpg' : outFormat}`;
   ensureDir();
   fs.writeFileSync(storagePath(storageKey), outBuffer);
@@ -115,8 +118,8 @@ async function processAndStore(buffer) {
   return PracticeImage.create({
     storageKey,
     mimeType: outMime,
-    width: finalMeta.width,
-    height: finalMeta.height,
+    width: outWidth,
+    height: outHeight,
     fileSize: outBuffer.length,
     fileHash
   });

@@ -24,7 +24,8 @@ const PracticeRecentError = sequelize.define('PracticeRecentError', {
     references: { model: 'practice_topics', key: 'id' }
   },
   answeredAt: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
-  selectedAnswer: { type: DataTypes.INTEGER, allowNull: true }
+  // Массив индексов выбранных вариантов (multiple choice).
+  selectedAnswer: { type: DataTypes.JSON, allowNull: true }
 }, {
   tableName: 'practice_recent_errors',
   timestamps: true,

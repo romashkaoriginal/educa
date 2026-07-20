@@ -1,7 +1,8 @@
-import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
-import { apiFetch } from './api';
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
+import { io } from 'socket.io-client';
+import { apiFetch, getTelegramInitData } from './api';
 
-import { API_URL } from '../config';
+import { API_URL, SOCKET_URL } from '../config';
 
 const parseOkJson = async (response, label) => {
   if (!response.ok) {
@@ -38,6 +39,11 @@ export const DataProvider = ({ children, studentId }) => {
   const [practiceHomeToken, setPracticeHomeToken] = useState(0);
   const [homeworkHomeToken, setHomeworkHomeToken] = useState(0);
   const [dashboardRefreshKey, setDashboardRefreshKey] = useState(0);
+  const [currentLesson, setCurrentLesson] = useState(null);
+  const [lessonNotice, setLessonNotice] = useState(null);
+  const [lessonConnected, setLessonConnected] = useState(false);
+  const [lessonReconnecting, setLessonReconnecting] = useState(false);
+  const lessonSocketRef = useRef(null);
 
   const [loaded, setLoaded] = useState({
     subjects: false, practice: false, homework: false,
@@ -53,6 +59,56 @@ export const DataProvider = ({ children, studentId }) => {
   const loadingRef = useRef({ subjects: false, practice: false, homework: false, practiceStats: false, homeworkStats: false });
   // Кэш вопросов практики: { topicId: [questions] }
   const questionsCache = useRef({});
+
+  useEffect(() => {
+    if (!studentId) return undefined;
+    const socket = io(SOCKET_URL, {
+      auth: { initData: getTelegramInitData() },
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 800,
+      reconnectionDelayMax: 5000
+    });
+    lessonSocketRef.current = socket;
+
+    const onConnect = () => {
+      setLessonConnected(true);
+      setLessonReconnecting(false);
+    };
+    const onDisconnect = () => {
+      setLessonConnected(false);
+      setLessonReconnecting(true);
+    };
+    const onStarted = ({ lesson }) => {
+      setCurrentLesson(lesson);
+      setLessonNotice({ type: 'started', lesson });
+    };
+    const onFinished = ({ lessonId }) => {
+      setCurrentLesson((lesson) => Number(lesson?.id) === Number(lessonId) ? null : lesson);
+      setLessonNotice({ type: 'finished', lessonId });
+    };
+    const onState = (state) => {
+      if (state?.lesson) setCurrentLesson(state.lesson);
+    };
+
+    socket.on('connect', onConnect);
+    socket.on('disconnect', onDisconnect);
+    socket.on('lesson:started', onStarted);
+    socket.on('lesson:finished', onFinished);
+    socket.on('lesson:state', onState);
+    socket.io.on('reconnect_attempt', () => setLessonReconnecting(true));
+    socket.io.on('reconnect', () => setLessonReconnecting(false));
+
+    return () => {
+      socket.removeAllListeners();
+      socket.io.removeAllListeners();
+      socket.disconnect();
+      if (lessonSocketRef.current === socket) lessonSocketRef.current = null;
+    };
+  }, [studentId]);
+
+  const dismissLessonNotice = useCallback(() => setLessonNotice(null), []);
 
   const loadSubjects = useCallback(async (force = false) => {
     if (loadedRef.current.subjects && !force) return subjects;
@@ -415,7 +471,9 @@ export const DataProvider = ({ children, studentId }) => {
     subjectDashboard, loadSubjectDashboard, refreshDashboard, dashboardRefreshKey,
     practiceIntent, requestPractice, clearPracticeIntent,
     practiceHomeToken, requestPracticeHome,
-    homeworkHomeToken, requestHomeworkHome
+    homeworkHomeToken, requestHomeworkHome,
+    currentLesson, setCurrentLesson, lessonNotice, dismissLessonNotice,
+    lessonSocket: lessonSocketRef.current, lessonConnected, lessonReconnecting
   };
 
   return (

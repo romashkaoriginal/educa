@@ -257,7 +257,7 @@ function getHomeworkCardState(homework, now = new Date()) {
   const usedAttempts = homework.stats?.attempts || 0;
   const bestScore = homework.stats?.bestScore || 0;
   const bestCorrectCount = homework.stats?.bestCorrectCount ?? null;
-  const hasResult = bestScore > 0;
+  const hasResult = !!homework.stats;
   const attemptsExhausted = homework.maxAttempts && usedAttempts >= homework.maxAttempts;
   const isExpired = minutesLeft <= 0;
   const progressPercent = maxScore > 0 && hasResult
@@ -1278,7 +1278,7 @@ function StudentHomework({ studentId }) {
   }
 
   if (!selectedSubject && subjects.length > 1) {
-    const totalUnfinished = homeworks.filter(hw => !hw.stats || hw.stats.bestScore === 0).length;
+    const totalUnfinished = homeworks.filter(hw => !hw.stats).length;
 
     return (
       <div className="section section-homework homework-section">
@@ -1291,7 +1291,7 @@ function StudentHomework({ studentId }) {
           {subjects.map(subject => {
             const cardBg = getHomeworkSubjectCardBg(subject);
             const subjectHomeworks = homeworks.filter(hw => Number(hw.subjectId) === Number(subject.id));
-            const unfinishedCount = subjectHomeworks.filter(hw => !hw.stats || hw.stats.bestScore === 0).length;
+            const unfinishedCount = subjectHomeworks.filter(hw => !hw.stats).length;
             return (
               <button
                 key={subject.id}
@@ -1318,7 +1318,7 @@ function StudentHomework({ studentId }) {
     ? homeworks.filter(hw => hw.subjectId === selectedSubject.id)
     : homeworks;
 
-  const unfinishedInView = filteredHomeworks.filter(hw => !hw.stats || hw.stats.bestScore === 0).length;
+  const unfinishedInView = filteredHomeworks.filter(hw => !hw.stats).length;
 
   return (
     <div className="section section-homework homework-section">

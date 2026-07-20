@@ -7,6 +7,7 @@ import Practice from '../components/admin/Practice';
 import Homework from '../components/admin/Homework';
 import Statistics from '../components/admin/Statistics';
 import Quiz from '../components/admin/Quiz';
+import Lesson from '../components/admin/Lesson';
 import Notifications from '../components/admin/Notifications';
 import Applications from '../components/admin/Applications';
 import Cleanup from '../components/admin/Cleanup';
@@ -19,9 +20,9 @@ const SUPER_ADMIN_TELEGRAM_ID = '1218874137';
 
 // Доступные разделы по ролям
 const ROLE_SECTIONS = {
-  admin: ['users', 'students', 'applications', 'practice', 'quiz', 'homework', 'statistics', 'notifications'],
+  admin: ['users', 'students', 'applications', 'practice', 'lesson', 'quiz', 'homework', 'statistics', 'notifications'],
   manager: ['users', 'students', 'applications', 'statistics', 'notifications'],
-  teacher: ['practice', 'quiz', 'homework', 'statistics', 'notifications'],
+  teacher: ['practice', 'lesson', 'quiz', 'homework', 'statistics', 'notifications'],
 };
 
 const ALL_SECTIONS = [
@@ -29,6 +30,7 @@ const ALL_SECTIONS = [
   { id: 'students', name: 'Ученики', icon: '👥' },
   { id: 'applications', name: 'Заявки', icon: '📋' },
   { id: 'practice', name: 'Практика', icon: '💪' },
+  { id: 'lesson', name: 'Занятие', icon: '🎓' },
   { id: 'quiz', name: 'Викторина', icon: '🎯' },
   { id: 'homework', name: 'Дом. задание', icon: '📝' },
   { id: 'statistics', name: 'Статистика', icon: '📊' },
@@ -105,7 +107,7 @@ function AdminPanelContent() {
       if (['students', 'users', 'applications', 'statistics'].includes(activeSection)) {
         await refresh(activeSection);
       }
-      if (['practice', 'homework', 'quiz', 'notifications'].includes(activeSection)) {
+      if (['practice', 'lesson', 'homework', 'quiz', 'notifications'].includes(activeSection)) {
         await loadSubjects();
       }
       setDataRefreshKey((k) => k + 1);
@@ -159,6 +161,7 @@ function AdminPanelContent() {
         <div style={{ display: activeSection === 'users' ? 'block' : 'none' }}><Users dataRefreshKey={dataRefreshKey} /></div>
         <div style={{ display: activeSection === 'students' ? 'block' : 'none' }}><Students subjects={subjects} dataRefreshKey={dataRefreshKey} /></div>
         <div style={{ display: activeSection === 'practice' ? 'block' : 'none' }}><Practice dataRefreshKey={dataRefreshKey} /></div>
+        <div style={{ display: activeSection === 'lesson' ? 'block' : 'none' }}><Lesson subjects={subjects} currentUser={currentUser} dataRefreshKey={dataRefreshKey} /></div>
         <div style={{ display: activeSection === 'homework' ? 'block' : 'none' }}><Homework subjects={subjects} currentUserId={currentUser?.id} dataRefreshKey={dataRefreshKey} /></div>
         <div style={{ display: activeSection === 'statistics' ? 'block' : 'none' }}><Statistics currentUser={currentUser} dataRefreshKey={dataRefreshKey} /></div>
         <div style={{ display: activeSection === 'quiz' ? 'block' : 'none' }}><Quiz subjects={subjects} currentUserId={currentUser?.id} dataRefreshKey={dataRefreshKey} /></div>

@@ -392,10 +392,10 @@ function Practice({ studentId, isTabActive = true, onClose, onActivate }) {
   
   const [answered, setAnswered] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
-  const [showExplanationHint, setShowExplanationHint] = useState(false);
-  // Полноэкранный просмотрщик изображения (ТЗ §3.2).
-  const [lightboxSrc, setLightboxSrc] = useState(null);
-  // Фаза закрытия модалки объяснения — держим её в DOM на время анимации сворачивания.
+  // Модалка карточки: 'hint' — подсказка/объяснение, 'image' — изображение вопроса.
+  // Оба открываются по кнопке и используют одно и то же оформление (ТЗ §3.2).
+  const [activeCardModal, setActiveCardModal] = useState(null);
+  // Фаза закрытия модалки — держим её в DOM на время анимации сворачивания.
   const [explanationClosing, setExplanationClosing] = useState(false);
   const explanationCloseTimerRef = useRef(null);
   // Анимировать выезд лишних вариантов только при свежем ответе.
@@ -800,7 +800,7 @@ function Practice({ studentId, isTabActive = true, onClose, onActivate }) {
     setSelectedAnswer([]);
     setUserAnswers([]);
     setAnswered(false);
-    setShowExplanationHint(false);
+    setActiveCardModal(null);
   };
 
   const startGeneralPractice = async () => {
@@ -1026,7 +1026,7 @@ function Practice({ studentId, isTabActive = true, onClose, onActivate }) {
     if (explanationCloseTimerRef.current) return; // уже закрывается
     setExplanationClosing(true);
     explanationCloseTimerRef.current = setTimeout(() => {
-      setShowExplanationHint(false);
+      setActiveCardModal(null);
       setExplanationClosing(false);
       explanationCloseTimerRef.current = null;
     }, 240); // должно совпадать с длительностью explanationModalOut
@@ -1107,7 +1107,7 @@ function Practice({ studentId, isTabActive = true, onClose, onActivate }) {
     setAnswered(false);
     setIsCorrect(false);
     setAnimateDismiss(false);
-    setShowExplanationHint(false);
+    setActiveCardModal(null);
     blurActiveElement();
 
     setCurrentQuestionIndex(prev => prev + 1);
@@ -1148,7 +1148,7 @@ function Practice({ studentId, isTabActive = true, onClose, onActivate }) {
       setIsCorrect(false);
     }
     setAnimateDismiss(false); // вернулись к отвеченному вопросу — без повторной анимации выезда
-    setShowExplanationHint(false);
+    setActiveCardModal(null);
   };
 
   const goToPreviousQuestion = () => {
@@ -1234,7 +1234,7 @@ function Practice({ studentId, isTabActive = true, onClose, onActivate }) {
     setSelectedAnswer([]);
     setUserAnswers([]);
     setAnswered(false);
-    setShowExplanationHint(false);
+    setActiveCardModal(null);
     setRemainingQuestions([]);
     setSessionAnswers([]);
     setSessionSolved(0);
@@ -1291,10 +1291,6 @@ function Practice({ studentId, isTabActive = true, onClose, onActivate }) {
   // ========== ЭКРАН ПРОХОЖДЕНИЯ ==========
   if (activePractice) {
     const currentQuestion = normalizeQuestion(questions[currentQuestionIndex]);
-    const showTopicInQuestion = practiceModeRef.current === 'topic' || practiceModeRef.current === 'weak';
-    const sessionTopicTitle = showTopicInQuestion && currentQuestion
-      ? (practiceTopics.find(t => t.id === currentQuestion.topicId)?.name || activePractice.name)
-      : null;
     const headerTitle = practiceModeRef.current === 'general'
       ? 'Практика'
       : (selectedSubject?.name || activePractice.name);
@@ -1424,26 +1420,36 @@ function Practice({ studentId, isTabActive = true, onClose, onActivate }) {
           }`}
         >
           <div className="question-meta-row">
-            {sessionTopicTitle && (
-              <div className="practice-session-topic">{sessionTopicTitle}</div>
-            )}
             <div className="question-header">
-              {currentQuestion.difficulty && (
-                <span className={`difficulty-badge ${currentQuestion.difficulty}`}>
-                  {currentQuestion.difficulty === 'easy' && '🟢 Легкий'}
-                  {currentQuestion.difficulty === 'medium' && '🟡 Средний'}
-                  {currentQuestion.difficulty === 'hard' && '🔴 Сложный'}
-                </span>
-              )}
-              {(currentQuestion.explanation || currentQuestion.hintImage) && (
-                <button
-                  type="button"
-                  className="hint-button"
-                  onClick={() => setShowExplanationHint(true)}
-                >
-                  💡 {answered ? 'Объяснение' : 'Подсказка'}
-                </button>
-              )}
+              <div className="question-header-start">
+                {currentQuestion.difficulty && (
+                  <span className={`difficulty-badge ${currentQuestion.difficulty}`}>
+                    {currentQuestion.difficulty === 'easy' && '🟢 Легкий'}
+                    {currentQuestion.difficulty === 'medium' && '🟡 Средний'}
+                    {currentQuestion.difficulty === 'hard' && '🔴 Сложный'}
+                  </span>
+                )}
+              </div>
+              <div className="question-header-actions">
+                {currentQuestion.questionImage && (
+                  <button
+                    type="button"
+                    className="hint-button question-image-button"
+                    onClick={() => setActiveCardModal('image')}
+                  >
+                    🖼️ Изображение
+                  </button>
+                )}
+                {(currentQuestion.explanation || currentQuestion.hintImage) && (
+                  <button
+                    type="button"
+                    className="hint-button"
+                    onClick={() => setActiveCardModal('hint')}
+                  >
+                    💡 {answered ? 'Объяснение' : 'Подсказка'}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
@@ -1451,24 +1457,6 @@ function Practice({ studentId, isTabActive = true, onClose, onActivate }) {
             className={`question-card ${!currentQuestion.questionText ? 'question-card--image-only' : ''}`}
             key={`q-${currentQuestion.id}`}
           >
-            {/* Порядок: изображение → текст → варианты (ТЗ §3.1) */}
-            {currentQuestion.questionImage && (
-              <div
-                className="question-image"
-                onClick={() => setLightboxSrc(practiceImageUrl(currentQuestion.questionImage.storageKey))}
-                style={
-                  currentQuestion.questionImage.width && currentQuestion.questionImage.height
-                    ? { aspectRatio: `${currentQuestion.questionImage.width} / ${currentQuestion.questionImage.height}` }
-                    : undefined
-                }
-              >
-                <img
-                  src={practiceImageUrl(currentQuestion.questionImage.storageKey)}
-                  alt="Изображение вопроса"
-                  loading="eager"
-                />
-              </div>
-            )}
             {currentQuestion.questionText && (
               <>
                 <span className="question-card-mark" aria-hidden>“</span>
@@ -1484,9 +1472,16 @@ function Practice({ studentId, isTabActive = true, onClose, onActivate }) {
               const showCorrect = answered && isCorrectOption;
               const showWrong = answered && isSelected && !isCorrectOption;
               const showMuted = answered && !showCorrect && !showWrong;
+              // Один правильный вариант — ответ проверяется сразу по клику.
+              // Несколько правильных — вариант только выбирается, проверка по кнопке «Ответить».
+              const isSingleChoice = currentQuestion.correctAnswer.length === 1;
 
               const toggleOption = () => {
                 if (answered) return;
+                if (isSingleChoice) {
+                  submitAnswer([index]);
+                  return;
+                }
                 setSelectedAnswer((prev) => (
                   prev.includes(index) ? prev.filter((i) => i !== index) : [...prev, index]
                 ));
@@ -1529,7 +1524,7 @@ function Practice({ studentId, isTabActive = true, onClose, onActivate }) {
             })}
           </div>
 
-          {!answered && (
+          {!answered && currentQuestion.correctAnswer.length > 1 && (
             <button
               type="button"
               className="answer-submit-btn"
@@ -1562,7 +1557,7 @@ function Practice({ studentId, isTabActive = true, onClose, onActivate }) {
           )}
         </div>
 
-        {(showExplanationHint || explanationClosing) && (currentQuestion.explanation || currentQuestion.hintImage) && (
+        {(activeCardModal || explanationClosing) && (
           <div
             className={`explanation-modal-overlay ${explanationClosing ? 'is-closing' : ''}`}
             onClick={closeExplanation}
@@ -1575,7 +1570,9 @@ function Practice({ studentId, isTabActive = true, onClose, onActivate }) {
             >
               <div className="explanation-modal-head">
                 <span className="explanation-modal-title">
-                  💡 {answered ? 'Объяснение' : 'Подсказка'}
+                  {activeCardModal === 'image'
+                    ? '🖼️ Изображение'
+                    : `💡 ${answered ? 'Объяснение' : 'Подсказка'}`}
                 </span>
                 <button
                   type="button"
@@ -1587,44 +1584,28 @@ function Practice({ studentId, isTabActive = true, onClose, onActivate }) {
                 </button>
               </div>
               <div className="explanation-modal-body">
-                {currentQuestion.hintImage && (
-                  <div
-                    className="explanation-modal-image"
-                    onClick={() => setLightboxSrc(practiceImageUrl(currentQuestion.hintImage.storageKey))}
-                  >
+                {activeCardModal === 'image' && currentQuestion.questionImage && (
+                  <div className="explanation-modal-image">
+                    <img
+                      src={practiceImageUrl(currentQuestion.questionImage.storageKey)}
+                      alt="Изображение вопроса"
+                    />
+                  </div>
+                )}
+                {activeCardModal === 'hint' && currentQuestion.hintImage && (
+                  <div className="explanation-modal-image">
                     <img
                       src={practiceImageUrl(currentQuestion.hintImage.storageKey)}
                       alt="Изображение подсказки"
                     />
                   </div>
                 )}
-                {currentQuestion.explanation && (
+                {activeCardModal === 'hint' && currentQuestion.explanation && (
                   <div className="explanation-modal-text">{currentQuestion.explanation}</div>
                 )}
               </div>
             </div>
           </div>
-        )}
-
-        {/* Полноэкранный просмотрщик изображения (ТЗ §3.2): закрытие по фону/кнопке */}
-        {lightboxSrc && typeof document !== 'undefined' && createPortal(
-          <div className="image-lightbox-overlay" onClick={() => setLightboxSrc(null)}>
-            <button
-              type="button"
-              className="image-lightbox-close"
-              onClick={() => setLightboxSrc(null)}
-              aria-label="Закрыть"
-            >
-              ✕
-            </button>
-            <img
-              className="image-lightbox-img"
-              src={lightboxSrc}
-              alt="Изображение вопроса"
-              onClick={(e) => e.stopPropagation()}
-            />
-          </div>,
-          document.body
         )}
       </div>
     );
