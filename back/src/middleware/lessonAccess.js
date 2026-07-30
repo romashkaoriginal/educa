@@ -1,7 +1,5 @@
 const { Op } = require('sequelize');
-const {
-  UserSubject, Group, GroupStudent, TeacherSubject, Lesson, LessonGroup
-} = require('../models');
+const { UserSubject, TeacherSubject, Lesson } = require('../models');
 
 const activeAccessWhere = (now = new Date()) => ({
   isActive: true,
@@ -20,55 +18,39 @@ async function getAccessibleSubjectIds(userId) {
   return rows.map((row) => Number(row.subjectId));
 }
 
-async function getAccessibleGroupIds(userId) {
-  const subjectIds = await getAccessibleSubjectIds(userId);
-  if (!subjectIds.length) return [];
-  const memberships = await GroupStudent.findAll({
-    where: { userId },
-    include: [{
-      model: Group,
-      as: 'group',
-      required: true,
-      where: { isActive: true, subjectId: { [Op.in]: subjectIds } },
-      attributes: []
-    }],
-    attributes: ['groupId'],
-    raw: true
-  });
-  return memberships.map((row) => Number(row.groupId));
-}
-
+// ТЗ §3.1/§8.8, §8.15: занятия больше не привязываются к группам. Доступ ученика
+// определяется исключительно действующим доступом к предмету занятия.
 async function assertStudentCanAccessLesson(lessonId, userId) {
-  const lesson = await Lesson.findByPk(lessonId, { attributes: ['id', 'subjectId'] });
+  const lesson = await Lesson.findByPk(lessonId, {
+    attributes: ['id', 'subjectId', 'status', 'sessionEndsAt']
+  });
   if (!lesson) return { ok: false, status: 404, message: 'Занятие не найдено' };
 
   const subjectIds = await getAccessibleSubjectIds(userId);
-  if (!subjectIds.includes(Number(lesson.subjectId))) {
-    return { ok: false, status: 403, message: 'Нет доступа к предмету занятия' };
-  }
-
-  const groupIds = await getAccessibleGroupIds(userId);
-  if (!groupIds.length) return { ok: false, status: 403, message: 'Нет доступа к группе занятия' };
-  const linked = await LessonGroup.count({
-    where: { lessonId: lesson.id, groupId: { [Op.in]: groupIds } }
-  });
-  return linked
+  return subjectIds.includes(Number(lesson.subjectId))
     ? { ok: true, lesson }
-    : { ok: false, status: 403, message: 'Занятие назначено другой группе' };
+    : { ok: false, status: 403, message: 'Нет доступа к предмету занятия' };
+}
+
+// Преподаватель ведёт занятие своего предмета: либо он назначен на занятие явно,
+// либо предмет занятия входит в его назначения (ТЗ §3.1 — преподаватель и предмет
+// определяются автоматически, вручную их в расписании не выбирают).
+async function getTeacherSubjectIds(teacherId) {
+  const rows = await TeacherSubject.findAll({
+    where: { teacherId }, attributes: ['subjectId'], raw: true
+  });
+  return [...new Set(rows.map((row) => Number(row.subjectId)))];
 }
 
 async function teacherCanManageLesson(user, lessonId) {
   if (!user) return false;
   if (user.role === 'admin') return true;
   if (user.role !== 'teacher') return false;
-  const lesson = await Lesson.findByPk(lessonId, { attributes: ['id', 'teacherId'] });
+  const lesson = await Lesson.findByPk(lessonId, { attributes: ['id', 'teacherId', 'subjectId'] });
   if (!lesson) return false;
   if (Number(lesson.teacherId) === Number(user.id)) return true;
-  const groupLinks = await LessonGroup.findAll({ where: { lessonId }, attributes: ['groupId'], raw: true });
-  if (!groupLinks.length) return false;
-  return Boolean(await TeacherSubject.count({
-    where: { teacherId: user.id, groupId: { [Op.in]: groupLinks.map((row) => row.groupId) } }
-  }));
+  const subjectIds = await getTeacherSubjectIds(user.id);
+  return subjectIds.includes(Number(lesson.subjectId));
 }
 
 const assertTeacherOwnsLesson = (paramName = 'id') => async (req, res, next) => {
@@ -86,23 +68,11 @@ const assertTeacherOwnsLesson = (paramName = 'id') => async (req, res, next) => 
   }
 };
 
-async function validateGroupStudent(groupId, userId) {
-  const group = await Group.findByPk(groupId);
-  if (!group || !group.isActive) return { ok: false, message: 'Группа не найдена или неактивна' };
-  const access = await UserSubject.findOne({
-    where: { userId, subjectId: group.subjectId, ...activeAccessWhere() }
-  });
-  return access
-    ? { ok: true, group }
-    : { ok: false, message: 'У ученика нет действующего доступа к предмету группы' };
-}
-
 module.exports = {
   activeAccessWhere,
   getAccessibleSubjectIds,
-  getAccessibleGroupIds,
+  getTeacherSubjectIds,
   assertStudentCanAccessLesson,
   teacherCanManageLesson,
-  assertTeacherOwnsLesson,
-  validateGroupStudent
+  assertTeacherOwnsLesson
 };

@@ -11,8 +11,18 @@ import { apiFetch } from './api';
 
 import { API_URL } from '../config';
 
-function StudentAppContent({ selectedStudent, isGuest = false, applicationSent = false }) {
-  const [activeTab, setActiveTab] = useState('practice');
+function getLinkedLessonId() {
+  const value = new URLSearchParams(window.location.search).get('lessonId');
+  const lessonId = Number(value);
+  return Number.isInteger(lessonId) && lessonId > 0 ? lessonId : null;
+}
+
+export function StudentAppContent({ selectedStudent, isGuest = false, applicationSent = false }) {
+  const [linkedLessonId] = useState(getLinkedLessonId);
+  const [activeTab, setActiveTab] = useState(linkedLessonId && !isGuest ? 'lesson' : 'practice');
+  const [lessonEntryRequest, setLessonEntryRequest] = useState(linkedLessonId && !isGuest
+    ? { lessonId: linkedLessonId, nonce: 1 }
+    : null);
   const [appSent, setAppSent] = useState(applicationSent);
   // Модалка закрытого раздела для гостя: { context, source } | null
   const [lockedModal, setLockedModal] = useState(null);
@@ -61,13 +71,14 @@ function StudentAppContent({ selectedStudent, isGuest = false, applicationSent =
   const [prevTab, setPrevTab] = useState(null);
   const [animating, setAnimating] = useState(false);
 
-  const tabOrder = ['practice', 'lesson', 'homework', 'stats'];
+  // ТЗ §1: «Домашка» стоит перед «Занятием».
+  const tabOrder = ['practice', 'homework', 'lesson', 'stats'];
 
   // Для гостя Домашка и Занятие закрыты.
   const LOCKED_FOR_GUEST = { homework: 'locked_homework', lesson: 'locked_lesson' };
 
-  const handleTabChange = (tabId) => {
-    if (animating) return;
+  const handleTabChange = (tabId, { force = false } = {}) => {
+    if (animating && !force) return;
     // Гость нажал на закрытый раздел — показываем модалку, таб не меняем
     if (isGuest && LOCKED_FOR_GUEST[tabId]) {
       setLockedModal({
@@ -112,8 +123,8 @@ function StudentAppContent({ selectedStudent, isGuest = false, applicationSent =
 
   const tabs = [
     { id: 'practice', name: 'Практика', icon: '💪' },
-    { id: 'lesson', name: 'Занятие', icon: '🎓', locked: isGuest },
     { id: 'homework', name: 'Домашка', icon: '📝', locked: isGuest },
+    { id: 'lesson', name: 'Занятие', icon: '🎓', locked: isGuest },
     { id: 'stats', name: 'Статистика', icon: '📊' },
   ];
 
@@ -125,8 +136,8 @@ function StudentAppContent({ selectedStudent, isGuest = false, applicationSent =
         <div className="tab-viewport">
           {[
             { id: 'practice', el: <Practice studentId={selectedStudent.id} isTabActive={activeTab === 'practice'} onClose={handlePracticeClose} onActivate={() => setActiveTab('practice')} /> },
-            { id: 'lesson', el: <Lesson studentId={selectedStudent.id} studentName={`${selectedStudent.firstName || ''} ${selectedStudent.lastName || ''}`.trim() || 'Ученик'} isTabActive={activeTab === 'lesson'} /> },
             { id: 'homework', el: <Homework studentId={selectedStudent.id} /> },
+            { id: 'lesson', el: <Lesson studentId={selectedStudent.id} isTabActive={activeTab === 'lesson'} entryRequest={lessonEntryRequest} /> },
             { id: 'stats', el: <Statistics studentId={selectedStudent.id} isGuest={isGuest} onLockedClick={() => setLockedModal({ context: 'locked_statistics_homework', source: 'TG Mini App — закрытый раздел' })} /> },
           ].map(({ id, el }) => {
             const isActive = id === activeTab;
@@ -155,12 +166,16 @@ function StudentAppContent({ selectedStudent, isGuest = false, applicationSent =
           type="button"
           className="lesson-global-notice"
           onClick={() => {
+            setLessonEntryRequest((request) => ({
+              lessonId: lessonNotice.lesson?.id,
+              nonce: (request?.nonce || 0) + 1
+            }));
             dismissLessonNotice();
-            handleTabChange('lesson');
+            handleTabChange('lesson', { force: true });
           }}
         >
           <span className="lesson-global-notice__dot" aria-hidden="true" />
-          <span><strong>Занятие началось</strong><small>Открыть раздел</small></span>
+          <span><strong>Занятие началось</strong><small>Перейти в занятие</small></span>
           <span aria-hidden="true">→</span>
         </button>
       )}

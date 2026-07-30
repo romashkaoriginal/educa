@@ -3,6 +3,7 @@ const router = express.Router();
 const { User, Subject, UserSubject, HomeworkSubmission, Homework, NotificationLog } = require('../models');
 const { getBot } = require('../bot');
 const { Op } = require('sequelize');
+const { parseNotificationTarget } = require('../services/notificationTarget');
 
 // POST /api/notify/preview
 router.post('/preview', async (req, res) => {
@@ -20,11 +21,19 @@ router.post('/preview', async (req, res) => {
 
 // POST /api/notify/send
 router.post('/send', async (req, res) => {
-  const { filters, studentId, text, sentBy, sentByName, sentByRole } = req.body;
+  const { text } = req.body;
 
   if (!text || !text.trim()) {
     return res.status(400).json({ message: 'Введите текст сообщения' });
   }
+
+  let target;
+  try {
+    target = parseNotificationTarget(req.body);
+  } catch (error) {
+    return res.status(400).json({ message: error.message });
+  }
+  const { mode, studentId: parsedStudentId, filters } = target;
 
   const bot = getBot();
   if (!bot) {
@@ -34,9 +43,19 @@ router.post('/send', async (req, res) => {
   try {
     let students;
 
-    // Одиночная отправка конкретному ученику
-    if (studentId) {
-      const student = await User.findByPk(studentId, {
+    // Одиночная отправка — только конкретному активному полноценному ученику.
+    if (mode === 'single') {
+      const student = await User.findOne({
+        where: {
+          id: parsedStudentId,
+          role: 'student',
+          isActive: true,
+          isGuest: { [Op.not]: true },
+          [Op.or]: [
+            { guestStatus: { [Op.is]: null } },
+            { guestStatus: 'converted_to_student' }
+          ]
+        },
         attributes: ['id', 'telegramId', 'firstName', 'lastName']
       });
       students = student ? [student] : [];
@@ -65,11 +84,11 @@ router.post('/send', async (req, res) => {
 
     // Сохраняем лог
     await NotificationLog.create({
-      sentBy: sentBy || 0,
-      sentByName: sentByName || 'Администратор',
-      sentByRole: sentByRole || 'admin',
+      sentBy: req.dbUser.id,
+      sentByName: `${req.dbUser.firstName || ''} ${req.dbUser.lastName || ''}`.trim() || 'Сотрудник',
+      sentByRole: req.dbUser.role,
       text: text.trim(),
-      filters: studentId ? { studentId } : (filters || {}),
+      filters: mode === 'single' ? { mode, studentId: parsedStudentId } : { mode, ...(filters || {}) },
       recipientCount: students.length,
       successCount: results.sent.length,
       failedCount: results.failed.length,
@@ -106,9 +125,28 @@ router.get('/history', async (req, res) => {
 // ===== HELPER =====
 async function getFilteredStudents(filters) {
   const { subjectIds, accessDays, homeworkPercent } = filters;
+  // По умолчанию уведомления получают только полноценные ученики. Гости
+  // выбираются исключительно отдельным режимом рассылки.
+  const audience = filters.audience === 'guests' ? 'guests' : 'students';
+
+  const guestStatuses = ['guest_active', 'guest_expiring', 'guest_expired', 'lead_sent'];
+  const audienceWhere = audience === 'guests'
+    ? {
+        [Op.or]: [
+          { isGuest: true },
+          { guestStatus: { [Op.in]: guestStatuses } }
+        ]
+      }
+    : {
+        isGuest: { [Op.not]: true },
+        [Op.or]: [
+          { guestStatus: { [Op.is]: null } },
+          { guestStatus: 'converted_to_student' }
+        ]
+      };
 
   let students = await User.findAll({
-    where: { role: 'student', isActive: true },
+    where: { role: 'student', isActive: true, ...audienceWhere },
     include: [{
       model: Subject,
       as: 'subjects',

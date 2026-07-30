@@ -44,11 +44,17 @@ const LessonPollAnswer = require('./LessonPollAnswer');
 const LessonQuiz = require('./LessonQuiz');
 const LessonQuizQuestion = require('./LessonQuizQuestion');
 const LessonQuizAnswer = require('./LessonQuizAnswer');
+const LessonQuizDelivery = require('./LessonQuizDelivery');
 
 // ========== СВЯЗИ С SUBJECTS ==========
 
 User.belongsToMany(Subject, { through: UserSubject, foreignKey: 'userId', as: 'subjects' });
 Subject.belongsToMany(User, { through: UserSubject, foreignKey: 'subjectId', as: 'students' });
+
+// Прямые связи через таблицу доступа — нужны, чтобы состав занятия собирался по
+// доступу к предмету, а не по группам (ТЗ §8.8).
+UserSubject.belongsTo(User, { foreignKey: 'userId', as: 'student' });
+UserSubject.belongsTo(Subject, { foreignKey: 'subjectId', as: 'subject' });
 
 Subject.hasMany(Homework, { foreignKey: 'subjectId', as: 'homeworks' });
 Homework.belongsTo(Subject, { foreignKey: 'subjectId', as: 'subject' });
@@ -180,10 +186,8 @@ User.belongsToMany(Group, { through: GroupStudent, foreignKey: 'userId', otherKe
 GroupStudent.belongsTo(Group, { foreignKey: 'groupId', as: 'group' });
 GroupStudent.belongsTo(User, { foreignKey: 'userId', as: 'student' });
 
-User.belongsToMany(Group, { through: TeacherSubject, foreignKey: 'teacherId', otherKey: 'groupId', as: 'teachingGroups' });
-Group.belongsToMany(User, { through: TeacherSubject, foreignKey: 'groupId', otherKey: 'teacherId', as: 'teachers' });
+// Преподаватель связан напрямую с предметом (группы как сущность убраны).
 TeacherSubject.belongsTo(User, { foreignKey: 'teacherId', as: 'teacher' });
-TeacherSubject.belongsTo(Group, { foreignKey: 'groupId', as: 'group' });
 TeacherSubject.belongsTo(Subject, { foreignKey: 'subjectId', as: 'subject' });
 
 Lesson.belongsTo(Subject, { foreignKey: 'subjectId', as: 'subject' });
@@ -235,6 +239,11 @@ LessonQuizAnswer.belongsTo(LessonQuiz, { foreignKey: 'lessonQuizId', as: 'quiz' 
 LessonQuizQuestion.hasMany(LessonQuizAnswer, { foreignKey: 'questionId', as: 'answers' });
 LessonQuizAnswer.belongsTo(LessonQuizQuestion, { foreignKey: 'questionId', as: 'question' });
 LessonQuizAnswer.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+LessonQuiz.hasMany(LessonQuizDelivery, { foreignKey: 'lessonQuizId', as: 'deliveries' });
+LessonQuizDelivery.belongsTo(LessonQuiz, { foreignKey: 'lessonQuizId', as: 'quiz' });
+LessonQuizQuestion.hasMany(LessonQuizDelivery, { foreignKey: 'questionId', as: 'deliveries' });
+LessonQuizDelivery.belongsTo(LessonQuizQuestion, { foreignKey: 'questionId', as: 'question' });
+LessonQuizDelivery.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 
 // Ручная миграция practice_questions.correct_answer: integer → json (массив
 // индексов, поддержка нескольких правильных вариантов). sequelize.sync({alter})
@@ -300,6 +309,6 @@ module.exports = {
   Group, GroupStudent, TeacherSubject, Lesson, LessonGroup,
   LessonAttendance, LessonMaterial, LessonQuestion, LessonReaction,
   LessonPoll, LessonPollOption, LessonPollAnswer,
-  LessonQuiz, LessonQuizQuestion, LessonQuizAnswer,
+  LessonQuiz, LessonQuizQuestion, LessonQuizAnswer, LessonQuizDelivery,
   syncDatabase
 };

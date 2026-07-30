@@ -566,9 +566,21 @@ router.post('/submit', assertBodyStudentId, async (req, res) => {
     let totalScore = 0;
     let maxScore = 0;
     const gradedAnswers = [];
+    const answersByQuestionId = new Map(
+      Array.isArray(answers)
+        ? answers
+          .filter((answer) => answer && typeof answer === 'object' && !Array.isArray(answer) && answer.questionId != null)
+          .map((answer) => [Number(answer.questionId), answer.answer])
+        : []
+    );
 
     homework.questions.forEach((question, index) => {
-      const userAnswer = answers[index];
+      // Новые клиенты передают ответ вместе с ID вопроса. Это исключает
+      // ошибочную проверку, если порядок вопросов в запросах отличается.
+      // Массив по индексам оставлен для совместимости со старым фронтендом.
+      const userAnswer = answersByQuestionId.has(Number(question.id))
+        ? answersByQuestionId.get(Number(question.id))
+        : answers[index];
       const isCorrect = checkAnswer(question, userAnswer);
       
       maxScore += question.points;
@@ -741,11 +753,13 @@ function checkAnswer(question, userAnswer) {
 
     case 'fill_blanks':
       if (!Array.isArray(userAnswer)) return false;
+      if (!Array.isArray(question.correctAnswer) || userAnswer.length !== question.correctAnswer.length) return false;
       return userAnswer.every((answer, idx) => {
-        const normalizedUser = answer.toLowerCase().trim().replace(/\s+/g, ' ');
+        const normalizedUser = String(answer ?? '').toLowerCase().trim().replace(/\s+/g, ' ');
         const possibleAnswers = question.correctAnswer[idx];
-        return possibleAnswers.some(ans => 
-          ans.toLowerCase().trim().replace(/\s+/g, ' ') === normalizedUser
+        const variants = Array.isArray(possibleAnswers) ? possibleAnswers : [possibleAnswers];
+        return variants.some(ans =>
+          String(ans ?? '').toLowerCase().trim().replace(/\s+/g, ' ') === normalizedUser
         );
       });
 

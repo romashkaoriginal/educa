@@ -1,8 +1,9 @@
 const { isStaffRole } = require('../middleware/telegramAuth');
-const { assertStudentCanAccessLesson, teacherCanManageLesson } = require('../middleware/lessonAccess');
+const { teacherCanManageLesson } = require('../middleware/lessonAccess');
+const { User } = require('../models');
 const { touchAttendance } = require('../services/lessonAttendance');
 const { getLessonState } = require('../services/lessonState');
-const { submitPollAnswer, submitQuizAnswer, LessonActionError } = require('../services/lessonActivities');
+const { requireLiveAccess, submitPollAnswer, submitQuizAnswer, LessonActionError } = require('../services/lessonActivities');
 const { setLessonIo } = require('../services/lessonRealtime');
 
 const activeStudentSockets = new Map();
@@ -15,6 +16,20 @@ function emitError(socket, error) {
   });
 }
 
+async function resolveStudentId(user, requestedStudentId) {
+  const requested = Number(requestedStudentId || user.id);
+  if (requested === Number(user.id)) return requested;
+  if (!isStaffRole(user.role)) {
+    throw new LessonActionError('Нет доступа к данным ученика', 403, 'NO_ACCESS');
+  }
+  const student = await User.findOne({
+    where: { id: requested, role: 'student', isActive: true },
+    attributes: ['id']
+  });
+  if (!student) throw new LessonActionError('Ученик не найден', 404, 'NO_ACCESS');
+  return Number(student.id);
+}
+
 function setupLessonSocket(io) {
   setLessonIo(io);
 
@@ -23,11 +38,19 @@ function setupLessonSocket(io) {
     if (!user) return;
     if (user.role === 'student') socket.join(`student-lessons-${user.id}`);
 
-    socket.on('student:join-lesson', async ({ lessonId, forceReconnect } = {}) => {
+    socket.on('student:subscribe-lessons', async ({ studentId } = {}) => {
       try {
-        const access = await assertStudentCanAccessLesson(lessonId, user.id);
-        if (!access.ok) throw new LessonActionError(access.message, access.status, 'NO_ACCESS');
-        const key = keyFor(lessonId, user.id);
+        const effectiveUserId = await resolveStudentId(user, studentId);
+        socket.data.lessonStudentId = effectiveUserId;
+        socket.join(`student-lessons-${effectiveUserId}`);
+      } catch (error) { emitError(socket, error); }
+    });
+
+    socket.on('student:join-lesson', async ({ lessonId, studentId, forceReconnect } = {}) => {
+      try {
+        const effectiveUserId = await resolveStudentId(user, studentId || socket.data.lessonStudentId);
+        await requireLiveAccess(lessonId, effectiveUserId);
+        const key = keyFor(lessonId, effectiveUserId);
         const existingId = activeStudentSockets.get(key);
         if (existingId && existingId !== socket.id && !forceReconnect) {
           throw new LessonActionError('Занятие уже открыто на другом устройстве', 409, 'ALREADY_CONNECTED');
@@ -35,9 +58,10 @@ function setupLessonSocket(io) {
         if (existingId && existingId !== socket.id && forceReconnect) io.sockets.sockets.get(existingId)?.disconnect(true);
         activeStudentSockets.set(key, socket.id);
         socket.data.lessonId = Number(lessonId);
+        socket.data.lessonStudentId = effectiveUserId;
         socket.join(`lesson-${lessonId}`);
-        const attendance = await touchAttendance(lessonId, user.id, 'open');
-        const state = await getLessonState(lessonId, user.id);
+        const attendance = await touchAttendance(lessonId, effectiveUserId, 'open');
+        const state = await getLessonState(lessonId, effectiveUserId);
         socket.emit('lesson:state', state);
         io.to(`lesson-${lessonId}-admin`).emit('attendance:updated', { attendance });
       } catch (error) {
@@ -45,17 +69,17 @@ function setupLessonSocket(io) {
       }
     });
 
-    socket.on('student:request-state', async ({ lessonId } = {}) => {
+    socket.on('student:request-state', async ({ lessonId, studentId } = {}) => {
       try {
-        const access = await assertStudentCanAccessLesson(lessonId, user.id);
-        if (!access.ok) throw new LessonActionError(access.message, access.status, 'NO_ACCESS');
-        socket.emit('lesson:state', await getLessonState(lessonId, user.id));
+        const effectiveUserId = await resolveStudentId(user, studentId || socket.data.lessonStudentId);
+        await requireLiveAccess(lessonId, effectiveUserId);
+        socket.emit('lesson:state', await getLessonState(lessonId, effectiveUserId));
       } catch (error) { emitError(socket, error); }
     });
 
     socket.on('student:leave-lesson', ({ lessonId } = {}) => {
       socket.leave(`lesson-${lessonId}`);
-      const key = keyFor(lessonId, user.id);
+      const key = keyFor(lessonId, socket.data.lessonStudentId || user.id);
       if (activeStudentSockets.get(key) === socket.id) activeStudentSockets.delete(key);
     });
 
@@ -72,7 +96,8 @@ function setupLessonSocket(io) {
 
     socket.on('student:submit-poll-answer', async ({ pollId, optionId } = {}) => {
       try {
-        const result = await submitPollAnswer({ pollId, optionId, userId: user.id });
+        const effectiveUserId = socket.data.lessonStudentId || user.id;
+        const result = await submitPollAnswer({ pollId, optionId, userId: effectiveUserId });
         socket.emit('poll:answer-accepted', { pollId: Number(pollId), optionId: Number(optionId) });
         io.to(`lesson-${result.lessonId}-admin`).emit('poll:results-updated', result.results);
         io.to(`lesson-${result.lessonId}-admin`).emit('attendance:updated', { attendance: result.attendance });
@@ -81,10 +106,11 @@ function setupLessonSocket(io) {
 
     socket.on('student:submit-quiz-answer', async ({ quizId, questionId, selectedAnswer } = {}) => {
       try {
-        const result = await submitQuizAnswer({ quizId, questionId, selectedAnswer, userId: user.id });
+        const effectiveUserId = socket.data.lessonStudentId || user.id;
+        const result = await submitQuizAnswer({ quizId, questionId, selectedAnswer, userId: effectiveUserId });
         socket.emit('quiz:answer-accepted', { quizId: Number(quizId), questionId: Number(questionId), answer: result.answer });
         io.to(`lesson-${result.lessonId}-admin`).emit('quiz:answer-received', {
-          quizId: Number(quizId), questionId: Number(questionId), userId: user.id
+          quizId: Number(quizId), questionId: Number(questionId), userId: effectiveUserId
         });
         io.to(`lesson-${result.lessonId}-admin`).emit('attendance:updated', { attendance: result.attendance });
       } catch (error) { emitError(socket, error); }

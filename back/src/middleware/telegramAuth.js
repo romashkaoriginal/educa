@@ -66,7 +66,7 @@ exports.telegramAuth = async (req, res, next) => {
 
     const dbUser = await User.findOne({
       where: { telegramId: telegramUser.id },
-      attributes: ['id', 'role', 'isActive', 'telegramId', 'isGuest', 'guestStatus', 'guestExpiresAt']
+      attributes: ['id', 'role', 'isActive', 'telegramId', 'firstName', 'lastName', 'isGuest', 'guestStatus', 'guestExpiresAt']
     });
 
     if (!dbUser) console.log('[Auth] User not found in DB, telegramId:', telegramUser?.id);

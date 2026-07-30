@@ -127,6 +127,23 @@
 
 .filter-select-full:focus { outline: none; border-color: var(--kubik-blue); }
 
+.audience-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+
+.audience-btn {
+  border: 1px solid var(--kubik-border);
+  border-radius: 8px;
+  background: white;
+  color: var(--kubik-text-soft);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 9px 6px;
+}
+
+.audience-btn:hover { border-color: var(--kubik-blue); color: var(--kubik-blue); }
+.audience-btn.active { border-color: var(--kubik-blue); background: var(--kubik-blue-soft); color: var(--kubik-navy); }
+.audience-hint { color: var(--kubik-text-soft); font-size: 11px; line-height: 1.35; margin-top: 8px; }
+
 /* ===== COMPOSE ===== */
 .notif-compose { display: flex; flex-direction: column; gap: 16px; }
 

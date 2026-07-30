@@ -567,6 +567,26 @@
   line-height: 1.4;
 }
 
+.role-readonly {
+  align-items: center;
+  background: var(--kubik-white, #f8fafc);
+  border: 1px solid var(--kubik-border, #e5e7eb);
+  border-radius: 10px;
+  color: var(--kubik-text, #2a3744);
+  display: flex;
+  font-size: 14px;
+  font-weight: 700;
+  gap: 8px;
+  padding: 12px 14px;
+}
+
+.role-readonly span {
+  color: var(--kubik-text-soft, #8a95a1);
+  font-size: 12px;
+  font-weight: 500;
+  margin-left: auto;
+}
+
 /* ========== MODAL ACTIONS ========== */
 .modal-actions {
   display: flex;

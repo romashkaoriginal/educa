@@ -140,6 +140,10 @@ exports.updateUser = async (req, res) => {
     const { userId } = req.params;
     const { firstName, lastName, telegramUsername, role, isActive } = req.body;
 
+    if (Object.prototype.hasOwnProperty.call(req.body, 'role') && req.dbUser?.role !== 'admin') {
+      return res.status(403).json({ message: 'Только администратор может изменять роли' });
+    }
+
     const user = await User.findByPk(userId);
     if (!user || user.role === 'student') {
       return res.status(404).json({ message: 'User not found' });

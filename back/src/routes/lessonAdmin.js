@@ -1,17 +1,18 @@
 const express = require('express');
 const { Op, fn, col } = require('sequelize');
 const {
-  sequelize, User, Subject, UserSubject, Group, GroupStudent, TeacherSubject,
-  Lesson, LessonGroup, LessonPoll, LessonPollOption, LessonPollAnswer,
-  LessonQuiz, LessonQuizQuestion, LessonQuizAnswer, PracticeQuestion,
+  sequelize, User, Subject, UserSubject, TeacherSubject,
+  Lesson, LessonPoll, LessonPollOption, LessonPollAnswer,
+  LessonQuiz, LessonQuizQuestion, LessonQuizAnswer, LessonQuizDelivery, PracticeQuestion,
   LessonQuestion, LessonReaction, LessonAttendance, LessonMaterial, Homework
 } = require('../models');
 const {
-  activeAccessWhere, teacherCanManageLesson, validateGroupStudent
+  activeAccessWhere, teacherCanManageLesson
 } = require('../middleware/lessonAccess');
-const { startLessonById, finishLessonById } = require('../services/lessonSession');
+const { startLessonById, startInstantLesson, finishLessonById } = require('../services/lessonSession');
 const { getPollResults, lessonInclude } = require('../services/lessonState');
 const { emitToLesson, emitToLessonAdmins } = require('../services/lessonRealtime');
+const { nextQuestionState } = require('../services/lessonQuizFlow');
 
 const router = express.Router();
 
@@ -44,22 +45,24 @@ const fail = (res, error, label) => {
   return res.status(500).json({ message: 'Ошибка сервера' });
 };
 
-async function teacherGroupIds(user) {
-  if (user.role === 'admin') return null;
-  const rows = await TeacherSubject.findAll({ where: { teacherId: user.id }, attributes: ['groupId'], raw: true });
-  return rows.map((row) => Number(row.groupId));
+// ТЗ §3.1: преподаватель определяется автоматически по аккаунту. Для админа —
+// преподаватель, назначенный на предмет; если такого нет, занятие остаётся без
+// явного преподавателя и им управляет админ.
+async function resolveLessonTeacherId(user, subjectId) {
+  if (user.role === 'teacher') return user.id;
+  const assignment = await TeacherSubject.findOne({
+    where: { subjectId }, attributes: ['teacherId'], raw: true
+  });
+  return assignment ? Number(assignment.teacherId) : null;
 }
 
-async function validateLessonGroups(user, subjectId, groupIds) {
-  const ids = [...new Set((groupIds || []).map(Number).filter(Number.isInteger))];
-  if (!ids.length) return { ok: false, message: 'Выберите минимум одну группу' };
-  const groups = await Group.findAll({ where: { id: { [Op.in]: ids }, subjectId, isActive: true } });
-  if (groups.length !== ids.length) return { ok: false, message: 'Все группы должны быть активны и относиться к предмету занятия' };
-  if (user.role === 'teacher') {
-    const ownIds = await teacherGroupIds(user);
-    if (ids.some((id) => !ownIds.includes(id))) return { ok: false, message: 'Нельзя назначить чужую группу' };
-  }
-  return { ok: true, ids, groups };
+// Предметы, доступные преподавателю для расписания и запуска занятий.
+async function manageableSubjectIds(user) {
+  if (user.role === 'admin') return null;
+  const rows = await TeacherSubject.findAll({
+    where: { teacherId: user.id }, attributes: ['subjectId'], raw: true
+  });
+  return [...new Set(rows.map((row) => Number(row.subjectId)))];
 }
 
 async function requireLessonAccess(req, res, next) {
@@ -90,86 +93,12 @@ async function resolveParentLesson(req, res, next) {
   }
 }
 
-router.get('/groups', async (req, res) => {
-  try {
-    const ownIds = await teacherGroupIds(req.dbUser);
-    const groups = await Group.findAll({
-      where: ownIds === null ? {} : { id: { [Op.in]: ownIds } },
-      include: [
-        { model: Subject, as: 'subject', attributes: ['id', 'name', 'icon'] },
-        { model: User, as: 'students', attributes: ['id', 'firstName', 'lastName'], through: { attributes: [] } },
-        { model: User, as: 'teachers', attributes: ['id', 'firstName', 'lastName'], through: { attributes: [] } }
-      ],
-      order: [['isActive', 'DESC'], ['name', 'ASC']]
-    });
-    res.json({ groups });
-  } catch (error) { fail(res, error, 'Get lesson groups'); }
-});
-
-router.post('/groups', async (req, res) => {
-  if (req.dbUser.role !== 'admin') return bad(res, 'Только администратор создаёт группы', 403);
-  try {
-    const name = String(req.body.name || '').trim();
-    const subject = await Subject.findByPk(req.body.subjectId);
-    if (!name || !subject) return bad(res, 'Укажите название и предмет');
-    const group = await Group.create({ name, subjectId: subject.id });
-    res.status(201).json({ group });
-  } catch (error) { fail(res, error, 'Create lesson group'); }
-});
-
-router.patch('/groups/:id', async (req, res) => {
-  if (req.dbUser.role !== 'admin') return bad(res, 'Только администратор изменяет группы', 403);
-  try {
-    const group = await Group.findByPk(req.params.id);
-    if (!group) return bad(res, 'Группа не найдена', 404);
-    const patch = {};
-    if (req.body.name != null) patch.name = String(req.body.name).trim();
-    if (req.body.isActive != null) patch.isActive = Boolean(req.body.isActive);
-    await group.update(patch);
-    res.json({ group });
-  } catch (error) { fail(res, error, 'Update lesson group'); }
-});
-
-router.delete('/groups/:id', async (req, res) => {
-  if (req.dbUser.role !== 'admin') return bad(res, 'Только администратор удаляет группы', 403);
-  try {
-    const group = await Group.findByPk(req.params.id);
-    if (!group) return bad(res, 'Группа не найдена', 404);
-    const linked = await LessonGroup.count({ where: { groupId: group.id } });
-    if (linked) return bad(res, 'Группа используется в расписании. Деактивируйте её вместо удаления.', 409);
-    await group.destroy();
-    res.json({ ok: true });
-  } catch (error) { fail(res, error, 'Delete lesson group'); }
-});
-
-router.post('/groups/:id/students', async (req, res) => {
-  if (req.dbUser.role !== 'admin') return bad(res, 'Только администратор меняет состав групп', 403);
-  try {
-    const check = await validateGroupStudent(req.params.id, req.body.userId);
-    if (!check.ok) return bad(res, check.message);
-    const [membership, created] = await GroupStudent.findOrCreate({
-      where: { groupId: req.params.id, userId: req.body.userId },
-      defaults: { groupId: req.params.id, userId: req.body.userId }
-    });
-    res.status(created ? 201 : 200).json({ membership });
-  } catch (error) { fail(res, error, 'Add group student'); }
-});
-
-router.delete('/groups/:id/students/:userId', async (req, res) => {
-  if (req.dbUser.role !== 'admin') return bad(res, 'Только администратор меняет состав групп', 403);
-  try {
-    await GroupStudent.destroy({ where: { groupId: req.params.id, userId: req.params.userId } });
-    res.json({ ok: true });
-  } catch (error) { fail(res, error, 'Remove group student'); }
-});
-
 router.get('/teacher-subjects', async (req, res) => {
   if (req.dbUser.role !== 'admin') return bad(res, 'Только администратор видит назначения', 403);
   try {
     const assignments = await TeacherSubject.findAll({
       include: [
         { model: User, as: 'teacher', attributes: ['id', 'firstName', 'lastName'] },
-        { model: Group, as: 'group', attributes: ['id', 'name'] },
         { model: Subject, as: 'subject', attributes: ['id', 'name'] }
       ]
     });
@@ -177,16 +106,19 @@ router.get('/teacher-subjects', async (req, res) => {
   } catch (error) { fail(res, error, 'Get teacher assignments'); }
 });
 
+// Преподаватель назначается напрямую на предмет — групп больше нет.
 router.post('/teacher-subjects', async (req, res) => {
   if (req.dbUser.role !== 'admin') return bad(res, 'Только администратор назначает преподавателей', 403);
   try {
-    const [teacher, group] = await Promise.all([User.findByPk(req.body.teacherId), Group.findByPk(req.body.groupId)]);
-    if (!teacher || teacher.role !== 'teacher' || !group) return bad(res, 'Некорректный преподаватель или группа');
+    const [teacher, subject] = await Promise.all([
+      User.findByPk(req.body.teacherId), Subject.findByPk(req.body.subjectId)
+    ]);
+    if (!teacher || teacher.role !== 'teacher' || !subject) return bad(res, 'Некорректный преподаватель или предмет');
     const [assignment, created] = await TeacherSubject.findOrCreate({
-      where: { teacherId: teacher.id, groupId: group.id },
-      defaults: { teacherId: teacher.id, groupId: group.id, subjectId: group.subjectId }
+      where: { teacherId: teacher.id, subjectId: subject.id },
+      defaults: { teacherId: teacher.id, subjectId: subject.id }
     });
-    if (Number(assignment.subjectId) !== Number(group.subjectId)) await assignment.update({ subjectId: group.subjectId });
+    await assignment.reload({ include: [{ model: Subject, as: 'subject', attributes: ['id', 'name'] }] });
     res.status(created ? 201 : 200).json({ assignment });
   } catch (error) { fail(res, error, 'Create teacher assignment'); }
 });
@@ -209,11 +141,15 @@ router.get('/lessons', async (req, res) => {
       if (req.query.dateFrom) where.scheduledAt[Op.gte] = new Date(req.query.dateFrom);
       if (req.query.dateTo) where.scheduledAt[Op.lte] = new Date(req.query.dateTo);
     }
-    if (req.dbUser.role === 'teacher') {
-      const groupIds = await teacherGroupIds(req.dbUser);
-      const links = await LessonGroup.findAll({ where: { groupId: { [Op.in]: groupIds } }, attributes: ['lessonId'], raw: true });
-      where.id = { [Op.in]: [...new Set(links.map((row) => row.lessonId))] };
+    // Преподаватель видит занятия только по своим предметам (ТЗ §3.1).
+    const subjectIds = await manageableSubjectIds(req.dbUser);
+    if (subjectIds) {
+      where[Op.and] = [
+        ...(where[Op.and] || []),
+        { [Op.or]: [{ subjectId: { [Op.in]: subjectIds } }, { teacherId: req.dbUser.id }] }
+      ];
     }
+    if (req.query.fromSchedule === '1') where.fromSchedule = true;
     const lessons = await Lesson.findAll({ where, include: lessonInclude, order: [['scheduledAt', 'DESC']] });
     res.json({ lessons });
   } catch (error) { fail(res, error, 'Get admin lessons'); }
@@ -240,51 +176,36 @@ router.get('/lessons/:id/state', requireLessonAccess, async (req, res) => {
   } catch (error) { fail(res, error, 'Get lesson admin state'); }
 });
 
+// ТЗ §3.1/§8.7-8.9: в расписании указываются только дата, время и тема.
+// Ни групп, ни выбора преподавателя, ни ссылки на трансляцию здесь нет —
+// преподаватель определяется по аккаунту, предмет по выбранному разделу.
 router.post('/lessons', async (req, res) => {
-  const transaction = await sequelize.transaction();
   try {
-    const { subjectId, groupIds, scheduledAt, topic, streamUrl } = req.body;
-    const subject = await Subject.findByPk(subjectId, { transaction });
+    const { subjectId, scheduledAt, topic } = req.body;
+    const subject = await Subject.findByPk(subjectId);
     const date = new Date(scheduledAt);
-    if (!subject || Number.isNaN(date.getTime())) { await transaction.rollback(); return bad(res, 'Укажите предмет и корректную дату'); }
-    const stream = parseHttpUrl(streamUrl);
-    if (!stream.ok) { await transaction.rollback(); return bad(res, 'Ссылка на трансляцию должна начинаться с http:// или https://'); }
-    const groupCheck = await validateLessonGroups(req.dbUser, subject.id, groupIds);
-    if (!groupCheck.ok) { await transaction.rollback(); return bad(res, groupCheck.message); }
-    let teacherId = req.dbUser.role === 'teacher' ? req.dbUser.id : Number(req.body.teacherId) || null;
-    if (teacherId) {
-      const teacher = await User.findByPk(teacherId, { transaction });
-      if (!teacher || !['teacher', 'admin'].includes(teacher.role)) { await transaction.rollback(); return bad(res, 'Преподаватель не найден'); }
-    }
+    if (!subject || Number.isNaN(date.getTime())) return bad(res, 'Укажите предмет и корректную дату');
+    const teacherId = await resolveLessonTeacherId(req.dbUser, subject.id);
     const lesson = await Lesson.create({
       subjectId: subject.id,
       teacherId,
       scheduledAt: date,
       topic: String(topic || '').trim() || null,
-      streamUrl: stream.value,
+      fromSchedule: true,
       createdBy: req.dbUser.id
-    }, { transaction });
-    await LessonGroup.bulkCreate(groupCheck.ids.map((groupId) => ({ lessonId: lesson.id, groupId })), { transaction });
-    await transaction.commit();
+    });
     await lesson.reload({ include: lessonInclude });
     res.status(201).json({ lesson });
-  } catch (error) {
-    if (!transaction.finished) await transaction.rollback();
-    fail(res, error, 'Create lesson');
-  }
+  } catch (error) { fail(res, error, 'Create lesson'); }
 });
 
+// ТЗ §7: преподаватель может отредактировать дату, время и тему записи расписания.
 router.patch('/lessons/:id', requireLessonAccess, async (req, res) => {
   try {
     const lesson = await Lesson.findByPk(req.lessonId);
     if (lesson.status !== 'scheduled') return bad(res, 'Изменять можно только запланированное занятие', 409);
     const patch = {};
     if (req.body.topic !== undefined) patch.topic = String(req.body.topic || '').trim() || null;
-    if (req.body.streamUrl !== undefined) {
-      const stream = parseHttpUrl(req.body.streamUrl);
-      if (!stream.ok) return bad(res, 'Ссылка на трансляцию должна начинаться с http:// или https://');
-      patch.streamUrl = stream.value;
-    }
     if (req.body.scheduledAt) {
       const date = new Date(req.body.scheduledAt);
       if (Number.isNaN(date.getTime())) return bad(res, 'Некорректная дата');
@@ -321,21 +242,58 @@ router.post('/lessons/:id/cancel', requireLessonAccess, async (req, res) => {
 });
 
 router.delete('/lessons/:id', requireLessonAccess, async (req, res) => {
-  if (req.dbUser.role !== 'admin') return bad(res, 'Удалять занятия может только администратор', 403);
   try {
     const lesson = await Lesson.findByPk(req.lessonId);
-    if (!['scheduled', 'cancelled'].includes(lesson.status)) return bad(res, 'Активное или завершённое занятие удалить нельзя', 409);
-    await lesson.destroy();
-    res.json({ ok: true });
+    if (!lesson) return bad(res, 'Занятие не найдено', 404);
+    // ТЗ §7: преподаватель может удалить запись расписания. Идущее занятие
+    // сначала нужно завершить.
+    if (lesson.status === 'live') return bad(res, 'Сначала завершите занятие', 409);
+    await sequelize.transaction(async (transaction) => {
+      // All lesson-owned records use ON DELETE CASCADE. The transaction makes
+      // the destructive operation atomic if any database constraint rejects it.
+      await lesson.destroy({ transaction });
+    });
+    res.json({ ok: true, deletedLessonId: lesson.id });
   } catch (error) { fail(res, error, 'Delete lesson'); }
 });
 
+// ТЗ §3.2/§8.11: занятие запускается из пункта расписания. Ссылка на трансляцию
+// указывается именно здесь, тему при необходимости можно изменить.
 router.post('/lessons/:id/start', requireLessonAccess, async (req, res) => {
   try {
-    const result = await startLessonById(req.lessonId);
+    const stream = parseHttpUrl(req.body.streamUrl);
+    if (!stream.ok || !stream.value) return bad(res, 'Укажите ссылку на трансляцию, начинающуюся с http:// или https://');
+    const result = await startLessonById(req.lessonId, {
+      streamUrl: stream.value,
+      topic: req.body.topic,
+      teacherId: req.dbUser.role === 'teacher' ? req.dbUser.id : undefined
+    });
     if (result.error) return bad(res, result.error, result.status);
     res.json(result);
   } catch (error) { fail(res, error, 'Start lesson'); }
+});
+
+// ТЗ §7 «Отдельный быстрый запуск» / §8.12: занятие вне расписания.
+// Тема необязательна, ссылка на трансляцию обязательна.
+router.post('/lessons/start-now', async (req, res) => {
+  try {
+    const subject = await Subject.findByPk(req.body.subjectId);
+    if (!subject) return bad(res, 'Выберите предмет занятия');
+    const allowedSubjectIds = await manageableSubjectIds(req.dbUser);
+    if (allowedSubjectIds && !allowedSubjectIds.includes(Number(subject.id))) {
+      return bad(res, 'Нет прав на занятия по этому предмету', 403);
+    }
+    const stream = parseHttpUrl(req.body.streamUrl);
+    if (!stream.ok || !stream.value) return bad(res, 'Укажите ссылку на трансляцию, начинающуюся с http:// или https://');
+    const result = await startInstantLesson({
+      subjectId: subject.id,
+      streamUrl: stream.value,
+      topic: req.body.topic,
+      teacherId: await resolveLessonTeacherId(req.dbUser, subject.id)
+    });
+    if (result.error) return bad(res, result.error, result.status);
+    res.status(201).json(result);
+  } catch (error) { fail(res, error, 'Start instant lesson'); }
 });
 
 router.post('/lessons/:id/finish', requireLessonAccess, async (req, res) => {
@@ -344,6 +302,19 @@ router.post('/lessons/:id/finish', requireLessonAccess, async (req, res) => {
     if (result.error) return bad(res, result.error, result.status);
     res.json(result);
   } catch (error) { fail(res, error, 'Finish lesson'); }
+});
+
+// ТЗ §4.2: преподаватель может временно отключить вопросы от учеников.
+router.post('/lessons/:id/questions-toggle', requireLessonAccess, async (req, res) => {
+  try {
+    const lesson = await Lesson.findByPk(req.lessonId);
+    if (!lesson) return bad(res, 'Занятие не найдено', 404);
+    await lesson.update({ questionsEnabled: Boolean(req.body.enabled) });
+    emitToLesson(lesson.id, 'lesson:questions-toggled', {
+      lessonId: lesson.id, questionsEnabled: lesson.questionsEnabled
+    });
+    res.json({ lesson });
+  } catch (error) { fail(res, error, 'Toggle lesson questions'); }
 });
 
 router.post('/lessons/:id/polls', requireLessonAccess, async (req, res) => {
@@ -379,10 +350,16 @@ router.post('/lessons/:id/polls', requireLessonAccess, async (req, res) => {
   }
 });
 
+// ТЗ §5 состояние №6: одновременно допускается только одна основная активность.
+const ONE_ACTIVITY_MESSAGE = 'Сначала завершите текущее голосование или вопрос викторины.';
+
 router.post('/polls/:pollId/start', resolveParentLesson, async (req, res) => {
   try {
     const [lesson, poll] = await Promise.all([Lesson.findByPk(req.lessonId), LessonPoll.findByPk(req.params.pollId)]);
     if (lesson.status !== 'live' || poll.status !== 'draft') return bad(res, 'Голосование нельзя запустить', 409);
+    if (await LessonQuiz.count({ where: { lessonId: lesson.id, status: 'active' } })) {
+      return bad(res, ONE_ACTIVITY_MESSAGE, 409);
+    }
     await LessonPoll.update({ status: 'closed', closedAt: new Date() }, { where: { lessonId: lesson.id, status: 'active' } });
     const now = new Date();
     await poll.update({
@@ -417,6 +394,8 @@ router.post('/polls/:pollId/reveal-results', resolveParentLesson, async (req, re
 router.post('/polls/:pollId/restart', resolveParentLesson, async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
+    const lesson = await Lesson.findByPk(req.lessonId, { transaction });
+    if (!lesson || lesson.status !== 'live') { await transaction.rollback(); return bad(res, 'Новое голосование можно подготовить только во время занятия', 409); }
     const source = await LessonPoll.findByPk(req.params.pollId, { include: [{ model: LessonPollOption, as: 'options' }], transaction });
     const poll = await LessonPoll.create({
       lessonId: source.lessonId, template: source.template, question: source.question,
@@ -456,6 +435,9 @@ router.delete('/polls/:pollId/answers/:userId', resolveParentLesson, async (req,
 
 router.post('/lessons/:id/quizzes', requireLessonAccess, async (req, res) => {
   try {
+    const lesson = await Lesson.findByPk(req.lessonId);
+    // ТЗ §8.2: викторина — интерактив активного занятия, вне него она недоступна.
+    if (!lesson || lesson.status !== 'live') return bad(res, 'Викторина доступна только во время активного занятия', 409);
     const title = String(req.body.title || '').trim();
     if (!title || !['single_step', 'self_paced'].includes(req.body.mode)) return bad(res, 'Укажите название и режим викторины');
     const quiz = await LessonQuiz.create({
@@ -536,6 +518,9 @@ router.post('/quizzes/:quizId/start', resolveParentLesson, async (req, res) => {
   try {
     const [lesson, quiz] = await Promise.all([Lesson.findByPk(req.lessonId), LessonQuiz.findByPk(req.params.quizId)]);
     if (lesson.status !== 'live' || quiz.status !== 'draft') return bad(res, 'Викторину нельзя запустить', 409);
+    if (await LessonPoll.count({ where: { lessonId: lesson.id, status: 'active' } })) {
+      return bad(res, ONE_ACTIVITY_MESSAGE, 409);
+    }
     if (!await LessonQuizQuestion.count({ where: { lessonQuizId: quiz.id } })) return bad(res, 'Добавьте хотя бы один вопрос');
     await LessonQuiz.update({ status: 'finished', finishedAt: new Date() }, { where: { lessonId: lesson.id, status: 'active' } });
     await quiz.update({
@@ -591,7 +576,7 @@ router.post('/quizzes/:quizId/next-question', resolveParentLesson, async (req, r
     if (quiz.status !== 'active' || quiz.mode !== 'single_step') return bad(res, 'Действие недоступно', 409);
     const count = await LessonQuizQuestion.count({ where: { lessonQuizId: quiz.id } });
     if (quiz.currentQuestionIndex + 1 >= count) return bad(res, 'Это последний вопрос', 409);
-    await quiz.update({ currentQuestionIndex: quiz.currentQuestionIndex + 1, questionRevealState: 'hidden', explanationRevealed: false });
+    await quiz.update(nextQuestionState(quiz));
     emitToLesson(quiz.lessonId, 'quiz:next-question', { quizId: quiz.id, index: quiz.currentQuestionIndex });
     res.json({ quiz });
   } catch (error) { fail(res, error, 'Next lesson quiz question'); }
@@ -615,22 +600,28 @@ router.get('/quizzes/:quizId/live-stats', resolveParentLesson, async (req, res) 
         ? [{ model: User, as: 'user', attributes: ['id', 'firstName', 'lastName'] }]
         : []
     });
-    const totalStudents = await GroupStudent.count({
+    const lesson = await Lesson.findByPk(quiz.lessonId, { attributes: ['subjectId'] });
+    const totalStudents = await UserSubject.count({
       distinct: true,
       col: 'userId',
+      where: { subjectId: lesson.subjectId, ...activeAccessWhere() },
       include: [{
-        model: Group, as: 'group', required: true, attributes: [],
-        include: [{ model: Lesson, as: 'lessons', where: { id: quiz.lessonId }, attributes: [], through: { attributes: [] } }]
+        model: User, as: 'student', required: true, attributes: [],
+        where: { role: 'student', isActive: true, isGuest: false }
       }]
     });
-    const { getConnectedStudentCount } = require('../socket/lessonSocket');
-    const receivedStudents = getConnectedStudentCount(quiz.lessonId);
+    const deliveries = await LessonQuizDelivery.findAll({
+      where: { lessonQuizId: quiz.id }, attributes: ['questionId', 'userId'], raw: true
+    });
+    const receivedStudents = new Set(deliveries.map((delivery) => Number(delivery.userId))).size;
     const questions = quiz.questions.map((question) => {
       const questionAnswers = answers.filter((answer) => Number(answer.questionId) === Number(question.id));
       const distribution = question.options.map((_, index) => questionAnswers.filter((answer) => (answer.selectedAnswer || []).includes(index)).length);
       const correct = questionAnswers.filter((answer) => answer.isCorrect).length;
       return {
-        questionId: question.id, received: receivedStudents, answered: questionAnswers.length,
+        questionId: question.id,
+        received: new Set(deliveries.filter((delivery) => Number(delivery.questionId) === Number(question.id)).map((delivery) => Number(delivery.userId))).size,
+        answered: questionAnswers.length,
         distribution, correct, correctPercent: questionAnswers.length ? Math.round(correct / questionAnswers.length * 100) : 0,
         ...(!quiz.isAnonymous ? { answers: questionAnswers } : {})
       };
@@ -655,6 +646,9 @@ router.patch('/questions/:questionId', resolveParentLesson, async (req, res) => 
     if (!['pending', 'answering', 'answered', 'deferred'].includes(req.body.status)) return bad(res, 'Некорректный статус');
     const question = await LessonQuestion.findByPk(req.params.questionId);
     await question.update({ status: req.body.status });
+    await question.reload({
+      include: [{ model: User, as: 'student', attributes: ['id', 'firstName', 'lastName'] }]
+    });
     emitToLesson(req.lessonId, 'question:status-changed', { question });
     res.json({ question });
   } catch (error) { fail(res, error, 'Update lesson question'); }
@@ -675,14 +669,20 @@ router.get('/lessons/:id/reactions/summary', requireLessonAccess, async (req, re
   } catch (error) { fail(res, error, 'Get lesson reactions'); }
 });
 
+// Состав занятия теперь определяется доступом к предмету, а не группами (ТЗ §8.8).
 router.get('/lessons/:id/attendance', requireLessonAccess, async (req, res) => {
   try {
-    const links = await LessonGroup.findAll({ where: { lessonId: req.lessonId }, attributes: ['groupId'], raw: true });
-    const memberships = await GroupStudent.findAll({
-      where: { groupId: { [Op.in]: links.map((row) => row.groupId) } },
-      include: [{ model: User, as: 'student', attributes: ['id', 'firstName', 'lastName'] }]
+    const lesson = await Lesson.findByPk(req.lessonId, { attributes: ['id', 'subjectId'] });
+    if (!lesson) return bad(res, 'Занятие не найдено', 404);
+    const accesses = await UserSubject.findAll({
+      where: { subjectId: lesson.subjectId, ...activeAccessWhere() },
+      include: [{
+        model: User, as: 'student', required: true,
+        where: { role: 'student', isActive: true, isGuest: false },
+        attributes: ['id', 'firstName', 'lastName']
+      }]
     });
-    const userMap = new Map(memberships.map((row) => [Number(row.userId), row.student]));
+    const userMap = new Map(accesses.map((row) => [Number(row.userId), row.student]));
     const attendance = await LessonAttendance.findAll({ where: { lessonId: req.lessonId } });
     const byUser = new Map(attendance.map((row) => [Number(row.userId), row]));
     res.json({
@@ -695,12 +695,14 @@ router.get('/lessons/:id/attendance', requireLessonAccess, async (req, res) => {
 
 router.post('/lessons/:id/materials', requireLessonAccess, async (req, res) => {
   try {
+    const lesson = await Lesson.findByPk(req.lessonId);
+    if (!lesson || lesson.status !== 'finished') return bad(res, 'Материалы можно прикреплять только после завершения занятия', 409);
     const type = req.body.type;
     if (!['note', 'presentation', 'recording', 'link', 'homework'].includes(type)) return bad(res, 'Некорректный тип материала');
     const title = String(req.body.title || '').trim();
     if (!title) return bad(res, 'Укажите название материала');
     if (type === 'homework') {
-      const homework = await Homework.findOne({ where: { id: req.body.homeworkId, subjectId: (await Lesson.findByPk(req.lessonId)).subjectId } });
+      const homework = await Homework.findOne({ where: { id: req.body.homeworkId, subjectId: lesson.subjectId } });
       if (!homework) return bad(res, 'Домашнее задание не найдено');
     } else {
       const materialUrl = parseHttpUrl(req.body.url);

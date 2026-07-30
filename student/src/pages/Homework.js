@@ -321,6 +321,7 @@ function StudentHomework({ studentId }) {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [showResult, setShowResult] = useState(false);
   const [result, setResult] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [startTime, setStartTime] = useState(null);
   const [expandedHw, setExpandedHw] = useState(() => new Set()); // id раскрытых карточек; по умолчанию все свёрнуты
 
@@ -582,54 +583,54 @@ function StudentHomework({ studentId }) {
     }
   };
 
-  const submitHomework = () => {
+  const submitHomework = async () => {
+    if (isSubmitting) return;
+
     const timeSpent = Math.floor((Date.now() - startTime) / 1000);
     const answersArray = questions.map((question, index) => {
       const ans = answers[index];
-      if (ans && ans.pairs) return ans.pairs;
+      let answer = ans;
+      if (ans && ans.pairs) answer = ans.pairs;
       if (question.questionType === 'numeric' || question.questionType === 'number_input') {
-        return parseNumericAnswer(ans);
+        answer = parseNumericAnswer(ans);
       }
-      return ans;
+      return { questionId: question.id, answer };
     });
 
-    let totalScore = 0;
-    let maxScore = 0;
-    questions.forEach((question, index) => {
-      const rawAnswer = Object.values(answers)[index];
-      const userAnswer = rawAnswer?.pairs || rawAnswer;
-      const isCorrect = checkAnswerLocal(question, userAnswer);
-      maxScore += question.points || 1;
-      if (isCorrect) totalScore += question.points || 1;
-    });
+    setIsSubmitting(true);
+    try {
+      const response = await apiFetch(`${API_URL}/homework/submit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          homeworkId: selectedHomework.id,
+          studentId,
+          answers: answersArray,
+          timeSpent,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Не удалось сохранить домашку');
 
-    const percentage = maxScore > 0 ? Math.round(totalScore / maxScore * 100) : 0;
+      // Результат сервера — единственный источник истины: он уже сохранён в БД.
+      setResult({
+        totalScore: data.totalScore,
+        maxScore: data.maxScore,
+        percentage: data.percentage,
+        correctAnswers: data.correctAnswers,
+        attemptsUsed: data.attemptsUsed,
+        maxAttempts: data.maxAttempts,
+      });
+      setShowResult(true);
 
-    setResult({
-      totalScore,
-      maxScore,
-      percentage,
-      correctAnswers: questions.filter((q, i) => checkAnswerLocal(q, answersArray[i])).length,
-      attemptsUsed: 1,
-      maxAttempts: selectedHomework.maxAttempts
-    });
-    setShowResult(true);
-
-    apiFetch(`${API_URL}/homework/submit`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        homeworkId: selectedHomework.id,
-        studentId,
-        answers: answersArray,
-        timeSpent,
-      }),
-    }).then(res => res.json()).then(data => {
-      if (data.attemptsUsed !== undefined) {
-        setResult(prev => ({ ...prev, attemptsUsed: data.attemptsUsed, maxAttempts: data.maxAttempts }));
-      }
-      refreshAfterHomework(selectedHomework?.subjectId || selectedHomework?.subject?.id);
-    }).catch(e => console.error('Error submitting homework:', e));
+      // Не ждём перехода к списку: сразу обновляем карточки, статистику и прогноз.
+      await refreshAfterHomework(selectedHomework?.subjectId || selectedHomework?.subject?.id);
+    } catch (error) {
+      console.error('Error submitting homework:', error);
+      alert(error.message || 'Не удалось отправить домашку. Попробуй ещё раз.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const renderQuestion = (question, index) => {
@@ -1255,8 +1256,8 @@ function StudentHomework({ studentId }) {
                 Далее →
               </button>
             ) : (
-              <button type="button" className="hw-nav-btn hw-nav-btn--submit" disabled={!canProceed} onClick={submitHomework}>
-                Отправить
+              <button type="button" className="hw-nav-btn hw-nav-btn--submit" disabled={!canProceed || isSubmitting} onClick={submitHomework}>
+                {isSubmitting ? 'Сохраняем…' : 'Отправить'}
               </button>
             )}
           </div>

@@ -5,6 +5,64 @@ import { API_URL } from '../../config';
 const ACCEPT = 'image/jpeg,image/png,image/webp';
 const ALLOWED = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_BYTES = 10 * 1024 * 1024;
+const SAFE_UPLOAD_BYTES = 800 * 1024;
+const MAX_LONG_SIDE = 1600;
+
+const canvasBlob = (canvas, quality) => new Promise((resolve, reject) => {
+  canvas.toBlob(
+    (blob) => blob ? resolve(blob) : reject(new Error('Не удалось обработать изображение')),
+    'image/webp',
+    quality
+  );
+});
+
+async function decodeImage(file) {
+  if (typeof createImageBitmap === 'function') return createImageBitmap(file);
+  const url = URL.createObjectURL(file);
+  try {
+    const image = new Image();
+    await new Promise((resolve, reject) => {
+      image.onload = resolve;
+      image.onerror = () => reject(new Error('Не удалось прочитать изображение'));
+      image.src = url;
+    });
+    return image;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+export async function prepareImageForUpload(file) {
+  if (file.size <= SAFE_UPLOAD_BYTES) return file;
+  const image = await decodeImage(file);
+  try {
+    const sourceWidth = image.width;
+    const sourceHeight = image.height;
+    const initialScale = Math.min(1, MAX_LONG_SIDE / Math.max(sourceWidth, sourceHeight));
+    let lastBlob = null;
+
+    for (const sizeFactor of [1, 0.82, 0.68, 0.56]) {
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(sourceWidth * initialScale * sizeFactor));
+      canvas.height = Math.max(1, Math.round(sourceHeight * initialScale * sizeFactor));
+      const context = canvas.getContext('2d');
+      if (!context) throw new Error('Обработка изображений не поддерживается');
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+      for (const quality of [0.88, 0.78, 0.68, 0.58]) {
+        lastBlob = await canvasBlob(canvas, quality);
+        if (lastBlob.size <= SAFE_UPLOAD_BYTES) {
+          const baseName = file.name.replace(/\.[^.]+$/, '') || 'image';
+          return new File([lastBlob], `${baseName}.webp`, { type: 'image/webp', lastModified: Date.now() });
+        }
+      }
+    }
+
+    throw new Error(`Не удалось уменьшить изображение до ${Math.round(SAFE_UPLOAD_BYTES / 1024)} КБ`);
+  } finally {
+    image.close?.();
+  }
+}
 
 export const imageUrl = (storageKey) =>
   storageKey ? `${API_URL}/practice-images/${storageKey}` : null;
@@ -34,20 +92,23 @@ function ImageUploadField({ value, onChange, label }) {
     }
     setUploading(true);
     try {
+      const preparedFile = await prepareImageForUpload(file);
       const formData = new FormData();
-      formData.append('image', file);
+      formData.append('image', preparedFile);
       const response = await adminFetch(`${API_URL}/practice/images`, {
         method: 'POST',
         body: formData,
       });
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
       if (response.ok) {
         onChange(data.image);
+      } else if (response.status === 413) {
+        setError('Сервер отклонил размер файла. Попробуйте изображение меньшего разрешения.');
       } else {
         setError(data.message || 'Не удалось загрузить изображение');
       }
     } catch (e) {
-      setError('Ошибка сети при загрузке');
+      setError(e.message || 'Ошибка сети при загрузке');
     } finally {
       setUploading(false);
     }
@@ -110,7 +171,7 @@ function ImageUploadField({ value, onChange, label }) {
               <span className="image-upload-hint">
                 Нажмите или перетащите файл сюда
               </span>
-              <span className="image-upload-sub">JPG, PNG или WebP, до 10 МБ</span>
+              <span className="image-upload-sub">JPG, PNG или WebP, до 10 МБ · большие файлы сжимаются автоматически</span>
             </>
           )}
         </div>

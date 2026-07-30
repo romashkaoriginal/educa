@@ -1,7 +1,7 @@
 const { UniqueConstraintError } = require('sequelize');
 const {
   Lesson, LessonPoll, LessonPollOption, LessonPollAnswer,
-  LessonQuiz, LessonQuizQuestion, LessonQuizAnswer
+  LessonQuiz, LessonQuizQuestion, LessonQuizAnswer, LessonQuizDelivery
 } = require('../models');
 const { assertStudentCanAccessLesson } = require('../middleware/lessonAccess');
 const { touchAttendance } = require('./lessonAttendance');
@@ -23,7 +23,14 @@ const normalizedAnswers = (value) => {
 async function requireLiveAccess(lessonId, userId) {
   const access = await assertStudentCanAccessLesson(lessonId, userId);
   if (!access.ok) throw new LessonActionError(access.message, access.status, 'NO_ACCESS');
-  const lesson = access.lesson || await Lesson.findByPk(lessonId);
+  // Access checks intentionally use a narrow projection. Do not infer the
+  // session state from that partial model: status would be undefined and every
+  // valid student action would be rejected with LESSON_NOT_LIVE.
+  const accessLesson = access.lesson;
+  const hasSessionState = accessLesson
+    && typeof accessLesson.status === 'string'
+    && Object.prototype.hasOwnProperty.call(accessLesson.dataValues || accessLesson, 'sessionEndsAt');
+  const lesson = hasSessionState ? accessLesson : await Lesson.findByPk(lessonId);
   if (!lesson || lesson.status !== 'live' || (lesson.sessionEndsAt && new Date(lesson.sessionEndsAt) <= new Date())) {
     throw new LessonActionError('Занятие уже завершено', 409, 'LESSON_NOT_LIVE');
   }
@@ -96,4 +103,32 @@ async function submitQuizAnswer({ quizId, questionId, selectedAnswer, userId }) 
   }
 }
 
-module.exports = { LessonActionError, normalizedAnswers, requireLiveAccess, submitPollAnswer, submitQuizAnswer };
+async function markQuizQuestionReceived({ quizId, questionId, userId }) {
+  const quiz = await LessonQuiz.findByPk(quizId);
+  if (!quiz) throw new LessonActionError('Викторина не найдена', 404, 'NOT_FOUND');
+  await requireLiveAccess(quiz.lessonId, userId);
+  if (quiz.status !== 'active') throw new LessonActionError('Викторина не активна', 409, 'QUIZ_CLOSED');
+
+  const question = await LessonQuizQuestion.findOne({ where: { id: questionId, lessonQuizId: quiz.id } });
+  if (!question) throw new LessonActionError('Вопрос не найден', 404, 'NOT_FOUND');
+  if (quiz.mode === 'single_step') {
+    const questions = await LessonQuizQuestion.findAll({
+      where: { lessonQuizId: quiz.id }, order: [['order', 'ASC']], attributes: ['id']
+    });
+    const current = questions[quiz.currentQuestionIndex];
+    if (!current || Number(current.id) !== Number(question.id) || quiz.questionRevealState === 'hidden') {
+      throw new LessonActionError('Этот вопрос ещё не показан', 409, 'QUESTION_HIDDEN');
+    }
+  }
+
+  const [delivery, created] = await LessonQuizDelivery.findOrCreate({
+    where: { questionId: question.id, userId },
+    defaults: { lessonQuizId: quiz.id, questionId: question.id, userId }
+  });
+  return { delivery, created, lessonId: quiz.lessonId };
+}
+
+module.exports = {
+  LessonActionError, normalizedAnswers, requireLiveAccess,
+  submitPollAnswer, submitQuizAnswer, markQuizQuestionReceived
+};

@@ -46,9 +46,16 @@ function buildSubjectsText(subjects) {
 exports.getAllStudents = async (req, res) => {
   try {
     const students = await User.findAll({
-      // Гости (isGuest=true) — это role='student', но в список учеников НЕ входят.
-      // [Op.not]: true ловит и false, и null (старые записи без колонки).
-      where: { role: 'student', isGuest: { [Op.not]: true } },
+      // Не отдаём в список учеников ни актуальных, ни старых гостевых профилей.
+      // converted_to_student — полноценный ученик, сохранивший историю гостевого доступа.
+      where: {
+        role: 'student',
+        isGuest: { [Op.not]: true },
+        [Op.or]: [
+          { guestStatus: { [Op.is]: null } },
+          { guestStatus: 'converted_to_student' }
+        ]
+      },
       include: [{
         model: Subject,
         as: 'subjects',

@@ -1,24 +1,27 @@
 const express = require('express');
 const { Op } = require('sequelize');
 const {
-  Lesson, LessonGroup, LessonPoll, LessonQuiz, LessonQuestion,
-  LessonReaction, LessonMaterial
+  Lesson, LessonQuestion, LessonReaction, LessonMaterial, User
 } = require('../models');
 const {
-  getAccessibleGroupIds, assertStudentCanAccessLesson
+  getAccessibleSubjectIds, assertStudentCanAccessLesson
 } = require('../middleware/lessonAccess');
 const { touchAttendance } = require('../services/lessonAttendance');
 const {
   lessonInclude, serializeActivePoll, serializeActiveQuiz, getLessonState
 } = require('../services/lessonState');
 const {
-  LessonActionError, requireLiveAccess, submitPollAnswer, submitQuizAnswer
+  LessonActionError, requireLiveAccess, submitPollAnswer, submitQuizAnswer, markQuizQuestionReceived
 } = require('../services/lessonActivities');
 const {
   emitToLessonAdmins, emitToLesson
 } = require('../services/lessonRealtime');
+const { assertQueryStudentIdOptional } = require('../middleware/telegramAuth');
 
 const router = express.Router();
+router.use(assertQueryStudentIdOptional);
+
+const effectiveStudentId = (req) => Number(req.query.studentId || req.dbUser.id);
 
 const handleError = (res, error, label) => {
   if (error instanceof LessonActionError) {
@@ -28,20 +31,15 @@ const handleError = (res, error, label) => {
   return res.status(500).json({ message: 'Ошибка сервера' });
 };
 
-async function accessibleLessonIds(userId) {
-  const groupIds = await getAccessibleGroupIds(userId);
-  if (!groupIds.length) return [];
-  const links = await LessonGroup.findAll({
-    where: { groupId: { [Op.in]: groupIds } },
-    attributes: ['lessonId'],
-    raw: true
-  });
-  return [...new Set(links.map((row) => Number(row.lessonId)))];
-}
+// ТЗ §8.15: ученик видит занятия только по доступным ему предметам.
+const accessibleSubjectFilter = async (userId) => {
+  const subjectIds = await getAccessibleSubjectIds(userId);
+  return subjectIds.length ? { subjectId: { [Op.in]: subjectIds } } : null;
+};
 
 async function requireAccess(req, res, next) {
   try {
-    const access = await assertStudentCanAccessLesson(req.params.id, req.dbUser.id);
+    const access = await assertStudentCanAccessLesson(req.params.id, effectiveStudentId(req));
     if (!access.ok) return res.status(access.status).json({ code: 'NO_ACCESS', message: access.message });
     req.lessonAccess = access;
     next();
@@ -53,11 +51,11 @@ async function requireAccess(req, res, next) {
 
 router.get('/current', async (req, res) => {
   try {
-    const ids = await accessibleLessonIds(req.dbUser.id);
-    if (!ids.length) return res.json({ lesson: null });
+    const filter = await accessibleSubjectFilter(effectiveStudentId(req));
+    if (!filter) return res.json({ lesson: null });
     const lesson = await Lesson.findOne({
       where: {
-        id: { [Op.in]: ids },
+        ...filter,
         status: 'live',
         [Op.or]: [{ sessionEndsAt: null }, { sessionEndsAt: { [Op.gt]: new Date() } }]
       },
@@ -70,12 +68,16 @@ router.get('/current', async (req, res) => {
   }
 });
 
+// ТЗ §4.1: «Ближайшее занятие» — ближайший запланированный пункт расписания.
 router.get('/schedule/upcoming', async (req, res) => {
   try {
-    const ids = await accessibleLessonIds(req.dbUser.id);
-    if (!ids.length) return res.json({ lesson: null });
+    const filter = await accessibleSubjectFilter(effectiveStudentId(req));
+    if (!filter) return res.json({ lesson: null });
     const lesson = await Lesson.findOne({
-      where: { id: { [Op.in]: ids }, status: 'scheduled', scheduledAt: { [Op.gte]: new Date() } },
+      where: {
+        ...filter, status: 'scheduled', fromSchedule: true,
+        scheduledAt: { [Op.gte]: new Date() }
+      },
       include: lessonInclude,
       order: [['scheduledAt', 'ASC']]
     });
@@ -85,10 +87,32 @@ router.get('/schedule/upcoming', async (req, res) => {
   }
 });
 
+// ТЗ §4.1/§6: компактный список ближайших занятий. Показываются только будущие
+// пункты расписания — прошедшие и отменённые экран не занимают.
+router.get('/schedule/upcoming-list', async (req, res) => {
+  try {
+    const filter = await accessibleSubjectFilter(effectiveStudentId(req));
+    if (!filter) return res.json({ lessons: [] });
+    const limit = Math.min(Math.max(Number(req.query.limit) || 5, 1), 20);
+    const lessons = await Lesson.findAll({
+      where: {
+        ...filter, status: 'scheduled', fromSchedule: true,
+        scheduledAt: { [Op.gte]: new Date() }
+      },
+      include: lessonInclude,
+      order: [['scheduledAt', 'ASC']],
+      limit
+    });
+    res.json({ lessons });
+  } catch (error) {
+    handleError(res, error, 'Get upcoming lessons');
+  }
+});
+
 router.get('/schedule/week', async (req, res) => {
   try {
-    const ids = await accessibleLessonIds(req.dbUser.id);
-    if (!ids.length) return res.json({ lessons: [] });
+    const filter = await accessibleSubjectFilter(effectiveStudentId(req));
+    if (!filter) return res.json({ lessons: [] });
     const now = new Date();
     const start = new Date(now);
     start.setHours(0, 0, 0, 0);
@@ -96,7 +120,7 @@ router.get('/schedule/week', async (req, res) => {
     const end = new Date(start);
     end.setDate(end.getDate() + 7);
     const lessons = await Lesson.findAll({
-      where: { id: { [Op.in]: ids }, scheduledAt: { [Op.gte]: start, [Op.lt]: end } },
+      where: { ...filter, fromSchedule: true, scheduledAt: { [Op.gte]: start, [Op.lt]: end } },
       include: lessonInclude,
       order: [['scheduledAt', 'ASC']]
     });
@@ -108,7 +132,7 @@ router.get('/schedule/week', async (req, res) => {
 
 router.get('/lessons/:id/state', requireAccess, async (req, res) => {
   try {
-    res.json(await getLessonState(req.params.id, req.dbUser.id));
+    res.json(await getLessonState(req.params.id, effectiveStudentId(req)));
   } catch (error) {
     handleError(res, error, 'Get lesson state');
   }
@@ -116,7 +140,7 @@ router.get('/lessons/:id/state', requireAccess, async (req, res) => {
 
 router.get('/lessons/:id/polls/active', requireAccess, async (req, res) => {
   try {
-    res.json({ poll: await serializeActivePoll(req.params.id, req.dbUser.id) });
+    res.json({ poll: await serializeActivePoll(req.params.id, effectiveStudentId(req)) });
   } catch (error) {
     handleError(res, error, 'Get active poll');
   }
@@ -127,7 +151,7 @@ router.post('/polls/:pollId/answer', async (req, res) => {
     const result = await submitPollAnswer({
       pollId: req.params.pollId,
       optionId: req.body.optionId,
-      userId: req.dbUser.id
+      userId: effectiveStudentId(req)
     });
     emitToLessonAdmins(result.lessonId, 'poll:results-updated', result.results);
     emitToLessonAdmins(result.lessonId, 'attendance:updated', { attendance: result.attendance });
@@ -139,7 +163,7 @@ router.post('/polls/:pollId/answer', async (req, res) => {
 
 router.get('/lessons/:id/quiz/active', requireAccess, async (req, res) => {
   try {
-    res.json({ quiz: await serializeActiveQuiz(req.params.id, req.dbUser.id) });
+    res.json({ quiz: await serializeActiveQuiz(req.params.id, effectiveStudentId(req)) });
   } catch (error) {
     handleError(res, error, 'Get active lesson quiz');
   }
@@ -151,12 +175,12 @@ router.post('/lesson-quiz/:quizId/questions/:questionId/answer', async (req, res
       quizId: req.params.quizId,
       questionId: req.params.questionId,
       selectedAnswer: req.body.selectedAnswer,
-      userId: req.dbUser.id
+      userId: effectiveStudentId(req)
     });
     emitToLessonAdmins(result.lessonId, 'quiz:answer-received', {
       quizId: Number(req.params.quizId),
       questionId: Number(req.params.questionId),
-      userId: req.dbUser.id
+      userId: effectiveStudentId(req)
     });
     emitToLessonAdmins(result.lessonId, 'attendance:updated', { attendance: result.attendance });
     res.status(201).json({ answer: result.answer, quiz: result.activeQuiz });
@@ -165,15 +189,41 @@ router.post('/lesson-quiz/:quizId/questions/:questionId/answer', async (req, res
   }
 });
 
+router.post('/lesson-quiz/:quizId/questions/:questionId/received', async (req, res) => {
+  try {
+    const result = await markQuizQuestionReceived({
+      quizId: req.params.quizId,
+      questionId: req.params.questionId,
+      userId: effectiveStudentId(req)
+    });
+    if (result.created) {
+      emitToLessonAdmins(result.lessonId, 'quiz:delivery-received', {
+        quizId: Number(req.params.quizId),
+        questionId: Number(req.params.questionId),
+        userId: effectiveStudentId(req)
+      });
+    }
+    res.status(result.created ? 201 : 200).json({ delivery: result.delivery });
+  } catch (error) {
+    handleError(res, error, 'Mark quiz question received');
+  }
+});
+
 router.post('/lessons/:id/questions', requireAccess, async (req, res) => {
   try {
-    await requireLiveAccess(req.params.id, req.dbUser.id);
+    const userId = effectiveStudentId(req);
+    const lesson = await requireLiveAccess(req.params.id, userId);
+    // ТЗ §4.2: преподаватель может временно отключить вопросы.
+    if (lesson.questionsEnabled === false) {
+      return res.status(409).json({ code: 'QUESTIONS_DISABLED', message: 'Преподаватель временно отключил вопросы' });
+    }
     const question = await LessonQuestion.create({
       lessonId: req.params.id,
-      userId: req.dbUser.id,
+      userId,
       text: String(req.body.text || '').trim() || null
     });
-    const attendance = await touchAttendance(req.params.id, req.dbUser.id, 'question');
+    await question.reload({ include: [{ model: User, as: 'student', attributes: ['id', 'firstName', 'lastName'] }] });
+    const attendance = await touchAttendance(req.params.id, userId, 'question');
     emitToLessonAdmins(req.params.id, 'question:new', { question });
     emitToLessonAdmins(req.params.id, 'attendance:updated', { attendance });
     res.status(201).json({ question });
@@ -185,7 +235,7 @@ router.post('/lessons/:id/questions', requireAccess, async (req, res) => {
 router.get('/lessons/:id/questions/mine', requireAccess, async (req, res) => {
   try {
     const questions = await LessonQuestion.findAll({
-      where: { lessonId: req.params.id, userId: req.dbUser.id },
+      where: { lessonId: req.params.id, userId: effectiveStudentId(req) },
       order: [['createdAt', 'DESC']]
     });
     res.json({ questions });
@@ -196,15 +246,17 @@ router.get('/lessons/:id/questions/mine', requireAccess, async (req, res) => {
 
 router.post('/lessons/:id/reactions', requireAccess, async (req, res) => {
   try {
-    await requireLiveAccess(req.params.id, req.dbUser.id);
+    const userId = effectiveStudentId(req);
+    await requireLiveAccess(req.params.id, userId);
     const allowed = ['clear', 'need_repeat', 'too_fast', 'has_question'];
     if (!allowed.includes(req.body.type)) return res.status(400).json({ message: 'Некорректная реакция' });
     const reaction = await LessonReaction.create({
       lessonId: req.params.id,
-      userId: req.dbUser.id,
+      userId,
       type: req.body.type
     });
-    const attendance = await touchAttendance(req.params.id, req.dbUser.id, 'reaction');
+    await reaction.reload({ include: [{ model: User, as: 'student', attributes: ['id', 'firstName', 'lastName'] }] });
+    const attendance = await touchAttendance(req.params.id, userId, 'reaction');
     emitToLessonAdmins(req.params.id, 'reaction:new', { reaction });
     emitToLessonAdmins(req.params.id, 'attendance:updated', { attendance });
     res.status(201).json({ reaction });
@@ -215,7 +267,9 @@ router.post('/lessons/:id/reactions', requireAccess, async (req, res) => {
 
 router.post('/lessons/:id/attendance/ping', requireAccess, async (req, res) => {
   try {
-    const attendance = await touchAttendance(req.params.id, req.dbUser.id, 'open');
+    const userId = effectiveStudentId(req);
+    await requireLiveAccess(req.params.id, userId);
+    const attendance = await touchAttendance(req.params.id, userId, 'open');
     emitToLessonAdmins(req.params.id, 'attendance:updated', { attendance });
     res.json({ attendance });
   } catch (error) {
@@ -225,7 +279,9 @@ router.post('/lessons/:id/attendance/ping', requireAccess, async (req, res) => {
 
 router.post('/lessons/:id/attendance/stream-click', requireAccess, async (req, res) => {
   try {
-    const attendance = await touchAttendance(req.params.id, req.dbUser.id, 'stream');
+    const userId = effectiveStudentId(req);
+    await requireLiveAccess(req.params.id, userId);
+    const attendance = await touchAttendance(req.params.id, userId, 'stream');
     emitToLessonAdmins(req.params.id, 'attendance:updated', { attendance });
     res.json({ attendance });
   } catch (error) {
@@ -235,6 +291,9 @@ router.post('/lessons/:id/attendance/stream-click', requireAccess, async (req, r
 
 router.get('/lessons/:id/materials', requireAccess, async (req, res) => {
   try {
+    if (req.lessonAccess.lesson.status !== 'finished') {
+      return res.status(409).json({ message: 'Материалы доступны после завершения занятия' });
+    }
     const materials = await LessonMaterial.findAll({
       where: { lessonId: req.params.id },
       order: [['createdAt', 'DESC']]

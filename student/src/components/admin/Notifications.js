@@ -34,6 +34,7 @@ function Notifications({ subjects, currentUser, dataRefreshKey = 0 }) {
   const [tab, setTab] = useState('send'); // 'send' | 'history'
 
   // ===== Фильтры =====
+  const [recipientAudience, setRecipientAudience] = useState('students');
   const [selectedSubjectIds, setSelectedSubjectIds] = useState([]);
   const [accessDays, setAccessDays] = useState('all');
   const [homeworkPercent, setHomeworkPercent] = useState('all');
@@ -72,6 +73,7 @@ function Notifications({ subjects, currentUser, dataRefreshKey = 0 }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          audience: recipientAudience,
           subjectIds: selectedSubjectIds.length > 0 ? selectedSubjectIds : undefined,
           accessDays: accessDays !== 'all' ? accessDays : undefined,
           homeworkPercent: homeworkPercent !== 'all' ? homeworkPercent : undefined
@@ -84,7 +86,7 @@ function Notifications({ subjects, currentUser, dataRefreshKey = 0 }) {
     } finally {
       setPreviewLoading(false);
     }
-  }, [selectedSubjectIds, accessDays, homeworkPercent]);
+  }, [recipientAudience, selectedSubjectIds, accessDays, homeworkPercent]);
 
   useEffect(() => {
     loadPreview();
@@ -134,16 +136,15 @@ function Notifications({ subjects, currentUser, dataRefreshKey = 0 }) {
     setShowConfirm(false);
     try {
       const body = {
+        mode: sendMode === 'single' ? 'single' : 'filter',
         text: messageText,
-        sentBy: currentUser?.id || 0,
-        sentByName: currentUser ? `${currentUser.firstName} ${currentUser.lastName || ''}`.trim() : 'Администратор',
-        sentByRole: currentUser?.role || 'admin',
       };
 
       if (sendMode === 'single' && singleStudent) {
         body.studentId = singleStudent.id;
       } else {
         body.filters = {
+          audience: recipientAudience,
           subjectIds: selectedSubjectIds.length > 0 ? selectedSubjectIds : undefined,
           accessDays: accessDays !== 'all' ? accessDays : undefined,
           homeworkPercent: homeworkPercent !== 'all' ? homeworkPercent : undefined
@@ -172,7 +173,7 @@ function Notifications({ subjects, currentUser, dataRefreshKey = 0 }) {
 
   const filtersLabel = () => {
     if (sendMode === 'single') return singleStudent ? `${singleStudent.firstName} ${singleStudent.lastName || ''}` : 'Не выбран';
-    const parts = [];
+    const parts = [recipientAudience === 'guests' ? 'Гости с доступом' : 'Ученики'];
     if (selectedSubjectIds.length > 0) {
       const names = selectedSubjectIds.map(id => subjects.find(s => s.id === id)?.name).filter(Boolean);
       parts.push(names.join(', '));
@@ -188,7 +189,7 @@ function Notifications({ subjects, currentUser, dataRefreshKey = 0 }) {
 
   const recipientCount = sendMode === 'single' ? (singleStudent ? 1 : 0) : recipients.length;
 
-  const filteredStudentList = allStudents.filter(s => {
+  const filteredStudentList = allStudents.filter(s => s.isActive !== false).filter(s => {
     const q = studentSearch.toLowerCase();
     return s.firstName?.toLowerCase().includes(q) ||
       s.lastName?.toLowerCase().includes(q) ||
@@ -248,6 +249,27 @@ function Notifications({ subjects, currentUser, dataRefreshKey = 0 }) {
             {sendMode === 'filter' && (
               <>
                 <h3 className="filters-title">🎯 Фильтры получателей</h3>
+
+            <div className="filter-section">
+              <div className="filter-section-title">👥 Получатели</div>
+              <div className="audience-switch" role="group" aria-label="Тип получателей">
+                <button
+                  type="button"
+                  className={`audience-btn ${recipientAudience === 'students' ? 'active' : ''}`}
+                  onClick={() => setRecipientAudience('students')}
+                >🎓 Ученики</button>
+                <button
+                  type="button"
+                  className={`audience-btn ${recipientAudience === 'guests' ? 'active' : ''}`}
+                  onClick={() => setRecipientAudience('guests')}
+                >🎟️ Гости</button>
+              </div>
+              <div className="audience-hint">
+                {recipientAudience === 'guests'
+                  ? 'Только пользователи с гостевым доступом, в том числе истёкшим.'
+                  : 'Гости исключены из этой рассылки.'}
+              </div>
+            </div>
 
             {/* По предметам */}
             <div className="filter-section">
@@ -330,7 +352,11 @@ function Notifications({ subjects, currentUser, dataRefreshKey = 0 }) {
                 </div>
               )}
               {sendMode === 'filter' && !previewLoading && recipients.length === 0 && (
-                <div className="no-recipients">Нет учеников по выбранным фильтрам</div>
+                <div className="no-recipients">
+                  {recipientAudience === 'guests'
+                    ? 'Нет гостей по выбранным фильтрам'
+                    : 'Нет учеников по выбранным фильтрам'}
+                </div>
               )}
               {sendMode === 'single' && !singleStudent && (
                 <div className="no-recipients">Выберите ученика в левой панели</div>
@@ -367,7 +393,7 @@ function Notifications({ subjects, currentUser, dataRefreshKey = 0 }) {
               onClick={() => setShowConfirm(true)}
               disabled={!canSend || sending}
             >
-              {sending ? '⏳ Отправка...' : `✉️ Отправить (${recipientCount} уч.)`}
+              {sending ? '⏳ Отправка...' : `✉️ Отправить (${recipientCount} получ.)`}
             </button>
           </div>
         </div>
@@ -446,6 +472,7 @@ function Notifications({ subjects, currentUser, dataRefreshKey = 0 }) {
                           return subj ? `${subj.icon} ${subj.name}` : `#${id}`;
                         }).join(', ')}</span>
                       )}
+                        {log.filters.audience === 'guests' && <span>🎟️ Гостевой доступ</span>}
                         {log.filters.accessDays && (
                           <span>⏰ {ACCESS_DAYS_OPTIONS.find(o => o.value == log.filters.accessDays)?.label}</span>
                         )}
@@ -484,7 +511,7 @@ function Notifications({ subjects, currentUser, dataRefreshKey = 0 }) {
           <div className="confirm-modal" onClick={e => e.stopPropagation()}>
             <div className="confirm-icon">⚠️</div>
             <h3>Подтверждение отправки</h3>
-            <p>Вы собираетесь отправить сообщение <strong>{recipients.length} ученикам</strong>.</p>
+            <p>Вы собираетесь отправить сообщение <strong>{recipientCount} получателям</strong>.</p>
             <div className="confirm-preview">
               <div className="confirm-filters">Фильтры: {filtersLabel()}</div>
               <div className="confirm-text">"{messageText.length > 100 ? messageText.slice(0, 100) + '...' : messageText}"</div>
@@ -493,7 +520,7 @@ function Notifications({ subjects, currentUser, dataRefreshKey = 0 }) {
             <div className="confirm-actions">
               <button className="btn-secondary" onClick={() => setShowConfirm(false)}>Отмена</button>
               <button className="btn-danger-confirm" onClick={handleSend}>
-                ✉️ Да, отправить {recipients.length} сообщений
+                ✉️ Да, отправить {recipientCount} сообщений
               </button>
             </div>
           </div>

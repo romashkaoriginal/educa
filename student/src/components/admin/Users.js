@@ -6,8 +6,9 @@ import { useSectionRefresh } from './useSectionRefresh';
 
 import { API_URL } from '../../config';
 
-function Users({ dataRefreshKey = 0 }) {
+function Users({ currentUser, dataRefreshKey = 0 }) {
   const { refresh } = useAdminData();
+  const canManageRoles = currentUser?.role === 'admin';
   const [users, setUsers] = useState([]);
   const [botUsers, setBotUsers] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -78,6 +79,7 @@ function Users({ dataRefreshKey = 0 }) {
   };
 
   const handleOpenAddModal = () => {
+    if (!canManageRoles) return;
     setShowAddModal(true);
     setIsEditing(false);
     setAddMode('bot');
@@ -144,6 +146,7 @@ function Users({ dataRefreshKey = 0 }) {
         lastName: formData.lastName?.trim() || '',
         telegramUsername: formData.telegramUsername?.trim() || ''
       };
+      if (isEditing && !canManageRoles) delete payload.role;
 
       const response = await adminFetch(url, {
         method,
@@ -268,9 +271,11 @@ function Users({ dataRefreshKey = 0 }) {
             </span>
           </div>
         </div>
-        <button className="add-button" onClick={handleOpenAddModal}>
-          + Добавить пользователя
-        </button>
+        {canManageRoles && (
+          <button className="add-button" onClick={handleOpenAddModal}>
+            + Добавить пользователя
+          </button>
+        )}
       </div>
 
       <div className="filters-bar">
@@ -535,31 +540,38 @@ function Users({ dataRefreshKey = 0 }) {
 
                 <div className="form-section">
                   <h3>🎭 Роль в системе</h3>
-                  <div className="role-selector">
-                    {Object.entries(roleInfo).map(([roleKey, role]) => (
-                      <label 
-                        key={roleKey}
-                        className={`role-option ${formData.role === roleKey ? 'selected' : ''}`}
-                      >
-                        <input
-                          type="radio"
-                          name="role"
-                          value={roleKey}
-                          checked={formData.role === roleKey}
-                          onChange={(e) => setFormData({...formData, role: e.target.value})}
-                        />
-                        <div className="role-option-content">
-                          <div className="role-option-icon" style={{ color: role.color }}>
-                            {role.icon}
+                  {canManageRoles ? (
+                    <div className="role-selector">
+                      {Object.entries(roleInfo).map(([roleKey, role]) => (
+                        <label
+                          key={roleKey}
+                          className={`role-option ${formData.role === roleKey ? 'selected' : ''}`}
+                        >
+                          <input
+                            type="radio"
+                            name="role"
+                            value={roleKey}
+                            checked={formData.role === roleKey}
+                            onChange={(e) => setFormData({...formData, role: e.target.value})}
+                          />
+                          <div className="role-option-content">
+                            <div className="role-option-icon" style={{ color: role.color }}>
+                              {role.icon}
+                            </div>
+                            <div className="role-option-info">
+                              <h4>{role.name}</h4>
+                              <p>{role.description}</p>
+                            </div>
                           </div>
-                          <div className="role-option-info">
-                            <h4>{role.name}</h4>
-                            <p>{role.description}</p>
-                          </div>
-                        </div>
-                      </label>
-                    ))}
-                  </div>
+                        </label>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="role-readonly">
+                      {roleInfo[formData.role]?.icon} {roleInfo[formData.role]?.name}
+                      <span>Изменять роли может только администратор</span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="modal-actions">

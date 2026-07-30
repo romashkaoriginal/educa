@@ -86,7 +86,10 @@ async function registerBotUser(user, utm = null) {
       const updateFields = {
         lastInteractionAt: new Date(),
         messageCount: (botUser.messageCount || 0) + 1,
-        telegramUsername: user.username || botUser.telegramUsername
+        telegramUsername: user.username || botUser.telegramUsername,
+        isBotBlocked: false,
+        botBlockedAt: null,
+        botLastDeliveryError: null
       };
       if (utm) {
         Object.assign(updateFields, { ...utm, utmFirstSeenAt: new Date() });

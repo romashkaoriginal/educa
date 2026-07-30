@@ -69,6 +69,22 @@ const BotUser = sequelize.define('BotUser', {
     defaultValue: false,
     comment: 'Назначен ли пользователь в систему (админ/учитель/менеджер/студент)'
   },
+
+  isBotBlocked: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: false
+  },
+
+  botBlockedAt: {
+    type: DataTypes.DATE,
+    allowNull: true
+  },
+
+  botLastDeliveryError: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
   
   // Статистика взаимодействий
   firstInteractionAt: {

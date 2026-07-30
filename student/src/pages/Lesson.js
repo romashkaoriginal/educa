@@ -1,38 +1,71 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import Quiz from './Quiz';
+import { createPortal } from 'react-dom';
 import { API_URL } from '../config';
 import { apiFetch } from './api';
 import { useData } from './DataContext';
+import StudentBrandMark from '../components/StudentBrandMark';
 import './Lesson.css';
 
-const POLL_LABELS = {
-  clear_unclear: 'Понятно / Непонятно',
-  yes_no: 'Да / Нет',
-  pace: 'Темп занятия',
-  repeat_or_continue: 'Повторить или продолжить',
-  keeping_up: 'Успеваю / Не успеваю',
-  custom: 'Голосование'
-};
-
-const REACTIONS = [
-  ['clear', '👍', 'Всё понятно'],
-  ['need_repeat', '🔁', 'Повторить'],
-  ['too_fast', '⏩', 'Слишком быстро'],
-  ['has_question', '✋', 'Есть вопрос']
-];
-
-const STATUS_LABELS = {
-  scheduled: 'Предстоит',
-  live: 'Идёт сейчас',
-  finished: 'Завершено',
-  cancelled: 'Отменено'
-};
-
-const formatDate = (value, options = {}) => value
-  ? new Intl.DateTimeFormat('ru-RU', { dateStyle: 'medium', timeStyle: 'short', ...options }).format(new Date(value))
+const formatTime = (value) => value
+  ? new Date(value).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
   : '—';
 
-const teacherName = (teacher) => [teacher?.firstName, teacher?.lastName].filter(Boolean).join(' ') || 'Не указан';
+const formatDayTime = (value) => {
+  if (!value) return '—';
+  const date = new Date(value);
+  const day = date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+  return `${day}, ${formatTime(value)}`;
+};
+
+const startOfDay = (value) => {
+  const date = new Date(value);
+  date.setHours(0, 0, 0, 0);
+  return date;
+};
+
+// Расписание читается как календарь: занятия сгруппированы по дням, а внутри дня
+// отсортированы по времени. У каждой строки явно виден предмет — у ученика их
+// несколько, и без предмета список превращается в набор несвязанных тем.
+function groupLessonsByDay(lessons) {
+  const byDay = new Map();
+  [...lessons]
+    .sort((a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt))
+    .forEach((lesson) => {
+      const key = startOfDay(lesson.scheduledAt).getTime();
+      if (!byDay.has(key)) byDay.set(key, []);
+      byDay.get(key).push(lesson);
+    });
+  return [...byDay.entries()].map(([time, items]) => ({ date: new Date(time), lessons: items }));
+}
+
+const dayDiff = (date) => Math.round((startOfDay(date) - startOfDay(new Date())) / 86400000);
+
+const dayLabel = (date) => {
+  const diff = dayDiff(date);
+  if (diff === 0) return 'Сегодня';
+  if (diff === 1) return 'Завтра';
+  return date.toLocaleDateString('ru-RU', { weekday: 'long' });
+};
+
+// Относительная подпись читается быстрее абсолютной даты: «через 3 дня» понятнее,
+// чем «31 июля», когда решаешь, надо ли готовиться прямо сейчас.
+const relativeLabel = (date) => {
+  const diff = dayDiff(date);
+  if (diff === 0) return 'сегодня';
+  if (diff === 1) return 'завтра';
+  if (diff < 7) return `через ${diff} дн.`;
+  return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+};
+
+const hapticFeedback = (type) => {
+  try {
+    const haptic = window.Telegram?.WebApp?.HapticFeedback;
+    if (type === 'tap') haptic?.impactOccurred?.('light');
+    else haptic?.notificationOccurred?.(type);
+  } catch (_) {
+    // Haptics are optional and may be unavailable in a browser outside Telegram.
+  }
+};
 
 async function jsonRequest(path, options = {}) {
   const response = await apiFetch(`${API_URL}/lesson${path}`, options);
@@ -41,77 +74,175 @@ async function jsonRequest(path, options = {}) {
   return data;
 }
 
-function StatusHeader({ lesson, upcoming, onStream }) {
-  if (lesson?.status === 'live') {
-    return (
-      <section className="lesson-status lesson-status--live" aria-live="polite">
-        <div className="lesson-live-label"><span /> Занятие идёт</div>
-        <h1>{lesson.subject?.name || 'Занятие'}</h1>
-        {lesson.topic && <p className="lesson-topic">{lesson.topic}</p>}
-        <dl className="lesson-facts">
-          <div><dt>Преподаватель</dt><dd>{teacherName(lesson.teacher)}</dd></div>
-          <div><dt>Началось</dt><dd>{formatDate(lesson.startedAt, { dateStyle: undefined, timeStyle: 'short' })}</dd></div>
-        </dl>
-        {lesson.streamUrl && <button type="button" className="lesson-primary" onClick={onStream}>Перейти к занятию <span>↗</span></button>}
-      </section>
-    );
-  }
+function useCountdown(targetDate) {
+  const target = targetDate ? new Date(targetDate).getTime() : null;
+  const [remainingMs, setRemainingMs] = useState(target ? target - Date.now() : null);
+  useEffect(() => {
+    if (!target) { setRemainingMs(null); return undefined; }
+    setRemainingMs(target - Date.now());
+    const timer = setInterval(() => setRemainingMs(target - Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [target]);
+  return remainingMs;
+}
+
+function formatCountdown(ms) {
+  if (ms === null || ms === undefined) return null;
+  const totalSec = Math.max(0, Math.round(ms / 1000));
+  const minutes = Math.floor(totalSec / 60);
+  const seconds = totalSec % 60;
+  return `${minutes}:${String(seconds).padStart(2, '0')}`;
+}
+
+function CountdownBadge({ targetDate, expiredLabel = 'Время истекло', className = 'lesson-countdown' }) {
+  const remainingMs = useCountdown(targetDate);
+  if (!targetDate || remainingMs === null) return null;
   return (
-    <section className="lesson-status lesson-status--idle">
-      <span className="lesson-status-icon" aria-hidden="true">🎓</span>
-      <div>
-        <h1>Сейчас занятия нет</h1>
-        {upcoming ? (
-          <p>Следующее: <strong>{upcoming.subject?.name}</strong>, {formatDate(upcoming.scheduledAt)}</p>
-        ) : <p>Новые занятия появятся здесь после добавления в расписание.</p>}
-      </div>
+    <span className={`${className} ${remainingMs <= 0 ? `${className}--expired` : ''}`}>
+      {remainingMs > 0 ? formatCountdown(remainingMs) : expiredLabel}
+    </span>
+  );
+}
+
+// ТЗ §4.2/§6: один выделенный блок активного занятия — главный элемент экрана.
+function ActiveLessonCard({ lesson, onStream }) {
+  return (
+    <section className="lesson-active" aria-live="polite">
+      <div className="lesson-live-label"><span aria-hidden="true" /> Занятие идёт</div>
+      <h1>{lesson.subject?.name || 'Занятие'}</h1>
+      {lesson.topic && <p className="lesson-topic">{lesson.topic}</p>}
+      <p className="lesson-active-meta">
+        Началось в {formatTime(lesson.startedAt)}
+        {lesson.sessionEndsAt && <> · осталось <CountdownBadge targetDate={lesson.sessionEndsAt} expiredLabel="завершается" /></>}
+      </p>
+      {lesson.streamUrl && (
+        <button type="button" className="lesson-primary" onClick={onStream}>Перейти к трансляции</button>
+      )}
     </section>
   );
 }
 
-function PollCard({ live, poll, onAnswer, pending }) {
+// Одна строка расписания: время, предмет и тема. Предмет обязателен — без него
+// ученик с несколькими предметами не понимает, к чему относится занятие.
+function ScheduleRow({ lesson }) {
+  return (
+    <div className="lesson-day-row">
+      <time className="lesson-day-time">{formatTime(lesson.scheduledAt)}</time>
+      <span className="lesson-day-info">
+        <span className="lesson-day-subject">
+          {lesson.subject?.icon && <span className="lesson-day-icon" aria-hidden="true">{lesson.subject.icon}</span>}
+          {lesson.subject?.name || 'Предмет не указан'}
+        </span>
+        <span className="lesson-day-topic">{lesson.topic || 'Тема пока не указана'}</span>
+      </span>
+    </div>
+  );
+}
+
+// ТЗ §4.1: выделенный блок ближайшего занятия — главный ответ на вопрос
+// «когда следующее занятие».
+function NextLessonCard({ lesson }) {
+  const date = new Date(lesson.scheduledAt);
+  return (
+    <section className="lesson-next">
+      <div className="lesson-next-head">
+        <span className="lesson-next-eyebrow">Ближайшее занятие</span>
+        <span className="lesson-next-when">{relativeLabel(date)}</span>
+      </div>
+      <p className="lesson-next-date">{formatDayTime(lesson.scheduledAt)}</p>
+      <h2 className="lesson-next-topic">{lesson.topic || 'Тема пока не указана'}</h2>
+      <p className="lesson-next-subject">
+        {lesson.subject?.icon && <span aria-hidden="true">{lesson.subject.icon}</span>}
+        {lesson.subject?.name || 'Предмет не указан'}
+      </p>
+    </section>
+  );
+}
+
+// ТЗ §4.1/§6: компактное состояние, ближайшее занятие и расписание.
+// Ближайшее занятие показано и отдельной карточкой, и в ленте — так календарь
+// остаётся полным и по нему видно, что идёт после ближайшего занятия.
+function IdleState({ upcoming, lessons }) {
+  const days = groupLessonsByDay(lessons);
+  return (
+    <>
+      <section className="lesson-idle">
+        <span className="lesson-idle-icon" aria-hidden="true">🎓</span>
+        <div>
+          <h1>Сейчас занятия нет</h1>
+          <p>{upcoming
+            ? 'Следующее занятие — по расписанию ниже'
+            : 'Следующее занятие появится по расписанию'}</p>
+        </div>
+      </section>
+
+      {upcoming && <NextLessonCard lesson={upcoming} />}
+
+      {days.length > 0 && (
+        <section className="lesson-schedule-block">
+          <h2 className="lesson-schedule-title">Расписание</h2>
+          {days.map(({ date, lessons: dayLessons }) => (
+            <div className="lesson-day" key={date.getTime()}>
+              <div className="lesson-day-head">
+                <span className="lesson-day-num">{date.getDate()}</span>
+                <span className="lesson-day-label">{dayLabel(date)}</span>
+                <span className="lesson-day-month">{date.toLocaleDateString('ru-RU', { month: 'long' })}</span>
+              </div>
+              <div className="lesson-day-rows">
+                {dayLessons.map((lesson) => <ScheduleRow lesson={lesson} key={lesson.id} />)}
+              </div>
+            </div>
+          ))}
+        </section>
+      )}
+
+      {!upcoming && days.length === 0 && (
+        <section className="lesson-schedule-block">
+          <p className="lesson-muted">Пока новых занятий нет. Здесь появятся дата, время и тема следующего занятия.</p>
+        </section>
+      )}
+    </>
+  );
+}
+
+// ТЗ §4.2: карточка голосования появляется только после запуска преподавателем.
+function PollCard({ poll, onAnswer, pending }) {
   const [selected, setSelected] = useState(null);
   useEffect(() => setSelected(poll?.myOptionId || null), [poll?.id, poll?.myOptionId]);
-  const resultsById = new Map((poll?.results?.options || []).map((option) => [Number(option.id), option]));
-  const canAnswer = poll?.status === 'active' && !poll?.hasAnswered;
+  if (!poll) return null;
+  const resultsById = new Map((poll.results?.options || []).map((option) => [Number(option.id), option]));
+  const canAnswer = poll.status === 'active' && !poll.hasAnswered;
   return (
-    <section className={`lesson-panel ${poll && !poll.hasAnswered ? 'lesson-panel--attention' : ''}`}>
+    <section className="lesson-panel lesson-panel--attention">
       <div className="lesson-panel-heading">
-        <div><span className="lesson-panel-icon">◉</span><h2>Голосование</h2></div>
-        {poll && <span className="lesson-badge">{POLL_LABELS[poll.template] || 'Активно'}</span>}
+        <h2>{poll.question}</h2>
+        {poll.status === 'active' && poll.autoCloseAt && <CountdownBadge targetDate={poll.autoCloseAt} expiredLabel="Завершается…" />}
       </div>
-      {!live && <p className="lesson-muted">Будет доступно во время занятия</p>}
-      {live && !poll && <p className="lesson-muted">Сейчас нет активного вопроса</p>}
-      {poll && (
-        <>
-          <p className="lesson-question-text">{poll.question}</p>
-          <div className="lesson-options" role="radiogroup" aria-label={poll.question}>
-            {poll.options.map((option) => {
-              const result = resultsById.get(Number(option.id));
-              return (
-                <button
-                  type="button"
-                  key={option.id}
-                  className={`lesson-option ${Number(selected) === Number(option.id) ? 'selected' : ''}`}
-                  onClick={() => canAnswer && setSelected(option.id)}
-                  disabled={!canAnswer || pending}
-                  role="radio"
-                  aria-checked={Number(selected) === Number(option.id)}
-                >
-                  <span>{option.text}</span>
-                  {result && <strong>{result.percent}%</strong>}
-                  {result && <i style={{ width: `${result.percent}%` }} />}
-                </button>
-              );
-            })}
-          </div>
-          {canAnswer ? (
-            <button type="button" className="lesson-primary" disabled={!selected || pending} onClick={() => onAnswer(selected)}>
-              {pending ? 'Отправляем…' : 'Ответить'}
+      <div className="lesson-options" role="radiogroup" aria-label={poll.question}>
+        {poll.options.map((option) => {
+          const result = resultsById.get(Number(option.id));
+          return (
+            <button
+              type="button"
+              key={option.id}
+              className={`lesson-option ${Number(selected) === Number(option.id) ? 'selected' : ''}`}
+              onClick={() => canAnswer && setSelected(option.id)}
+              disabled={!canAnswer || pending}
+              role="radio"
+              aria-checked={Number(selected) === Number(option.id)}
+            >
+              <span>{option.text}</span>
+              {result && <strong>{result.percent}%</strong>}
+              {result && <i style={{ width: `${result.percent}%` }} />}
             </button>
-          ) : <p className="lesson-accepted">{poll.hasAnswered ? '✓ Ответ принят' : 'Голосование завершено'}</p>}
-        </>
-      )}
+          );
+        })}
+      </div>
+      {canAnswer ? (
+        <button type="button" className="lesson-primary" disabled={!selected || pending} onClick={() => onAnswer(selected)}>
+          {pending ? 'Отправляем…' : 'Ответить'}
+        </button>
+      ) : <p className="lesson-accepted">{poll.hasAnswered ? 'Ответ принят' : 'Голосование завершено'}</p>}
     </section>
   );
 }
@@ -149,21 +280,26 @@ function QuizQuestion({ question, myAnswer, disabled, onSubmit, resultVisible, e
       {!myAnswer ? (
         <button type="button" className="lesson-primary" disabled={!selected.length || disabled} onClick={() => onSubmit(selected)}>Ответить</button>
       ) : <p className={`lesson-accepted ${resultVisible && !myAnswer.isCorrect ? 'lesson-accepted--wrong' : ''}`}>
-        {resultVisible ? (myAnswer.isCorrect ? '✓ Правильно' : 'Ответ неверный') : '✓ Ответ принят — ждём преподавателя'}
+        {resultVisible ? (myAnswer.isCorrect ? 'Правильно' : 'Ответ неверный') : 'Ответ принят. Ожидайте результат.'}
       </p>}
       {explanationVisible && (question.explanation || question.hintImage?.storageKey) && <div className="lesson-explanation"><strong>Объяснение</strong>{question.explanation && <p>{question.explanation}</p>}{question.hintImage?.storageKey && <img src={`${API_URL}/practice-images/${question.hintImage.storageKey}`} alt="Подсказка" />}</div>}
     </div>
   );
 }
 
-function QuizCard({ live, quiz, onAnswer, pendingQuestionId }) {
+// ТЗ §4.2: карточка викторины появляется только после запуска вопроса преподавателем.
+function QuizCard({ quiz, onAnswer, pendingQuestionId }) {
   const [selfPacedIndex, setSelfPacedIndex] = useState(0);
   useEffect(() => setSelfPacedIndex(0), [quiz?.id]);
-  let content = <p className="lesson-muted">Ожидайте запуска преподавателем</p>;
-  if (!live) content = <p className="lesson-muted">Будет доступна во время занятия</p>;
-  else if (quiz?.mode === 'single_step') {
-    content = quiz.currentQuestion
-      ? <QuizQuestion
+  if (!quiz) return null;
+
+  if (quiz.mode === 'single_step') {
+    // До показа вопроса преподавателем блок не занимает место на экране (§8.14).
+    if (!quiz.currentQuestion) return null;
+    return (
+      <section className="lesson-panel lesson-panel--attention">
+        <div className="lesson-panel-heading"><h2>Вопрос от преподавателя</h2></div>
+        <QuizQuestion
           question={quiz.currentQuestion}
           myAnswer={quiz.myAnswer}
           disabled={pendingQuestionId === quiz.currentQuestion.id || quiz.questionRevealState !== 'question'}
@@ -171,103 +307,100 @@ function QuizCard({ live, quiz, onAnswer, pendingQuestionId }) {
           resultVisible={quiz.questionRevealState === 'answer'}
           explanationVisible={quiz.explanationRevealed}
         />
-      : <p className="lesson-muted">Викторина началась. Преподаватель скоро покажет вопрос.</p>;
-  } else if (quiz?.mode === 'self_paced') {
-    const questions = quiz.questions || [];
-    const current = questions[selfPacedIndex];
-    const answered = questions.filter((question) => question.myAnswer).length;
-    content = (
-      <>
-        <div className="lesson-progress"><span style={{ width: `${questions.length ? answered / questions.length * 100 : 0}%` }} /></div>
-        <p className="lesson-progress-label">Отвечено {answered} из {questions.length}</p>
-        {current && <QuizQuestion
-          question={current}
-          myAnswer={current.myAnswer}
-          disabled={pendingQuestionId === current.id}
-          onSubmit={(selected) => onAnswer(current.id, selected)}
-          resultVisible={quiz.questionRevealState === 'answer'}
-          explanationVisible={quiz.explanationRevealed}
-        />}
-        <div className="lesson-quiz-nav">
-          <button type="button" onClick={() => setSelfPacedIndex((i) => Math.max(0, i - 1))} disabled={selfPacedIndex === 0}>←</button>
-          <span>{selfPacedIndex + 1} / {questions.length}</span>
-          <button type="button" onClick={() => setSelfPacedIndex((i) => Math.min(questions.length - 1, i + 1))} disabled={selfPacedIndex >= questions.length - 1}>→</button>
-        </div>
-      </>
+      </section>
     );
   }
-  return (
-    <section className={`lesson-panel ${quiz ? 'lesson-panel--attention' : ''}`}>
-      <div className="lesson-panel-heading"><div><span className="lesson-panel-icon">?</span><h2>Викторина</h2></div>{quiz && <span className="lesson-badge">Активна</span>}</div>
-      {content}
-    </section>
-  );
-}
 
-function Schedule({ upcoming, lessons, onOpen }) {
+  const questions = quiz.questions || [];
+  if (!questions.length) return null;
+  const current = questions[selfPacedIndex];
+  const answered = questions.filter((question) => question.myAnswer).length;
   return (
-    <section className="lesson-schedule">
-      <div className="lesson-section-title"><div><span>▦</span><h2>Расписание</h2></div><small>Текущая неделя</small></div>
-      {upcoming && (
-        <button type="button" className="lesson-next" onClick={() => onOpen(upcoming)}>
-          <span>Ближайшее занятие</span>
-          <strong>{upcoming.subject?.name} · {formatDate(upcoming.scheduledAt)}</strong>
-          <small>{upcoming.topic || `Преподаватель: ${teacherName(upcoming.teacher)}`}</small>
-        </button>
-      )}
-      <div className="lesson-schedule-list">
-        {lessons.length === 0 && <p className="lesson-muted">На этой неделе занятий нет.</p>}
-        {lessons.map((item) => (
-          <button type="button" className="lesson-schedule-row" key={item.id} onClick={() => onOpen(item)}>
-            <time><strong>{new Date(item.scheduledAt).toLocaleDateString('ru-RU', { weekday: 'short' })}</strong><span>{new Date(item.scheduledAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</span></time>
-            <span className="lesson-schedule-main"><strong>{item.subject?.name}</strong><small>{item.topic || teacherName(item.teacher)}</small></span>
-            <span className={`lesson-status-badge ${item.status}`}>{item.originalScheduledAt ? 'Перенесено' : STATUS_LABELS[item.status]}</span>
-          </button>
-        ))}
+    <section className="lesson-panel lesson-panel--attention">
+      <div className="lesson-panel-heading"><h2>Вопрос от преподавателя</h2></div>
+      <div className="lesson-progress"><span style={{ width: `${questions.length ? answered / questions.length * 100 : 0}%` }} /></div>
+      <p className="lesson-progress-label">Отвечено {answered} из {questions.length}</p>
+      {current && <QuizQuestion
+        question={current}
+        myAnswer={current.myAnswer}
+        disabled={pendingQuestionId === current.id}
+        onSubmit={(selected) => onAnswer(current.id, selected)}
+        resultVisible={quiz.questionRevealState === 'answer'}
+        explanationVisible={quiz.explanationRevealed}
+      />}
+      <div className="lesson-quiz-nav">
+        <button type="button" onClick={() => setSelfPacedIndex((i) => Math.max(0, i - 1))} disabled={selfPacedIndex === 0}>←</button>
+        <span>{selfPacedIndex + 1} / {questions.length}</span>
+        <button type="button" onClick={() => setSelfPacedIndex((i) => Math.min(questions.length - 1, i + 1))} disabled={selfPacedIndex >= questions.length - 1}>→</button>
       </div>
     </section>
   );
 }
 
-function Materials({ materials }) {
-  if (!materials?.length) return <p className="lesson-muted">Материалы ещё не добавлены.</p>;
-  const typeIcon = { note: '📄', presentation: '📊', recording: '▶', link: '🔗', homework: '📝' };
-  return <div className="lesson-materials">{materials.map((item) => (
-    <a key={item.id} href={item.url || `#homework-${item.homeworkId}`} target={item.url ? '_blank' : undefined} rel="noreferrer">
-      <span>{typeIcon[item.type] || '📎'}</span><strong>{item.title}</strong><span>→</span>
-    </a>
-  ))}</div>;
+// Полное расписание — отдельный экран, открывается ссылкой во время занятия (ТЗ §4.2).
+function ScheduleView({ lessons, onClose }) {
+  const days = groupLessonsByDay(lessons);
+  return (
+    <section className="lesson-schedule-block">
+      <div className="lesson-schedule-head">
+        <h2 className="lesson-schedule-title">Расписание занятий</h2>
+        <button type="button" className="lesson-details-close" onClick={onClose} aria-label="Закрыть расписание">×</button>
+      </div>
+      {days.length === 0
+        ? <p className="lesson-muted">Пока новых занятий нет. Здесь появятся дата, время и тема следующего занятия.</p>
+        : days.map(({ date, lessons: dayLessons }) => (
+          <div className="lesson-day" key={date.getTime()}>
+            <div className="lesson-day-head">
+              <span className="lesson-day-num">{date.getDate()}</span>
+              <span className="lesson-day-label">{dayLabel(date)}</span>
+              <span className="lesson-day-month">{date.toLocaleDateString('ru-RU', { month: 'long' })}</span>
+            </div>
+            <div className="lesson-day-rows">
+              {dayLessons.map((lesson) => <ScheduleRow lesson={lesson} key={lesson.id} />)}
+            </div>
+          </div>
+        ))}
+    </section>
+  );
 }
 
-export default function Lesson({ studentId, studentName, isTabActive }) {
+export default function Lesson({ studentId, isTabActive, entryRequest = null }) {
   const {
     currentLesson, setCurrentLesson, lessonSocket,
     lessonConnected, lessonReconnecting, dismissLessonNotice
   } = useData();
   const [upcoming, setUpcoming] = useState(null);
-  const [week, setWeek] = useState([]);
+  const [upcomingList, setUpcomingList] = useState([]);
   const [activePoll, setActivePoll] = useState(null);
   const [activeQuiz, setActiveQuiz] = useState(null);
   const [myQuestions, setMyQuestions] = useState([]);
-  const [materials, setMaterials] = useState([]);
-  const [selectedLesson, setSelectedLesson] = useState(null);
-  const [legacyQuiz, setLegacyQuiz] = useState(false);
+  const [canAskQuestions, setCanAskQuestions] = useState(false);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
   const [questionText, setQuestionText] = useState('');
   const [questionOpen, setQuestionOpen] = useState(false);
   const [pending, setPending] = useState('');
   const [message, setMessage] = useState('');
+  const [questionFeedback, setQuestionFeedback] = useState('idle');
   const joinedLessonRef = useRef(null);
+  const questionFeedbackTimerRef = useRef(null);
+
+  const studentRequest = useCallback((path, options = {}) => {
+    const separator = path.includes('?') ? '&' : '?';
+    return jsonRequest(`${path}${separator}studentId=${encodeURIComponent(studentId)}`, options);
+  }, [studentId]);
 
   const loadSchedule = useCallback(async () => {
     try {
-      const [currentData, upcomingData, weekData] = await Promise.all([
-        jsonRequest('/current'), jsonRequest('/schedule/upcoming'), jsonRequest('/schedule/week')
+      const [currentData, upcomingData, listData] = await Promise.all([
+        studentRequest('/current'),
+        studentRequest('/schedule/upcoming'),
+        studentRequest('/schedule/upcoming-list?limit=5')
       ]);
       setCurrentLesson(currentData.lesson || null);
       setUpcoming(upcomingData.lesson || null);
-      setWeek(weekData.lessons || []);
+      setUpcomingList(listData.lessons || []);
     } catch (error) { setMessage(error.message); }
-  }, [setCurrentLesson]);
+  }, [setCurrentLesson, studentRequest]);
 
   const applyState = useCallback((state) => {
     if (!state) return;
@@ -275,53 +408,117 @@ export default function Lesson({ studentId, studentName, isTabActive }) {
     setActivePoll(state.activePoll || null);
     setActiveQuiz(state.activeQuiz || null);
     setMyQuestions(state.myQuestions || []);
-    setMaterials(state.materials || []);
+    setCanAskQuestions(Boolean(state.canAskQuestions));
   }, [setCurrentLesson]);
 
   const refreshState = useCallback(async (lessonId = currentLesson?.id) => {
     if (!lessonId) return;
-    try { applyState(await jsonRequest(`/lessons/${lessonId}/state`)); }
+    try { applyState(await studentRequest(`/lessons/${lessonId}/state`)); }
     catch (error) { setMessage(error.message); }
-  }, [currentLesson?.id, applyState]);
+  }, [currentLesson?.id, applyState, studentRequest]);
+
+  const resetSessionState = useCallback(() => {
+    joinedLessonRef.current = null;
+    setActivePoll(null);
+    setActiveQuiz(null);
+    setMyQuestions([]);
+    setCanAskQuestions(false);
+    setQuestionOpen(false);
+    setQuestionFeedback('idle');
+  }, []);
 
   useEffect(() => { loadSchedule(); }, [loadSchedule]);
 
+  useEffect(() => () => clearTimeout(questionFeedbackTimerRef.current), []);
+
+  // ТЗ §8.17: экран занятия обновляется без перезагрузки.
   useEffect(() => {
     if (!lessonSocket) return undefined;
     const onState = (state) => applyState(state);
     const reload = () => refreshState();
-    const onFinished = () => {
-      setActivePoll(null); setActiveQuiz(null); loadSchedule();
+    const onStarted = () => loadSchedule();
+    const onFinished = ({ lessonId } = {}) => {
+      if (!lessonId || Number(joinedLessonRef.current) === Number(lessonId)) resetSessionState();
+      loadSchedule();
     };
+    const onQuestionsToggled = ({ questionsEnabled } = {}) => setCanAskQuestions(Boolean(questionsEnabled));
     const onQuestionStatus = ({ question }) => setMyQuestions((items) => items.map((item) => item.id === question.id ? question : item));
     const onError = (error) => setMessage(error?.message || 'Ошибка соединения');
+    const activityEvents = [
+      'poll:started', 'poll:closed', 'poll:results-revealed',
+      'quiz:started', 'quiz:question-shown', 'quiz:answer-revealed',
+      'quiz:explanation-shown', 'quiz:next-question', 'quiz:finished'
+    ];
     lessonSocket.on('lesson:state', onState);
-    ['poll:started', 'poll:closed', 'poll:results-revealed', 'quiz:started', 'quiz:question-shown', 'quiz:answer-revealed', 'quiz:explanation-shown', 'quiz:next-question', 'quiz:finished'].forEach((event) => lessonSocket.on(event, reload));
+    activityEvents.forEach((event) => lessonSocket.on(event, reload));
+    lessonSocket.on('lesson:started', onStarted);
     lessonSocket.on('lesson:finished', onFinished);
+    lessonSocket.on('lesson:questions-toggled', onQuestionsToggled);
     lessonSocket.on('question:status-changed', onQuestionStatus);
     lessonSocket.on('error', onError);
     return () => {
       lessonSocket.off('lesson:state', onState);
-      ['poll:started', 'poll:closed', 'poll:results-revealed', 'quiz:started', 'quiz:question-shown', 'quiz:answer-revealed', 'quiz:explanation-shown', 'quiz:next-question', 'quiz:finished'].forEach((event) => lessonSocket.off(event, reload));
+      activityEvents.forEach((event) => lessonSocket.off(event, reload));
+      lessonSocket.off('lesson:started', onStarted);
       lessonSocket.off('lesson:finished', onFinished);
+      lessonSocket.off('lesson:questions-toggled', onQuestionsToggled);
       lessonSocket.off('question:status-changed', onQuestionStatus);
       lessonSocket.off('error', onError);
     };
-  }, [lessonSocket, applyState, refreshState, loadSchedule]);
+  }, [lessonSocket, applyState, refreshState, loadSchedule, resetSessionState]);
+
+  // Занятие идёт — экран сразу показывает активную сессию (ТЗ §4.2).
+  const live = currentLesson?.status === 'live';
 
   useEffect(() => {
-    if (!lessonSocket || !currentLesson?.id || currentLesson.status !== 'live') return;
+    if (!live) resetSessionState();
+  }, [live, currentLesson?.id, resetSessionState]);
+
+  useEffect(() => {
+    if (!live) return;
+    setScheduleOpen(false);
+    dismissLessonNotice();
+  }, [live, currentLesson?.id, dismissLessonNotice]);
+
+  useEffect(() => {
+    if (!entryRequest?.lessonId) return;
+    loadSchedule();
+  }, [entryRequest?.lessonId, entryRequest?.nonce]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!lessonSocket || !live) return;
     if (joinedLessonRef.current !== currentLesson.id || lessonConnected) {
-      lessonSocket.emit('student:join-lesson', { lessonId: currentLesson.id, forceReconnect: true });
+      lessonSocket.emit('student:join-lesson', { lessonId: currentLesson.id, studentId, forceReconnect: true });
       joinedLessonRef.current = currentLesson.id;
     }
-  }, [lessonSocket, lessonConnected, currentLesson?.id, currentLesson?.status]);
+  }, [lessonSocket, lessonConnected, currentLesson?.id, live, studentId]);
 
   useEffect(() => {
-    if (!isTabActive || currentLesson?.status !== 'live') return;
-    dismissLessonNotice();
-    jsonRequest(`/lessons/${currentLesson.id}/attendance/ping`, { method: 'POST' }).catch(() => {});
-  }, [isTabActive, currentLesson?.id, currentLesson?.status, dismissLessonNotice]);
+    if (!live || !currentLesson?.id) return;
+    refreshState(currentLesson.id);
+  }, [live, currentLesson?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!isTabActive || !live) return;
+    studentRequest(`/lessons/${currentLesson.id}/attendance/ping`, { method: 'POST' }).catch(() => {});
+  }, [isTabActive, live, currentLesson?.id, studentRequest]);
+
+  useEffect(() => {
+    if (!live || !activeQuiz?.id) return;
+    const questionIds = activeQuiz.mode === 'self_paced'
+      ? (activeQuiz.questions || []).map((question) => question.id)
+      : activeQuiz.currentQuestion?.id ? [activeQuiz.currentQuestion.id] : [];
+    questionIds.forEach((questionId) => {
+      studentRequest(`/lesson-quiz/${activeQuiz.id}/questions/${questionId}/received`, { method: 'POST' }).catch(() => {});
+    });
+  }, [
+    live,
+    activeQuiz?.id,
+    activeQuiz?.mode,
+    activeQuiz?.currentQuestion?.id,
+    activeQuiz?.questions?.map((question) => question.id).join(','),
+    studentRequest
+  ]);
 
   const act = async (key, callback) => {
     setPending(key); setMessage('');
@@ -330,107 +527,166 @@ export default function Lesson({ studentId, studentName, isTabActive }) {
   };
 
   const answerPoll = (optionId) => act('poll', async () => {
-    await jsonRequest(`/polls/${activePoll.id}/answer`, { method: 'POST', body: JSON.stringify({ optionId }) });
+    await studentRequest(`/polls/${activePoll.id}/answer`, { method: 'POST', body: JSON.stringify({ optionId }) });
     await refreshState();
   });
 
   const answerQuiz = (questionId, selectedAnswer) => act(`quiz-${questionId}`, async () => {
-    await jsonRequest(`/lesson-quiz/${activeQuiz.id}/questions/${questionId}/answer`, {
+    await studentRequest(`/lesson-quiz/${activeQuiz.id}/questions/${questionId}/answer`, {
       method: 'POST', body: JSON.stringify({ selectedAnswer })
     });
     await refreshState();
   });
 
-  const sendQuestion = () => act('question', async () => {
-    const data = await jsonRequest(`/lessons/${currentLesson.id}/questions`, {
-      method: 'POST', body: JSON.stringify({ text: questionText })
-    });
-    setMyQuestions((items) => [data.question, ...items]);
-    setQuestionText(''); setQuestionOpen(false);
-  });
-
-  const sendReaction = (type) => act(`reaction-${type}`, async () => {
-    await jsonRequest(`/lessons/${currentLesson.id}/reactions`, { method: 'POST', body: JSON.stringify({ type }) });
-    setMessage('Реакция отправлена преподавателю');
-  });
+  const sendQuestion = async () => {
+    if (pending === 'question') return;
+    clearTimeout(questionFeedbackTimerRef.current);
+    setPending('question');
+    setQuestionFeedback('sending');
+    setMessage('');
+    hapticFeedback('tap');
+    try {
+      const data = await studentRequest(`/lessons/${currentLesson.id}/questions`, {
+        method: 'POST', body: JSON.stringify({ text: questionText })
+      });
+      setMyQuestions((items) => [data.question, ...items]);
+      setQuestionText('');
+      setQuestionOpen(false);
+      setQuestionFeedback('success');
+      hapticFeedback('success');
+      questionFeedbackTimerRef.current = setTimeout(() => setQuestionFeedback('idle'), 1800);
+    } catch (error) {
+      setQuestionFeedback('error');
+      setMessage(error.message);
+      hapticFeedback('error');
+    } finally {
+      setPending('');
+    }
+  };
 
   const openStream = async () => {
     if (!currentLesson?.streamUrl) return;
-    jsonRequest(`/lessons/${currentLesson.id}/attendance/stream-click`, { method: 'POST' }).catch(() => {});
+    studentRequest(`/lessons/${currentLesson.id}/attendance/stream-click`, { method: 'POST' }).catch(() => {});
     const tg = window.Telegram?.WebApp;
     if (tg?.openLink) tg.openLink(currentLesson.streamUrl);
     else window.open(currentLesson.streamUrl, '_blank', 'noopener,noreferrer');
   };
 
-  const openScheduleLesson = async (lesson) => {
-    setSelectedLesson(lesson);
-    if (lesson.status === 'finished') {
-      try { setMaterials((await jsonRequest(`/lessons/${lesson.id}/materials`)).materials || []); }
-      catch (error) { setMessage(error.message); }
-    }
-  };
-
-  const live = currentLesson?.status === 'live';
+  // Кнопка держит статус вопроса, только пока он ждёт реакции преподавателя.
+  // Как только преподаватель его отвечает или откладывает, кнопка возвращается
+  // к обычному «Задать вопрос преподавателю» — прошлый вопрос закрыт.
   const latestQuestion = myQuestions[0];
+  const openQuestion = latestQuestion && ['pending', 'answering'].includes(latestQuestion.status)
+    ? latestQuestion
+    : null;
+  // ТЗ §5 состояние №6: на экране показывается не больше одной основной активности.
+  const hasQuizCard = Boolean(activeQuiz && (activeQuiz.mode === 'single_step'
+    ? activeQuiz.currentQuestion
+    : (activeQuiz.questions || []).length));
+  const hasPollCard = Boolean(activePoll) && !hasQuizCard;
+  const hasActivity = hasQuizCard || hasPollCard;
 
-  if (legacyQuiz) return (
-    <div className="lesson-legacy">
-      <button type="button" className="lesson-back" onClick={() => setLegacyQuiz(false)}>← Вернуться к занятию</button>
-      <Quiz studentId={studentId} studentName={studentName} />
+  // Синяя шапка — общий для всех разделов элемент (практика, домашка, статистика).
+  const hero = (
+    <div className="section-hero lesson-hero">
+      <div className="section-hero-glow" />
+      <div className="section-hero-content">
+        <div className="section-hero-main">
+          <StudentBrandMark variant="hero" />
+          <div className="section-hero-text">
+            <h1 className="section-hero-title">Занятие</h1>
+            <p className="section-hero-sub">
+              {live
+                ? `${currentLesson.subject?.name || 'Занятие'} · идёт сейчас`
+                : upcoming
+                  ? 'Расписание ниже'
+                  : 'Занятий пока не запланировано'}
+            </p>
+          </div>
+        </div>
+        {live && <span className="lesson-hero-live" aria-label="Занятие идёт"><span aria-hidden="true" />В эфире</span>}
+      </div>
+      <svg className="section-hero-wave" viewBox="0 0 400 40" preserveAspectRatio="none">
+        <path d="M0,40 L0,22 Q100,2 200,18 T400,15 L400,40 Z" />
+      </svg>
     </div>
   );
 
+  if (scheduleOpen) {
+    return (
+      <div className="lesson-page">
+        {hero}
+        <div className="lesson-content">
+          {message && <button type="button" className="lesson-toast" onClick={() => setMessage('')}>{message}<span>×</span></button>}
+          <ScheduleView lessons={upcomingList} onClose={() => setScheduleOpen(false)} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="lesson-page">
+      {hero}
+      <div className="lesson-content">
       {(lessonReconnecting || (!lessonConnected && live)) && <div className="lesson-reconnecting" role="status"><span /> Восстанавливаем соединение…</div>}
       {message && <button type="button" className="lesson-toast" onClick={() => setMessage('')}>{message}<span>×</span></button>}
-      <StatusHeader lesson={currentLesson} upcoming={upcoming} onStream={openStream} />
 
-      <div className="lesson-live-grid">
-        <QuizCard live={live} quiz={activeQuiz} onAnswer={answerQuiz} pendingQuestionId={pending.startsWith('quiz-') ? Number(pending.slice(5)) : null} />
-        <PollCard live={live} poll={activePoll} onAnswer={answerPoll} pending={pending === 'poll'} />
+      {live ? (
+        <>
+          <ActiveLessonCard lesson={currentLesson} onStream={openStream} />
+
+          {hasQuizCard && (
+            <QuizCard
+              quiz={activeQuiz}
+              onAnswer={answerQuiz}
+              pendingQuestionId={pending.startsWith('quiz-') ? Number(pending.slice(5)) : null}
+            />
+          )}
+          {hasPollCard && <PollCard poll={activePoll} onAnswer={answerPoll} pending={pending === 'poll'} />}
+          {!hasActivity && <p className="lesson-waiting">Ожидайте заданий от преподавателя</p>}
+
+          {/* ТЗ §4.2: блок вопроса не показывается, если преподаватель их отключил. */}
+          {canAskQuestions && (
+            <button
+              type="button"
+              className={`lesson-question-button ${questionFeedback === 'success' ? 'lesson-question-button--success' : ''}`}
+              onClick={() => setQuestionOpen(true)}
+            >
+              <span className="lesson-question-icon" aria-hidden="true">{questionFeedback === 'success' ? '✓' : '✋'}</span>
+              <span>
+                <strong>Задать вопрос преподавателю</strong>
+                <small>{questionFeedback === 'success'
+                  ? 'Преподаватель получил уведомление'
+                  : openQuestion
+                    ? ({ pending: 'Ожидает ответа', answering: 'Преподаватель отвечает' }[openQuestion.status] || 'Статус обновляется')
+                    : 'Короткий вопрос во время занятия'}</small>
+              </span>
+              <span aria-hidden="true">→</span>
+            </button>
+          )}
+
+          {/* ТЗ §4.2: во время занятия расписание — только небольшая ссылка внизу. */}
+          <button type="button" className="lesson-schedule-link" onClick={() => setScheduleOpen(true)}>
+            Расписание занятий →
+          </button>
+        </>
+      ) : (
+        <IdleState upcoming={upcoming} lessons={upcomingList} />
+      )}
       </div>
 
-      {live && (
-        <section className="lesson-interactions">
-          <div className="lesson-section-title"><div><span>⌁</span><h2>Связь с преподавателем</h2></div></div>
-          <div className="lesson-reactions" aria-label="Быстрые реакции">
-            {REACTIONS.map(([type, icon, label]) => (
-              <button type="button" key={type} disabled={pending === `reaction-${type}`} onClick={() => sendReaction(type)}><span>{icon}</span>{label}</button>
-            ))}
-          </div>
-          <button type="button" className="lesson-question-button" onClick={() => setQuestionOpen(true)}>
-            <span>✋</span><span><strong>{latestQuestion ? 'Вопрос отправлен' : 'Поднять руку'}</strong><small>{latestQuestion ? ({ pending: 'Ожидает ответа', answering: 'Преподаватель отвечает', answered: 'Отвечено', deferred: 'Ответит после занятия' }[latestQuestion.status]) : 'Задать короткий вопрос преподавателю'}</small></span><span>→</span>
-          </button>
-        </section>
-      )}
-
-      <Schedule upcoming={upcoming} lessons={week} onOpen={openScheduleLesson} />
-
-      {selectedLesson && (
-        <section className="lesson-panel lesson-details">
-          <button type="button" className="lesson-details-close" onClick={() => setSelectedLesson(null)} aria-label="Закрыть">×</button>
-          <h2>{selectedLesson.subject?.name}</h2>
-          <p>{formatDate(selectedLesson.scheduledAt)} · {teacherName(selectedLesson.teacher)}</p>
-          {selectedLesson.topic && <p>{selectedLesson.topic}</p>}
-          {selectedLesson.status === 'finished' && <><h3>Материалы занятия</h3><Materials materials={materials} /></>}
-        </section>
-      )}
-
-      <button type="button" className="lesson-legacy-link" onClick={() => setLegacyQuiz(true)}>
-        Есть код викторины от преподавателя? <strong>Войти по коду →</strong>
-      </button>
-
-      {questionOpen && (
+      {questionOpen && typeof document !== 'undefined' && createPortal(
         <div className="lesson-modal-backdrop" onClick={() => setQuestionOpen(false)}>
           <div className="lesson-modal" role="dialog" aria-modal="true" aria-labelledby="lesson-question-title" onClick={(event) => event.stopPropagation()}>
             <button type="button" className="lesson-details-close" onClick={() => setQuestionOpen(false)}>×</button>
             <h2 id="lesson-question-title">Задать вопрос</h2>
-            <p>Можно просто поднять руку или добавить короткий текст.</p>
             <textarea value={questionText} onChange={(event) => setQuestionText(event.target.value.slice(0, 500))} placeholder="Что осталось непонятным?" rows="4" />
-            <button type="button" className="lesson-primary" disabled={pending === 'question'} onClick={sendQuestion}>{questionText.trim() ? 'Отправить вопрос' : 'Поднять руку'}</button>
+            <button type="button" className="lesson-primary" disabled={pending === 'question'} onClick={sendQuestion}>
+              {pending === 'question' ? 'Отправляем…' : 'Отправить'}
+            </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

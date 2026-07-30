@@ -158,7 +158,7 @@ function AdminPanelContent() {
       </nav>
 
       <main className="admin-content">
-        <div style={{ display: activeSection === 'users' ? 'block' : 'none' }}><Users dataRefreshKey={dataRefreshKey} /></div>
+        <div style={{ display: activeSection === 'users' ? 'block' : 'none' }}><Users currentUser={currentUser} dataRefreshKey={dataRefreshKey} /></div>
         <div style={{ display: activeSection === 'students' ? 'block' : 'none' }}><Students subjects={subjects} dataRefreshKey={dataRefreshKey} /></div>
         <div style={{ display: activeSection === 'practice' ? 'block' : 'none' }}><Practice dataRefreshKey={dataRefreshKey} /></div>
         <div style={{ display: activeSection === 'lesson' ? 'block' : 'none' }}><Lesson subjects={subjects} currentUser={currentUser} dataRefreshKey={dataRefreshKey} /></div>

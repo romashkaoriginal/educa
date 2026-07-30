@@ -1,14 +1,14 @@
 const { Op } = require('sequelize');
 const {
-  Lesson, Subject, User, Group, LessonPoll, LessonPollOption, LessonPollAnswer,
+  Lesson, Subject, User, LessonPoll, LessonPollOption, LessonPollAnswer,
   LessonQuiz, LessonQuizQuestion, LessonQuizAnswer, LessonQuestion, LessonMaterial,
   PracticeImage
 } = require('../models');
 
+// ТЗ §8.8: занятия не привязаны к группам, поэтому группы больше не подгружаются.
 const lessonInclude = [
   { model: Subject, as: 'subject', attributes: ['id', 'name', 'icon'] },
-  { model: User, as: 'teacher', attributes: ['id', 'firstName', 'lastName'] },
-  { model: Group, as: 'groups', attributes: ['id', 'name'], through: { attributes: [] } }
+  { model: User, as: 'teacher', attributes: ['id', 'firstName', 'lastName'] }
 ];
 
 function stripQuestionAnswer(question, reveal = false) {
@@ -127,7 +127,20 @@ async function getLessonState(lessonId, userId) {
       ? LessonMaterial.findAll({ where: { lessonId }, order: [['createdAt', 'DESC']] })
       : []
   ]);
-  return { lesson, activePoll, activeQuiz, myQuestions, materials };
+  // Экран ученика рисуется только по тому, что реально доступно сейчас (ТЗ §4).
+  // Вопросы преподавателю доступны только во время активного занятия и только
+  // если преподаватель их не отключил.
+  const isLive = lesson.status === 'live'
+    && (!lesson.sessionEndsAt || new Date(lesson.sessionEndsAt) > new Date());
+  return {
+    lesson,
+    isLive,
+    canAskQuestions: isLive && lesson.questionsEnabled !== false,
+    activePoll: isLive ? activePoll : null,
+    activeQuiz: isLive ? activeQuiz : null,
+    myQuestions,
+    materials
+  };
 }
 
 module.exports = {

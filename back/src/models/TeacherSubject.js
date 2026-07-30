@@ -9,11 +9,12 @@ const TeacherSubject = sequelize.define('TeacherSubject', {
     references: { model: 'users', key: 'id' },
     onDelete: 'CASCADE'
   },
+  // Группы как сущность убраны: преподаватель назначается прямо на предмет.
+  // Колонка groupId остаётся в таблице ради исторических данных, но больше не
+  // используется и не обязательна.
   groupId: {
     type: DataTypes.INTEGER,
-    allowNull: false,
-    references: { model: 'groups', key: 'id' },
-    onDelete: 'CASCADE'
+    allowNull: true
   },
   subjectId: {
     type: DataTypes.INTEGER,
@@ -25,8 +26,7 @@ const TeacherSubject = sequelize.define('TeacherSubject', {
   tableName: 'teacher_subjects',
   timestamps: true,
   indexes: [
-    { unique: true, fields: ['teacherId', 'groupId'] },
-    { fields: ['subjectId', 'teacherId'] }
+    { unique: true, fields: ['teacherId', 'subjectId'] }
   ]
 });
 

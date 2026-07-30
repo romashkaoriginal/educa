@@ -44,6 +44,7 @@ export const DataProvider = ({ children, studentId }) => {
   const [lessonConnected, setLessonConnected] = useState(false);
   const [lessonReconnecting, setLessonReconnecting] = useState(false);
   const lessonSocketRef = useRef(null);
+  const reconnectingTimerRef = useRef(null);
 
   const [loaded, setLoaded] = useState({
     subjects: false, practice: false, homework: false,
@@ -73,12 +74,18 @@ export const DataProvider = ({ children, studentId }) => {
     lessonSocketRef.current = socket;
 
     const onConnect = () => {
+      clearTimeout(reconnectingTimerRef.current);
       setLessonConnected(true);
       setLessonReconnecting(false);
+      socket.emit('student:subscribe-lessons', { studentId });
     };
     const onDisconnect = () => {
       setLessonConnected(false);
-      setLessonReconnecting(true);
+      // Telegram сворачивает WebView в фон и обрывает сокет даже без реальных
+      // проблем со связью — переподключение обычно успевает произойти за пару
+      // секунд. Баннер показываем с задержкой, чтобы не мигать на короткие разрывы.
+      clearTimeout(reconnectingTimerRef.current);
+      reconnectingTimerRef.current = setTimeout(() => setLessonReconnecting(true), 10000);
     };
     const onStarted = ({ lesson }) => {
       setCurrentLesson(lesson);
@@ -97,10 +104,13 @@ export const DataProvider = ({ children, studentId }) => {
     socket.on('lesson:started', onStarted);
     socket.on('lesson:finished', onFinished);
     socket.on('lesson:state', onState);
-    socket.io.on('reconnect_attempt', () => setLessonReconnecting(true));
-    socket.io.on('reconnect', () => setLessonReconnecting(false));
+    socket.io.on('reconnect', () => {
+      clearTimeout(reconnectingTimerRef.current);
+      setLessonReconnecting(false);
+    });
 
     return () => {
+      clearTimeout(reconnectingTimerRef.current);
       socket.removeAllListeners();
       socket.io.removeAllListeners();
       socket.disconnect();
@@ -199,7 +209,9 @@ export const DataProvider = ({ children, studentId }) => {
     loadingRef.current.homework = true;
     setLoading(prev => ({ ...prev, homework: true }));
     try {
-      const response = await apiFetch(`${API_URL}/homework/student/${studentId}`);
+      // Статус домашки меняется сразу после POST /submit. Telegram WebView может
+      // вернуть прежний GET-ответ из кэша, поэтому здесь всегда нужны свежие данные.
+      const response = await apiFetch(`${API_URL}/homework/student/${studentId}`, { cache: 'no-store' });
       const data = await parseOkJson(response, 'loadHomeworks');
       if (!data) return [];
       setHomeworks(data.homeworks || []);
@@ -243,7 +255,7 @@ export const DataProvider = ({ children, studentId }) => {
     loadingRef.current.homeworkStats = true;
     setLoading(prev => ({ ...prev, homeworkStats: true }));
     try {
-      const response = await apiFetch(`${API_URL}/homework/student/${studentId}/stats`);
+      const response = await apiFetch(`${API_URL}/homework/student/${studentId}/stats`, { cache: 'no-store' });
       const data = await parseOkJson(response, 'loadHomeworkStats');
       if (!data) return null;
       setHomeworkStats(data);

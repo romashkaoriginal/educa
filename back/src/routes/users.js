@@ -1,5 +1,6 @@
 const express = require('express');
 const userController = require('../controllers/userController');
+const { requireAdmin } = require('../middleware/telegramAuth');
 
 const router = express.Router();
 
@@ -10,7 +11,7 @@ router.get('/', userController.getAllUsers);
 router.get('/telegram/:telegramId', userController.getUserByTelegramId);
 
 // Создать пользователя (админ/учитель/менеджер)
-router.post('/', userController.createUser);
+router.post('/', requireAdmin, userController.createUser);
 
 // Обновить пользователя
 router.put('/:userId', userController.updateUser);

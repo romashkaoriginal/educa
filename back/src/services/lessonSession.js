@@ -1,31 +1,42 @@
 const { Op } = require('sequelize');
-const { Lesson, LessonGroup, LessonPoll, LessonQuiz } = require('../models');
+const { Lesson, LessonPoll, LessonQuiz } = require('../models');
 const { getLessonRecipients, sendLessonStartNotifications } = require('./lessonNotify');
 const { emitToLesson, emitToStudents } = require('./lessonRealtime');
 const { lessonInclude } = require('./lessonState');
 
-async function startLessonById(lessonId) {
+// ТЗ §3.2: активная сессия длится 2 часа, после чего завершается автоматически.
+const SESSION_DURATION_MS = 2 * 60 * 60 * 1000;
+
+// ТЗ §3.2/§8.10: ссылка на трансляцию указывается непосредственно перед началом,
+// тема при запуске из расписания подставляется автоматически, но её можно изменить.
+async function startLessonById(lessonId, { streamUrl, topic, teacherId } = {}) {
   const lesson = await Lesson.findByPk(lessonId, { include: lessonInclude });
   if (!lesson) return { error: 'Занятие не найдено', status: 404 };
   if (lesson.status === 'live') return { lesson, alreadyLive: true };
   if (lesson.status !== 'scheduled') return { error: 'Можно начать только запланированное занятие', status: 409 };
 
-  const groupIds = (lesson.groups || []).map((group) => group.id);
-  if (groupIds.length) {
-    const conflict = await LessonGroup.findOne({
-      where: { groupId: { [Op.in]: groupIds }, lessonId: { [Op.ne]: lesson.id } },
-      include: [{ model: Lesson, as: 'lesson', required: true, where: { status: 'live' }, attributes: ['id'] }]
-    });
-    if (conflict) return { error: 'Для одной из выбранных групп уже идёт другое занятие', status: 409 };
-  }
+  const stream = String(streamUrl || lesson.streamUrl || '').trim();
+  if (!stream) return { error: 'Укажите ссылку на трансляцию', status: 400 };
+
+  // Одновременно по одному предмету может идти только одно занятие — иначе ученик
+  // с доступом к предмету увидит сразу две активные сессии.
+  const conflict = await Lesson.findOne({
+    where: { subjectId: lesson.subjectId, status: 'live', id: { [Op.ne]: lesson.id } },
+    attributes: ['id']
+  });
+  if (conflict) return { error: 'По этому предмету уже идёт другое занятие', status: 409 };
 
   const now = new Date();
   const shouldNotify = !lesson.notifiedAt;
+  const nextTopic = topic === undefined ? undefined : (String(topic || '').trim() || null);
   const [started] = await Lesson.update(
     {
       status: 'live',
+      streamUrl: stream,
+      ...(nextTopic === undefined ? {} : { topic: nextTopic }),
+      ...(teacherId && !lesson.teacherId ? { teacherId } : {}),
       startedAt: now,
-      sessionEndsAt: new Date(now.getTime() + 2 * 60 * 60 * 1000),
+      sessionEndsAt: new Date(now.getTime() + SESSION_DURATION_MS),
       ...(shouldNotify ? { notifiedAt: now } : {})
     },
     { where: { id: lesson.id, status: 'scheduled' } }
@@ -41,6 +52,43 @@ async function startLessonById(lessonId) {
   emitToLesson(lesson.id, 'lesson:started', { lesson });
   emitToStudents(userIds, 'lesson:started', { lesson });
   if (shouldNotify) sendLessonStartNotifications(lesson).catch((error) => console.error('Lesson notifications:', error));
+  return { lesson, recipients: userIds.length };
+}
+
+// ТЗ §7 «Отдельный быстрый запуск» / §8.12: занятие можно начать вне расписания.
+// Тема необязательна, ссылка на трансляцию обязательна, группы и преподаватель не
+// выбираются — преподаватель берётся из аккаунта запускающего.
+async function startInstantLesson({ subjectId, streamUrl, topic, teacherId }) {
+  const stream = String(streamUrl || '').trim();
+  if (!stream) return { error: 'Укажите ссылку на трансляцию', status: 400 };
+  if (!subjectId) return { error: 'Не удалось определить предмет занятия', status: 400 };
+
+  const conflict = await Lesson.findOne({
+    where: { subjectId, status: 'live' },
+    attributes: ['id']
+  });
+  if (conflict) return { error: 'По этому предмету уже идёт другое занятие', status: 409 };
+
+  const now = new Date();
+  const lesson = await Lesson.create({
+    subjectId,
+    teacherId: teacherId || null,
+    topic: String(topic || '').trim() || null,
+    scheduledAt: now,
+    streamUrl: stream,
+    fromSchedule: false,
+    status: 'live',
+    startedAt: now,
+    sessionEndsAt: new Date(now.getTime() + SESSION_DURATION_MS),
+    notifiedAt: now,
+    createdBy: teacherId || null
+  });
+  await lesson.reload({ include: lessonInclude });
+  const recipients = await getLessonRecipients(lesson.id);
+  const userIds = recipients.map((user) => user.id);
+  emitToLesson(lesson.id, 'lesson:started', { lesson });
+  emitToStudents(userIds, 'lesson:started', { lesson });
+  sendLessonStartNotifications(lesson).catch((error) => console.error('Lesson notifications:', error));
   return { lesson, recipients: userIds.length };
 }
 
@@ -71,4 +119,6 @@ async function finishLessonById(lessonId, { auto = false } = {}) {
   return { lesson };
 }
 
-module.exports = { startLessonById, finishLessonById };
+module.exports = {
+  SESSION_DURATION_MS, startLessonById, startInstantLesson, finishLessonById
+};
