@@ -2,9 +2,7 @@
   --lesson-ease: cubic-bezier(0.23, 1, 0.32, 1);
   min-height: 100%;
   color: var(--kubik-text);
-  background:
-    radial-gradient(circle at 100% 0, rgba(255, 190, 189, 0.2), transparent 30%),
-    linear-gradient(180deg, #f5f9fc 0, var(--kubik-white) 320px);
+  background: var(--kubik-blue-soft, #eaf3fa);
   overflow-x: hidden;
   overflow-y: auto;
 }
