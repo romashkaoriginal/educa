@@ -1,6 +1,6 @@
 import React from 'react';
 import '@testing-library/jest-dom';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import SuperAdmin, { formatBytes, getMemoryStatus } from './SuperAdmin';
 import { adminFetch } from './adminApi';
 
@@ -47,4 +47,28 @@ test('выбирает предупреждение по проценту пам
 test('форматирует объём памяти для интерфейса', () => {
   expect(formatBytes(512 * 1024 ** 2)).toBe('512 МБ');
   expect(formatBytes(2 * 1024 ** 3)).toBe('2,0 ГБ');
+});
+
+test('показывает подробный живой журнал ошибок', async () => {
+  adminFetch.mockImplementation(async (url) => ({
+    ok: true,
+    json: async () => url.includes('/error-logs') ? {
+      logs: [{
+        id: '91', source: 'backend', severity: 'error', statusCode: 500, code: 'DB_TIMEOUT',
+        message: 'Не удалось сохранить ответ', area: 'practice', action: 'submit',
+        method: 'POST', path: '/api/practice/answer', userId: 14, userName: 'Иван Петров',
+        userRole: 'student', context: { topicId: 7, practiceTopicName: 'Дроби' }, occurrences: 2,
+        firstSeenAt: '2026-08-30T12:00:00.000Z', lastSeenAt: '2026-08-30T12:01:00.000Z'
+      }],
+      total: 1,
+      summary: { lastHour: 1, last24Hours: 1 }
+    } : diagnostics
+  }));
+
+  render(<SuperAdmin />);
+  const message = await screen.findByText('Не удалось сохранить ответ');
+  expect(screen.getByText('×2')).toBeInTheDocument();
+  fireEvent.click(message.closest('button'));
+  expect(screen.getByText(/Иван Петров · Ученик · ID 14/)).toBeInTheDocument();
+  expect(screen.getByText('Дроби')).toBeInTheDocument();
 });

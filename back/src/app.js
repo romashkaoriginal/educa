@@ -27,12 +27,20 @@ const guestRoutes = require('./routes/guest');
 const guestAdminRoutes = require('./routes/guestAdmin');
 const lessonRoutes = require('./routes/lesson');
 const lessonAdminRoutes = require('./routes/lessonAdmin');
+const clientErrorRoutes = require('./routes/clientErrors');
 const setupSocketAuth = require('./socket/authMiddleware');
 const setupQuizSocket = require('./socket/quizSocket');
 const setupLessonSocket = require('./socket/lessonSocket');
 const { startGuestScheduler } = require('./services/guestScheduler');
 const { startLessonScheduler, stopLessonScheduler } = require('./services/lessonScheduler');
+const { startErrorLogRetention, stopErrorLogRetention } = require('./services/errorLogRetention');
 const { telegramAuth, requireUser, requireAdmin, requireRole, blockGuests } = require('./middleware/telegramAuth');
+const {
+  finalErrorHandler,
+  installConsoleErrorCapture,
+  requestErrorCapture,
+  setupSocketErrorCapture
+} = require('./middleware/errorCapture');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -96,6 +104,8 @@ app.use(cors({
   credentials: true
 }));
 app.use(express.json());
+installConsoleErrorCapture();
+app.use(requestErrorCapture);
 
 // Кэширование статичных данных (предметы меняются редко)
 app.use('/api/subjects', (req, res, next) => {
@@ -115,6 +125,9 @@ app.use('/api/', apiLimiter);
 
 // Публичные эндпоинты (бот, проверка)
 app.use('/api/bot-users', botUsersRoutes);
+
+// Ошибки браузера принимаются отдельно и никогда не вмешиваются в основной запрос.
+app.use('/api/client-errors', telegramAuth, clientErrorRoutes);
 
 // Список гостей для админа (вход «под гостем» для проверки) — только admin.
 // Монтируется ДО общего /api/guest, чтобы admin-guard сработал на этом сабпути.
@@ -151,12 +164,15 @@ app.use('/api/notify', telegramAuth, requireRole(['admin', 'manager', 'teacher']
 app.use('/api/applications', applicationRoutes);
 
 setupSocketAuth(io);
+setupSocketErrorCapture(io);
 setupQuizSocket(io);
 setupLessonSocket(io);
 
 app.get('/', (req, res) => {
   res.json({ message: 'Educa Backend API + Telegram Bot + WebSocket' });
 });
+
+app.use(finalErrorHandler);
 
 // Keepalive self-ping (на VPS не обязателен, оставлен как безвредный health-tick).
 // URL берём из PUBLIC_URL/SELF_URL, иначе локальный порт.
@@ -168,6 +184,7 @@ setInterval(() => {
 
 const startServer = async () => {
   await syncDatabase();
+  startErrorLogRetention();
 
   server.listen(PORT, () => {
     console.log(`🚀 Server running on http://localhost:${PORT}`);
@@ -183,6 +200,7 @@ process.on('SIGTERM', () => {
   console.log('\n🛑 Получен сигнал завершения...');
   stopBot();
   stopLessonScheduler();
+  stopErrorLogRetention();
   process.exit(0);
 });
 startServer();

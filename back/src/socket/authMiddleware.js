@@ -11,7 +11,7 @@ function setupSocketAuth(io) {
       if (!telegramUser) return next(new Error('Unauthorized'));
       const dbUser = await User.findOne({
         where: { telegramId: telegramUser.id },
-        attributes: ['id', 'role', 'isActive', 'isGuest']
+        attributes: ['id', 'role', 'isActive', 'isGuest', 'telegramId', 'firstName', 'lastName']
       });
       if (!dbUser || !dbUser.isActive) return next(new Error('Unauthorized'));
       if (dbUser.isGuest) return next(new Error('Forbidden'));

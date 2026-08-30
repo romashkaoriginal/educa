@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
 import App from './App';
+import { installGlobalErrorReporting, reportClientError } from './utils/errorReporter';
 
 class AppErrorBoundary extends React.Component {
   constructor(props) {
@@ -15,6 +16,14 @@ class AppErrorBoundary extends React.Component {
 
   componentDidCatch(error, errorInfo) {
     console.error('KUBIK render failed:', error, errorInfo);
+    reportClientError({
+      message: error?.message || 'Ошибка отрисовки приложения',
+      stack: error?.stack,
+      code: 'REACT_RENDER_ERROR',
+      area: 'application',
+      action: 'render',
+      context: { componentStack: errorInfo?.componentStack }
+    });
   }
 
   render() {
@@ -79,6 +88,7 @@ function safeTelegramCall(callback) {
 }
 
 function boot() {
+  installGlobalErrorReporting();
   // Проверка версии не должна оставлять Mini App пустым при плохой сети.
   // Если найден новый bundle, ensureFreshTelegramBundle сам перезагрузит страницу.
   ensureFreshTelegramBundle();

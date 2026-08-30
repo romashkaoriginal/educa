@@ -45,6 +45,7 @@ const LessonQuiz = require('./LessonQuiz');
 const LessonQuizQuestion = require('./LessonQuizQuestion');
 const LessonQuizAnswer = require('./LessonQuizAnswer');
 const LessonQuizDelivery = require('./LessonQuizDelivery');
+const ErrorLog = require('./ErrorLog');
 
 // ========== СВЯЗИ С SUBJECTS ==========
 
@@ -310,5 +311,6 @@ module.exports = {
   LessonAttendance, LessonMaterial, LessonQuestion, LessonReaction,
   LessonPoll, LessonPollOption, LessonPollAnswer,
   LessonQuiz, LessonQuizQuestion, LessonQuizAnswer, LessonQuizDelivery,
+  ErrorLog,
   syncDatabase
 };

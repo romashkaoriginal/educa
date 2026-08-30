@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import '../../styles/SuperAdmin.css';
 import { adminFetch } from './adminApi';
 import { API_URL } from '../../config';
+import ErrorLogsPanel from './ErrorLogsPanel';
 
 const REFRESH_INTERVAL_MS = 5000;
 
@@ -148,6 +149,8 @@ function SuperAdmin({ dataRefreshKey = 0 }) {
           </aside>
         </div>
       )}
+
+      <ErrorLogsPanel dataRefreshKey={dataRefreshKey} />
     </section>
   );
 }
