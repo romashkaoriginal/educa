@@ -203,7 +203,7 @@ router.post('/lessons', async (req, res) => {
 router.patch('/lessons/:id', requireLessonAccess, async (req, res) => {
   try {
     const lesson = await Lesson.findByPk(req.lessonId);
-    if (lesson.status !== 'scheduled') return bad(res, 'Изменять можно только запланированное занятие', 409);
+    if (lesson.status === 'live') return bad(res, 'Сначала завершите занятие', 409);
     const patch = {};
     if (req.body.topic !== undefined) patch.topic = String(req.body.topic || '').trim() || null;
     if (req.body.scheduledAt) {

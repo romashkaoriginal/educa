@@ -12,6 +12,7 @@ const { calculatePredictedScore, getGrowthTopicIds, CONFIG } = require('../servi
 const { calculateHomeworkScore } = require('../services/homeworkScore');
 const { buildSubjectDashboard } = require('../services/practiceDashboard');
 const { recordPracticeStatsIncrement, hasAggregatedStats } = require('../services/practiceStatsAggregate');
+const { loadExcelWorkbook, normaliseExcelHeader } = require('../utils/loadExcelWorkbook');
 
 // In-memory кэш статистики (TTL 60 секунд)
 const statsCache = new Map();
@@ -1312,11 +1313,9 @@ exports.importQuestionsFromExcel = async (req, res) => {
       return res.status(404).json({ message: 'Тема не найдена' });
     }
 
-    const ExcelJS = require('exceljs');
-    const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(req.file.buffer);
+    const workbook = await loadExcelWorkbook(req.file.buffer);
     const sheet = workbook.worksheets[0];
-    const headerRow = sheet.getRow(1).values.slice(1);
+    const headerRow = sheet.getRow(1).values.slice(1).map(normaliseExcelHeader);
     const rows = [];
     sheet.eachRow((row, rowNumber) => {
       if (rowNumber === 1) return;

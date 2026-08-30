@@ -8,6 +8,8 @@ import { useConfirmDelete } from './useConfirmDelete';
 import { getDeleteConfirm } from './cascadeDeleteMessages';
 import ImageUploadField, { imageUrl } from './ImageUploadField';
 import { checkQuestionFits, FIT_ERROR_MESSAGE } from '../../utils/questionFit';
+import MathText, { LatexHelp, truncateMathText } from '../MathText';
+import FormattingTextarea from '../FormattingTextarea';
 // Допустимое число вариантов ответа при ручном создании/редактировании.
 const MIN_OPTIONS = 2;
 const MAX_OPTIONS = 4;
@@ -44,13 +46,13 @@ function QuestionMobilePreview({ form }) {
             </div>
           )}
           {hasText && (
-            <div className="mobile-preview-text">{form.questionText}</div>
+            <MathText as="div" className="mobile-preview-text" text={form.questionText} />
           )}
           <div className="mobile-preview-options">
             {form.options.map((opt, i) => (
               <div key={i} className="mobile-preview-option">
                 <span>{String.fromCharCode(65 + i)}</span>
-                <span>{opt || '—'}</span>
+                <span><MathText text={opt || '—'} /></span>
               </div>
             ))}
           </div>
@@ -728,9 +730,7 @@ function Practice({ dataRefreshKey = 0 }) {
                   <span className="question-number">#{index + 1}</span>
                   <span className="question-preview">
                     {question.questionText
-                      ? (question.questionText.length > 70
-                          ? question.questionText.slice(0, 70) + '...'
-                          : question.questionText)
+                      ? <MathText text={truncateMathText(question.questionText, 70)} />
                       : '🖼️ Вопрос с изображением'}
                   </span>
                   {!question.isActive && <span className="inactive-badge">скрыт</span>}
@@ -776,7 +776,7 @@ function Practice({ dataRefreshKey = 0 }) {
                     </div>
                   )}
                   {question.questionText && (
-                    <div className="question-text">{question.questionText}</div>
+                    <MathText as="div" className="question-text" text={question.questionText} />
                   )}
 
                   <div className="question-options">
@@ -788,7 +788,7 @@ function Practice({ dataRefreshKey = 0 }) {
                           className={`option ${correctSet.has(idx) ? 'correct' : ''}`}
                         >
                           <span className="option-letter">{String.fromCharCode(65 + idx)}</span>
-                          <span className="option-text">{option}</span>
+                          <span className="option-text"><MathText text={option} /></span>
                           {correctSet.has(idx) && <span className="correct-mark">✓</span>}
                         </div>
                       ));
@@ -803,7 +803,7 @@ function Practice({ dataRefreshKey = 0 }) {
                           <img src={imageUrl(question.hintImage.storageKey)} alt="Изображение подсказки" />
                         </div>
                       )}
-                      {question.explanation && <span> {question.explanation}</span>}
+                      {question.explanation && <span> <MathText text={question.explanation} /></span>}
                     </div>
                   )}
                 </div>
@@ -834,12 +834,13 @@ function Practice({ dataRefreshKey = 0 }) {
                 <div className="form-section-title">Содержание вопроса</div>
                 <div className="form-group">
                   <label>Текст вопроса</label>
-                  <textarea
+                  <FormattingTextarea
                     value={questionForm.questionText}
-                    onChange={(e) => setQuestionForm({...questionForm, questionText: e.target.value})}
+                    onChange={(questionText) => setQuestionForm({...questionForm, questionText})}
                     rows="3"
                     placeholder="Можно оставить пустым, если добавлено изображение"
                   />
+                  <LatexHelp />
                 </div>
                 <div className="form-group">
                   <ImageUploadField

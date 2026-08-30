@@ -7,6 +7,7 @@ import { API_URL, SOCKET_URL } from '../../config';
 import { useSectionRefresh } from './useSectionRefresh';
 import { useConfirmDelete } from './useConfirmDelete';
 import { getDeleteConfirm } from './cascadeDeleteMessages';
+import MathText, { LatexHelp } from '../MathText';
 
 function Quiz({ subjects, currentUserId, dataRefreshKey = 0 }) {
   const { confirmDelete, ConfirmDeleteDialog } = useConfirmDelete();
@@ -349,7 +350,7 @@ function Quiz({ subjects, currentUserId, dataRefreshKey = 0 }) {
               <span>•</span>
               <span>{participants.length} участников</span>
             </div>
-            {quiz.description && <p className="quiz-desc">{quiz.description}</p>}
+            {quiz.description && <div className="quiz-desc"><MathText text={quiz.description} /></div>}
             <div className="quiz-dates">
               <span>Запущена: {new Date(quiz.startedAt).toLocaleString('ru-RU')}</span>
               <span>Завершена: {new Date(quiz.finishedAt).toLocaleString('ru-RU')}</span>
@@ -367,7 +368,7 @@ function Quiz({ subjects, currentUserId, dataRefreshKey = 0 }) {
                     {stat.accuracy}% правильных
                   </span>
                 </div>
-                <p className="stat-question">{stat.questionText}</p>
+                <div className="stat-question"><MathText text={stat.questionText} /></div>
                 <div className="stat-footer"><span>{stat.correctAnswers} из {stat.totalAnswers} ответили правильно</span></div>
               </div>
             ))}
@@ -412,7 +413,7 @@ function Quiz({ subjects, currentUserId, dataRefreshKey = 0 }) {
                         <span className={`answer-badge ${answer.isCorrect ? 'correct' : 'wrong'}`}>{answer.isCorrect ? '✓ Правильно' : '✗ Неправильно'}</span>
                         <span className="answer-score">+{parseFloat(answer.score).toFixed(2)} баллов</span>
                       </div>
-                      <p className="answer-question">{question?.questionText}</p>
+                      <div className="answer-question"><MathText text={question?.questionText} /></div>
                       <div className="answer-info">
                         <span>Ответ: вариант {String.fromCharCode(65 + answer.selectedAnswer)}</span>
                         <span>•</span>
@@ -489,12 +490,12 @@ function Quiz({ subjects, currentUserId, dataRefreshKey = 0 }) {
                   <span>Вопрос {questionIndex + 1} из {totalQuestions}</span>
                   <span className={`timer ${timeLeft <= 5 ? 'urgent' : ''}`}>⏱ {timeLeft}с</span>
                 </div>
-                <h3>{currentQuestion.questionText}</h3>
+                <h3><MathText text={currentQuestion.questionText} /></h3>
                 <div className="admin-options">
                   {currentQuestion.options.map((opt, i) => (
                     <div key={i} className={`admin-option ${i === currentQuestion.correctAnswer ? 'correct' : ''}`}>
                       <span>{String.fromCharCode(65 + i)}</span>
-                      <span>{opt}</span>
+                      <span><MathText text={opt} /></span>
                       {i === currentQuestion.correctAnswer && <span className="check">✓</span>}
                     </div>
                   ))}
@@ -637,7 +638,7 @@ function Quiz({ subjects, currentUserId, dataRefreshKey = 0 }) {
               <div key={i} className="question-item">
                 <div className="q-num">{i + 1}</div>
                 <div className="q-content">
-                  <strong>{q.questionText}</strong>
+                  <strong><MathText text={q.questionText} /></strong>
                   <div className="q-meta">⏱ {q.timeLimit}с • ⭐ {q.points} балл • ✓ {String.fromCharCode(65 + q.correctAnswer)}</div>
                 </div>
                 <button onClick={() => removeQuestion(i)} className="remove-btn">✕</button>
@@ -646,6 +647,7 @@ function Quiz({ subjects, currentUserId, dataRefreshKey = 0 }) {
             <div className="add-question-form">
               <input type="text" placeholder="Текст вопроса" value={currentQ.questionText}
                 onChange={(e) => setCurrentQ({ ...currentQ, questionText: e.target.value })} className="form-input" />
+              <LatexHelp />
               {currentQ.options.map((opt, i) => (
                 <div key={i} className="option-input-row">
                   <input type="radio" name="correctAnswer" checked={currentQ.correctAnswer === i}
@@ -700,7 +702,7 @@ function Quiz({ subjects, currentUserId, dataRefreshKey = 0 }) {
                   {q.status === 'finished' && '✅ Завершена'}
                 </span>
               </div>
-              {q.description && <p className="quiz-description">{q.description}</p>}
+              {q.description && <div className="quiz-description"><MathText text={q.description} /></div>}
               <div className="quiz-info">
                 <span>📚 {q.questions?.length || 0} вопросов</span>
                 <span>👥 {q.participants?.length || 0} участников</span>

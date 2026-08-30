@@ -43,6 +43,7 @@ beforeEach(() => {
       return response({ quiz: { id: 32, title: 'Новая викторина', status: 'draft', mode: 'single_step', questions: [] } });
     }
     if (url.endsWith('/lesson-admin/lessons/7') && options.method === 'DELETE') return response({ ok: true, deletedLessonId: 7 });
+    if (url.endsWith('/lesson-admin/lessons/7') && options.method === 'PATCH') return response({ lesson: { ...lesson, ...JSON.parse(options.body) } });
     if (url.endsWith('/lesson-admin/lessons/7/start')) return response({ lesson: { ...lesson, status: 'live' } });
     if (url.endsWith('/lesson-admin/lessons/start-now')) return response({ lesson: { ...lesson, id: 8, status: 'live', fromSchedule: false } });
     if (url.includes('/lesson-admin/lessons?status=')) return response({ lessons: [lesson] });
@@ -200,4 +201,25 @@ test('показывает удаление завершённого занят�
     expect.stringContaining('/lesson-admin/lessons/7'),
     expect.objectContaining({ method: 'DELETE' })
   ));
+});
+
+test('редактирование занятия открывает модалку и отправляет PATCH с новой темой и датой', async () => {
+  render(<LessonAdmin subjects={[{ id: 1, name: 'Математика' }]} currentUser={{ role: 'teacher' }} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Редактировать' }));
+
+  const dialog = await screen.findByRole('dialog', { name: 'Редактировать занятие' });
+  const topicInput = within(dialog).getByPlaceholderText('Например, законы Ньютона');
+  fireEvent.change(topicInput, { target: { value: 'Логарифмы' } });
+
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Сохранить' }));
+
+  await waitFor(() => expect(adminFetch).toHaveBeenCalledWith(
+    expect.stringContaining('/lesson-admin/lessons/7'),
+    expect.objectContaining({
+      method: 'PATCH',
+      body: expect.stringContaining('Логарифмы')
+    })
+  ));
+
+  await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Редактировать занятие' })).not.toBeInTheDocument());
 });

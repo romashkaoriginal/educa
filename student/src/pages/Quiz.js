@@ -5,6 +5,7 @@ import { useData } from './DataContext';
 import './Quiz.css';
 
 import { API_URL, SOCKET_URL } from '../config';
+import MathText, { truncateMathText } from '../components/MathText';
 
 // Анимированный счётчик: число докручивается от 0 к target
 function useCountUp(target, duration = 900, active = true) {
@@ -663,7 +664,7 @@ function Quiz({ studentId, studentName = 'Ученик' }) {
         <span className="quiz-ui__eyebrow">Комната ожидания</span>
         <h1 className="quiz-ui__title">{formatQuizLine(quiz?.subject?.name, quiz?.title, ':')}</h1>
         {quiz?.description && (
-          <p className="quiz-ui-lobby__desc">{quiz.description}</p>
+          <p className="quiz-ui-lobby__desc"><MathText text={quiz.description} /></p>
         )}
         <div className="quiz-ui-status-chip">Ты подключён</div>
         <div className="quiz-ui-info-grid">
@@ -745,7 +746,7 @@ function Quiz({ studentId, studentName = 'Ученик' }) {
             </header>
 
             <div className="quiz-ui-card quiz-ui-question-card">
-              <h2>{currentQuestion.questionText}</h2>
+              <h2><MathText text={currentQuestion.questionText} /></h2>
               <div className="quiz-ui-points-badge">Баллы за вопрос: до {currentQuestion.points || 1}</div>
 
               <div className={`quiz-ui-answers${answered ? ' is-answered' : ''}`} key={currentQuestion.id}>
@@ -780,7 +781,7 @@ function Quiz({ studentId, studentName = 'Ученик' }) {
                       aria-disabled={isLocked}
                     >
                       <span className="quiz-ui-answer__mark">{letter}</span>
-                      <span className="quiz-ui-answer__text">{option}</span>
+                      <span className="quiz-ui-answer__text"><MathText text={option} /></span>
                       {isCorrectOption && <span className="quiz-ui-answer__icon">✓</span>}
                       {isWrongMine && <span className="quiz-ui-answer__icon">✗</span>}
                       {isPicked && <span className="quiz-ui-answer__check">✓</span>}
@@ -880,10 +881,10 @@ function Quiz({ studentId, studentName = 'Ученик' }) {
                 const status = !ans ? 'Без ответа' : (ans.isCorrect ? 'Верно' : 'Неверно');
                 return (
                   <li key={question.id} className={ans?.isCorrect ? 'is-correct' : (ans ? 'is-wrong' : 'is-empty')}>
-                    <span>Вопрос {(question.order ?? 0) + 1}. {question.questionText?.slice(0, 70)}</span>
+                    <span>Вопрос {(question.order ?? 0) + 1}. <MathText text={truncateMathText(question.questionText, 70)} /></span>
                     <strong>{status}</strong>
                     {showExplanations && question.explanation && (
-                      <p className="quiz-ui-expl">{question.explanation}</p>
+                      <p className="quiz-ui-expl"><MathText text={question.explanation} /></p>
                     )}
                   </li>
                 );
@@ -903,7 +904,7 @@ function Quiz({ studentId, studentName = 'Ученик' }) {
             <ul className="quiz-ui-errors-list">
               {wrongAnswers.map((a) => (
                 <li key={a.id}>
-                  Вопрос {(a.question?.order ?? 0) + 1}. {a.question?.questionText?.slice(0, 80)}
+                  Вопрос {(a.question?.order ?? 0) + 1}. <MathText text={truncateMathText(a.question?.questionText, 80)} />
                 </li>
               ))}
             </ul>
@@ -916,11 +917,11 @@ function Quiz({ studentId, studentName = 'Ученик' }) {
                   const correctAns = options[a.question?.correctAnswer] ?? '—';
                   return (
                     <div key={`detail-${a.id}`} className="quiz-ui-error-card">
-                      <strong>Вопрос {(a.question?.order ?? 0) + 1}. {qText}</strong>
-                      <p><span>Твой ответ:</span> {myAns}</p>
-                      <p><span>Правильный ответ:</span> {correctAns}</p>
+                      <strong>Вопрос {(a.question?.order ?? 0) + 1}. <MathText text={qText} /></strong>
+                      <p><span>Твой ответ:</span> <MathText text={myAns} /></p>
+                      <p><span>Правильный ответ:</span> <MathText text={correctAns} /></p>
                       {a.question?.explanation && (
-                        <p><span>Объяснение:</span> {a.question.explanation}</p>
+                        <p><span>Объяснение:</span> <MathText text={a.question.explanation} /></p>
                       )}
                     </div>
                   );

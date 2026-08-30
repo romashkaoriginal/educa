@@ -6,6 +6,7 @@ import { apiFetch } from './api';
 
 import { API_URL } from '../config';
 import StudentBrandMark from '../components/StudentBrandMark';
+import MathText from '../components/MathText';
 import mathSubjectBg from '../assets/math.png';
 import physSubjectBg from '../assets/phys.png';
 import russSubjectBg from '../assets/russ.png';
@@ -1460,7 +1461,7 @@ function Practice({ studentId, isTabActive = true, onClose, onActivate }) {
             {currentQuestion.questionText && (
               <>
                 <span className="question-card-mark" aria-hidden>“</span>
-                <h3 className="question-text">{currentQuestion.questionText}</h3>
+                <h3 className="question-text"><MathText text={currentQuestion.questionText} /></h3>
               </>
             )}
           </div>
@@ -1500,7 +1501,7 @@ function Practice({ studentId, isTabActive = true, onClose, onActivate }) {
                     {String.fromCharCode(65 + index)}
                   </span>
                   <span className="answer-text">
-                    {option}
+                    <MathText text={option} />
                   </span>
                   {answered && showCorrect && (
                     <span className="answer-verdict answer-verdict--correct" aria-label="Правильный ответ">
@@ -1601,7 +1602,7 @@ function Practice({ studentId, isTabActive = true, onClose, onActivate }) {
                   </div>
                 )}
                 {activeCardModal === 'hint' && currentQuestion.explanation && (
-                  <div className="explanation-modal-text">{currentQuestion.explanation}</div>
+                  <MathText as="div" className="explanation-modal-text" text={currentQuestion.explanation} />
                 )}
               </div>
             </div>

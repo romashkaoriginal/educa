@@ -4,6 +4,7 @@ import './Practice.css';
 import { useData } from './DataContext';
 import StudentBrandMark from '../components/StudentBrandMark';
 import PredictedScoreCard from '../components/PredictedScoreCard';
+import MathText from '../components/MathText';
 
 const DIFF_LABELS = { easy: 'Лёгкие', medium: 'Средние', hard: 'Сложные' };
 const DIFF_WORD = { easy: 'лёгкое', medium: 'среднее', hard: 'сложное' };
@@ -794,7 +795,7 @@ function Statistics({ studentId, isGuest = false, onLockedClick }) {
                         </span>
                       </div>
                       {e.questionText && (
-                        <p className="sd-error-q">{e.questionText}</p>
+                        <div className="sd-error-q"><MathText text={e.questionText} /></div>
                       )}
                       <div className="sd-error-answers">
                         {e.userAnswer != null && (
@@ -811,7 +812,7 @@ function Statistics({ studentId, isGuest = false, onLockedClick }) {
                       {e.explanation && (
                         <div className="sd-error-exp-block">
                           <span className="sd-error-exp-label">Объяснение</span>
-                          <p className="sd-error-exp">{e.explanation}</p>
+                          <div className="sd-error-exp"><MathText text={e.explanation} /></div>
                         </div>
                       )}
                       <span className="sd-error-meta">Ошибка · {formatRelativeDate(e.date)}</span>

@@ -741,6 +741,46 @@
   transform: translateY(-2px);
 }
 
+.icon-btn:disabled {
+  opacity: 0.55;
+  cursor: wait;
+  transform: none;
+}
+
+.homework-retry-btn {
+  min-height: 36px;
+  padding: 7px 12px;
+  border: 1px solid var(--kubik-blue);
+  border-radius: 8px;
+  background: var(--kubik-blue-soft);
+  color: var(--kubik-navy);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out);
+}
+
+.homework-retry-btn:hover {
+  background: var(--kubik-blue);
+  color: #fff;
+}
+
+.homework-retry-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.homework-retry-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
 .icon-btn.delete:hover {
   background: var(--kubik-pink-soft);
   border-color: #fca5a5;
@@ -1027,6 +1067,20 @@
 
   .homework-form {
     max-width: none;
+  }
+
+  .homework-header {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .homework-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .homework-retry-btn {
+    margin-right: auto;
   }
 
   .questions-section {

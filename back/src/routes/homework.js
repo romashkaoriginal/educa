@@ -10,6 +10,7 @@ const {
 const isAdmin = requireRole(['admin', 'teacher']);
 const { Homework, HomeworkQuestion, HomeworkSubmission, HomeworkAnswer, User, Subject, sequelize } = require('../models');
 const { Op } = require('sequelize');
+const { loadExcelWorkbook, normaliseExcelHeader } = require('../utils/loadExcelWorkbook');
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -234,16 +235,24 @@ function parseHomeworkRow(row) {
 // Импорт вопросов домашки из Excel — возвращает распарсенные вопросы клиенту,
 // который добавляет их в форму (создание/сохранение происходит общим эндпоинтом).
 router.post('/import-questions', isAdmin, upload.single('file'), async (req, res) => {
+  const logPrefix = `[Homework import-questions] user=${req.dbUser?.id}`;
   try {
-    if (!req.file) return res.status(400).json({ message: 'Файл не загружен' });
+    if (!req.file) {
+      console.warn(`${logPrefix} FAILED: файл не загружен`);
+      return res.status(400).json({ message: 'Файл не загружен' });
+    }
+    console.log(`${logPrefix} start: file="${req.file.originalname}" size=${req.file.size}b mime=${req.file.mimetype}`);
 
-    const ExcelJS = require('exceljs');
-    const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(req.file.buffer);
+    const workbook = await loadExcelWorkbook(req.file.buffer);
     const sheet = workbook.worksheets[0];
-    if (!sheet) return res.status(400).json({ message: 'В файле нет листов' });
+    if (!sheet) {
+      console.warn(`${logPrefix} FAILED: в файле нет листов`);
+      return res.status(400).json({ message: 'В файле нет листов' });
+    }
 
-    const headerRow = sheet.getRow(1).values.slice(1).map(h => String(h || '').trim().toLowerCase());
+    const headerRow = sheet.getRow(1).values.slice(1).map(normaliseExcelHeader);
+    console.log(`${logPrefix} sheet="${sheet.name}" rowCount=${sheet.rowCount} headers=${JSON.stringify(headerRow)}`);
+
     const rows = [];
     sheet.eachRow((row, rowNumber) => {
       if (rowNumber === 1) return;
@@ -253,7 +262,10 @@ router.post('/import-questions', isAdmin, upload.single('file'), async (req, res
       if (Object.values(obj).some(v => String(v).trim())) rows.push(obj);
     });
 
-    if (rows.length === 0) return res.status(400).json({ message: 'Файл пустой или не содержит данных' });
+    if (rows.length === 0) {
+      console.warn(`${logPrefix} FAILED: файл пустой или не содержит данных`);
+      return res.status(400).json({ message: 'Файл пустой или не содержит данных' });
+    }
 
     const questions = [];
     const errors = [];
@@ -264,9 +276,15 @@ router.post('/import-questions', isAdmin, upload.single('file'), async (req, res
       else questions.push(result.question);
     });
 
+    if (errors.length > 0) {
+      console.warn(`${logPrefix} done with errors: imported=${questions.length} skipped=${errors.length} errors=${JSON.stringify(errors)}`);
+    } else {
+      console.log(`${logPrefix} done: imported=${questions.length}`);
+    }
+
     res.json({ imported: questions.length, skipped: errors.length, errors, questions });
   } catch (error) {
-    console.error('Import homework questions error:', error);
+    console.error(`${logPrefix} EXCEPTION:`, error);
     res.status(500).json({ message: 'Ошибка при импорте' });
   }
 });
@@ -391,10 +409,17 @@ router.get('/student/:studentId', assertSelfOrStaff('studentId'), async (req, re
 
 // Create homework
 router.post('/create', isAdmin, async (req, res) => {
+  const logPrefix = `[Homework create] user=${req.dbUser?.id}`;
   try {
     const { title, description, subjectId, openDate, closeDate, maxAttempts, questions, createdBy } = req.body;
 
+    console.log(`${logPrefix} request: title="${title}" subjectId=${subjectId} openDate=${openDate} closeDate=${closeDate} maxAttempts=${maxAttempts} questions=${Array.isArray(questions) ? questions.length : questions}`);
+
     if (!title || !subjectId || !openDate || !closeDate || !questions || questions.length === 0) {
+      console.warn(`${logPrefix} FAILED: Missing required fields`, {
+        hasTitle: !!title, hasSubjectId: !!subjectId, hasOpenDate: !!openDate,
+        hasCloseDate: !!closeDate, questionsCount: questions?.length
+      });
       return res.status(400).json({ message: 'Missing required fields' });
     }
 
@@ -412,8 +437,10 @@ router.post('/create', isAdmin, async (req, res) => {
       isActive: true
     });
 
+    console.log(`${logPrefix} homework created id=${homework.id} storedOpenDate=${homework.openDate?.toISOString?.() ?? homework.openDate} storedCloseDate=${homework.closeDate?.toISOString?.() ?? homework.closeDate} (now=${new Date().toISOString()})`);
+
     // Create questions
-    const questionPromises = questions.map(q => 
+    const questionPromises = questions.map(q =>
       HomeworkQuestion.create({
         homeworkId: homework.id,
         questionType: q.questionType,
@@ -426,14 +453,16 @@ router.post('/create', isAdmin, async (req, res) => {
       })
     );
 
-    await Promise.all(questionPromises);
+    const createdQuestions = await Promise.all(questionPromises);
 
-    res.status(201).json({ 
+    console.log(`${logPrefix} done: homeworkId=${homework.id} questionsCreated=${createdQuestions.length}`);
+
+    res.status(201).json({
       message: 'Homework created successfully',
       homeworkId: homework.id
     });
   } catch (error) {
-    console.error('Create homework error:', error);
+    console.error(`${logPrefix} EXCEPTION:`, error);
     res.status(500).json({ message: 'Server error' });
   }
 });
@@ -741,14 +770,14 @@ function checkAnswer(question, userAnswer) {
       return Math.abs(userAnswer - question.correctAnswer.value) <= tolerance;
 
     case 'matching':
-      if (!Array.isArray(userAnswer)) return false;
+      if (!Array.isArray(userAnswer) || !Array.isArray(question.correctAnswer) || userAnswer.length !== question.correctAnswer.length) return false;
       return userAnswer.every((pair, idx) => {
         const correctPair = question.correctAnswer[idx];
         return pair.left === correctPair.left && pair.right === correctPair.right;
       });
 
     case 'ordering':
-      if (!Array.isArray(userAnswer)) return false;
+      if (!Array.isArray(userAnswer) || !Array.isArray(question.correctAnswer) || userAnswer.length !== question.correctAnswer.length) return false;
       return userAnswer.every((item, idx) => item === question.correctAnswer[idx]);
 
     case 'fill_blanks':

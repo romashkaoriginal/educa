@@ -3,6 +3,7 @@ import '../../styles/Statistics.css';
 import { adminFetch } from './adminApi';
 import { API_URL } from '../../config';
 import { useSectionRefresh } from './useSectionRefresh';
+import MathText from '../MathText';
 
 function AdminStatistics({ currentUser, dataRefreshKey = 0 }) {
   const userRole = currentUser?.role || 'admin';
@@ -17,8 +18,8 @@ function AdminStatistics({ currentUser, dataRefreshKey = 0 }) {
   const [activeTab, setActiveTab] = useState('practice');
 
   // Данные для режима "все"
-  const [allPractice, setAllPractice] = useState(null);   // { bySubject: [{subject, total, correct, percent, topics:[]}] }
-  const [allHomework, setAllHomework] = useState(null);   // { bySubject: [{subject, homeworks:[{title, completedCount, totalStudents, percent}]}] }
+  const [allPractice, setAllPractice] = useState(null);
+  const [allHomework, setAllHomework] = useState(null);
   const [allLoading, setAllLoading] = useState(false);
 
   // Данные для режима "ученик"
@@ -45,7 +46,7 @@ function AdminStatistics({ currentUser, dataRefreshKey = 0 }) {
 
   const loadStudents = async () => {
     try {
-      const res = await adminFetch(`${API_URL}/students`);
+      const res = await adminFetch(`${API_URL}/stats/students`);
       const data = await res.json();
       setStudents(data.students || []);
     } catch (e) { console.error(e); }
@@ -58,69 +59,15 @@ function AdminStatistics({ currentUser, dataRefreshKey = 0 }) {
       if (activeTab === 'practice') {
         const res = await adminFetch(`${API_URL}/stats/admin?section=practice`);
         const data = await res.json();
-
-        // Данные уже агрегированы на бэкенде из PracticeDailyLog
-        const total = students.length || 1;
-        setAllPractice((data.practice || []).map(s => ({
-          icon: s.subject?.icon || '📖',
-          name: s.subject?.name || 'Без предмета',
-          activeStudents: s.uniqueStudents,
-          totalStudents: total,
-          activePercent: total > 0 ? Math.round(s.uniqueStudents / total * 100) : 0,
-          todayTotal: s.totalAttempts,
-          todayStudentsCount: s.uniqueStudents,
-          avgPerStudentToday: s.avgPerStudent
-        })));
+        if (!res.ok) throw new Error(data.error || 'Не удалось загрузить статистику практики');
+        setAllPractice(data.practice || { summary: {}, subjects: [] });
       }
 
       if (activeTab === 'homework') {
-        const hwRes = await adminFetch(`${API_URL}/homework/all`);
-        const hwData = await hwRes.json();
-        const homeworks = hwData.homeworks || [];
-
-        const results = await Promise.all(homeworks.map(async hw => {
-          const rRes = await adminFetch(`${API_URL}/homework/${hw.id}/results`);
-          const rData = await rRes.json();
-          return { hw, results: rData.results || [] };
-        }));
-
-        // Группируем по предмету
-        const bySubject = {};
-        results.forEach(({ hw, results: hwResults }) => {
-          const sName = hw.subject?.name || 'Без предмета';
-          const sIcon = hw.subject?.icon || '📖';
-          if (!bySubject[sName]) bySubject[sName] = { icon: sIcon, name: sName, homeworks: [], totalHw: 0, totalCompleted: 0 };
-
-          const completedIds = new Set(hwResults.map(r => r.userId || r.student?.id));
-          const bestByStudent = {};
-          hwResults.forEach(r => {
-            const sid = r.userId || r.student?.id;
-            const pct = r.maxScore > 0 ? Math.round(r.totalScore / r.maxScore * 100) : 0;
-            if (!bestByStudent[sid] || pct > bestByStudent[sid]) bestByStudent[sid] = pct;
-          });
-          const avgScore = completedIds.size > 0
-            ? Math.round(Object.values(bestByStudent).reduce((a, b) => a + b, 0) / completedIds.size)
-            : 0;
-
-          bySubject[sName].totalHw++;
-          if (completedIds.size > 0) bySubject[sName].totalCompleted++;
-
-          bySubject[sName].homeworks.push({
-            id: hw.id, title: hw.title,
-            completedCount: completedIds.size,
-            totalStudents: students.length,
-            completedPercent: students.length > 0 ? Math.round(completedIds.size / students.length * 100) : 0,
-            avgScore,
-            results: hwResults,
-            openDate: hw.openDate,
-            closeDate: hw.closeDate
-          });
-        });
-
-        setAllHomework(Object.values(bySubject).map(s => ({
-          ...s,
-          completionPercent: s.totalHw > 0 ? Math.round(s.totalCompleted / s.totalHw * 100) : 0
-        })));
+        const res = await adminFetch(`${API_URL}/stats/admin?section=homework`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Не удалось загрузить статистику ДЗ');
+        setAllHomework(data.homework || { summary: {}, subjects: [] });
       }
     } catch (e) { console.error(e); }
     finally { setAllLoading(false); }
@@ -254,57 +201,83 @@ function AdminStatistics({ currentUser, dataRefreshKey = 0 }) {
               <>
                 {/* ПРАКТИКА - все */}
                 {activeTab === 'practice' && allPractice && (
-                  allPractice.length === 0
-                    ? <div className="empty-state"><div className="empty-icon">📚</div><p>Нет данных</p></div>
-                    : allPractice.map((subj, si) => (
-                      <div key={si} className="stats-block">
-                        <h3>{subj.icon} {subj.name}</h3>
+                  allPractice.subjects?.length === 0
+                    ? <div className="empty-state"><div className="empty-icon">📚</div><p>Практику пока никто не решал</p></div>
+                    : <>
+                      <AnalyticsOverview
+                        items={[
+                          { label: 'Решают практику', value: `${allPractice.summary?.activeStudents || 0} из ${allPractice.summary?.eligibleStudents || 0}`, hint: 'хотя бы одна попытка' },
+                          { label: 'Решали сегодня', value: allPractice.summary?.todayStudents || 0, hint: 'уникальных учеников' },
+                          { label: 'Общая точность', value: `${allPractice.summary?.accuracy || 0}%`, hint: `${allPractice.summary?.totalAttempts || 0} попыток` },
+                        ]}
+                      />
+                      {allPractice.subjects.map((subj) => (
+                      <div key={subj.subject.id} className="stats-block">
+                        <div className="as-analytics-title-row">
+                          <h3>{subj.subject.icon} {subj.subject.name}</h3>
+                          <span className={`as-percent ${subj.accuracy >= 70 ? 'good' : subj.accuracy >= 50 ? 'medium' : 'low'}`}>
+                            точность {subj.accuracy}%
+                          </span>
+                        </div>
                         <div className="as-practice-subject-stats">
                           <div className="as-stat-item">
-                            <span className="as-stat-label">👥 Решают практику</span>
+                            <span className="as-stat-label">Решают практику</span>
                             <span className="as-stat-value">
-                              {subj.activeStudents} из {subj.totalStudents}
-                              <span className={`as-percent ${subj.activePercent >= 70 ? 'good' : subj.activePercent >= 40 ? 'medium' : 'low'}`} style={{marginLeft:8}}>
+                              {subj.activeStudents} из {subj.eligibleStudents}
+                              <span className={`as-percent ${subj.activePercent >= 70 ? 'good' : subj.activePercent >= 40 ? 'medium' : 'low'}`}>
                                 {subj.activePercent}%
                               </span>
                             </span>
                           </div>
                           <div className="as-stat-item">
-                            <span className="as-stat-label">📅 Заданий решено сегодня</span>
-                            <span className="as-stat-value">{subj.todayTotal} зад. ({subj.todayStudentsCount} уч.)</span>
+                            <span className="as-stat-label">Сегодня</span>
+                            <span className="as-stat-value">{subj.todayAttempts} попыток · {subj.todayStudents} уч.</span>
                           </div>
                           <div className="as-stat-item">
-                            <span className="as-stat-label">📝 Среднее на ученика сегодня</span>
-                            <span className="as-stat-value">{subj.avgPerStudentToday} зад.</span>
+                            <span className="as-stat-label">За всё время</span>
+                            <span className="as-stat-value">{subj.totalAttempts} попыток</span>
                           </div>
                         </div>
+                        <div className="as-problems-grid">
+                          <ProblemList title="Проблемные темы" items={subj.problemTopics} emptyText="Ошибок по темам пока нет" />
+                          <ProblemList title="Проблемные задания" items={subj.problemQuestions} emptyText="Ошибок по заданиям пока нет" questions />
+                        </div>
                       </div>
-                    ))
+                    ))}
+                    </>
                 )}
 
                 {/* ДОМАШКА - все */}
                 {activeTab === 'homework' && allHomework && (
-                  allHomework.length === 0
+                  allHomework.subjects?.length === 0
                     ? <div className="empty-state"><div className="empty-icon">📝</div><p>Нет данных</p></div>
-                    : allHomework.map((subj, si) => (
-                      <div key={si} className="stats-block">
+                    : <>
+                      <AnalyticsOverview
+                        items={[
+                          { label: 'Сдали хотя бы одно ДЗ', value: `${allHomework.summary?.activeStudents || 0} из ${allHomework.summary?.eligibleStudents || 0}`, hint: 'уникальных учеников' },
+                          { label: 'Всего сданных работ', value: allHomework.summary?.completedWorks || 0, hint: 'лучшие попытки' },
+                          { label: 'Общий средний балл', value: `${allHomework.summary?.averageScore || 0}%`, hint: 'по лучшим попыткам' },
+                        ]}
+                      />
+                      {allHomework.subjects.map((subj) => (
+                      <div key={subj.subject.id} className="stats-block">
                         <div className="as-hw-subject-header">
-                          <h3 style={{margin:0}}>{subj.icon} {subj.name}</h3>
+                          <h3>{subj.subject.icon} {subj.subject.name}</h3>
                           <div className="as-hw-subject-summary">
-                            <span className="as-stat-label">Выполняемость:</span>
-                            <span className={`as-percent ${subj.completionPercent >= 70 ? 'good' : subj.completionPercent >= 40 ? 'medium' : 'low'}`}>
-                              {subj.completionPercent}%
+                            <span>{subj.summary.activeStudents} из {subj.summary.eligibleStudents} учеников</span>
+                            <span className={`as-percent ${subj.summary.averageScore >= 70 ? 'good' : subj.summary.averageScore >= 50 ? 'medium' : 'low'}`}>
+                              средний {subj.summary.averageScore}%
                             </span>
-                            <span style={{fontSize:12,color:'#9ca3af'}}>({subj.totalCompleted} из {subj.totalHw} домашек сдано хоть кем-то)</span>
                           </div>
                         </div>
                         <div className="as-hw-list">
-                          {subj.homeworks.map((hw, hi) => (
-                            <AllHomeworkRow key={hi} hw={hw} students={students} />
+                          {subj.homeworks.map((hw) => (
+                            <AllHomeworkRow key={hw.id} hw={hw} students={students} />
                           ))}
                         </div>
                       </div>
-                    ))
+                    ))}
+                    </>
                 )}
               </>
             )}
@@ -529,38 +502,109 @@ function AdminStatistics({ currentUser, dataRefreshKey = 0 }) {
   );
 }
 
+function AnalyticsOverview({ items }) {
+  return (
+    <div className="as-overview" aria-label="Сводные показатели">
+      {items.map((item) => (
+        <div className="as-overview-item" key={item.label}>
+          <span className="as-overview-label">{item.label}</span>
+          <strong className="as-overview-value">{item.value}</strong>
+          <span className="as-overview-hint">{item.hint}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ProblemList({ title, items = [], emptyText, questions = false }) {
+  return (
+    <section className="as-problem-section">
+      <h4>{title}</h4>
+      {items.length === 0 ? (
+        <p className="as-problem-empty">{emptyText}</p>
+      ) : (
+        <ol className="as-problem-list">
+          {items.map((item) => (
+            <li key={questions ? item.questionId : item.topicId}>
+              <div className="as-problem-copy">
+                <span className="as-problem-name">{questions ? <MathText text={item.questionText} /> : `${item.icon || '📝'} ${item.name}`}</span>
+                {questions && <span className="as-problem-topic">{item.topicName}</span>}
+              </div>
+              <div className="as-problem-metrics">
+                <span className="as-percent low">{item.errorRate}% ошибок</span>
+                <span>{item.errorCount} из {item.attempts} · {item.affectedStudents} уч.</span>
+              </div>
+            </li>
+          ))}
+        </ol>
+      )}
+    </section>
+  );
+}
+
 // Отдельный компонент для строки домашки в режиме "все"
 function AllHomeworkRow({ hw, students }) {
   const [expanded, setExpanded] = useState(false);
 
-  const completedIds = new Set(hw.results.map(r => r.userId || r.student?.id));
-  const notCompleted = students.filter(s => !completedIds.has(s.id));
+  const completedStudents = hw.completedStudents || [];
+  const completedIds = new Set(completedStudents.map((result) => result.userId));
+  const eligibleIds = new Set(hw.eligibleStudentIds || []);
+  const notCompleted = students.filter((student) =>
+    eligibleIds.has(student.id) && !completedIds.has(student.id)
+  );
 
   return (
     <div className="as-hw-row">
-      <div className="as-hw-row-header" onClick={() => setExpanded(!expanded)} style={{cursor:'pointer'}}>
+      <button
+        type="button"
+        className="as-hw-row-header"
+        onClick={() => setExpanded(!expanded)}
+        aria-expanded={expanded}
+      >
         <div className="as-hw-title">
           <span className="question-expand-icon">{expanded ? '▼' : '▶'}</span>
           {hw.title}
         </div>
         <div className="as-hw-meta">
-          <span className="as-hw-done">{hw.completedCount}/{hw.totalStudents} сдали</span>
-          {hw.completedCount > 0 && <span className="as-percent-badge"><span className={`as-percent ${hw.avgScore >= 70 ? 'good' : hw.avgScore >= 50 ? 'medium' : 'low'}`}>ср. {hw.avgScore}%</span></span>}
+          <span className="as-hw-done">{hw.completedCount}/{hw.eligibleStudents} сдали</span>
+          <span className={`as-percent ${hw.completionPercent >= 70 ? 'good' : hw.completionPercent >= 40 ? 'medium' : 'low'}`}>
+            {hw.completionPercent}%
+          </span>
+          {hw.completedCount > 0 && (
+            <span className={`as-percent ${hw.averageScore >= 70 ? 'good' : hw.averageScore >= 50 ? 'medium' : 'low'}`}>
+              средний {hw.averageScore}%
+            </span>
+          )}
         </div>
-      </div>
+      </button>
 
       {expanded && (
         <div className="as-hw-details">
+          <div className="as-hw-section">
+            <div className="as-hw-section-title">Частые ошибки</div>
+            {hw.commonErrors?.length > 0 ? (
+              <ol className="as-hw-error-list">
+                {hw.commonErrors.map((error) => (
+                  <li key={error.questionId}>
+                    <span><MathText text={error.questionText} /></span>
+                    <span className="as-hw-error-metric">{error.errorRate}% · {error.errorCount} уч.</span>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p className="as-problem-empty">Недостаточно ответов или ошибок пока нет</p>
+            )}
+          </div>
           {/* Кто сдал */}
-          {hw.results.length > 0 && (
+          {completedStudents.length > 0 && (
             <div className="as-hw-section">
-              <div className="as-hw-section-title">✅ Выполнили ({hw.results.length})</div>
-              {hw.results.map((r, i) => {
-                const pct = r.maxScore > 0 ? Math.round(r.totalScore / r.maxScore * 100) : 0;
+              <div className="as-hw-section-title">Выполнили ({completedStudents.length})</div>
+              {completedStudents.map((result) => {
+                const pct = result.percentage || 0;
                 return (
-                  <div key={i} className="as-hw-student-row">
-                    <span className="as-hw-student-name">{r.student?.firstName} {r.student?.lastName}</span>
-                    <span className="as-hw-student-score">{r.totalScore}/{r.maxScore}</span>
+                  <div key={result.userId} className="as-hw-student-row">
+                    <span className="as-hw-student-name">{result.student?.firstName} {result.student?.lastName}</span>
+                    <span className="as-hw-student-score">{result.totalScore}/{result.maxScore}</span>
                     <span className={`as-percent ${pct >= 70 ? 'good' : pct >= 50 ? 'medium' : 'low'}`}>{pct}%</span>
                   </div>
                 );
@@ -570,11 +614,11 @@ function AllHomeworkRow({ hw, students }) {
           {/* Кто не сдал */}
           {notCompleted.length > 0 && (
             <div className="as-hw-section">
-              <div className="as-hw-section-title">❌ Не выполнили ({notCompleted.length})</div>
-              {notCompleted.map((s, i) => (
-                <div key={i} className="as-hw-student-row not-done">
+              <div className="as-hw-section-title">Не выполнили ({notCompleted.length})</div>
+              {notCompleted.map((s) => (
+                <div key={s.id} className="as-hw-student-row not-done">
                   <span className="as-hw-student-name">{s.firstName} {s.lastName}</span>
-                  <span style={{fontSize:12, color:'#9ca3af'}}>не сдано</span>
+                  <span className="as-hw-not-done">не сдано</span>
                 </div>
               ))}
             </div>

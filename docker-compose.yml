@@ -47,6 +47,35 @@ services:
     depends_on:
       - backend
 
+  # Проверяет реальную доступность frontend, backend и PostgreSQL и шлёт
+  # уведомления только super-admin в Telegram. Docker socket намеренно не
+  # монтируем: он дал бы monitor-контейнеру полный доступ к VPS.
+  monitor:
+    build:
+      context: ./monitor
+    restart: unless-stopped
+    env_file:
+      - ./back/.env.production
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: '5432'
+      POSTGRES_USER: ${POSTGRES_USER:-educa}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-educa}
+      FRONTEND_URL: http://frontend/
+      BACKEND_URL: http://backend:5000/
+      # Дублирует текущего super-admin из back/src/middleware/superAdmin.js.
+      # Можно переопределить в back/.env.production без изменения кода.
+      SUPER_ADMIN_TELEGRAM_ID: ${SUPER_ADMIN_TELEGRAM_ID:-1218874137}
+      MONITOR_INTERVAL_SECONDS: ${MONITOR_INTERVAL_SECONDS:-60}
+      MONITOR_HEARTBEAT_MINUTES: ${MONITOR_HEARTBEAT_MINUTES:-60}
+      MONITOR_STARTUP_GRACE_SECONDS: ${MONITOR_STARTUP_GRACE_SECONDS:-90}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      backend:
+        condition: service_started
+
 volumes:
   postgres_data:
   practice_uploads:

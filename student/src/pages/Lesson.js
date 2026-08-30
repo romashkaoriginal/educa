@@ -4,6 +4,7 @@ import { API_URL } from '../config';
 import { apiFetch } from './api';
 import { useData } from './DataContext';
 import StudentBrandMark from '../components/StudentBrandMark';
+import MathText from '../components/MathText';
 import './Lesson.css';
 
 const formatTime = (value) => value
@@ -215,7 +216,7 @@ function PollCard({ poll, onAnswer, pending }) {
   return (
     <section className="lesson-panel lesson-panel--attention">
       <div className="lesson-panel-heading">
-        <h2>{poll.question}</h2>
+        <h2><MathText text={poll.question} /></h2>
         {poll.status === 'active' && poll.autoCloseAt && <CountdownBadge targetDate={poll.autoCloseAt} expiredLabel="Завершается…" />}
       </div>
       <div className="lesson-options" role="radiogroup" aria-label={poll.question}>
@@ -231,7 +232,7 @@ function PollCard({ poll, onAnswer, pending }) {
               role="radio"
               aria-checked={Number(selected) === Number(option.id)}
             >
-              <span>{option.text}</span>
+              <span><MathText text={option.text} /></span>
               {result && <strong>{result.percent}%</strong>}
               {result && <i style={{ width: `${result.percent}%` }} />}
             </button>
@@ -261,7 +262,7 @@ function QuizQuestion({ question, myAnswer, disabled, onSubmit, resultVisible, e
   return (
     <div className="lesson-quiz-question">
       {question.questionImage?.storageKey && <img src={`${API_URL}/practice-images/${question.questionImage.storageKey}`} alt="Иллюстрация к вопросу" />}
-      {question.questionText && <p className="lesson-question-text">{question.questionText}</p>}
+      {question.questionText && <p className="lesson-question-text"><MathText text={question.questionText} /></p>}
       <div className="lesson-options">
         {(question.options || []).map((option, index) => {
           const isCorrect = resultVisible && (question.correctAnswer || []).includes(index);
@@ -273,7 +274,7 @@ function QuizQuestion({ question, myAnswer, disabled, onSubmit, resultVisible, e
               className={`lesson-option ${selected.includes(index) ? 'selected' : ''} ${isCorrect ? 'correct' : ''} ${isWrong ? 'wrong' : ''}`}
               onClick={() => choose(index)}
               disabled={disabled || Boolean(myAnswer)}
-            >{option}</button>
+            ><MathText text={option} /></button>
           );
         })}
       </div>
@@ -282,7 +283,7 @@ function QuizQuestion({ question, myAnswer, disabled, onSubmit, resultVisible, e
       ) : <p className={`lesson-accepted ${resultVisible && !myAnswer.isCorrect ? 'lesson-accepted--wrong' : ''}`}>
         {resultVisible ? (myAnswer.isCorrect ? 'Правильно' : 'Ответ неверный') : 'Ответ принят. Ожидайте результат.'}
       </p>}
-      {explanationVisible && (question.explanation || question.hintImage?.storageKey) && <div className="lesson-explanation"><strong>Объяснение</strong>{question.explanation && <p>{question.explanation}</p>}{question.hintImage?.storageKey && <img src={`${API_URL}/practice-images/${question.hintImage.storageKey}`} alt="Подсказка" />}</div>}
+      {explanationVisible && (question.explanation || question.hintImage?.storageKey) && <div className="lesson-explanation"><strong>Объяснение</strong>{question.explanation && <p><MathText text={question.explanation} /></p>}{question.hintImage?.storageKey && <img src={`${API_URL}/practice-images/${question.hintImage.storageKey}`} alt="Подсказка" />}</div>}
     </div>
   );
 }

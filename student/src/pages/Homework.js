@@ -6,6 +6,7 @@ import { apiFetch } from './api';
 
 import { API_URL } from '../config';
 import StudentBrandMark from '../components/StudentBrandMark';
+import MathText from '../components/MathText';
 import homeworkMathBg from '../assets/homework-math.png';
 import homeworkPhysBg from '../assets/homework-phys.png';
 import homeworkRussBg from '../assets/homework-russ.png';
@@ -56,6 +57,40 @@ function parseNumericAnswer(value) {
   return Number.isFinite(num) ? num : NaN;
 }
 
+const HW_DRAFT_PREFIX = 'hw_draft_';
+
+function hwDraftKey(studentId, homeworkId) {
+  return `${HW_DRAFT_PREFIX}${studentId}_${homeworkId}`;
+}
+
+function loadHwDraft(studentId, homeworkId) {
+  try {
+    const raw = localStorage.getItem(hwDraftKey(studentId, homeworkId));
+    if (!raw) return null;
+    const draft = JSON.parse(raw);
+    if (!draft || typeof draft !== 'object') return null;
+    return draft;
+  } catch {
+    return null;
+  }
+}
+
+function saveHwDraft(studentId, homeworkId, draft) {
+  try {
+    localStorage.setItem(hwDraftKey(studentId, homeworkId), JSON.stringify(draft));
+  } catch {
+    // localStorage недоступен (приватный режим, квота) — прогресс просто не переживёт сворачивание
+  }
+}
+
+function clearHwDraft(studentId, homeworkId) {
+  try {
+    localStorage.removeItem(hwDraftKey(studentId, homeworkId));
+  } catch {
+    // ignore
+  }
+}
+
 function getHomeworkSubjectCardBg(subject) {
   const haystack = `${subject?.name || ''} ${subject?.icon || ''}`.toLowerCase();
   const found = HOMEWORK_SUBJECT_CARD_BACKGROUNDS.find(({ match }) =>
@@ -96,7 +131,7 @@ function HomeworkHero({ eyebrow, title, subtitle, showBack, onBack, badgeCount, 
   );
 }
 
-function MatchingWire({ pairs, rightOrder, connections, colors, onChange }) {
+export function MatchingWire({ pairs, rightOrder, connections, colors, onChange }) {
   const containerRef = React.useRef(null);
   const [activeLeft, setActiveLeft] = React.useState(null);
   const [mousePos, setMousePos] = React.useState({ x: 0, y: 0 });
@@ -120,6 +155,15 @@ function MatchingWire({ pairs, rightOrder, connections, colors, onChange }) {
     };
   };
 
+  const connectPair = useCallback((leftIndex, rightIndex) => {
+    const newConns = { ...connections };
+    Object.keys(newConns).forEach((key) => {
+      if (newConns[key] === rightIndex) delete newConns[key];
+    });
+    newConns[leftIndex] = rightIndex;
+    onChange(newConns);
+  }, [connections, onChange]);
+
   const onLeftDown = (e, li) => {
     e.preventDefault();
     setActiveLeft(li);
@@ -136,20 +180,18 @@ function MatchingWire({ pairs, rightOrder, connections, colors, onChange }) {
       setMousePos({ x: e.clientX - rb.left, y: e.clientY - rb.top });
     };
     const onUp = (e) => {
+      let didConnect = false;
       if (activeLeft !== null) {
         const els = document.elementsFromPoint(e.clientX, e.clientY);
         const rb = els.find(el => el.classList && el.classList.contains('mw-right'));
         if (rb) {
           const ri = +rb.dataset.idx;
-          // Один к одному: снимаем старую связь с этим правым блоком
-          const newConns = { ...connections };
-          Object.keys(newConns).forEach(k => { if (newConns[k] === ri) delete newConns[k]; });
-          newConns[activeLeft] = ri;
-          onChange(newConns);
+          connectPair(activeLeft, ri);
+          didConnect = true;
         }
       }
       setDragging(false);
-      setActiveLeft(null);
+      if (didConnect) setActiveLeft(null);
     };
     document.addEventListener('pointermove', onMove);
     document.addEventListener('pointerup', onUp);
@@ -157,14 +199,14 @@ function MatchingWire({ pairs, rightOrder, connections, colors, onChange }) {
       document.removeEventListener('pointermove', onMove);
       document.removeEventListener('pointerup', onUp);
     };
-  }, [dragging, activeLeft, connections, onChange]);
+  }, [dragging, activeLeft, connectPair]);
 
   return (
     <div ref={containerRef} className="matching-wire">
       <div className="matching-wire-columns">
         <div className="matching-wire-col matching-wire-col--left">
           {pairs.map((p, li) => {
-            const isActive = dragging && activeLeft === li;
+            const isActive = activeLeft === li;
             const isConnected = connections[li] !== undefined;
             const color = colors[li % colors.length];
             const stateClass = isActive ? 'mw-block--active' : isConnected ? 'mw-block--connected' : 'mw-block--idle';
@@ -173,11 +215,19 @@ function MatchingWire({ pairs, rightOrder, connections, colors, onChange }) {
                 key={li}
                 className={`mw-block mw-left ${stateClass}`}
                 data-idx={li}
-                onPointerDown={(e) => onLeftDown(e, li)}
                 style={{ '--mw-color': color }}
               >
-                <span className="mw-block-text">{p.left}</span>
-                <span className={`mw-dot ${isConnected || isActive ? 'mw-dot--on' : ''}`} style={{ '--mw-color': color }} />
+                <span className="mw-block-text"><MathText text={p.left} /></span>
+                <button
+                  type="button"
+                  className="mw-connector mw-connector--source"
+                  aria-label={`Соединить «${p.left}»`}
+                  aria-pressed={isActive}
+                  onPointerDown={(e) => onLeftDown(e, li)}
+                  onClick={() => setActiveLeft(li)}
+                >
+                  <span className={`mw-dot ${isConnected || isActive ? 'mw-dot--on' : ''}`} style={{ '--mw-color': color }} />
+                </button>
               </div>
             );
           })}
@@ -212,20 +262,29 @@ function MatchingWire({ pairs, rightOrder, connections, colors, onChange }) {
             const isConnected = li !== undefined;
             const color = isConnected ? colors[+li % colors.length] : null;
             return (
-              <div
+              <button
+                type="button"
                 key={ri}
                 className={`mw-block mw-right ${isConnected ? 'mw-block--connected' : 'mw-block--idle'}`}
                 data-idx={ri}
+                aria-label={`Выбрать соответствие «${pairs[ri].right}»`}
+                onClick={() => {
+                  if (activeLeft === null) return;
+                  connectPair(activeLeft, ri);
+                  setActiveLeft(null);
+                }}
                 style={isConnected ? { '--mw-color': color } : undefined}
               >
-                <span className={`mw-dot ${isConnected ? 'mw-dot--on' : ''}`} style={isConnected ? { '--mw-color': color } : undefined} />
-                <span className="mw-block-text">{pairs[ri].right}</span>
-              </div>
+                <span className="mw-connector mw-connector--target" aria-hidden="true">
+                  <span className={`mw-dot ${isConnected ? 'mw-dot--on' : ''}`} style={isConnected ? { '--mw-color': color } : undefined} />
+                </span>
+                <span className="mw-block-text"><MathText text={pairs[ri].right} /></span>
+              </button>
             );
           })}
         </div>
       </div>
-      <p className="matching-wire-hint">Зажмите левый блок и проведите к правому</p>
+      <p className="matching-wire-hint">Потяните точку к определению или выберите оба варианта</p>
     </div>
   );
 }
@@ -311,18 +370,19 @@ function getHomeworkCardState(homework, now = new Date()) {
   };
 }
 
-function StudentHomework({ studentId }) {
+function StudentHomework({ studentId, previewHomework = null, onExitPreview = null }) {
   const { homeworks, subjects, refreshAfterHomework, loading: contextLoading, homeworkHomeToken } = useData();
+  const previewMode = Boolean(previewHomework);
 
   const [selectedSubject, setSelectedSubject] = useState(null);
-  const [selectedHomework, setSelectedHomework] = useState(null);
-  const [questions, setQuestions] = useState([]);
+  const [selectedHomework, setSelectedHomework] = useState(() => previewHomework);
+  const [questions, setQuestions] = useState(() => previewHomework?.questions || []);
   const [answers, setAnswers] = useState({});
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [showResult, setShowResult] = useState(false);
   const [result, setResult] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [startTime, setStartTime] = useState(null);
+  const [startTime, setStartTime] = useState(() => previewHomework ? Date.now() : null);
   const [expandedHw, setExpandedHw] = useState(() => new Set()); // id раскрытых карточек; по умолчанию все свёрнуты
 
   const toggleHwExpand = (id) => {
@@ -387,10 +447,24 @@ function StudentHomework({ studentId }) {
   }, [hwActive, currentQuestionIndex]);
 
   useEffect(() => {
+    if (!previewHomework) return;
+    setSelectedHomework(previewHomework);
+    setQuestions(previewHomework.questions || []);
+    setCurrentQuestionIndex(0);
+    setAnswers({});
+    setShowResult(false);
+    setResult(null);
+    setStartTime(Date.now());
+    initialOrderRef.current = {};
+    matchingStateRef.current = {};
+  }, [previewHomework]);
+
+  useEffect(() => {
+    if (previewMode) return;
     if (subjects.length === 1 && !selectedSubject) {
       setSelectedSubject(subjects[0]);
     }
-  }, [subjects, selectedSubject]);
+  }, [subjects, selectedSubject, previewMode]);
 
   useEffect(() => {
     const tg = window.Telegram?.WebApp;
@@ -405,16 +479,33 @@ function StudentHomework({ studentId }) {
 
   const backToSubjects = () => setSelectedSubject(null);
 
-  const startHomework = async (homework) => {
-    if (homework.questions && homework.questions.length > 0) {
-      setSelectedHomework(homework);
-      setQuestions(homework.questions);
-      initialOrderRef.current = {};
-      matchingStateRef.current = {};
+  const applyHomeworkState = (homework, questionList) => {
+    setSelectedHomework(homework);
+    setQuestions(questionList);
+    initialOrderRef.current = {};
+    matchingStateRef.current = {};
+
+    const draft = previewMode ? null : loadHwDraft(studentId, homework.id);
+    if (draft && Array.isArray(draft.questionIds) &&
+        draft.questionIds.length === questionList.length &&
+        draft.questionIds.every((id, i) => id === questionList[i].id)) {
+      setCurrentQuestionIndex(draft.currentQuestionIndex || 0);
+      setAnswers(draft.answers || {});
+      matchingStateRef.current = draft.matchingState || {};
+      initialOrderRef.current = draft.initialOrder || {};
+      setStartTime(draft.startTime || Date.now());
+    } else {
+      if (!previewMode) clearHwDraft(studentId, homework.id);
       setCurrentQuestionIndex(0);
       setAnswers({});
-      setShowResult(false);
       setStartTime(Date.now());
+    }
+    setShowResult(false);
+  };
+
+  const startHomework = async (homework) => {
+    if (homework.questions && homework.questions.length > 0) {
+      applyHomeworkState(homework, homework.questions);
       return;
     }
     try {
@@ -424,25 +515,35 @@ function StudentHomework({ studentId }) {
         alert('Ошибка: домашка не найдена');
         return;
       }
-      setSelectedHomework(data.homework);
-      setQuestions(data.homework.questions || []);
-      initialOrderRef.current = {};
-      matchingStateRef.current = {};
-      setCurrentQuestionIndex(0);
-      setAnswers({});
-      setShowResult(false);
-      setStartTime(Date.now());
+      applyHomeworkState(data.homework, data.homework.questions || []);
     } catch (error) {
       console.error('Error loading homework:', error);
       alert('Ошибка загрузки домашки');
     }
   };
 
+  useEffect(() => {
+    if (previewMode || !selectedHomework || showResult || questions.length === 0) return;
+    saveHwDraft(studentId, selectedHomework.id, {
+      questionIds: questions.map(q => q.id),
+      currentQuestionIndex,
+      answers,
+      matchingState: matchingStateRef.current,
+      initialOrder: initialOrderRef.current,
+      startTime,
+    });
+  }, [currentQuestionIndex, answers, selectedHomework, showResult, questions, studentId, startTime, previewMode]);
+
   const handleAnswer = (questionIndex, answer) => {
     setAnswers(prev => ({ ...prev, [questionIndex]: answer }));
   };
 
   const closeHomework = (wasSubmitted = false) => {
+    if (previewMode) {
+      onExitPreview?.();
+      return;
+    }
+    if (selectedHomework) clearHwDraft(studentId, selectedHomework.id);
     setSelectedHomework(null);
     setQuestions([]);
     setAnswers({});
@@ -464,9 +565,10 @@ function StudentHomework({ studentId }) {
   };
 
   useEffect(() => {
+    if (previewMode) return;
     if (!homeworkHomeToken) return;
     resetHomeRef.current();
-  }, [homeworkHomeToken]);
+  }, [homeworkHomeToken, previewMode]);
 
   const handlePointerDown = useCallback((e, questionIndex, itemIndex, items) => {
     e.preventDefault();
@@ -559,19 +661,19 @@ function StudentHomework({ studentId }) {
       case 'matching': {
         // userAnswer может быть {connections, pairs} или [{left,right}]
         const userPairs = userAnswer?.pairs || userAnswer || [];
-        if (!Array.isArray(userPairs)) return false;
+        if (!Array.isArray(userPairs) || !Array.isArray(correct) || userPairs.length !== correct.length) return false;
         return userPairs.every((pair, i) => {
           const cp = correct[i];
           return cp && pair.left === cp.left && pair.right === cp.right;
         });
       }
       case 'ordering': {
-        if (!Array.isArray(userAnswer)) return false;
+        if (!Array.isArray(userAnswer) || !Array.isArray(correct) || userAnswer.length !== correct.length) return false;
         return userAnswer.every((item, i) => item === correct[i]);
       }
       case 'fill_blanks':
       case 'fill_in_blank': {
-        if (!Array.isArray(userAnswer)) return false;
+        if (!Array.isArray(userAnswer) || !Array.isArray(correct) || userAnswer.length !== correct.length) return false;
         return userAnswer.every((ans, i) => {
           const norm = ans?.toLowerCase?.().trim() || '';
           return Array.isArray(correct[i])
@@ -597,6 +699,25 @@ function StudentHomework({ studentId }) {
       return { questionId: question.id, answer };
     });
 
+    if (previewMode) {
+      const checked = questions.map((question, index) => ({
+        correct: checkAnswerLocal(question, answers[index]),
+        points: Number(question.points) || 0,
+      }));
+      const maxScore = checked.reduce((sum, item) => sum + item.points, 0);
+      const totalScore = checked.reduce((sum, item) => sum + (item.correct ? item.points : 0), 0);
+      setResult({
+        totalScore,
+        maxScore,
+        percentage: maxScore > 0 ? Math.round(totalScore / maxScore * 100) : 0,
+        correctAnswers: checked.filter((item) => item.correct).length,
+        attemptsUsed: 0,
+        maxAttempts: null,
+      });
+      setShowResult(true);
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const response = await apiFetch(`${API_URL}/homework/submit`, {
@@ -611,6 +732,8 @@ function StudentHomework({ studentId }) {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || 'Не удалось сохранить домашку');
+
+      clearHwDraft(studentId, selectedHomework.id);
 
       // Результат сервера — единственный источник истины: он уже сохранён в БД.
       setResult({
@@ -646,7 +769,7 @@ function StudentHomework({ studentId }) {
                 onClick={() => handleAnswer(index, optIndex)}
               >
                 <span className="option-letter">{String.fromCharCode(65 + optIndex)}</span>
-                <span className="option-text">{option}</span>
+                <span className="option-text"><MathText text={option} /></span>
               </button>
             ))}
           </div>
@@ -671,7 +794,7 @@ function StudentHomework({ studentId }) {
                 }}
               >
                 <input type="checkbox" checked={selected.includes(optIndex)} readOnly />
-                <span className="option-text">{option}</span>
+                <span className="option-text"><MathText text={option} /></span>
               </button>
             ))}
           </div>
@@ -805,7 +928,7 @@ function StudentHomework({ studentId }) {
                   >
                     <span className="drag-handle">⠿</span>
                     <span className="item-number">{itemIndex + 1}</span>
-                    <span className="item-text">{item}</span>
+                    <span className="item-text"><MathText text={item} /></span>
                   </div>
                 );
               })}
@@ -824,7 +947,7 @@ function StudentHomework({ studentId }) {
             <div className="blanks-text">
               {parts.map((part, partIndex) => (
                 <React.Fragment key={partIndex}>
-                  <span>{part}</span>
+                  <span><MathText text={part} /></span>
                   {partIndex < parts.length - 1 && (
                     <input
                       type="text"
@@ -863,7 +986,7 @@ function StudentHomework({ studentId }) {
     }
   };
 
-  if (contextLoading.homework && homeworks.length === 0) {
+  if (!previewMode && contextLoading.homework && homeworks.length === 0) {
     return (
       <div className="section section-homework homework-section">
         <HomeworkHero title="Домашка" />
@@ -914,7 +1037,7 @@ function StudentHomework({ studentId }) {
         return (
           <div className="result-answers">
             <div className="result-answer wrong-answer">
-              <span className="answer-text">Неверно. Твой ответ: <strong>{formatWrongUserAnswer(question, userAnswer)}</strong></span>
+              <span className="answer-text">Неверно. Твой ответ: <strong><MathText text={formatWrongUserAnswer(question, userAnswer)} /></strong></span>
               <span className="wrong-mark">✕</span>
             </div>
           </div>
@@ -933,7 +1056,7 @@ function StudentHomework({ studentId }) {
                 return (
                   <div key={oIndex} className={`result-answer ${isCorrectOpt ? 'correct-answer' : 'wrong-answer'}`}>
                     <span className="answer-letter">{String.fromCharCode(65 + oIndex)}</span>
-                    <span className="answer-text">{option}</span>
+                    <span className="answer-text"><MathText text={option} /></span>
                     <span className={isCorrectOpt ? 'correct-mark' : 'wrong-mark'}>{isCorrectOpt ? '✓' : '✗'}</span>
                   </div>
                 );
@@ -954,7 +1077,7 @@ function StudentHomework({ studentId }) {
                 return (
                   <div key={oIndex} className={`result-answer ${isCorrectOpt ? 'correct-answer' : 'wrong-answer'}`}>
                     <span className="answer-letter">{isUser ? '☑' : '☐'}</span>
-                    <span className="answer-text">{option}</span>
+                    <span className="answer-text"><MathText text={option} /></span>
                     <span className={isCorrectOpt ? 'correct-mark' : 'wrong-mark'}>{isCorrectOpt ? '✓' : '✗'}</span>
                   </div>
                 );
@@ -1048,10 +1171,10 @@ function StudentHomework({ studentId }) {
                 return (
                   <div key={pi} className={`result-answer ${ok ? 'correct-answer' : 'wrong-answer'}`}>
                     <span className="answer-text" style={{flex:1}}>
-                      <strong>{pair.left}</strong>
+                      <strong><MathText text={pair.left} /></strong>
                       {ok
-                        ? <> → {pair.right}</>
-                        : <> → <span style={{color:'#ef4444', textDecoration:'line-through'}}>{userPair.right || '—'}</span> → <span style={{color:'#10b981'}}>{pair.right}</span></>
+                        ? <> → <MathText text={pair.right} /></>
+                        : <> → <span style={{color:'#ef4444', textDecoration:'line-through'}}><MathText text={userPair.right || '—'} /></span> → <span style={{color:'#10b981'}}><MathText text={pair.right} /></span></>
                       }
                     </span>
                     <span className={ok ? 'correct-mark' : 'wrong-mark'}>{ok ? '✓' : '✗'}</span>
@@ -1068,17 +1191,17 @@ function StudentHomework({ studentId }) {
             <div className="result-answers">
               {isOk ? (
                 <div className="result-answer correct-answer">
-                  <span className="answer-text">Порядок верный: <strong>{userOrder.join(' → ')}</strong></span>
+                  <span className="answer-text">Порядок верный: <strong><MathText text={userOrder.join(' → ')} /></strong></span>
                   <span className="correct-mark">✓</span>
                 </div>
               ) : (
                 <>
                   <div className="result-answer wrong-answer">
-                    <span className="answer-text">Твой порядок: <strong>{userOrder.join(' → ')}</strong></span>
+                    <span className="answer-text">Твой порядок: <strong><MathText text={userOrder.join(' → ')} /></strong></span>
                     <span className="wrong-mark">✗</span>
                   </div>
                   <div className="result-answer correct-answer">
-                    <span className="answer-text">Правильно: <strong>{correctOrder.join(' → ')}</strong></span>
+                    <span className="answer-text">Правильно: <strong><MathText text={correctOrder.join(' → ')} /></strong></span>
                     <span className="correct-mark">✓</span>
                   </div>
                 </>
@@ -1147,6 +1270,11 @@ function StudentHomework({ studentId }) {
 
     return (
       <div className="section homework-result">
+        {previewMode && (
+          <div className="homework-preview-notice" role="status">
+            Предпросмотр преподавателя · результат не сохранён
+          </div>
+        )}
         <div className="result-header">
           <h1>Результат</h1>
           <p className="result-homework-title">{selectedHomework?.title}</p>
@@ -1173,12 +1301,12 @@ function StudentHomework({ studentId }) {
                   <span className="result-question-number">Вопрос {qIndex + 1}</span>
                   <span className="hw-q-points">{question.points} б.</span>
                 </div>
-                <p className="result-question-text">{question.questionText}</p>
+                <p className="result-question-text"><MathText text={question.questionText} /></p>
                 {renderAnswerReview(question, qIndex)}
-                {question.explanation && (
+                {!isCorrect && question.explanation && (
                   <div className="hw-explanation-box">
                     <span className="hw-explanation-icon">💡</span>
-                    <span className="hw-explanation-text">{question.explanation}</span>
+                    <span className="hw-explanation-text"><MathText text={question.explanation} /></span>
                   </div>
                 )}
               </div>
@@ -1190,11 +1318,11 @@ function StudentHomework({ studentId }) {
             <p className="attempts-exhausted">Ты использовал все попытки</p>
           ) : (
             <button className="primary-button" onClick={() => startHomework(selectedHomework)}>
-              Попробовать еще раз
+              {previewMode ? 'Пройти ещё раз' : 'Попробовать еще раз'}
             </button>
           )}
           <button className="secondary-button" onClick={() => closeHomework(true)}>
-            К списку домашек
+            {previewMode ? 'Закрыть предпросмотр' : 'К списку домашек'}
           </button>
         </div>
       </div>
@@ -1220,11 +1348,18 @@ function StudentHomework({ studentId }) {
         }}
       >
         <div className="homework-mode-header">
-          <button type="button" className="back-button" onClick={closeHomework}>← Назад</button>
+          <button type="button" className="back-button" onClick={closeHomework}>
+            {previewMode ? '← Закрыть' : '← Назад'}
+          </button>
           <div className="homework-info">
             <h2>{selectedHomework.title}</h2>
             <p>Вопрос {currentQuestionIndex + 1} из {questions.length}</p>
           </div>
+          {previewMode && (
+            <div className="homework-preview-badge" role="status">
+              Режим ученика · без сохранения
+            </div>
+          )}
         </div>
         <div className="homework-mode-progress">
           <div className="homework-mode-progress-fill" style={{ width: `${progress}%` }}></div>
@@ -1237,7 +1372,7 @@ function StudentHomework({ studentId }) {
             </div>
             <div className="hw-question-prompt" key={`hq-${currentQuestion.id ?? currentQuestionIndex}`}>
               <span className="hw-question-prompt-mark" aria-hidden>“</span>
-              <h3 className="question-text">{currentQuestion.questionText}</h3>
+              <h3 className="question-text"><MathText text={currentQuestion.questionText} /></h3>
             </div>
             <div className={`homework-mode-answer homework-mode-answer--${currentQuestion.questionType || 'default'}`}>
               {renderQuestion(currentQuestion, currentQuestionIndex)}
@@ -1257,7 +1392,7 @@ function StudentHomework({ studentId }) {
               </button>
             ) : (
               <button type="button" className="hw-nav-btn hw-nav-btn--submit" disabled={!canProceed || isSubmitting} onClick={submitHomework}>
-                {isSubmitting ? 'Сохраняем…' : 'Отправить'}
+                {previewMode ? 'Проверить ответы' : isSubmitting ? 'Сохраняем…' : 'Отправить'}
               </button>
             )}
           </div>
@@ -1381,7 +1516,7 @@ function StudentHomework({ studentId }) {
                 {isExpanded && (
                 <div className="hw-card-body">
                 {homework.description && (
-                  <p className="hw-card-description">{homework.description}</p>
+                  <p className="hw-card-description"><MathText text={homework.description} /></p>
                 )}
 
                 <div className="hw-metrics">

@@ -4,6 +4,10 @@ import { adminFetch } from './adminApi';
 
 import { API_URL } from '../../config';
 import { useSectionRefresh } from './useSectionRefresh';
+import StudentHomework from '../../pages/Homework';
+import { PreviewDataProvider } from '../../pages/DataContext';
+import MathText, { LatexHelp } from '../MathText';
+import FormattingTextarea from '../FormattingTextarea';
 
 const QUESTION_TYPES = [
   { value: 'single_choice', label: 'Тест с одним правильным ответом', icon: '⭕' },
@@ -27,6 +31,8 @@ function Homework({ subjects, currentUserId, dataRefreshKey = 0 }) {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingHomework, setEditingHomework] = useState(null);
   const [selectedHomework, setSelectedHomework] = useState(null);
+  const [previewHomework, setPreviewHomework] = useState(null);
+  const [previewLoadingId, setPreviewLoadingId] = useState(null);
 
   // Навигация: null → subject → month → homeworks
   const [selectedSubject, setSelectedSubject] = useState(null);
@@ -331,6 +337,24 @@ function Homework({ subjects, currentUserId, dataRefreshKey = 0 }) {
     }
   };
 
+  const openStudentPreview = async (homework) => {
+    if (previewLoadingId) return;
+    setPreviewLoadingId(homework.id);
+    try {
+      const response = await adminFetch(`${API_URL}/homework/${homework.id}`);
+      const data = await response.json();
+      if (!response.ok || !data.homework) {
+        throw new Error(data.message || 'Не удалось загрузить домашку');
+      }
+      setPreviewHomework(data.homework);
+    } catch (error) {
+      console.error('Error loading homework preview:', error);
+      alert(error.message || 'Ошибка загрузки предпросмотра');
+    } finally {
+      setPreviewLoadingId(null);
+    }
+  };
+
   const renderQuestionBuilder = () => {
     switch (currentQuestion.questionType) {
       case 'single_choice':
@@ -559,6 +583,19 @@ function Homework({ subjects, currentUserId, dataRefreshKey = 0 }) {
 
   if (loading) return <div className="loading">Загрузка...</div>;
 
+  // Тот же экран, что видит ученик, но отправка заменена локальной проверкой.
+  if (previewHomework) {
+    return (
+      <PreviewDataProvider>
+        <StudentHomework
+          studentId={currentUserId}
+          previewHomework={previewHomework}
+          onExitPreview={() => setPreviewHomework(null)}
+        />
+      </PreviewDataProvider>
+    );
+  }
+
   // ===== ЭКРАН РЕЗУЛЬТАТОВ =====
   if (selectedHomework) {
     return (
@@ -735,7 +772,7 @@ function Homework({ subjects, currentUserId, dataRefreshKey = 0 }) {
                       <button type="button" className="edit-question-btn" onClick={() => startEditQuestion(index)}>✏️</button>
                       <button type="button" className="remove-question-btn" onClick={() => removeQuestion(index)}>✕</button>
                     </div>
-                    <p className="question-text">{q.questionText}</p>
+                    <p className="question-text"><MathText text={q.questionText} /></p>
                   </div>
                 ))}
               </div>
@@ -754,9 +791,10 @@ function Homework({ subjects, currentUserId, dataRefreshKey = 0 }) {
               </div>
               <div className="form-group">
                 <label>Текст вопроса *</label>
-                <textarea value={currentQuestion.questionText}
-                  onChange={(e) => setCurrentQuestion({ ...currentQuestion, questionText: e.target.value })}
+                <FormattingTextarea value={currentQuestion.questionText}
+                  onChange={(questionText) => setCurrentQuestion({ ...currentQuestion, questionText })}
                   placeholder="Введите вопрос" rows={3} />
+                <LatexHelp />
               </div>
               {renderQuestionBuilder()}
               <div className="form-group">
@@ -833,6 +871,15 @@ function Homework({ subjects, currentUserId, dataRefreshKey = 0 }) {
                     </span>
                   </div>
                   <div className="homework-actions">
+                    <button
+                      className="homework-retry-btn"
+                      onClick={() => openStudentPreview(homework)}
+                      disabled={previewLoadingId === homework.id}
+                      aria-label={`Пройти «${homework.title}» от лица ученика`}
+                    >
+                      <span aria-hidden="true">↻</span>
+                      {previewLoadingId === homework.id ? 'Открываем…' : 'Перерешать'}
+                    </button>
                     <button className="icon-btn" onClick={() => openEditModal(homework)} title="Редактировать">✏️</button>
                     <button className="icon-btn" onClick={() => toggleHomeworkStatus(homework)} title={homework.isActive ? 'Отключить' : 'Включить'}>
                       {homework.isActive ? '👁️' : '🚫'}
@@ -841,7 +888,7 @@ function Homework({ subjects, currentUserId, dataRefreshKey = 0 }) {
                     <button className="icon-btn delete" onClick={() => deleteHomework(homework.id)} title="Удалить">🗑️</button>
                   </div>
                 </div>
-                <p className="homework-description">{homework.description || 'Без описания'}</p>
+                <p className="homework-description"><MathText text={homework.description || 'Без описания'} /></p>
                 <div className="homework-meta">
                   <span>📝 Вопросов: {homework.questions?.length || 0}</span>
                   <span>📅 Открытие: {new Date(homework.openDate).toLocaleString('ru-RU')}</span>

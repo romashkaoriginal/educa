@@ -462,6 +462,19 @@
   font-weight: 500;
 }
 
+.homework-preview-badge {
+  max-width: 128px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: center;
+  flex-shrink: 0;
+}
+
 .homework-mode-progress {
   height: 4px;
   width: 100%;
@@ -485,13 +498,14 @@
   display: flex;
   flex-direction: column;
   -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
   /* Тянем скролл до самого низа, чтобы input был виден при открытой клавиатуре */
   overscroll-behavior: contain;
 }
 
 .homework-mode .question-container {
-  flex: 1;
-  min-height: 0;
+  flex: 0 0 auto;
+  min-height: 100%;
   display: flex;
   flex-direction: column;
   background: #ffffff;
@@ -560,8 +574,8 @@
 }
 
 .homework-mode-answer {
-  flex: 1;
-  min-height: 0;
+  flex: 0 0 auto;
+  min-height: max-content;
   overflow: visible;
   display: flex;
   flex-direction: column;
@@ -787,7 +801,7 @@
 .matching-wire {
   position: relative;
   user-select: none;
-  touch-action: none;
+  touch-action: pan-y;
   flex: 0 1 auto;
   display: flex;
   flex-direction: column;
@@ -843,7 +857,7 @@
   border-radius: 8px 0 0 8px;
   border: 2px solid transparent;
   border-right: none;
-  cursor: grab;
+  cursor: default;
   justify-content: space-between;
 }
 
@@ -851,7 +865,10 @@
   border-radius: 0 8px 8px 0;
   border: 2px solid transparent;
   border-left: none;
-  cursor: crosshair;
+  width: 100%;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 
 .mw-block-text {
@@ -868,6 +885,42 @@
   flex-shrink: 0;
   background: rgba(26, 64, 95, 0.28);
   transition: background 0.15s;
+}
+
+.mw-connector {
+  width: 32px;
+  min-width: 32px;
+  height: 36px;
+  margin: -8px -10px -8px 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.mw-connector--source {
+  color: inherit;
+  cursor: grab;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mw-connector--source:active {
+  cursor: grabbing;
+}
+
+.mw-connector--source:focus-visible {
+  outline: 2px solid var(--kubik-blue, #337BAE);
+  outline-offset: -4px;
+  border-radius: 8px;
+}
+
+.mw-connector--target {
+  margin: -8px 0 -8px -10px;
+  pointer-events: none;
 }
 
 .mw-dot--on {
@@ -1238,6 +1291,23 @@
   max-width: 600px;
   margin: 0 auto;
   text-align: center;
+}
+
+.homework-preview-notice {
+  margin: 0 0 18px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--kubik-blue-soft, #EAF3FA);
+  color: var(--kubik-navy, #1A405F);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+@media (max-width: 420px) {
+  .homework-preview-badge {
+    max-width: 92px;
+    font-size: 9px;
+  }
 }
 
 .result-header h1 { margin: 0 0 8px 0; font-size: 28px; color: #2A3744; }

@@ -16,11 +16,25 @@ const sameId = (a, b) => Number(a) === Number(b);
 
 const DataContext = createContext();
 
+const previewDataValue = {
+  homeworks: [],
+  subjects: [],
+  refreshAfterHomework: async () => {},
+  loading: { homework: false },
+  homeworkHomeToken: 0,
+};
+
 export const useData = () => {
   const context = useContext(DataContext);
   if (!context) throw new Error('useData must be used within DataProvider');
   return context;
 };
+
+// Изолированный контекст для админского предпросмотра ученических экранов:
+// не загружает данные ученика и не открывает его socket-сессию.
+export const PreviewDataProvider = ({ children }) => (
+  <DataContext.Provider value={previewDataValue}>{children}</DataContext.Provider>
+);
 
 export const DataProvider = ({ children, studentId }) => {
   const [subjects, setSubjects] = useState([]);

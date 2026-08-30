@@ -1,0 +1,90 @@
+.math-text__inline {
+  display: inline;
+  max-width: 100%;
+}
+
+.math-text__inline .katex {
+  font-size: 1.04em;
+}
+
+.math-text__display {
+  display: block;
+  max-width: 100%;
+  margin: 0.55em 0;
+  padding: 0.1em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+.math-text__display .katex-display {
+  margin: 0;
+  min-width: max-content;
+}
+
+.math-text__invalid {
+  display: inline;
+  color: inherit;
+  text-decoration: underline dotted var(--medium, #b7791f);
+  text-underline-offset: 3px;
+}
+
+.math-text__bold {
+  font-weight: 800;
+}
+
+.math-text__bold .math-text__inline .katex {
+  font-weight: 800;
+}
+
+.math-text__underline { text-underline-offset: 0.12em; }
+
+.latex-help {
+  margin-top: 8px;
+  color: var(--kubik-text-soft, #5e6b78);
+  font-size: 12px;
+}
+
+.latex-help summary {
+  width: fit-content;
+  color: var(--kubik-blue, #337bae);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.latex-help summary:focus-visible {
+  outline: 2px solid var(--kubik-blue, #337bae);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+.latex-help__body {
+  max-width: 520px;
+  margin-top: 8px;
+  padding: 12px;
+  border: 1px solid var(--kubik-border, #eceae5);
+  border-radius: 10px;
+  background: var(--kubik-white, #fcfcfa);
+  line-height: 1.5;
+}
+
+.latex-help__body p {
+  margin: 0 0 6px;
+}
+
+.latex-help__body code {
+  color: var(--kubik-navy, #1a405f);
+  font-size: 12px;
+}
+
+.latex-help__preview {
+  margin-bottom: 8px;
+  color: var(--kubik-text, #2a3744);
+  font-size: 14px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .math-text__display {
+    scroll-behavior: auto;
+  }
+}

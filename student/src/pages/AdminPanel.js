@@ -10,7 +10,7 @@ import Quiz from '../components/admin/Quiz';
 import Lesson from '../components/admin/Lesson';
 import Notifications from '../components/admin/Notifications';
 import Applications from '../components/admin/Applications';
-import Cleanup from '../components/admin/Cleanup';
+import SuperAdmin from '../components/admin/SuperAdmin';
 import { adminFetch } from '../components/admin/adminApi';
 import { AdminDataProvider, useAdminData } from '../components/admin/AdminDataContext';
 
@@ -35,7 +35,7 @@ const ALL_SECTIONS = [
   { id: 'homework', name: 'Дом. задание', icon: '📝' },
   { id: 'statistics', name: 'Статистика', icon: '📊' },
   { id: 'notifications', name: 'Уведомления', icon: '📣' },
-  { id: 'cleanup', name: 'Очистка', icon: '🧹' },
+  { id: 'superadmin', name: 'Суперадмин', icon: '🛡️' },
 ];
 
 function AdminPanelContent() {
@@ -116,10 +116,10 @@ function AdminPanelContent() {
     }
   };
 
-  // Фильтруем разделы по роли (+ очистка только для super admin)
+  // Диагностика доступна только главному администратору.
   const isSuperAdmin = String(currentUser?.telegramId) === SUPER_ADMIN_TELEGRAM_ID;
   const availableSections = ALL_SECTIONS.filter(s => {
-    if (s.id === 'cleanup') return isSuperAdmin;
+    if (s.id === 'superadmin') return isSuperAdmin;
     return (ROLE_SECTIONS[userRole] || ROLE_SECTIONS.admin).includes(s.id);
   });
 
@@ -167,7 +167,7 @@ function AdminPanelContent() {
         <div style={{ display: activeSection === 'quiz' ? 'block' : 'none' }}><Quiz subjects={subjects} currentUserId={currentUser?.id} dataRefreshKey={dataRefreshKey} /></div>
         <div style={{ display: activeSection === 'notifications' ? 'block' : 'none' }}><Notifications subjects={subjects} currentUser={currentUser} dataRefreshKey={dataRefreshKey} /></div>
         <div style={{ display: activeSection === 'applications' ? 'block' : 'none' }}><Applications dataRefreshKey={dataRefreshKey} /></div>
-        <div style={{ display: activeSection === 'cleanup' ? 'block' : 'none' }}><Cleanup subjects={subjects} /></div>
+        <div style={{ display: activeSection === 'superadmin' ? 'block' : 'none' }}><SuperAdmin dataRefreshKey={dataRefreshKey} /></div>
       </main>
     </div>
   );

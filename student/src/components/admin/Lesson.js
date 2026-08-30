@@ -3,6 +3,7 @@ import { io } from 'socket.io-client';
 import { API_URL, SOCKET_URL } from '../../config';
 import { adminFetch, getTelegramInitData } from './adminApi';
 import ImageUploadField from './ImageUploadField';
+import MathText, { LatexHelp } from '../MathText';
 import '../../styles/Lesson.css';
 
 const STATUS = { scheduled: 'Предстоит', live: 'Идёт сейчас', finished: 'Завершено', cancelled: 'Отменено' };
@@ -82,6 +83,7 @@ export default function LessonAdmin({ subjects = [], currentUser, dataRefreshKey
   const [selectedId, setSelectedId] = useState(null);
   const [lessonForm, setLessonForm] = useState(emptyLesson);
   const [startForm, setStartForm] = useState(null);
+  const [editForm, setEditForm] = useState(null);
   const [teacherForm, setTeacherForm] = useState({ teacherId: '', subjectId: '' });
   const [pollForm, setPollForm] = useState(emptyPoll);
   const [quizForm, setQuizForm] = useState(emptyQuiz);
@@ -231,14 +233,28 @@ export default function LessonAdmin({ subjects = [], currentUser, dataRefreshKey
   };
 
   const deleteLesson = (lesson) => {
-    if (!window.confirm(`Удалить завершённое занятие «${lesson.subject?.name || lesson.topic || 'Без темы'}»? Будут безвозвратно удалены опросы, викторины, ответы, посещаемость и материалы этого занятия.`)) return;
+    if (!window.confirm(`Удалить занятие «${lesson.subject?.name || lesson.topic || 'Без темы'}»? Будут безвозвратно удалены опросы, викторины, ответы, посещаемость и материалы этого занятия.`)) return;
     run(`delete-lesson-${lesson.id}`, async () => {
       await request(`/lessons/${lesson.id}`, { method: 'DELETE' });
       setLessons((items) => items.filter((item) => Number(item.id) !== Number(lesson.id)));
       if (Number(selectedId) === Number(lesson.id)) setSelectedId(null);
-      setMessage('Завершённое занятие удалено');
+      setMessage('Занятие удалено');
     }, { reload: false, refreshSession: false });
   };
+
+  // Редактирование темы/даты записи расписания — доступно для любого статуса кроме live.
+  const editLesson = (lesson) => setEditForm({ lessonId: lesson.id, topic: lesson.topic || '', scheduledAt: toLocalInput(lesson.scheduledAt) });
+
+  const submitEdit = () => run('edit-lesson', async () => {
+    if (!editForm.scheduledAt) throw new Error('Укажите дату и время');
+    const date = new Date(editForm.scheduledAt);
+    if (Number.isNaN(date.getTime())) throw new Error('Некорректная дата');
+    await request(`/lessons/${editForm.lessonId}`, {
+      method: 'PATCH', body: JSON.stringify({ topic: editForm.topic, scheduledAt: date.toISOString() })
+    });
+    setEditForm(null);
+    setMessage('Занятие обновлено');
+  });
 
   const postponeLesson = (lesson) => {
     const value = window.prompt('Новая дата и время (ГГГГ-ММ-ДДTЧЧ:ММ)', toLocalInput(lesson.scheduledAt));
@@ -484,7 +500,8 @@ export default function LessonAdmin({ subjects = [], currentUser, dataRefreshKey
             <td><div className="lesson-admin-row-actions">
               <button type="button" onClick={(event) => { event.stopPropagation(); setSelectedId(lesson.id); }}>Открыть →</button>
               {lesson.status === 'scheduled' && <button type="button" className="primary" onClick={(event) => { event.stopPropagation(); openStartFromSchedule(lesson); }}>Начать занятие</button>}
-              {(lesson.status === 'finished' || (lesson.status === 'scheduled' && isAdmin)) && <button type="button" className="danger" disabled={busy === `delete-lesson-${lesson.id}`} onClick={(event) => { event.stopPropagation(); deleteLesson(lesson); }}>Удалить</button>}
+              <button type="button" onClick={(event) => { event.stopPropagation(); editLesson(lesson); }}>Редактировать</button>
+              <button type="button" className="danger" disabled={busy === `delete-lesson-${lesson.id}`} onClick={(event) => { event.stopPropagation(); deleteLesson(lesson); }}>Удалить</button>
             </div></td>
           </tr>)}
         </tbody></table></div>
@@ -534,16 +551,16 @@ export default function LessonAdmin({ subjects = [], currentUser, dataRefreshKey
           <span className={`lesson-admin-status ${selected.status}`}>{STATUS[selected.status]}</span>
         </div>
         <section className="admin-section lesson-admin-section lesson-admin-session">
-          <div className="admin-section-header"><div><h3>{selected.status === 'live' ? 'Активная сессия' : selected.status === 'finished' ? 'Итоги занятия' : 'Подготовка занятия'}</h3><p>{selected.subject?.name} · {formatDate(selected.scheduledAt)} · {selected.topic || 'Без темы'}</p></div><div className="lesson-admin-detail-actions">{selected.status === 'scheduled' && <><button type="button" className="admin-btn" onClick={() => postponeLesson(selected)}>Перенести</button><button type="button" className="admin-btn admin-btn--danger" onClick={() => run(`cancel-${selected.id}`, () => request(`/lessons/${selected.id}/cancel`, { method: 'POST' }))}>Отменить</button><button type="button" className="admin-btn admin-btn--primary" onClick={() => openStartFromSchedule(selected)}>Начать занятие</button></>}{selected.status === 'live' && <><button type="button" className="admin-btn" disabled={busy === 'toggle-questions'} onClick={() => toggleQuestions(selected)}>{selected.questionsEnabled === false ? 'Включить вопросы' : 'Отключить вопросы'}</button><button type="button" className="admin-btn admin-btn--danger" onClick={() => finishLesson(selected)}>Завершить занятие</button></>}{selected.status === 'finished' && <button type="button" className="admin-btn admin-btn--danger" disabled={busy === `delete-lesson-${selected.id}`} onClick={() => deleteLesson(selected)}>Удалить занятие</button>}</div></div>
+          <div className="admin-section-header"><div><h3>{selected.status === 'live' ? 'Активная сессия' : selected.status === 'finished' ? 'Итоги занятия' : 'Подготовка занятия'}</h3><p>{selected.subject?.name} · {formatDate(selected.scheduledAt)} · {selected.topic || 'Без темы'}</p></div><div className="lesson-admin-detail-actions">{selected.status === 'scheduled' && <><button type="button" className="admin-btn" onClick={() => postponeLesson(selected)}>Перенести</button><button type="button" className="admin-btn admin-btn--danger" onClick={() => run(`cancel-${selected.id}`, () => request(`/lessons/${selected.id}/cancel`, { method: 'POST' }))}>Отменить</button><button type="button" className="admin-btn admin-btn--primary" onClick={() => openStartFromSchedule(selected)}>Начать занятие</button></>}{selected.status === 'live' && <><button type="button" className="admin-btn" disabled={busy === 'toggle-questions'} onClick={() => toggleQuestions(selected)}>{selected.questionsEnabled === false ? 'Включить вопросы' : 'Отключить вопросы'}</button><button type="button" className="admin-btn admin-btn--danger" onClick={() => finishLesson(selected)}>Завершить занятие</button></>}{selected.status !== 'live' && <button type="button" className="admin-btn" onClick={() => editLesson(selected)}>Редактировать</button>}{selected.status !== 'live' && <button type="button" className="admin-btn admin-btn--danger" disabled={busy === `delete-lesson-${selected.id}`} onClick={() => deleteLesson(selected)}>Удалить занятие</button>}</div></div>
           <div className="lesson-admin-session-grid">
             <article className="lesson-admin-tool"><div className="lesson-admin-tool-heading"><h4>Голосование</h4>{selected.status === 'live' && activePoll?.status === 'closed' && !pollComposerOpen && <button type="button" onClick={() => setPollComposerOpen(true)}>+ Новое голосование</button>}</div>
-              {selected.status === 'live' && (!activePoll || pollComposerOpen) && <div className="lesson-admin-composer"><select value={pollForm.template} onChange={(event) => setPollForm((form) => ({ ...form, template: event.target.value, isAnonymous: event.target.value === 'clear_unclear' }))}>{Object.entries(POLL_PRESETS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>{pollForm.template === 'custom' && <><input placeholder="Вопрос" value={pollForm.question} onChange={(event) => setPollForm((form) => ({ ...form, question: event.target.value }))} /><textarea placeholder="Варианты — каждый с новой строки" value={pollForm.optionsText} onChange={(event) => setPollForm((form) => ({ ...form, optionsText: event.target.value }))} /></>}<div className="lesson-admin-checks"><label><input type="checkbox" checked={pollForm.isAnonymous} onChange={(event) => setPollForm((form) => ({ ...form, isAnonymous: event.target.checked }))} /> Анонимно</label><label><input type="checkbox" checked={pollForm.showResultsToStudents} onChange={(event) => setPollForm((form) => ({ ...form, showResultsToStudents: event.target.checked }))} /> Результаты ученикам</label></div><input type="number" min="10" placeholder="Длительность, сек. (пусто — вручную)" value={pollForm.durationSec} onChange={(event) => setPollForm((form) => ({ ...form, durationSec: event.target.value }))} /><div className="lesson-admin-composer-actions"><button type="button" className="admin-btn admin-btn--primary" disabled={busy === 'create-poll'} onClick={createPoll}>Создать голосование</button>{activePoll && <button type="button" onClick={() => setPollComposerOpen(false)}>Отмена</button>}</div></div>}
+              {selected.status === 'live' && (!activePoll || pollComposerOpen) && <div className="lesson-admin-composer"><select value={pollForm.template} onChange={(event) => setPollForm((form) => ({ ...form, template: event.target.value, isAnonymous: event.target.value === 'clear_unclear' }))}>{Object.entries(POLL_PRESETS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>{pollForm.template === 'custom' && <><input placeholder="Вопрос" value={pollForm.question} onChange={(event) => setPollForm((form) => ({ ...form, question: event.target.value }))} /><textarea placeholder="Варианты — каждый с новой строки" value={pollForm.optionsText} onChange={(event) => setPollForm((form) => ({ ...form, optionsText: event.target.value }))} /><LatexHelp /></>}<div className="lesson-admin-checks"><label><input type="checkbox" checked={pollForm.isAnonymous} onChange={(event) => setPollForm((form) => ({ ...form, isAnonymous: event.target.checked }))} /> Анонимно</label><label><input type="checkbox" checked={pollForm.showResultsToStudents} onChange={(event) => setPollForm((form) => ({ ...form, showResultsToStudents: event.target.checked }))} /> Результаты ученикам</label></div><input type="number" min="10" placeholder="Длительность, сек. (пусто — вручную)" value={pollForm.durationSec} onChange={(event) => setPollForm((form) => ({ ...form, durationSec: event.target.value }))} /><div className="lesson-admin-composer-actions"><button type="button" className="admin-btn admin-btn--primary" disabled={busy === 'create-poll'} onClick={createPoll}>Создать голосование</button>{activePoll && <button type="button" onClick={() => setPollComposerOpen(false)}>Отмена</button>}</div></div>}
               {activePoll && <div className="lesson-admin-active">
-                <strong>{activePoll.question}</strong><span>{POLL_STATUS[activePoll.status] || activePoll.status}</span>
+                <strong><MathText text={activePoll.question} /></strong><span>{POLL_STATUS[activePoll.status] || activePoll.status}</span>
                 {activePoll.status === 'active' && activePoll.autoCloseAt && <CountdownBadge targetDate={activePoll.autoCloseAt} expiredLabel="Завершается…" />}
-                {pollResults && <div className="lesson-admin-poll-results">{pollResults.options?.map((option) => <span key={option.id}><i style={{ width: `${option.percent}%` }} /><b>{option.text}</b><strong>{option.percent}%</strong><small>{option.count}</small></span>)}</div>}
+                {pollResults && <div className="lesson-admin-poll-results">{pollResults.options?.map((option) => <span key={option.id}><i style={{ width: `${option.percent}%` }} /><b><MathText text={option.text} /></b><strong>{option.percent}%</strong><small>{option.count}</small></span>)}</div>}
                 {pollResults && <small>Ответили: {pollResults.total} из {attendance.length}</small>}
-                {!activePoll.isAnonymous && pollResults?.answers?.length > 0 && <div className="lesson-admin-answer-list">{pollResults.answers.map((answer) => <span key={answer.id}>{fullName(answer.user)} — {answer.option?.text}</span>)}</div>}
+                {!activePoll.isAnonymous && pollResults?.answers?.length > 0 && <div className="lesson-admin-answer-list">{pollResults.answers.map((answer) => <span key={answer.id}>{fullName(answer.user)} — <MathText text={answer.option?.text} /></span>)}</div>}
                 <div>{activePoll.status === 'draft' && <button type="button" onClick={() => pollAction(activePoll, 'start')}>Запустить</button>}{activePoll.status === 'active' && <><button type="button" onClick={() => pollAction(activePoll, 'reveal-results')}>Показать результаты</button><button type="button" onClick={() => pollAction(activePoll, 'close')}>Закрыть</button></>}{activePoll.status === 'closed' && <button type="button" onClick={() => pollAction(activePoll, 'restart')}>Перезапустить</button>}</div>
               </div>}
               {selected.status !== 'live' && <p className="lesson-admin-empty">Голосование создаётся после начала занятия.</p>}
@@ -557,6 +574,7 @@ export default function LessonAdmin({ subjects = [], currentUser, dataRefreshKey
                 {preparedQuiz.status === 'draft' && <div className="lesson-admin-question-form">
                   <div className="lesson-admin-import"><select value={importTopicId} onChange={(event) => setImportTopicId(event.target.value)}><option value="">Раздел практики для импорта…</option>{practiceTopics.map((topic) => <option key={topic.id} value={topic.id}>{topic.name} ({topic.questionCount})</option>)}</select><button type="button" onClick={() => importPracticeQuestions(preparedQuiz)}>Импортировать</button></div>
                   <textarea placeholder="Текст вопроса" value={questionForm.questionText} onChange={(event) => setQuestionForm((form) => ({ ...form, questionText: event.target.value }))} />
+                  <LatexHelp />
                   <ImageUploadField label="Изображение вопроса" value={questionForm.questionImage} onChange={(image) => setQuestionForm((form) => ({ ...form, questionImage: image }))} />
                   <textarea placeholder="Варианты — каждый с новой строки" value={questionForm.optionsText} onChange={(event) => setQuestionForm((form) => ({ ...form, optionsText: event.target.value }))} />
                   <input placeholder="Номера правильных ответов: 1 или 1,3" value={questionForm.correctText} onChange={(event) => setQuestionForm((form) => ({ ...form, correctText: event.target.value }))} />
@@ -608,6 +626,29 @@ export default function LessonAdmin({ subjects = [], currentUser, dataRefreshKey
                 disabled={!startForm.streamUrl.trim() || (!startForm.lessonId && !startForm.subjectId) || busy === 'start-lesson'}
                 onClick={submitStart}
               >Начать и уведомить учеников</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editForm && (
+        <div className="lesson-admin-modal-backdrop" onClick={() => setEditForm(null)}>
+          <div className="lesson-admin-modal" role="dialog" aria-modal="true" aria-labelledby="lesson-edit-title" onClick={(event) => event.stopPropagation()}>
+            <h3 id="lesson-edit-title">Редактировать занятие</h3>
+            <label className="lesson-admin-field"><span>Тема</span>
+              <input value={editForm.topic} placeholder="Например, законы Ньютона" onChange={(event) => setEditForm((form) => ({ ...form, topic: event.target.value }))} />
+            </label>
+            <label className="lesson-admin-field"><span>Дата и время</span>
+              <input type="datetime-local" value={editForm.scheduledAt} onChange={(event) => setEditForm((form) => ({ ...form, scheduledAt: event.target.value }))} />
+            </label>
+            <div className="lesson-admin-modal-actions">
+              <button type="button" className="admin-btn" onClick={() => setEditForm(null)}>Отмена</button>
+              <button
+                type="button"
+                className="admin-btn admin-btn--primary"
+                disabled={!editForm.scheduledAt || busy === 'edit-lesson'}
+                onClick={submitEdit}
+              >Сохранить</button>
             </div>
           </div>
         </div>

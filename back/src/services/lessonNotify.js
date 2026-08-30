@@ -120,7 +120,7 @@ async function sendNotificationBatch(lesson, { reminder = false } = {}) {
       continue;
     }
     try {
-      await bot.sendMessage(recipient.telegramId, text, appUrl ? {
+      await bot.sendMessage(recipient.telegramId, text, (!reminder && appUrl) ? {
         reply_markup: { inline_keyboard: [[{ text: 'Перейти к занятию', web_app: { url: appUrl } }]] }
       } : undefined);
       results.push({ userId: recipient.id, ok: true });

@@ -1,4 +1,9 @@
-const SUPER_ADMIN_TELEGRAM_ID = '1218874137';
+// Старое значение оставлено как безопасный fallback для уже работающего VPS.
+// На новых окружениях задаётся через .env.production, чтобы не менять код при
+// смене super-admin. Этот же ID использует production monitor.
+const SUPER_ADMIN_TELEGRAM_ID = String(
+  process.env.SUPER_ADMIN_TELEGRAM_ID || '1218874137'
+);
 
 exports.requireSuperAdmin = (req, res, next) => {
   const tgId = String(req.telegramUser?.id || req.dbUser?.telegramId || '');

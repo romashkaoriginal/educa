@@ -1,7 +1,7 @@
 const express = require('express');
 const { User, Subject } = require('../models');
 const { requireSuperAdmin } = require('../middleware/superAdmin');
-const cleanupController = require('../controllers/cleanupController');
+const { getSystemDiagnostics } = require('../services/systemDiagnostics');
 
 const router = express.Router();
 
@@ -34,9 +34,9 @@ router.get('/dashboard', async (req, res) => {
   }
 });
 
-router.post('/cleanup/answers', requireSuperAdmin, cleanupController.clearStudentAnswersBySubject);
-router.post('/cleanup/streak', requireSuperAdmin, cleanupController.clearStudentStreak);
-router.post('/cleanup/migrate-stats', requireSuperAdmin, cleanupController.migratePracticeStats);
-router.post('/cleanup/rebuild-stats', requireSuperAdmin, cleanupController.rebuildPracticeStats);
+router.get('/diagnostics', requireSuperAdmin, (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json(getSystemDiagnostics(req.app.get('io')));
+});
 
 module.exports = router;

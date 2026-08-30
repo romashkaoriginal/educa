@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { io } from 'socket.io-client';
 import './App.css';
 import kubikLogo from './assets/kubik-logo-transparent.png';
 import StudentApp from './pages/StudentApp';
@@ -8,8 +9,8 @@ import AdminGuestPicker from './pages/AdminGuestPicker';
 
 import AdminPanel from './pages/AdminPanel';
 
-import { API_URL } from './config';
-import { apiFetch } from './pages/api';
+import { API_URL, SOCKET_URL } from './config';
+import { apiFetch, getTelegramInitData } from './pages/api';
 import { collectUtm, storeUtm } from './utils/utm';
 
 function App() {
@@ -111,6 +112,24 @@ function App() {
 
     // dashboard загружается в AdminPanel
   }, []);
+
+  // Одно постоянное соединение показывает реальный онлайн во всех разделах,
+  // включая выбор роли и админ-панель. Другие feature-сокеты дедуплицируются
+  // на сервере по user id.
+  useEffect(() => {
+    if (!authUser?.id || !['student', 'admin', 'teacher', 'manager'].includes(userRole)) {
+      return undefined;
+    }
+    const presenceSocket = io(SOCKET_URL, {
+      auth: { initData: getTelegramInitData() },
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+    });
+    return () => presenceSocket.disconnect();
+  }, [authUser?.id, userRole]);
 
   // Определяем режим гостя по /api/guest/state (ТЗ §10).
   const resolveGuestMode = async () => {

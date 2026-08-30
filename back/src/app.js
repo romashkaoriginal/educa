@@ -63,6 +63,7 @@ const io = new Server(server, {
     credentials: true
   }
 });
+app.set('io', io);
 
 app.use(helmet({
   crossOriginEmbedderPolicy: false,
@@ -184,5 +185,4 @@ process.on('SIGTERM', () => {
   stopLessonScheduler();
   process.exit(0);
 });
-
 startServer();

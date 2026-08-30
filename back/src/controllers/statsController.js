@@ -1,5 +1,6 @@
 const { 
   PracticeBest,
+  PracticeAttempt,
   PracticeDailyLog,
   PracticeTopic, 
   PracticeQuestion,
@@ -12,6 +13,10 @@ const {
 } = require('../models');
 const { Op } = require('sequelize');
 const sequelize = require('../config/database');
+const {
+  getAdminHomeworkAnalytics,
+  getAdminPracticeAnalytics
+} = require('../services/adminStatsAnalytics');
 
 // ========== СТАТИСТИКА УЧЕНИКА ==========
 
@@ -211,67 +216,14 @@ exports.getAdminStats = async (req, res) => {
 
     const result = {};
 
-    // Статистика по практике — из PracticeDailyLog (только сегодня)
+    // Общая аналитика практики: участие, проблемные темы и задания.
     if (!section || section === 'practice') {
-      const today = new Date().toISOString().slice(0, 10);
-
-      const dailyLogs = await PracticeDailyLog.findAll({
-        where: { date: today },
-        include: [
-          { model: Subject, as: 'subject', attributes: ['id', 'name', 'icon'] }
-        ]
-      });
-
-      // Группируем по предмету
-      const bySubject = {};
-      dailyLogs.forEach(log => {
-        const sid = log.subjectId;
-        if (!bySubject[sid]) bySubject[sid] = {
-          subjectId: sid,
-          subject: log.subject,
-          studentIds: new Set(),
-          totalAttempts: 0
-        };
-        bySubject[sid].studentIds.add(log.studentId);
-        bySubject[sid].totalAttempts += log.attemptsCount;
-      });
-
-      result.practice = Object.values(bySubject).map(s => ({
-        subjectId: s.subjectId,
-        subject: s.subject,
-        uniqueStudents: s.studentIds.size,
-        totalAttempts: s.totalAttempts,
-        avgPerStudent: s.studentIds.size > 0 ? Math.round(s.totalAttempts / s.studentIds.size) : 0
-      }));
+      result.practice = await getAdminPracticeAnalytics();
     }
 
-    // Статистика по домашке
+    // Общая аналитика ДЗ: лучшие попытки учеников и частые ошибки.
     if (!section || section === 'homework') {
-      const homeworkWhere = {};
-      if (studentId) homeworkWhere.userId = studentId;
-
-      const homeworks = await HomeworkSubmission.findAll({
-        where: homeworkWhere,
-        include: [
-          { model: User, as: 'student', attributes: ['id', 'firstName', 'lastName'] },
-          { 
-            model: Homework, 
-            as: 'homework',
-            attributes: ['title', 'deadline'],
-            include: [{ model: Subject, as: 'subject', attributes: ['name'] }]
-          }
-        ],
-        order: [['createdAt', 'DESC']]
-      });
-
-      result.homework = homeworks.filter(h => {
-        if (minPercent || maxPercent) {
-          const percent = h.maxScore > 0 ? (h.score / h.maxScore) * 100 : 0;
-          if (minPercent && percent < parseInt(minPercent)) return false;
-          if (maxPercent && percent > parseInt(maxPercent)) return false;
-        }
-        return true;
-      });
+      result.homework = await getAdminHomeworkAnalytics();
     }
 
     // Статистика по викторинам
@@ -306,8 +258,15 @@ exports.getAdminStats = async (req, res) => {
 exports.getStudentsForFilter = async (req, res) => {
   try {
     const students = await User.findAll({
-      where: { role: 'student' },
-      attributes: ['id', 'firstName', 'lastName'],
+      where: { role: 'student', isActive: true },
+      attributes: ['id', 'firstName', 'lastName', 'telegramUsername'],
+      include: [{
+        model: Subject,
+        as: 'subjects',
+        attributes: ['id', 'name', 'icon'],
+        through: { attributes: [] },
+        required: false,
+      }],
       order: [['firstName', 'ASC']]
     });
 

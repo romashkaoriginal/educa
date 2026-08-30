@@ -4,6 +4,7 @@ const router = express.Router();
 const { Quiz, QuizQuestion, QuizParticipant, QuizAnswer, User, Subject } = require('../models');
 const { Op } = require('sequelize');
 const { requireRole, assertSelfOrStaff, assertBodyStudentId, isStaffRole } = require('../middleware/telegramAuth');
+const { loadExcelWorkbook, normaliseExcelHeader } = require('../utils/loadExcelWorkbook');
 const isAdmin = requireRole(['admin', 'teacher']);
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -200,13 +201,11 @@ router.post('/import-questions', isAdmin, upload.single('file'), async (req, res
   try {
     if (!req.file) return res.status(400).json({ message: 'Файл не загружен' });
 
-    const ExcelJS = require('exceljs');
-    const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(req.file.buffer);
+    const workbook = await loadExcelWorkbook(req.file.buffer);
     const sheet = workbook.worksheets[0];
     if (!sheet) return res.status(400).json({ message: 'В файле нет листов' });
 
-    const headerRow = sheet.getRow(1).values.slice(1).map(h => String(h || '').trim().toLowerCase());
+    const headerRow = sheet.getRow(1).values.slice(1).map(normaliseExcelHeader);
     const rows = [];
     sheet.eachRow((row, rowNumber) => {
       if (rowNumber === 1) return;

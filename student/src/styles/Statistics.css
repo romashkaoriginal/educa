@@ -440,6 +440,52 @@
   gap: 16px;
 }
 
+.as-overview {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  background: #fff;
+  border: 1px solid var(--kubik-border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.as-overview-item {
+  min-width: 0;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.as-overview-item + .as-overview-item {
+  border-left: 1px solid var(--kubik-border);
+}
+
+.as-overview-label,
+.as-overview-hint {
+  color: var(--kubik-text-soft);
+  font-size: 12px;
+}
+
+.as-overview-value {
+  color: var(--kubik-navy);
+  font-size: 22px;
+  line-height: 1.2;
+}
+
+.as-analytics-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.as-analytics-title-row h3,
+.as-hw-subject-header h3 {
+  margin: 0;
+}
+
 /* Кнопка ученика в сайдбаре */
 .as-student-btn {
   width: 100%;
@@ -501,15 +547,26 @@
 }
 
 .as-hw-row-header {
+  width: 100%;
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 12px 14px;
   background: var(--kubik-white);
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
   gap: 12px;
 }
 
 .as-hw-row-header:hover { background: var(--kubik-white); }
+
+.as-hw-row-header:focus-visible {
+  outline: none;
+  box-shadow: inset var(--focus-ring);
+}
 
 .as-hw-title {
   display: flex;
@@ -564,6 +621,36 @@
 
 .as-hw-student-name { flex: 1; font-size: 13px; font-weight: 500; color: var(--kubik-navy); }
 .as-hw-student-score { font-size: 13px; font-weight: 600; color: var(--kubik-text-soft); }
+.as-hw-not-done { font-size: 12px; color: var(--kubik-text-soft); }
+
+.as-hw-error-list,
+.as-problem-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.as-hw-error-list li {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  font-size: 13px;
+  color: var(--kubik-text);
+}
+
+.as-hw-error-list li + li {
+  border-top: 1px solid var(--kubik-border);
+}
+
+.as-hw-error-metric {
+  flex-shrink: 0;
+  color: var(--low);
+  font-weight: 700;
+}
 
 @media (max-width: 768px) {
   .as-layout {
@@ -572,6 +659,13 @@
   .as-sidebar {
     max-height: 200px;
     position: static;
+  }
+  .as-overview {
+    grid-template-columns: 1fr;
+  }
+  .as-overview-item + .as-overview-item {
+    border-left: 0;
+    border-top: 1px solid var(--kubik-border);
   }
 }
 
@@ -594,6 +688,103 @@
 
 .as-stat-label { color: var(--kubik-text-soft); font-weight: 500; }
 .as-stat-value { font-weight: 700; color: var(--kubik-navy); display: flex; align-items: center; }
+
+.as-stat-value .as-percent {
+  margin-left: 8px;
+}
+
+.as-problems-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.as-problem-section {
+  min-width: 0;
+  border: 1px solid var(--kubik-border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.as-problem-section h4 {
+  margin: 0;
+  padding: 11px 12px;
+  background: var(--kubik-white);
+  color: var(--kubik-navy);
+  font-size: 13px;
+}
+
+.as-problem-list li {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+}
+
+.as-problem-list li + li {
+  border-top: 1px solid var(--kubik-border);
+}
+
+.as-problem-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.as-problem-name {
+  color: var(--kubik-text);
+  font-size: 13px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.as-problem-topic,
+.as-problem-metrics > span:last-child {
+  color: var(--kubik-text-soft);
+  font-size: 11px;
+}
+
+.as-problem-metrics {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.as-problem-empty {
+  margin: 0;
+  padding: 14px 12px;
+  color: var(--kubik-text-soft);
+  font-size: 12px;
+}
+
+@media (max-width: 980px) {
+  .as-problems-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .as-stat-item,
+  .as-hw-row-header,
+  .as-hw-subject-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .as-hw-meta {
+    flex-wrap: wrap;
+  }
+  .as-problem-list li {
+    flex-direction: column;
+  }
+  .as-problem-metrics {
+    align-items: flex-start;
+  }
+}
 
 /* Заголовок предмета в домашке */
 .as-hw-subject-header {
