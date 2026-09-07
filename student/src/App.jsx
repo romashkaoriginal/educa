@@ -117,7 +117,7 @@ function App() {
   // включая выбор роли и админ-панель. Другие feature-сокеты дедуплицируются
   // на сервере по user id.
   useEffect(() => {
-    if (!authUser?.id || !['student', 'admin', 'teacher', 'manager'].includes(userRole)) {
+    if (!authUser?.id || !['student', 'superadmin', 'admin', 'teacher', 'manager'].includes(userRole)) {
       return undefined;
     }
     const presenceSocket = io(SOCKET_URL, {
@@ -178,17 +178,9 @@ function App() {
         const role = data.user?.role;
         setAuthUser(data.user || null);
 
-        if (role === 'admin' || role === 'teacher' || role === 'manager') {
+        if (role === 'superadmin' || role === 'admin' || role === 'teacher' || role === 'manager') {
           setUserRole(role);
           setLoading(false);
-          apiFetch(`${API_URL}/students`)
-            .then((r) => (r.ok ? r.json() : null))
-            .then((payload) => {
-              if (payload?.students) {
-                sessionStorage.setItem('prefetchedStudents', JSON.stringify(payload.students));
-              }
-            })
-            .catch(() => {});
         } else {
           // role === 'student' ИЛИ роль не определена.
           // ВАЖНО: гость — это тоже User с role='student' (isGuest=true), поэтому
@@ -302,6 +294,7 @@ function App() {
           <h1 className="role-title">Выберите раздел</h1>
           {userRole && userRole !== 'student' && (
             <p className="role-subtitle">Вы вошли как {
+              userRole === 'superadmin' ? 'Суперадмин' :
               userRole === 'admin' ? 'Администратор' : 
               userRole === 'teacher' ? 'Преподаватель' : 
               'Менеджер'
@@ -353,7 +346,7 @@ function App() {
 
   return (
     <>
-      {selectedRole === 'student' && <StudentApp initialUser={authUser?.role === 'student' ? authUser : null} />}
+      {selectedRole === 'student' && <StudentApp initialUser={authUser} />}
       {selectedRole === 'admin' && <AdminPanel />}
       {selectedRole === 'guest-admin' && <AdminGuestPicker />}
     </>

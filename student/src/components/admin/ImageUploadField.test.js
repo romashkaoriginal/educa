@@ -2,7 +2,7 @@ import { prepareImageForUpload } from './ImageUploadField';
 
 afterEach(() => {
   delete global.createImageBitmap;
-  jest.restoreAllMocks();
+  vi.restoreAllMocks();
 });
 
 test('не изменяет изображение, которое уже безопасно для прокси', async () => {
@@ -11,10 +11,10 @@ test('не изменяет изображение, которое уже без
 });
 
 test('сжимает большое изображение перед отправкой', async () => {
-  const close = jest.fn();
-  global.createImageBitmap = jest.fn(async () => ({ width: 2400, height: 1200, close }));
-  jest.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({ drawImage: jest.fn() });
-  jest.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation((callback) => {
+  const close = vi.fn();
+  global.createImageBitmap = vi.fn(async () => ({ width: 2400, height: 1200, close }));
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({ drawImage: vi.fn() });
+  vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation((callback) => {
     callback(new Blob([new Uint8Array(700 * 1024)], { type: 'image/webp' }));
   });
   const file = new File([new Uint8Array(2 * 1024 * 1024)], 'large.png', { type: 'image/png' });

@@ -13,6 +13,9 @@ const { Op } = require('sequelize');
 const { loadExcelWorkbook, normaliseExcelHeader } = require('../utils/loadExcelWorkbook');
 
 const router = express.Router();
+const { router: draftRoutes, lockDraft } = require('./homeworkDrafts');
+const HomeworkDraft = require('../models/HomeworkDraft');
+router.use(draftRoutes);
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 // ВНИМАНИЕ: correctAnswer НЕ скрываем у ученика.
@@ -564,6 +567,7 @@ router.delete('/:id', isAdmin, async (req, res) => {
 
 // Submit homework
 router.post('/submit', assertBodyStudentId, async (req, res) => {
+  let transaction;
   try {
     const { homeworkId, studentId, answers, timeSpent } = req.body;
 
@@ -584,11 +588,14 @@ router.post('/submit', assertBodyStudentId, async (req, res) => {
       return res.status(400).json({ message: 'Homework is not open for submissions' });
     }
 
+    transaction = await sequelize.transaction();
+    await lockDraft(transaction, studentId, homeworkId);
     const submissionCount = await HomeworkSubmission.count({
-      where: { homeworkId, userId: studentId }
+      where: { homeworkId, userId: studentId }, transaction
     });
 
     if (homework.maxAttempts && submissionCount >= homework.maxAttempts) {
+      await transaction.rollback();
       return res.status(400).json({ message: 'Maximum attempts reached' });
     }
 
@@ -632,6 +639,7 @@ router.post('/submit', assertBodyStudentId, async (req, res) => {
       VALUES (:homeworkId, :userId, :attemptNumber, :totalScore, :maxScore, :correctCount, NOW(), :timeSpent, 'submitted')
       RETURNING *
     `, {
+      transaction,
       replacements: {
         homeworkId,
         userId: studentId,
@@ -646,20 +654,20 @@ router.post('/submit', assertBodyStudentId, async (req, res) => {
     const submission = insertResult[0][0];
 
     if (!submission || !submission.id) {
+      await transaction.rollback();
       console.error('Failed to create submission:', insertResult);
       return res.status(500).json({ message: 'Failed to create submission' });
     }
 
-    const answerPromises = gradedAnswers.map(ans =>
-      HomeworkAnswer.create({
+    await HomeworkAnswer.bulkCreate(gradedAnswers.map(ans => ({
         submissionId: submission.id,
         questionId: ans.questionId,
         userAnswer: ans.userAnswer,
         isCorrect: ans.isCorrect
-      })
-    );
-
-    await Promise.all(answerPromises);
+      })), { transaction });
+    const [draft] = await HomeworkDraft.findOrCreate({ where: { userId: studentId, homeworkId }, defaults: { revision: 0 }, transaction });
+    await draft.update({ data: null, revision: draft.revision + 1 }, { transaction });
+    await transaction.commit();
 
     res.json({
       message: 'Homework submitted successfully',
@@ -674,6 +682,7 @@ router.post('/submit', assertBodyStudentId, async (req, res) => {
     });
   } catch (error) {
     console.error('Submit homework error:', error);
+    if (transaction && !transaction.finished) await transaction.rollback();
     res.status(500).json({ message: 'Server error' });
   }
 });

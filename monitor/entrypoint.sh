@@ -62,6 +62,29 @@ check_database() {
     >/dev/null 2>&1
 }
 
+query_database_scalar() {
+  PGPASSWORD="$POSTGRES_PASSWORD" psql \
+    --no-psqlrc \
+    --quiet \
+    --tuples-only \
+    --no-align \
+    --set=ON_ERROR_STOP=1 \
+    --host="$POSTGRES_HOST" \
+    --port="$POSTGRES_PORT" \
+    --username="$POSTGRES_USER" \
+    --dbname="$POSTGRES_DB" \
+    --command="$1" \
+    2>/dev/null
+}
+
+latest_server_error_cursor() {
+  query_database_scalar "SELECT CONCAT(id, ':', occurrences, ':', EXTRACT(EPOCH FROM \"lastSeenAt\")::bigint) FROM error_logs WHERE severity = 'error' AND \"statusCode\" >= 500 ORDER BY \"lastSeenAt\" DESC LIMIT 1;" || true
+}
+
+latest_failed_delivery_cursor() {
+  query_database_scalar "SELECT CONCAT(id, ':', \"failedCount\") FROM notification_logs WHERE \"failedCount\" > 0 ORDER BY \"createdAt\" DESC LIMIT 1;" || true
+}
+
 run_check() {
   failed=""
 
@@ -74,6 +97,8 @@ run_check() {
 
 log "monitor started: frontend=${FRONTEND_URL}, backend=${BACKEND_URL}, database=${POSTGRES_HOST}:${POSTGRES_PORT}"
 send_telegram "✅ Production monitor запущен. Проверяю frontend, backend и базу данных раз в минуту." || true
+last_server_error_cursor=$(latest_server_error_cursor)
+last_failed_delivery_cursor=$(latest_failed_delivery_cursor)
 
 while true; do
   now=$(date +%s)
@@ -102,6 +127,21 @@ while true; do
       last_heartbeat="$now"
     fi
   fi
+
+  server_error_cursor=$(latest_server_error_cursor)
+  if [ -n "$server_error_cursor" ] && [ "$server_error_cursor" != "$last_server_error_cursor" ]; then
+    log "new backend 5xx error: ${server_error_cursor}"
+    send_telegram "🚨 Production: зарегистрирована новая ошибка backend 5xx. Подробности доступны в журнале ошибок." || true
+  fi
+  last_server_error_cursor="$server_error_cursor"
+
+  failed_delivery_cursor=$(latest_failed_delivery_cursor)
+  if [ -n "$failed_delivery_cursor" ] && [ "$failed_delivery_cursor" != "$last_failed_delivery_cursor" ]; then
+    failed_delivery_count=$(printf '%s' "$failed_delivery_cursor" | cut -d: -f2)
+    log "new notification delivery failures: ${failed_delivery_cursor}"
+    send_telegram "⚠️ Production: новая рассылка завершилась с ошибками доставки (${failed_delivery_count}). Проверьте историю уведомлений." || true
+  fi
+  last_failed_delivery_cursor="$failed_delivery_cursor"
 
   sleep "$CHECK_INTERVAL"
 done

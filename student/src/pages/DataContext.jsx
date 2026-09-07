@@ -36,7 +36,7 @@ export const PreviewDataProvider = ({ children }) => (
   <DataContext.Provider value={previewDataValue}>{children}</DataContext.Provider>
 );
 
-export const DataProvider = ({ children, studentId }) => {
+export const DataProvider = ({ children, studentId, isGuest = false }) => {
   const [subjects, setSubjects] = useState([]);
   const [practiceTopics, setPracticeTopics] = useState([]);
   const [homeworks, setHomeworks] = useState([]);
@@ -76,7 +76,7 @@ export const DataProvider = ({ children, studentId }) => {
   const questionsCache = useRef({});
 
   useEffect(() => {
-    if (!studentId) return undefined;
+    if (!studentId || isGuest) return undefined;
     const socket = io(SOCKET_URL, {
       auth: { initData: getTelegramInitData() },
       transports: ['websocket', 'polling'],
@@ -130,7 +130,7 @@ export const DataProvider = ({ children, studentId }) => {
       socket.disconnect();
       if (lessonSocketRef.current === socket) lessonSocketRef.current = null;
     };
-  }, [studentId]);
+  }, [studentId, isGuest]);
 
   const dismissLessonNotice = useCallback(() => setLessonNotice(null), []);
 
@@ -451,8 +451,11 @@ export const DataProvider = ({ children, studentId }) => {
     // Сначала грузим то что видно сразу — subjects, practice и streak (огонёк в hero)
     await Promise.all([loadSubjects(), loadPractice(), loadStreak()]);
     // Остальное фоново — не блокируем UI
-    Promise.all([loadHomeworks(), loadPracticeStats(), loadHomeworkStats()]);
-  }, [loadSubjects, loadPractice, loadStreak, loadHomeworks, loadPracticeStats, loadHomeworkStats]);
+    const backgroundLoads = isGuest
+      ? [loadPracticeStats()]
+      : [loadHomeworks(), loadPracticeStats(), loadHomeworkStats()];
+    void Promise.all(backgroundLoads);
+  }, [isGuest, loadSubjects, loadPractice, loadStreak, loadHomeworks, loadPracticeStats, loadHomeworkStats]);
 
   const refreshAfterPractice = useCallback(async (subjectId, leaderboardPeriod = 'day') => {
     loadedRef.current.practice = false;

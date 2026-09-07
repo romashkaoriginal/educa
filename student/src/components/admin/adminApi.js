@@ -1,31 +1,7 @@
-// Утилита для fetch с Telegram initData (для AdminPanel)
-import { inferRequest, reportApiFailure, reportClientError } from '../../utils/errorReporter';
+// AdminPanel использует тот же устойчивый транспорт: Telegram initData,
+// тайм-ауты, повторы безопасных GET и единое сетевое логирование.
+import { apiFetch, getTelegramInitData } from '../../pages/api';
 
-export const getTelegramInitData = () => window.Telegram?.WebApp?.initData || '';
+export { getTelegramInitData };
 
-const getInitData = getTelegramInitData;
-
-export const adminFetch = async (url, options = {}) => {
-  const initData = getInitData();
-  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
-  try {
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
-        ...(options.headers || {}),
-        'x-telegram-init-data': initData,
-      },
-    });
-    if (!response.ok) void reportApiFailure(response, url, options);
-    return response;
-  } catch (error) {
-    reportClientError({
-      ...inferRequest(url, options.method || 'GET'),
-      message: error?.message || 'Сетевая ошибка',
-      stack: error?.stack,
-      code: 'NETWORK_ERROR'
-    });
-    throw error;
-  }
-};
+export const adminFetch = (url, options = {}) => apiFetch(url, options);

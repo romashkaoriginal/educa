@@ -1,10 +1,10 @@
 import React from 'react';
 import '@testing-library/jest-dom';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import SuperAdmin, { formatBytes, getMemoryStatus } from './SuperAdmin';
+import SuperAdmin, { formatBytes, getDiskStatus, getMemoryStatus } from './SuperAdmin';
 import { adminFetch } from './adminApi';
 
-jest.mock('./adminApi', () => ({ adminFetch: jest.fn() }));
+vi.mock('./adminApi', () => ({ adminFetch: vi.fn() }));
 
 const diagnostics = {
   memory: {
@@ -14,6 +14,12 @@ const diagnostics = {
     processBytes: 96 * 1024 ** 2,
     usagePercent: 37.5,
   },
+  disk: {
+    totalBytes: 40 * 1024 ** 3,
+    usedBytes: 10 * 1024 ** 3,
+    availableBytes: 30 * 1024 ** 3,
+    usagePercent: 25,
+  },
   onlineUsers: 7,
   measuredAt: '2026-08-29T12:30:15.000Z',
 };
@@ -22,7 +28,7 @@ beforeEach(() => {
   adminFetch.mockResolvedValue({ ok: true, json: async () => diagnostics });
 });
 
-afterEach(() => jest.clearAllMocks());
+afterEach(() => vi.clearAllMocks());
 
 test('показывает память и уникальных онлайн-пользователей', async () => {
   render(<SuperAdmin />);
@@ -32,6 +38,8 @@ test('показывает память и уникальных онлайн-п�
   expect(screen.getByText('1,3 ГБ')).toBeInTheDocument();
   expect(screen.getByText('2,0 ГБ')).toBeInTheDocument();
   expect(screen.getByText('Норма')).toBeInTheDocument();
+  expect(screen.getByText('Диск сервера')).toBeInTheDocument();
+  expect(screen.getByText('30,0 ГБ')).toBeInTheDocument();
   await waitFor(() => expect(adminFetch).toHaveBeenCalledWith(
     expect.stringContaining('/admin/diagnostics'),
     { cache: 'no-store' },
@@ -42,6 +50,12 @@ test('выбирает предупреждение по проценту пам
   expect(getMemoryStatus(74.9).tone).toBe('normal');
   expect(getMemoryStatus(75).tone).toBe('warning');
   expect(getMemoryStatus(90).tone).toBe('critical');
+});
+
+test('выбирает предупреждение по заполнению диска', () => {
+  expect(getDiskStatus(74.9).tone).toBe('normal');
+  expect(getDiskStatus(75).tone).toBe('warning');
+  expect(getDiskStatus(90).tone).toBe('critical');
 });
 
 test('форматирует объём памяти для интерфейса', () => {

@@ -28,6 +28,26 @@ function readServerMemory() {
   }
 }
 
+function readServerDisk(path = process.env.DIAGNOSTICS_DISK_PATH || '/') {
+  try {
+    const stats = fs.statfsSync(path);
+    const blockSize = Number(stats.bsize || stats.frsize || 0);
+    const totalBytes = Number(stats.blocks || 0) * blockSize;
+    // bavail, а не bfree: это место, которое действительно доступно приложению.
+    const availableBytes = Number(stats.bavail || 0) * blockSize;
+    const usedBytes = Math.max(0, totalBytes - availableBytes);
+    return {
+      path,
+      totalBytes,
+      usedBytes,
+      availableBytes,
+      usagePercent: totalBytes > 0 ? Math.round((usedBytes / totalBytes) * 1000) / 10 : 0,
+    };
+  } catch {
+    return null;
+  }
+}
+
 function countOnlineUsers(io) {
   if (!io?.sockets?.sockets) return 0;
   const userIds = new Set();
@@ -44,6 +64,7 @@ function getSystemDiagnostics(io) {
       ...readServerMemory(),
       processBytes: process.memoryUsage().rss,
     },
+    disk: readServerDisk(),
     onlineUsers: countOnlineUsers(io),
     measuredAt: new Date().toISOString(),
   };
@@ -54,4 +75,5 @@ module.exports = {
   getSystemDiagnostics,
   parseMeminfo,
   readServerMemory,
+  readServerDisk,
 };

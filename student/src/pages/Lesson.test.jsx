@@ -5,8 +5,8 @@ import Lesson from './Lesson';
 import { apiFetch } from './api';
 import { useData } from './DataContext';
 
-jest.mock('./api', () => ({ apiFetch: jest.fn() }));
-jest.mock('./DataContext', () => ({ useData: jest.fn() }));
+vi.mock('./api', () => ({ apiFetch: vi.fn() }));
+vi.mock('./DataContext', () => ({ useData: vi.fn() }));
 
 const jsonResponse = (body) => Promise.resolve({
   ok: true,
@@ -18,11 +18,11 @@ const subject = { id: 1, name: 'Физика', icon: '⚛️' };
 function mockContext(currentLesson = null, overrides = {}) {
   const context = {
     currentLesson,
-    setCurrentLesson: jest.fn(),
+    setCurrentLesson: vi.fn(),
     lessonSocket: null,
     lessonConnected: false,
     lessonReconnecting: false,
-    dismissLessonNotice: jest.fn(),
+    dismissLessonNotice: vi.fn(),
     ...overrides
   };
   useData.mockReturnValue(context);
@@ -54,7 +54,7 @@ const mockLive = (state = {}) => {
 };
 
 beforeEach(() => {
-  jest.clearAllMocks();
+  vi.clearAllMocks();
   window.Telegram = { WebApp: {} };
 });
 
@@ -138,7 +138,7 @@ test('пустое расписание показывает только поя
 });
 
 test('идущее занятие сразу показывает карточку и подключает сокет без промежуточного шага', async () => {
-  const lessonSocket = { emit: jest.fn(), on: jest.fn(), off: jest.fn() };
+  const lessonSocket = { emit: vi.fn(), on: vi.fn(), off: vi.fn() };
   mockContext(liveLesson, { lessonSocket, lessonConnected: true });
   mockLive();
 
@@ -161,7 +161,7 @@ test('идущее занятие сразу показывает карточк
 });
 
 test('карточка голосования появляется только после запуска преподавателем', async () => {
-  const lessonSocket = { emit: jest.fn(), on: jest.fn(), off: jest.fn() };
+  const lessonSocket = { emit: vi.fn(), on: vi.fn(), off: vi.fn() };
   mockContext(liveLesson, { lessonSocket, lessonConnected: true });
   mockLive({
     activePoll: {
@@ -178,7 +178,7 @@ test('карточка голосования появляется только 
 });
 
 test('вопрос викторины скрыт, пока преподаватель его не показал', async () => {
-  const lessonSocket = { emit: jest.fn(), on: jest.fn(), off: jest.fn() };
+  const lessonSocket = { emit: vi.fn(), on: vi.fn(), off: vi.fn() };
   mockContext(liveLesson, { lessonSocket, lessonConnected: true });
   mockLive({
     activeQuiz: { id: 7, mode: 'single_step', questionRevealState: 'hidden', currentQuestion: null, myAnswer: null }
@@ -191,7 +191,7 @@ test('вопрос викторины скрыт, пока преподават�
 });
 
 test('вопрос преподавателю скрыт, если он отключён', async () => {
-  const lessonSocket = { emit: jest.fn(), on: jest.fn(), off: jest.fn() };
+  const lessonSocket = { emit: vi.fn(), on: vi.fn(), off: vi.fn() };
   mockContext(liveLesson, { lessonSocket, lessonConnected: true });
   mockLive({ canAskQuestions: false });
 
@@ -202,7 +202,7 @@ test('вопрос преподавателю скрыт, если он откл
 });
 
 test('отправляет вопрос преподавателю во время занятия', async () => {
-  const lessonSocket = { emit: jest.fn(), on: jest.fn(), off: jest.fn() };
+  const lessonSocket = { emit: vi.fn(), on: vi.fn(), off: vi.fn() };
   mockContext(liveLesson, { lessonSocket, lessonConnected: true });
   mockLive();
 
@@ -225,9 +225,9 @@ test('отправляет вопрос преподавателю во врем
 test('голосование исчезает у ученика, когда преподаватель его закрывает', async () => {
   const handlers = {};
   const lessonSocket = {
-    emit: jest.fn(),
-    on: jest.fn((event, cb) => { handlers[event] = cb; }),
-    off: jest.fn()
+    emit: vi.fn(),
+    on: vi.fn((event, cb) => { handlers[event] = cb; }),
+    off: vi.fn()
   };
   mockContext(liveLesson, { lessonSocket, lessonConnected: true });
 
@@ -263,9 +263,9 @@ test('голосование исчезает у ученика, когда пр
 test('текст кнопки вопроса не меняется, статус вопроса виден только в подписи', async () => {
   const handlers = {};
   const lessonSocket = {
-    emit: jest.fn(),
-    on: jest.fn((event, cb) => { handlers[event] = cb; }),
-    off: jest.fn()
+    emit: vi.fn(),
+    on: vi.fn((event, cb) => { handlers[event] = cb; }),
+    off: vi.fn()
   };
   mockContext(liveLesson, { lessonSocket, lessonConnected: true });
   mockLive({ myQuestions: [{ id: 40, status: 'pending', text: 'Можно повторить?' }] });

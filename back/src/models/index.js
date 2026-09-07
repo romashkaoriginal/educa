@@ -46,6 +46,7 @@ const LessonQuizQuestion = require('./LessonQuizQuestion');
 const LessonQuizAnswer = require('./LessonQuizAnswer');
 const LessonQuizDelivery = require('./LessonQuizDelivery');
 const ErrorLog = require('./ErrorLog');
+const HomeworkDraft = require('./HomeworkDraft');
 
 // ========== СВЯЗИ С SUBJECTS ==========
 

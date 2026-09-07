@@ -1,10 +1,11 @@
 const { Op } = require('sequelize');
 const {
-  Lesson, User, UserSubject, NotificationLog, Subject, BotUser
+  Lesson, User, UserSubject, NotificationLog, Subject
 } = require('../models');
 const { getBot } = require('../bot');
 const { getWebAppUrlSync } = require('../utils/webAppUrl');
-const { buildLessonWebAppUrl, isBotBlockedError } = require('./lessonNotifyUtils');
+const { buildLessonWebAppUrl } = require('./lessonNotifyUtils');
+const { sendTelegramMessage } = require('./telegramDelivery');
 
 // ТЗ §8.15: уведомление получают все ученики с действующим доступом к предмету
 // занятия. Группы в определении получателей больше не участвуют.
@@ -31,20 +32,7 @@ async function getLessonRecipients(lessonId) {
     attributes: ['id', 'telegramId', 'firstName', 'lastName']
   });
   if (!users.length) return [];
-  const blockedProfiles = await BotUser.findAll({
-    where: {
-      isBotBlocked: true,
-      [Op.or]: [
-        { userId: { [Op.in]: users.map((user) => user.id) } },
-        { telegramId: { [Op.in]: users.map((user) => user.telegramId).filter(Boolean) } }
-      ]
-    },
-    attributes: ['userId', 'telegramId'],
-    raw: true
-  });
-  const blockedUserIds = new Set(blockedProfiles.map((profile) => Number(profile.userId)).filter(Boolean));
-  const blockedTelegramIds = new Set(blockedProfiles.map((profile) => String(profile.telegramId)).filter(Boolean));
-  return users.filter((user) => !blockedUserIds.has(Number(user.id)) && !blockedTelegramIds.has(String(user.telegramId)));
+  return users;
 }
 
 const teacherName = (teacher) => [teacher?.firstName, teacher?.lastName].filter(Boolean).join(' ') || 'Преподаватель';
@@ -62,7 +50,6 @@ const SUBJECT_DATIVE_OVERRIDES = {
   'французский язык': 'французскому языку',
   'испанский язык': 'испанскому языку',
   'китайский язык': 'китайскому языку',
-  'белорусский язык': 'белорусскому языку',
   'физика': 'физике',
   'химия': 'химии',
   'биология': 'биологии',
@@ -119,34 +106,21 @@ async function sendNotificationBatch(lesson, { reminder = false } = {}) {
       results.push({ userId: recipient.id, ok: false, reason: 'no_bot_or_telegram_id' });
       continue;
     }
-    try {
-      await bot.sendMessage(recipient.telegramId, text, (!reminder && appUrl) ? {
+    const delivery = await sendTelegramMessage({
+      bot,
+      chatId: recipient.telegramId,
+      text,
+      options: (!reminder && appUrl) ? {
         reply_markup: { inline_keyboard: [[{ text: 'Перейти к занятию', web_app: { url: appUrl } }]] }
-      } : undefined);
+      } : undefined,
+      recipient,
+      notificationKind: reminder ? 'lesson_reminder' : 'lesson_start',
+      context: { lessonId: lesson.id }
+    });
+    if (delivery.ok) {
       results.push({ userId: recipient.id, ok: true });
-    } catch (error) {
-      console.error(`Lesson notification failed for user ${recipient.id}:`, error.message);
-      if (isBotBlockedError(error)) {
-        await BotUser.findOrCreate({
-          where: { telegramId: recipient.telegramId },
-          defaults: {
-            telegramId: recipient.telegramId,
-            userId: recipient.id,
-            firstName: recipient.firstName || 'Пользователь',
-            lastName: recipient.lastName || null,
-            isAssigned: true,
-            isBotBlocked: true,
-            botBlockedAt: new Date(),
-            botLastDeliveryError: error.message
-          }
-        }).then(([profile, created]) => created ? profile : profile.update({
-          userId: profile.userId || recipient.id,
-          isBotBlocked: true,
-          botBlockedAt: new Date(),
-          botLastDeliveryError: error.message
-        }));
-      }
-      results.push({ userId: recipient.id, ok: false, reason: error.message });
+    } else {
+      results.push({ userId: recipient.id, ok: false, reason: delivery.reason });
     }
   }
 

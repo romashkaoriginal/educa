@@ -5,6 +5,7 @@ import { useData } from './DataContext';
 import { apiFetch } from './api';
 
 import { API_URL } from '../config';
+import { createHomeworkDraftSync } from '../utils/homeworkDraftSync';
 import StudentBrandMark from '../components/StudentBrandMark';
 import MathText from '../components/MathText';
 import homeworkMathBg from '../assets/homework-math.png';
@@ -72,14 +73,6 @@ function loadHwDraft(studentId, homeworkId) {
     return draft;
   } catch {
     return null;
-  }
-}
-
-function saveHwDraft(studentId, homeworkId, draft) {
-  try {
-    localStorage.setItem(hwDraftKey(studentId, homeworkId), JSON.stringify(draft));
-  } catch {
-    // localStorage недоступен (приватный режим, квота) — прогресс просто не переживёт сворачивание
   }
 }
 
@@ -479,17 +472,48 @@ function StudentHomework({ studentId, previewHomework = null, onExitPreview = nu
 
   const backToSubjects = () => setSelectedSubject(null);
 
-  const applyHomeworkState = (homework, questionList) => {
+  const draftSyncRef = useRef(null);
+  const [draftStatus, setDraftStatus] = useState('');
+  useEffect(() => {
+    const flush = () => { void draftSyncRef.current?.flush(); };
+    window.addEventListener('pagehide', flush);
+    window.addEventListener('online', flush);
+    document.addEventListener('visibilitychange', flush);
+    return () => {
+      flush();
+      window.removeEventListener('pagehide', flush);
+      window.removeEventListener('online', flush);
+      document.removeEventListener('visibilitychange', flush);
+    };
+  }, []);
+
+  const applyHomeworkState = async (homework, questionList) => {
+    await draftSyncRef.current?.flush();
+    let draft = previewMode ? null : loadHwDraft(studentId, homework.id);
+    if (!previewMode) {
+      const res = await apiFetch(`${API_URL}/homework/${homework.id}/draft`);
+      // Staff previews must never write a student's draft.
+      if (res.status === 403) {
+        draft = null;
+        draftSyncRef.current = null;
+      } else {
+        if (!res.ok) throw new Error('Не удалось загрузить сохранённый прогресс. Попробуй ещё раз.');
+        const remote = await res.json();
+        const localMatches = draft && (draft.serverRevision === remote.revision || (draft.serverRevision == null && remote.revision === 0));
+        draft = localMatches ? draft : remote.draft;
+        draftSyncRef.current?.stop();
+        draftSyncRef.current = createHomeworkDraftSync(studentId, homework.id, remote.revision, setDraftStatus);
+      }
+    }
     setSelectedHomework(homework);
     setQuestions(questionList);
     initialOrderRef.current = {};
     matchingStateRef.current = {};
 
-    const draft = previewMode ? null : loadHwDraft(studentId, homework.id);
     if (draft && Array.isArray(draft.questionIds) &&
         draft.questionIds.length === questionList.length &&
         draft.questionIds.every((id, i) => id === questionList[i].id)) {
-      setCurrentQuestionIndex(draft.currentQuestionIndex || 0);
+      setCurrentQuestionIndex(Math.max(0, Math.min(questionList.length - 1, Number(draft.currentQuestionIndex) || 0)));
       setAnswers(draft.answers || {});
       matchingStateRef.current = draft.matchingState || {};
       initialOrderRef.current = draft.initialOrder || {};
@@ -504,18 +528,18 @@ function StudentHomework({ studentId, previewHomework = null, onExitPreview = nu
   };
 
   const startHomework = async (homework) => {
-    if (homework.questions && homework.questions.length > 0) {
-      applyHomeworkState(homework, homework.questions);
-      return;
-    }
     try {
+      if (homework.questions && homework.questions.length > 0) {
+        await applyHomeworkState(homework, homework.questions);
+        return;
+      }
       const response = await apiFetch(`${API_URL}/homework/${homework.id}`);
       const data = await response.json();
       if (!data.homework) {
         alert('Ошибка: домашка не найдена');
         return;
       }
-      applyHomeworkState(data.homework, data.homework.questions || []);
+      await applyHomeworkState(data.homework, data.homework.questions || []);
     } catch (error) {
       console.error('Error loading homework:', error);
       alert('Ошибка загрузки домашки');
@@ -524,14 +548,15 @@ function StudentHomework({ studentId, previewHomework = null, onExitPreview = nu
 
   useEffect(() => {
     if (previewMode || !selectedHomework || showResult || questions.length === 0) return;
-    saveHwDraft(studentId, selectedHomework.id, {
+    const draft = {
       questionIds: questions.map(q => q.id),
       currentQuestionIndex,
       answers,
       matchingState: matchingStateRef.current,
       initialOrder: initialOrderRef.current,
       startTime,
-    });
+    };
+    if (draftSyncRef.current) draftSyncRef.current.update(draft);
   }, [currentQuestionIndex, answers, selectedHomework, showResult, questions, studentId, startTime, previewMode]);
 
   const handleAnswer = (questionIndex, answer) => {
@@ -539,11 +564,14 @@ function StudentHomework({ studentId, previewHomework = null, onExitPreview = nu
   };
 
   const closeHomework = (wasSubmitted = false) => {
+    // React passes the click event when this function is used as onClick.
+    wasSubmitted = wasSubmitted === true;
     if (previewMode) {
       onExitPreview?.();
       return;
     }
-    if (selectedHomework) clearHwDraft(studentId, selectedHomework.id);
+    if (wasSubmitted && selectedHomework) clearHwDraft(studentId, selectedHomework.id);
+    void draftSyncRef.current?.flush();
     setSelectedHomework(null);
     setQuestions([]);
     setAnswers({});
@@ -720,6 +748,7 @@ function StudentHomework({ studentId, previewHomework = null, onExitPreview = nu
 
     setIsSubmitting(true);
     try {
+      await draftSyncRef.current?.flush();
       const response = await apiFetch(`${API_URL}/homework/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -734,6 +763,8 @@ function StudentHomework({ studentId, previewHomework = null, onExitPreview = nu
       if (!response.ok) throw new Error(data.message || 'Не удалось сохранить домашку');
 
       clearHwDraft(studentId, selectedHomework.id);
+      draftSyncRef.current?.stop();
+      draftSyncRef.current = null;
 
       // Результат сервера — единственный источник истины: он уже сохранён в БД.
       setResult({
@@ -1365,6 +1396,7 @@ function StudentHomework({ studentId, previewHomework = null, onExitPreview = nu
           <div className="homework-mode-progress-fill" style={{ width: `${progress}%` }}></div>
         </div>
         <div className="homework-mode-body">
+          {!previewMode && draftStatus && <p role="status" style={{ fontSize: 12, margin: '0 0 12px', color: '#425b70' }}>{draftStatus}</p>}
           <div className="question-container">
             <div className="question-header">
               <span className="question-number">Вопрос {currentQuestionIndex + 1}</span>

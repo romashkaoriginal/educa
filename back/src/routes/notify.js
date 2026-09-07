@@ -4,6 +4,7 @@ const { User, Subject, UserSubject, HomeworkSubmission, Homework, NotificationLo
 const { getBot } = require('../bot');
 const { Op } = require('sequelize');
 const { parseNotificationTarget } = require('../services/notificationTarget');
+const { sendTelegramMessage } = require('../services/telegramDelivery');
 
 // POST /api/notify/preview
 router.post('/preview', async (req, res) => {
@@ -74,11 +75,19 @@ router.post('/send', async (req, res) => {
         results.failed.push({ id: student.id, name: `${student.firstName} ${student.lastName || ''}`, reason: 'Нет Telegram ID' });
         continue;
       }
-      try {
-        await bot.sendMessage(student.telegramId, text.trim(), { parse_mode: 'HTML' });
+      const delivery = await sendTelegramMessage({
+        bot,
+        chatId: student.telegramId,
+        text: text.trim(),
+        options: { parse_mode: 'HTML' },
+        req,
+        recipient: student,
+        notificationKind: mode === 'single' ? 'manual_single' : 'manual_batch'
+      });
+      if (delivery.ok) {
         results.sent.push({ id: student.id, name: `${student.firstName} ${student.lastName || ''}` });
-      } catch (e) {
-        results.failed.push({ id: student.id, name: `${student.firstName} ${student.lastName || ''}`, reason: e.message });
+      } else {
+        results.failed.push({ id: student.id, name: `${student.firstName} ${student.lastName || ''}`, reason: delivery.reason });
       }
     }
 

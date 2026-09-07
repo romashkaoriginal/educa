@@ -58,7 +58,7 @@ async function resolveLessonTeacherId(user, subjectId) {
 
 // Предметы, доступные преподавателю для расписания и запуска занятий.
 async function manageableSubjectIds(user) {
-  if (user.role === 'admin') return null;
+  if (user.role === 'admin' || user.role === 'superadmin') return null;
   const rows = await TeacherSubject.findAll({
     where: { teacherId: user.id }, attributes: ['subjectId'], raw: true
   });
@@ -94,7 +94,7 @@ async function resolveParentLesson(req, res, next) {
 }
 
 router.get('/teacher-subjects', async (req, res) => {
-  if (req.dbUser.role !== 'admin') return bad(res, 'Только администратор видит назначения', 403);
+  if (!['admin', 'superadmin'].includes(req.dbUser.role)) return bad(res, 'Только администратор видит назначения', 403);
   try {
     const assignments = await TeacherSubject.findAll({
       include: [
@@ -108,7 +108,7 @@ router.get('/teacher-subjects', async (req, res) => {
 
 // Преподаватель назначается напрямую на предмет — групп больше нет.
 router.post('/teacher-subjects', async (req, res) => {
-  if (req.dbUser.role !== 'admin') return bad(res, 'Только администратор назначает преподавателей', 403);
+  if (!['admin', 'superadmin'].includes(req.dbUser.role)) return bad(res, 'Только администратор назначает преподавателей', 403);
   try {
     const [teacher, subject] = await Promise.all([
       User.findByPk(req.body.teacherId), Subject.findByPk(req.body.subjectId)
@@ -124,7 +124,7 @@ router.post('/teacher-subjects', async (req, res) => {
 });
 
 router.delete('/teacher-subjects/:id', async (req, res) => {
-  if (req.dbUser.role !== 'admin') return bad(res, 'Только администратор меняет назначения', 403);
+  if (!['admin', 'superadmin'].includes(req.dbUser.role)) return bad(res, 'Только администратор меняет назначения', 403);
   try {
     await TeacherSubject.destroy({ where: { id: req.params.id } });
     res.json({ ok: true });

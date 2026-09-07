@@ -7,7 +7,7 @@ const SUPER_ADMIN_TELEGRAM_ID = String(
 
 exports.requireSuperAdmin = (req, res, next) => {
   const tgId = String(req.telegramUser?.id || req.dbUser?.telegramId || '');
-  if (tgId !== SUPER_ADMIN_TELEGRAM_ID) {
+  if (tgId !== SUPER_ADMIN_TELEGRAM_ID || req.dbUser?.role !== 'superadmin') {
     return res.status(403).json({ message: 'Доступ только для главного администратора' });
   }
   next();

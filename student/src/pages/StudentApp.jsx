@@ -10,6 +10,7 @@ import { DataProvider, useData } from './DataContext';
 import { apiFetch } from './api';
 
 import { API_URL } from '../config';
+import StudentPicker from './StudentPicker';
 
 function getLinkedLessonId() {
   const value = new URLSearchParams(window.location.search).get('lessonId');
@@ -17,7 +18,7 @@ function getLinkedLessonId() {
   return Number.isInteger(lessonId) && lessonId > 0 ? lessonId : null;
 }
 
-export function StudentAppContent({ selectedStudent, isGuest = false, applicationSent = false }) {
+export function StudentAppContent({ selectedStudent, isGuest = false, applicationSent = false, onChangeStudent }) {
   const [linkedLessonId] = useState(getLinkedLessonId);
   const [activeTab, setActiveTab] = useState(linkedLessonId && !isGuest ? 'lesson' : 'practice');
   const [lessonEntryRequest, setLessonEntryRequest] = useState(linkedLessonId && !isGuest
@@ -78,7 +79,9 @@ export function StudentAppContent({ selectedStudent, isGuest = false, applicatio
   const LOCKED_FOR_GUEST = { homework: 'locked_homework', lesson: 'locked_lesson' };
 
   const handleTabChange = (tabId, { force = false } = {}) => {
-    if (animating && !force) return;
+    if (animating && !force) {
+      return;
+    }
     // Гость нажал на закрытый раздел — показываем модалку, таб не меняем
     if (isGuest && LOCKED_FOR_GUEST[tabId]) {
       setLockedModal({
@@ -132,19 +135,21 @@ export function StudentAppContent({ selectedStudent, isGuest = false, applicatio
 
   return (
     <div className="student-app">
+      {onChangeStudent && <div className="student-preview-bar"><button type="button" onClick={onChangeStudent}>← Все ученики</button><span>{selectedStudent.telegramUsername ? `@${selectedStudent.telegramUsername}` : selectedStudent.firstName}</span></div>}
       <main className="content">
         <div className="tab-viewport">
           {[
             { id: 'practice', el: <Practice studentId={selectedStudent.id} isTabActive={activeTab === 'practice'} onClose={handlePracticeClose} onActivate={() => setActiveTab('practice')} /> },
-            { id: 'homework', el: <Homework studentId={selectedStudent.id} /> },
-            { id: 'lesson', el: <Lesson studentId={selectedStudent.id} isTabActive={activeTab === 'lesson'} entryRequest={lessonEntryRequest} /> },
+            { id: 'homework', el: isGuest ? null : <Homework studentId={selectedStudent.id} /> },
+            { id: 'lesson', el: isGuest ? null : <Lesson studentId={selectedStudent.id} isTabActive={activeTab === 'lesson'} entryRequest={lessonEntryRequest} /> },
             { id: 'stats', el: <Statistics studentId={selectedStudent.id} isGuest={isGuest} onLockedClick={() => setLockedModal({ context: 'locked_statistics_homework', source: 'TG Mini App — закрытый раздел' })} /> },
           ].map(({ id, el }) => {
             const isActive = id === activeTab;
             const isPrev = id === prevTab;
             // Practice держим смонтированным всегда, чтобы активный тест не прерывался
             // при уходе на другой таб — он просто прячется через .tab-hidden.
-            const keepMounted = id === 'practice' || id === 'lesson';
+            if (!el) return null;
+            const keepMounted = id === 'practice' || (id === 'lesson' && !isGuest);
             if (!isActive && !isPrev && !keepMounted) return null;
             const dir = prevTab ? getDirection(prevTab, activeTab) : 'forward';
             let cls = 'tab-panel';
@@ -215,109 +220,53 @@ function StudentApp({ initialUser = null, isGuest = false, applicationSent = fal
   const initialStudent = initialUser?.role === 'student' && initialUser?.isActive !== false
     ? initialUser
     : null;
-  const [students, setStudents] = useState([]);
   const [selectedStudent, setSelectedStudent] = useState(initialStudent);
-  const [loading, setLoading] = useState(!initialStudent);
+  const [viewerRole, setViewerRole] = useState(initialUser?.role || null);
+  const [loading, setLoading] = useState(!initialUser);
+  const [error, setError] = useState('');
+  const [revision, setRevision] = useState(0);
+  const canChooseStudent = ['superadmin', 'admin', 'manager'].includes(viewerRole);
 
   useEffect(() => {
-    // Гость всегда приходит с готовым initialUser — резолвить ученика не нужно
-    if (initialStudent || isGuest) return;
-
-    const resolveStudent = async () => {
+    if (initialUser || isGuest) return;
+    const controller = new AbortController();
+    setLoading(true);
+    setError('');
+    (async () => {
       try {
-        const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
-        if (tgUser?.id) {
-          const tgResponse = await apiFetch(`${API_URL}/auth/telegram/${tgUser.id}`);
-          if (tgResponse.ok) {
-            const tgData = await tgResponse.json();
-            if (tgData.user?.role === 'student' && tgData.user?.isActive !== false) {
-              setSelectedStudent(tgData.user);
-              return;
-            }
-          }
-        }
-
-        const cached = sessionStorage.getItem('prefetchedStudents');
-        if (cached) {
-          setStudents(JSON.parse(cached));
-          sessionStorage.removeItem('prefetchedStudents');
-        }
-      } catch (error) {
-        console.error('Error resolving student:', error);
+        const telegramId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+        if (!telegramId) throw new Error('Откройте приложение через Telegram.');
+        const response = await apiFetch(API_URL + '/auth/telegram/' + telegramId, { signal: controller.signal });
+        if (!response.ok) throw new Error('Не удалось определить аккаунт. Попробуйте ещё раз.');
+        const { user } = await response.json();
+        if (!user) throw new Error('Аккаунт не найден. Обратитесь к преподавателю.');
+        if (controller.signal.aborted) return;
+        setViewerRole(user.role);
+        if (user.role === 'student' && user.isActive !== false) setSelectedStudent(user);
+      } catch (e) {
+        if (!controller.signal.aborted) setError(e.message);
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
-    };
-
-    resolveStudent();
-  }, [initialStudent, isGuest]);
+    })();
+    return () => controller.abort();
+  }, [initialUser, isGuest, revision]);
 
   if (!selectedStudent) {
-    // Пока грузим — не показываем ничего чтобы не было flash экрана выбора
-    if (loading) return (
-      <div className="loading-screen">
-        <img src={kubikLogo} alt="" className="kubik-loading-logo" />
-        <div className="kubik-loader">
-          <div className="kubik-loader-fill"></div>
-        </div>
-      </div>
-    );
-
-    return (
-      <div className="student-selection">
-        <div className="selection-container">
-          <img src={kubikLogo} alt="" className="kubik-selection-logo" />
-
-          <h1 className="selection-title">Выберите ученика</h1>
-          <p className="selection-subtitle"></p>
-
-          {students.length === 0 && (
-            <p className="selection-empty-hint">
-              Аккаунт не найден. Откройте бота и пройдите регистрацию, либо обратитесь к преподавателю.
-            </p>
-          )}
-
-          {students.length > 0 && (
-            <div className="students-select-list">
-              {students
-                .filter(student => {
-                  if (!student.isActive) return false;
-                  const now = new Date();
-                  return student.subjects?.some(s => {
-                    const end = s.UserSubject?.accessEndDate;
-                    return !end || new Date(end) > now;
-                  });
-                })
-                .map(student => (
-                  <button
-                    key={student.id}
-                    className="student-select-card"
-                    onClick={() => setSelectedStudent(student)}
-                  >
-                    <div className="student-select-avatar">
-                      {student.firstName?.[0]}{student.lastName?.[0]}
-                    </div>
-                    <div className="student-select-info">
-                      <h3>{student.firstName} {student.lastName}</h3>
-                      <p>@{student.telegramUsername || 'no username'}</p>
-                    </div>
-                    <div className="student-select-arrow">→</div>
-                  </button>
-                ))
-              }
-            </div>
-          )}
-        </div>
-      </div>
-    );
+    if (canChooseStudent) return <StudentPicker onSelect={setSelectedStudent} />;
+    return <div className="student-picker"><div className="student-picker__shell"><div className="student-picker__empty" role={error ? 'alert' : 'status'}>
+      {loading ? 'Загружаем аккаунт…' : error || 'Вход в раздел ученика недоступен для этого аккаунта.'}
+      {error && <button type="button" onClick={() => setRevision(value => value + 1)}>Повторить</button>}
+    </div></div></div>;
   }
 
   return (
-    <DataProvider studentId={selectedStudent.id}>
+    <DataProvider key={selectedStudent.id} studentId={selectedStudent.id} isGuest={isGuest}>
       <StudentAppContent
         selectedStudent={selectedStudent}
         isGuest={isGuest}
         applicationSent={applicationSent}
+        onChangeStudent={canChooseStudent ? () => setSelectedStudent(null) : undefined}
       />
     </DataProvider>
   );

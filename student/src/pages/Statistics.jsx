@@ -275,8 +275,8 @@ function Statistics({ studentId, isGuest = false, onLockedClick }) {
   const homeworkSubjectCount = countHomeworkSubjects(homeworkStats);
 
   useEffect(() => {
-    loadHomeworkStats(false); // не форсировать, только если не загружено
-  }, [loadHomeworkStats]);
+    if (!isGuest) loadHomeworkStats(false); // не форсировать, только если не загружено
+  }, [isGuest, loadHomeworkStats]);
 
   useEffect(() => {
     if (subjects.length && !selectedSubjectId) {

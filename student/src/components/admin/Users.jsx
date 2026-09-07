@@ -8,7 +8,9 @@ import { API_URL } from '../../config';
 
 function Users({ currentUser, dataRefreshKey = 0 }) {
   const { refresh } = useAdminData();
-  const canManageRoles = currentUser?.role === 'admin';
+  const canManageRoles = currentUser?.role === 'admin' || currentUser?.role === 'superadmin';
+  const canManageUser = (user) => user.role !== 'superadmin'
+    || (currentUser?.role === 'superadmin' && Number(currentUser?.id) === Number(user.id));
   const [users, setUsers] = useState([]);
   const [botUsers, setBotUsers] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -147,6 +149,7 @@ function Users({ currentUser, dataRefreshKey = 0 }) {
         telegramUsername: formData.telegramUsername?.trim() || ''
       };
       if (isEditing && !canManageRoles) delete payload.role;
+      if (isEditing && selectedUser?.role === 'superadmin') delete payload.role;
 
       const response = await adminFetch(url, {
         method,
@@ -232,6 +235,12 @@ function Users({ currentUser, dataRefreshKey = 0 }) {
   });
 
   const roleInfo = {
+    superadmin: {
+      name: 'Суперадмин',
+      icon: '🛡️',
+      color: '#7C3AED',
+      description: 'Полный доступ и диагностика системы. Назначается только владельцу.'
+    },
     admin: {
       name: 'Администратор',
       icon: '👨‍💼',
@@ -263,6 +272,9 @@ function Users({ currentUser, dataRefreshKey = 0 }) {
             <span className="role-stat admin">
               👨‍💼 Админов: {getUsersByRole('admin')}
             </span>
+            <span className="role-stat admin">
+              🛡️ Суперадминов: {getUsersByRole('superadmin')}
+            </span>
             <span className="role-stat teacher">
               👨‍🏫 Преподавателей: {getUsersByRole('teacher')}
             </span>
@@ -293,7 +305,8 @@ function Users({ currentUser, dataRefreshKey = 0 }) {
           onChange={(e) => setRoleFilter(e.target.value)}
         >
           <option value="all">Все роли</option>
-          <option value="admin">👨‍💼 Администраторы</option>
+            <option value="superadmin">🛡️ Суперадмины</option>
+            <option value="admin">👨‍💼 Администраторы</option>
           <option value="teacher">👨‍🏫 Преподаватели</option>
           <option value="manager">📊 Менеджеры</option>
         </select>
@@ -345,27 +358,27 @@ function Users({ currentUser, dataRefreshKey = 0 }) {
                 </div>
 
                 <div className="user-card-actions">
-                  <button 
+                  {canManageUser(user) && <button 
                     className="action-btn edit"
                     onClick={() => handleOpenEditModal(user)}
                     title="Редактировать"
                   >
                     ✏️
-                  </button>
-                  <button 
+                  </button>}
+                  {canManageUser(user) && <button 
                     className={`action-btn toggle ${user.isActive ? 'active' : 'inactive'}`}
                     onClick={() => handleToggleStatus(user.id)}
                     title={user.isActive ? 'Деактивировать' : 'Активировать'}
                   >
                     {user.isActive ? '🔓' : '🔒'}
-                  </button>
-                  <button 
+                  </button>}
+                  {canManageUser(user) && <button 
                     className="action-btn delete"
                     onClick={() => handleDeleteUser(user.id, `${user.firstName} ${user.lastName}`)}
                     title="Удалить"
                   >
                     🗑️
-                  </button>
+                  </button>}
                 </div>
               </div>
             );
@@ -540,9 +553,9 @@ function Users({ currentUser, dataRefreshKey = 0 }) {
 
                 <div className="form-section">
                   <h3>🎭 Роль в системе</h3>
-                  {canManageRoles ? (
+                  {canManageRoles && formData.role !== 'superadmin' ? (
                     <div className="role-selector">
-                      {Object.entries(roleInfo).map(([roleKey, role]) => (
+                      {Object.entries(roleInfo).filter(([roleKey]) => roleKey !== 'superadmin').map(([roleKey, role]) => (
                         <label
                           key={roleKey}
                           className={`role-option ${formData.role === roleKey ? 'selected' : ''}`}
@@ -569,7 +582,9 @@ function Users({ currentUser, dataRefreshKey = 0 }) {
                   ) : (
                     <div className="role-readonly">
                       {roleInfo[formData.role]?.icon} {roleInfo[formData.role]?.name}
-                      <span>Изменять роли может только администратор</span>
+                      <span>{formData.role === 'superadmin'
+                        ? 'Роль суперадмина назначается и изменяется только в базе данных'
+                        : 'Изменять роли может только администратор'}</span>
                     </div>
                   )}
                 </div>

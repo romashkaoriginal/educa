@@ -1,3 +1,3 @@
-# Полный деплой: фронт + бэк + очистка старых слоёв Docker
-& "$PSScriptRoot\deploy-frontend.ps1"
-& "$PSScriptRoot\deploy-backend.ps1"
+# Устаревший ярлык production-деплоя.
+# Для явного выбора окружения используйте deploy-test.ps1 или deploy-production.ps1.
+& "$PSScriptRoot\deploy-production.ps1"

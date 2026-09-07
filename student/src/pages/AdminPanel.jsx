@@ -20,6 +20,7 @@ const SUPER_ADMIN_TELEGRAM_ID = '1218874137';
 
 // Доступные разделы по ролям
 const ROLE_SECTIONS = {
+  superadmin: ['users', 'students', 'applications', 'practice', 'lesson', 'quiz', 'homework', 'statistics', 'notifications', 'superadmin'],
   admin: ['users', 'students', 'applications', 'practice', 'lesson', 'quiz', 'homework', 'statistics', 'notifications'],
   manager: ['users', 'students', 'applications', 'statistics', 'notifications'],
   teacher: ['practice', 'lesson', 'quiz', 'homework', 'statistics', 'notifications'],
@@ -44,6 +45,7 @@ function AdminPanelContent() {
   const [currentUser, setCurrentUser] = useState(null);
   const [userRole, setUserRole] = useState('admin');
   const [activeSection, setActiveSection] = useState(null);
+  const [visitedSections, setVisitedSections] = useState([]);
 
   useEffect(() => {
     const tg = window.Telegram?.WebApp;
@@ -117,11 +119,23 @@ function AdminPanelContent() {
   };
 
   // Диагностика доступна только главному администратору.
-  const isSuperAdmin = String(currentUser?.telegramId) === SUPER_ADMIN_TELEGRAM_ID;
+  const isSuperAdmin = currentUser?.role === 'superadmin' && String(currentUser?.telegramId) === SUPER_ADMIN_TELEGRAM_ID;
   const availableSections = ALL_SECTIONS.filter(s => {
     if (s.id === 'superadmin') return isSuperAdmin;
     return (ROLE_SECTIONS[userRole] || ROLE_SECTIONS.admin).includes(s.id);
   });
+
+  useEffect(() => {
+    if (!activeSection) return;
+    setVisitedSections((sections) => sections.includes(activeSection)
+      ? sections
+      : [...sections, activeSection]);
+  }, [activeSection]);
+
+  const canRenderSection = (sectionId) => (
+    visitedSections.includes(sectionId)
+    && availableSections.some((section) => section.id === sectionId)
+  );
 
   if (loading || !activeSection) return null;
 
@@ -158,16 +172,18 @@ function AdminPanelContent() {
       </nav>
 
       <main className="admin-content">
-        <div style={{ display: activeSection === 'users' ? 'block' : 'none' }}><Users currentUser={currentUser} dataRefreshKey={dataRefreshKey} /></div>
-        <div style={{ display: activeSection === 'students' ? 'block' : 'none' }}><Students subjects={subjects} dataRefreshKey={dataRefreshKey} /></div>
-        <div style={{ display: activeSection === 'practice' ? 'block' : 'none' }}><Practice dataRefreshKey={dataRefreshKey} /></div>
-        <div style={{ display: activeSection === 'lesson' ? 'block' : 'none' }}><Lesson subjects={subjects} currentUser={currentUser} dataRefreshKey={dataRefreshKey} /></div>
-        <div style={{ display: activeSection === 'homework' ? 'block' : 'none' }}><Homework subjects={subjects} currentUserId={currentUser?.id} dataRefreshKey={dataRefreshKey} /></div>
-        <div style={{ display: activeSection === 'statistics' ? 'block' : 'none' }}><Statistics currentUser={currentUser} dataRefreshKey={dataRefreshKey} /></div>
-        <div style={{ display: activeSection === 'quiz' ? 'block' : 'none' }}><Quiz subjects={subjects} currentUserId={currentUser?.id} dataRefreshKey={dataRefreshKey} /></div>
-        <div style={{ display: activeSection === 'notifications' ? 'block' : 'none' }}><Notifications subjects={subjects} currentUser={currentUser} dataRefreshKey={dataRefreshKey} /></div>
-        <div style={{ display: activeSection === 'applications' ? 'block' : 'none' }}><Applications dataRefreshKey={dataRefreshKey} /></div>
-        <div style={{ display: activeSection === 'superadmin' ? 'block' : 'none' }}><SuperAdmin dataRefreshKey={dataRefreshKey} /></div>
+        {canRenderSection('users') && <div style={{ display: activeSection === 'users' ? 'block' : 'none' }}><Users currentUser={currentUser} dataRefreshKey={dataRefreshKey} /></div>}
+        {canRenderSection('students') && <div style={{ display: activeSection === 'students' ? 'block' : 'none' }}><Students subjects={subjects} dataRefreshKey={dataRefreshKey} /></div>}
+        {canRenderSection('practice') && <div style={{ display: activeSection === 'practice' ? 'block' : 'none' }}><Practice dataRefreshKey={dataRefreshKey} /></div>}
+        {canRenderSection('lesson') && <div style={{ display: activeSection === 'lesson' ? 'block' : 'none' }}><Lesson subjects={subjects} currentUser={currentUser} dataRefreshKey={dataRefreshKey} /></div>}
+        {canRenderSection('homework') && <div style={{ display: activeSection === 'homework' ? 'block' : 'none' }}><Homework subjects={subjects} currentUserId={currentUser?.id} dataRefreshKey={dataRefreshKey} /></div>}
+        {canRenderSection('statistics') && <div style={{ display: activeSection === 'statistics' ? 'block' : 'none' }}><Statistics currentUser={currentUser} dataRefreshKey={dataRefreshKey} /></div>}
+        {canRenderSection('quiz') && <div style={{ display: activeSection === 'quiz' ? 'block' : 'none' }}><Quiz subjects={subjects} currentUserId={currentUser?.id} dataRefreshKey={dataRefreshKey} /></div>}
+        {canRenderSection('notifications') && <div style={{ display: activeSection === 'notifications' ? 'block' : 'none' }}><Notifications subjects={subjects} currentUser={currentUser} dataRefreshKey={dataRefreshKey} /></div>}
+        {canRenderSection('applications') && <div style={{ display: activeSection === 'applications' ? 'block' : 'none' }}><Applications dataRefreshKey={dataRefreshKey} /></div>}
+        {isSuperAdmin && canRenderSection('superadmin') && (
+          <div style={{ display: activeSection === 'superadmin' ? 'block' : 'none' }}><SuperAdmin dataRefreshKey={dataRefreshKey} /></div>
+        )}
       </main>
     </div>
   );

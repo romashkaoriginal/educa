@@ -5,6 +5,24 @@ import { API_URL } from '../../config';
 import { useSectionRefresh } from './useSectionRefresh';
 import MathText from '../MathText';
 
+const PERIOD_OPTIONS = [
+  { value: 'today', label: 'Сегодня' },
+  { value: '7d', label: 'Последние 7 дней' },
+  { value: '30d', label: 'Последние 30 дней' },
+  { value: 'all', label: 'За всё время' },
+];
+
+function getPeriodQuery(period) {
+  if (period === 'all') return {};
+  const end = new Date();
+  end.setHours(23, 59, 59, 999);
+  const start = new Date(end);
+  start.setHours(0, 0, 0, 0);
+  if (period === '7d') start.setDate(start.getDate() - 6);
+  if (period === '30d') start.setDate(start.getDate() - 29);
+  return { dateFrom: start.toISOString(), dateTo: end.toISOString() };
+}
+
 function AdminStatistics({ currentUser, dataRefreshKey = 0 }) {
   const userRole = currentUser?.role || 'admin';
   const isManager = userRole === 'manager';
@@ -16,10 +34,13 @@ function AdminStatistics({ currentUser, dataRefreshKey = 0 }) {
   const [mode, setMode] = useState('all');
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [activeTab, setActiveTab] = useState('practice');
+  const [period, setPeriod] = useState('30d');
+  const [subjectId, setSubjectId] = useState('');
+  const [homeworkSort, setHomeworkSort] = useState('name');
 
   // Данные для режима "все"
-  const [allPractice, setAllPractice] = useState(null);
-  const [allHomework, setAllHomework] = useState(null);
+  const [practiceData, setAllPractice] = useState(null);
+  const [homeworkData, setAllHomework] = useState(null);
   const [allLoading, setAllLoading] = useState(false);
 
   // Данные для режима "ученик"
@@ -32,7 +53,7 @@ function AdminStatistics({ currentUser, dataRefreshKey = 0 }) {
 
   useEffect(() => {
     if (mode === 'all') loadAllStats();
-  }, [mode, activeTab]);
+  }, [mode, activeTab, period]);
 
   useEffect(() => {
     if (mode === 'student' && selectedStudent) loadStudentStats();
@@ -56,15 +77,16 @@ function AdminStatistics({ currentUser, dataRefreshKey = 0 }) {
   const loadAllStats = async () => {
     setAllLoading(true);
     try {
+      const query = new URLSearchParams({ section: activeTab, ...getPeriodQuery(period) });
       if (activeTab === 'practice') {
-        const res = await adminFetch(`${API_URL}/stats/admin?section=practice`);
+        const res = await adminFetch(`${API_URL}/stats/admin?${query}`);
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Не удалось загрузить статистику практики');
         setAllPractice(data.practice || { summary: {}, subjects: [] });
       }
 
       if (activeTab === 'homework') {
-        const res = await adminFetch(`${API_URL}/stats/admin?section=homework`);
+        const res = await adminFetch(`${API_URL}/stats/admin?${query}`);
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Не удалось загрузить статистику ДЗ');
         setAllHomework(data.homework || { summary: {}, subjects: [] });
@@ -128,11 +150,36 @@ function AdminStatistics({ currentUser, dataRefreshKey = 0 }) {
     finally { setStudentLoading(false); }
   };
 
+  const subjects = Array.from(new Map([
+    ...students.flatMap(student => student.subjects || []),
+    ...(practiceData?.subjects || []).map(entry => entry.subject),
+    ...(homeworkData?.subjects || []).map(entry => entry.subject),
+  ].map(subject => [String(subject.id), subject])).values())
+    .sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+  const filterStats = (data) => {
+    if (!data || !subjectId) return data;
+    const entries = data.subjects.filter(entry => String(entry.subject.id) === subjectId);
+    return { subjects: entries, summary: entries[0]?.summary || entries[0] || {} };
+  };
+  const allPractice = filterStats(practiceData);
+  const allHomework = filterStats(homeworkData);
+  const completedCounts = new Map();
+  (allHomework?.subjects || []).forEach(subject => subject.homeworks.forEach(homework => {
+    const studentIds = new Set((homework.completedStudents || []).map(item => String(item.userId)));
+    studentIds.forEach(id => completedCounts.set(id, (completedCounts.get(id) || 0) + 1));
+  }));
   const filteredStudents = students.filter(s => {
+    if (subjectId && !s.subjects?.some(subject => String(subject.id) === subjectId)) return false;
     const q = searchQuery.toLowerCase();
     return s.firstName?.toLowerCase().includes(q) ||
       s.lastName?.toLowerCase().includes(q) ||
       s.telegramUsername?.toLowerCase().includes(q);
+  }).sort((a, b) => {
+    if (activeTab === 'homework' && homeworkSort !== 'name') {
+      const difference = (completedCounts.get(String(a.id)) || 0) - (completedCounts.get(String(b.id)) || 0);
+      if (difference) return homeworkSort === 'asc' ? difference : -difference;
+    }
+    return `${a.firstName || ''} ${a.lastName || ''}`.localeCompare(`${b.firstName || ''} ${b.lastName || ''}`, 'ru');
   });
 
   // ===== КОМПОНЕНТ ПРОГРЕСС-БАРА =====
@@ -170,6 +217,33 @@ function AdminStatistics({ currentUser, dataRefreshKey = 0 }) {
           📝 Домашка
         </button>
       </div>
+      {mode === 'all' && (
+        <div className="as-filters">
+        <label className="as-period-filter">
+          <span>Период статистики</span>
+          <select value={period} onChange={(event) => setPeriod(event.target.value)}>
+            {PERIOD_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
+        </label>
+        <label className="as-period-filter">
+          <span>Предмет</span>
+          <select value={subjectId} onChange={event => setSubjectId(event.target.value)}>
+            <option value="">Все предметы</option>
+            {subjects.map(subject => <option key={subject.id} value={subject.id}>{subject.name}</option>)}
+          </select>
+        </label>
+        {activeTab === 'homework' && <label className="as-period-filter">
+          <span>Порядок учеников</span>
+          <select value={homeworkSort} onChange={event => setHomeworkSort(event.target.value)}>
+            <option value="name">По имени</option>
+            <option value="desc">Больше выполненных ДЗ</option>
+            <option value="asc">Меньше выполненных ДЗ</option>
+          </select>
+        </label>}
+        </div>
+      )}
 
       {/* ===== РЕЖИМ "ВСЕ УЧЕНИКИ" ===== */}
       {mode === 'all' && (
@@ -184,15 +258,19 @@ function AdminStatistics({ currentUser, dataRefreshKey = 0 }) {
               onChange={e => setSearchQuery(e.target.value)}
               style={{marginBottom: 12}}
             />
-            {loading ? <p>Загрузка...</p> : filteredStudents.map(s => (
-              <button key={s.id} className="as-student-btn" onClick={() => { setSelectedStudent(s); setMode('student'); }}>
-                <div className="as-ava">{s.firstName?.[0]}{s.lastName?.[0]}</div>
-                <div className="as-stu-info">
-                  <div className="as-stu-name">{s.firstName} {s.lastName}</div>
-                  <div className="as-stu-sub">{s.subjects?.map(sub => sub.icon).join(' ')}</div>
-                </div>
-              </button>
-            ))}
+            <div className="as-students-list" aria-label="Список учеников">
+              {loading || (activeTab === 'homework' && allLoading) ? <p>Загрузка...</p> : filteredStudents.map(s => (
+                <button key={s.id} className="as-student-btn" onClick={() => { setSelectedStudent(s); setMode('student'); }}>
+                  <div className="as-ava">{s.firstName?.[0]}{s.lastName?.[0]}</div>
+                  <div className="as-stu-info">
+                    <div className="as-stu-name">{s.firstName} {s.lastName}</div>
+                    <div className="as-stu-sub">{s.subjects?.map(sub => sub.icon).join(' ')}</div>
+                    {activeTab === 'homework' && <div className="as-stu-sub">Выполнено ДЗ: {completedCounts.get(String(s.id)) || 0}</div>}
+                  </div>
+                </button>
+              ))}
+              {!loading && filteredStudents.length === 0 && <p className="as-students-empty">Ученики не найдены</p>}
+            </div>
           </div>
 
           {/* Контент справа */}
@@ -206,9 +284,9 @@ function AdminStatistics({ currentUser, dataRefreshKey = 0 }) {
                     : <>
                       <AnalyticsOverview
                         items={[
-                          { label: 'Решают практику', value: `${allPractice.summary?.activeStudents || 0} из ${allPractice.summary?.eligibleStudents || 0}`, hint: 'хотя бы одна попытка' },
-                          { label: 'Решали сегодня', value: allPractice.summary?.todayStudents || 0, hint: 'уникальных учеников' },
-                          { label: 'Общая точность', value: `${allPractice.summary?.accuracy || 0}%`, hint: `${allPractice.summary?.totalAttempts || 0} попыток` },
+                          { label: 'Среднее заданий на ученика', value: allPractice.summary?.averageSolvedPerStudent || 0, hint: 'за выбранный период' },
+                          { label: 'Решено за период', value: allPractice.summary?.totalAttempts || 0, hint: 'уникальных заданий' },
+                          { label: 'Общая точность', value: `${allPractice.summary?.accuracy || 0}%`, hint: 'по решённым заданиям' },
                         ]}
                       />
                       {allPractice.subjects.map((subj) => (
@@ -221,21 +299,16 @@ function AdminStatistics({ currentUser, dataRefreshKey = 0 }) {
                         </div>
                         <div className="as-practice-subject-stats">
                           <div className="as-stat-item">
-                            <span className="as-stat-label">Решают практику</span>
-                            <span className="as-stat-value">
-                              {subj.activeStudents} из {subj.eligibleStudents}
-                              <span className={`as-percent ${subj.activePercent >= 70 ? 'good' : subj.activePercent >= 40 ? 'medium' : 'low'}`}>
-                                {subj.activePercent}%
-                              </span>
-                            </span>
+                            <span className="as-stat-label">Среднее заданий на ученика</span>
+                            <span className="as-stat-value">{subj.averageSolvedPerStudent || 0} за выбранный период</span>
                           </div>
                           <div className="as-stat-item">
-                            <span className="as-stat-label">Сегодня</span>
-                            <span className="as-stat-value">{subj.todayAttempts} попыток · {subj.todayStudents} уч.</span>
+                            <span className="as-stat-label">Решено за период</span>
+                            <span className="as-stat-value">{subj.totalAttempts} уникальных заданий</span>
                           </div>
                           <div className="as-stat-item">
-                            <span className="as-stat-label">За всё время</span>
-                            <span className="as-stat-value">{subj.totalAttempts} попыток</span>
+                            <span className="as-stat-label">Учеников с доступом</span>
+                            <span className="as-stat-value">{subj.eligibleStudents || 0}</span>
                           </div>
                         </div>
                         <div className="as-problems-grid">
@@ -254,8 +327,8 @@ function AdminStatistics({ currentUser, dataRefreshKey = 0 }) {
                     : <>
                       <AnalyticsOverview
                         items={[
-                          { label: 'Сдали хотя бы одно ДЗ', value: `${allHomework.summary?.activeStudents || 0} из ${allHomework.summary?.eligibleStudents || 0}`, hint: 'уникальных учеников' },
-                          { label: 'Всего сданных работ', value: allHomework.summary?.completedWorks || 0, hint: 'лучшие попытки' },
+                          { label: 'Среднее ДЗ на ученика', value: allHomework.summary?.averageCompletedPerStudent || 0, hint: 'выполнено за выбранный период' },
+                          { label: 'Всего выполнено ДЗ', value: allHomework.summary?.completedWorks || 0, hint: 'лучшие попытки' },
                           { label: 'Общий средний балл', value: `${allHomework.summary?.averageScore || 0}%`, hint: 'по лучшим попыткам' },
                         ]}
                       />
@@ -264,7 +337,7 @@ function AdminStatistics({ currentUser, dataRefreshKey = 0 }) {
                         <div className="as-hw-subject-header">
                           <h3>{subj.subject.icon} {subj.subject.name}</h3>
                           <div className="as-hw-subject-summary">
-                            <span>{subj.summary.activeStudents} из {subj.summary.eligibleStudents} учеников</span>
+                            <span>в среднем {subj.summary.averageCompletedPerStudent || 0} ДЗ на ученика</span>
                             <span className={`as-percent ${subj.summary.averageScore >= 70 ? 'good' : subj.summary.averageScore >= 50 ? 'medium' : 'low'}`}>
                               средний {subj.summary.averageScore}%
                             </span>

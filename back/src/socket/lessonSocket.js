@@ -12,7 +12,10 @@ const keyFor = (lessonId, userId) => `${lessonId}:${userId}`;
 function emitError(socket, error) {
   socket.emit('error', {
     code: error.code || 'LESSON_ERROR',
-    message: error.message || 'Ошибка занятия'
+    message: error.message || 'Ошибка занятия',
+    // Ожидаемые конфликтные состояния (например, вход в уже завершённое
+    // занятие) не должны попадать в мониторинг как backend 5xx.
+    status: Number(error.status || error.statusCode) || 500
   });
 }
 

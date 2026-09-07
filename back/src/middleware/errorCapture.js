@@ -41,8 +41,9 @@ function installConsoleErrorCapture() {
 function shouldCaptureResponse(req, res, store) {
   if (res.statusCode < 400 || store.capturedErrors > 0) return false;
   if (req.originalUrl?.startsWith('/api/client-errors')) return false;
-  if (res.statusCode === 401 && !req.telegramUser) return false;
-  return Boolean(req.dbUser || req.telegramUser || res.statusCode >= 500);
+  // Ожидаемые 4xx (валидация, RBAC, гость в закрытом разделе) — часть
+  // продуктового потока, а не ошибка сервера. Они остаются в access-log.
+  return res.statusCode >= 500;
 }
 
 function requestErrorCapture(req, res, next) {
@@ -121,5 +122,6 @@ module.exports = {
   installConsoleErrorCapture,
   requestErrorCapture,
   requestStorage,
+  shouldCaptureResponse,
   setupSocketErrorCapture
 };

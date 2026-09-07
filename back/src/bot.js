@@ -1,5 +1,5 @@
 const axios = require('axios');
-const TelegramBot = require('node-telegram-bot-api');
+const { Bot: TelegramBot } = require('node-telegram-bot-api');
 const { User, BotUser, Application } = require('./models');
 const { refreshWebAppUrl, getWebAppUrlSync } = require('./utils/webAppUrl');
 const { parseUtm } = require('./utils/utm');
@@ -9,6 +9,21 @@ const guestAccess = require('./services/guestAccess');
 const token = process.env.BOT_TOKEN;
 
 let bot = null;
+let telegramBot = null;
+
+function createDeliveryBot(instance) {
+  return {
+    sendMessage(chatId, text, options = {}) {
+      return instance.api.sendMessage({ chat_id: chatId, text, ...options });
+    },
+    deleteWebHook(options = {}) {
+      return instance.api.deleteWebhook(options);
+    },
+    answerCallbackQuery(callbackQueryId, options = {}) {
+      return instance.api.answerCallbackQuery({ callback_query_id: callbackQueryId, ...options });
+    }
+  };
+}
 
 function isHttpsWebAppUrl(url) {
   return typeof url === 'string' && url.startsWith('https://');
@@ -153,12 +168,18 @@ async function sendGuestReminder(telegramId) {
 }
 
 function startBot() {
+  // Keep BOT_TOKEN available for Mini App authentication in isolated test copies.
+  if (process.env.EXTERNAL_DELIVERY_ENABLED === 'false') {
+    console.log('Telegram delivery and polling disabled for this environment');
+    return;
+  }
   if (!token) {
     console.warn('⚠️ BOT_TOKEN не указан в .env - бот не запущен');
     return;
   }
 
-  bot = new TelegramBot(token, { polling: true });
+  telegramBot = new TelegramBot(token);
+  bot = createDeliveryBot(telegramBot);
   console.log('🤖 Telegram бот запущен');
 
   refreshWebAppUrl(true).then((url) => {
@@ -166,20 +187,31 @@ function startBot() {
   }).catch(() => {});
   setInterval(() => refreshWebAppUrl(true), 5 * 60 * 1000);
 
-  bot.deleteWebHook().catch((error) => {
-    console.error('Не удалось удалить webhook:', error.message);
-  });
+  bot.deleteWebHook()
+    .catch((error) => {
+      console.error('Не удалось удалить webhook:', error.message);
+    })
+    .finally(() => {
+      telegramBot.startPolling(undefined, {
+        retry: true,
+        onError: (error) => console.warn('⚠️ Telegram polling retry:', error?.message || error)
+      }).catch((error) => {
+        console.error('❌ Polling stopped:', error);
+      });
+    });
 
   resetChatMenuButton().catch((error) => {
     console.error('Не удалось сбросить menu button:', error.message);
   });
 
   // /start
-  bot.onText(/\/start(?:\s+(.+))?/, async (msg, match) => {
+  telegramBot.command('start', async (ctx) => {
+    const msg = ctx.message;
+    const match = ctx.match;
     const chatId = msg.chat.id;
     const user = msg.from;
     const firstName = user.first_name || 'Пользователь';
-    const startParam = match?.[1]?.trim() || null;
+    const startParam = (typeof match === 'string' ? match : match?.[1])?.trim() || null;
     const utm = parseUtm(startParam);
 
     if (isStartThrottled(user.id)) {
@@ -200,8 +232,8 @@ function startBot() {
           return sendStartMessage(chatId, `❌ Ваш аккаунт деактивирован.\n\nОбратитесь к администратору.`);
         }
 
-        const roleEmoji = { admin: '👨‍💼', teacher: '👨‍🏫', manager: '📊', student: '👨‍🎓' };
-        const roleNames = { admin: 'Администратор', teacher: 'Преподаватель', manager: 'Менеджер', student: 'Ученик' };
+        const roleEmoji = { superadmin: '🛡️', admin: '👨‍💼', teacher: '👨‍🏫', manager: '📊', student: '👨‍🎓' };
+        const roleNames = { superadmin: 'Суперадмин', admin: 'Администратор', teacher: 'Преподаватель', manager: 'Менеджер', student: 'Ученик' };
 
         const welcomeText = `👋 Привет, ${firstName}!\n\n${roleEmoji[systemUser.role]} Роль: ${roleNames[systemUser.role]}\n\n🎓 Добро пожаловать в KUBIK!`;
         const replyMarkup = getAppOpenKeyboard();
@@ -262,7 +294,8 @@ function startBot() {
   });
 
   // /help
-  bot.onText(/\/help/, async (msg) => {
+  telegramBot.command('help', async (ctx) => {
+    const msg = ctx.message;
     const chatId = msg.chat.id;
     await registerBotUser(msg.from);
     const systemUser = await checkUserRole(msg.from.id);
@@ -275,14 +308,15 @@ function startBot() {
   });
 
   // /info
-  bot.onText(/\/info/, async (msg) => {
+  telegramBot.command('info', async (ctx) => {
+    const msg = ctx.message;
     const chatId = msg.chat.id;
     const user = msg.from;
     await registerBotUser(user);
     const systemUser = await checkUserRole(user.id);
 
     if (systemUser) {
-      const roleNames = { admin: 'Администратор', teacher: 'Преподаватель', manager: 'Менеджер', student: 'Ученик' };
+      const roleNames = { superadmin: 'Суперадмин', admin: 'Администратор', teacher: 'Преподаватель', manager: 'Менеджер', student: 'Ученик' };
       let info = `👤 <b>Информация об аккаунте</b>\n\n`;
       info += `📛 Имя: ${systemUser.firstName} ${systemUser.lastName || ''}\n`;
       info += `🎭 Роль: ${roleNames[systemUser.role]}\n`;
@@ -299,7 +333,8 @@ function startBot() {
   });
 
   // Обработка inline кнопок (callback_query)
-  bot.on('callback_query', async (query) => {
+  telegramBot.on('callback_query', async (ctx) => {
+    const query = ctx.callbackQuery;
     const chatId = query.message.chat.id;
     const data = query.data;
 
@@ -330,7 +365,9 @@ function startBot() {
   // Контакт из Mini App (WebApp.requestContact) или reply-кнопки «Поделиться номером».
   // Telegram присылает номер боту сервис-сообщением msg.contact. Сохраняем его в
   // BotUser, чтобы Mini App мог подтянуть и подставить в форму заявки.
-  bot.on('contact', async (msg) => {
+  telegramBot.on('message', async (ctx, next) => {
+    const msg = ctx.message;
+    if (!msg.contact) return next();
     try {
       const contact = msg.contact;
       // Принимаем только собственный номер пользователя (не пересланный чужой контакт).
@@ -349,7 +386,8 @@ function startBot() {
   });
 
   // Текстовые сообщения — сбор заявки в боте (ТЗ §17)
-  bot.on('message', async (msg) => {
+  telegramBot.on('message', async (ctx) => {
+    const msg = ctx.message;
     if (msg.text && msg.text.startsWith('/')) return;
     if (!msg.text) return;
 
@@ -435,18 +473,16 @@ function startBot() {
     }
   });
 
-  bot.on('polling_error', (error) => {
-    if (error.code === 'EFATAL' || error.code === 'ECONNRESET') return;
-    console.error('❌ Polling error:', error.message);
+  telegramBot.catch((error, ctx) => {
+    console.error(`❌ Bot handler error (update ${ctx.update.update_id}):`, error);
   });
-  bot.on('error', (error) => console.error('❌ Bot error:', error));
 }
 
 function stopBot() {
-  if (bot) {
+  if (telegramBot) {
     console.log('🛑 Остановка бота...');
-    bot.stopPolling();
+    telegramBot.stop();
   }
 }
 
-module.exports = { startBot, stopBot, getBot: () => bot, sendGuestReminder };
+module.exports = { startBot, stopBot, getBot: () => bot, sendGuestReminder, createDeliveryBot };

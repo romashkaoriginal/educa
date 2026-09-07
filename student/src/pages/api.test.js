@@ -1,15 +1,22 @@
 import { apiFetch } from './api';
+import { reportClientError } from '../utils/errorReporter';
+
+vi.mock('../utils/errorReporter', () => ({
+  inferRequest: (url, method) => ({ path: url, method }),
+  reportClientError: vi.fn()
+}));
 
 describe('apiFetch', () => {
   beforeEach(() => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
     window.Telegram = { WebApp: { initData: 'signed-init-data' } };
-    global.fetch = jest.fn();
+    global.fetch = vi.fn();
+    reportClientError.mockClear();
   });
 
   afterEach(() => {
-    jest.useRealTimers();
-    jest.restoreAllMocks();
+    vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   test('передаёт Telegram initData и пользовательские заголовки', async () => {
@@ -39,9 +46,35 @@ describe('apiFetch', () => {
     });
 
     const request = apiFetch('/api/slow', { timeoutMs: 25 });
-    jest.advanceTimersByTime(25);
+    vi.advanceTimersByTime(25);
 
     await expect(request).rejects.toMatchObject({ name: 'AbortError' });
     expect(requestSignal.aborted).toBe(true);
+  });
+
+  test('повторяет безопасный GET после временной сетевой ошибки', async () => {
+    fetch
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockResolvedValueOnce({ ok: true, status: 200 });
+
+    const response = await apiFetch('/api/retry', { retryDelayMs: 0 });
+
+    expect(response.status).toBe(200);
+    expect(fetch).toHaveBeenCalledTimes(3);
+    expect(reportClientError).not.toHaveBeenCalled();
+  });
+
+  test('не повторяет POST и сообщает только о финальном сетевом сбое', async () => {
+    fetch.mockRejectedValue(new TypeError('Failed to fetch'));
+
+    await expect(apiFetch('/api/submit', { method: 'POST', retryDelayMs: 0 })).rejects.toThrow('Failed to fetch');
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(reportClientError).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'NETWORK_ERROR',
+      severity: 'warning',
+      context: { attempts: 1 }
+    }));
   });
 });

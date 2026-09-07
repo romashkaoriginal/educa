@@ -4,8 +4,8 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import Notifications from './Notifications';
 import { adminFetch } from './adminApi';
 
-jest.mock('./adminApi', () => ({ adminFetch: jest.fn() }));
-jest.mock('./useSectionRefresh', () => ({ useSectionRefresh: jest.fn() }));
+vi.mock('./adminApi', () => ({ adminFetch: vi.fn() }));
+vi.mock('./useSectionRefresh', () => ({ useSectionRefresh: vi.fn() }));
 
 const jsonResponse = (data) => Promise.resolve({
   ok: true,
@@ -46,7 +46,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  jest.clearAllMocks();
+  vi.clearAllMocks();
 });
 
 test('выбор одного ученика не превращается в массовую отправку', async () => {

@@ -1,5 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 
 const {
   groupHomeworkRows,
@@ -44,6 +46,7 @@ test('homework analytics counts the current subject roster and best submissions 
   assert.equal(homework.commonErrors[0].errorRate, 50);
   assert.equal(analytics.summary.activeStudents, 2);
   assert.equal(analytics.summary.eligibleStudents, 3);
+  assert.equal(analytics.summary.averageCompletedPerStudent, 0.7);
 });
 
 test('practice analytics returns participation and the most problematic topics and questions', () => {
@@ -72,7 +75,20 @@ test('practice analytics returns participation and the most problematic topics a
   });
 
   assert.equal(analytics.summary.accuracy, 70);
+  assert.equal(analytics.summary.averageSolvedPerStudent, 5);
   assert.equal(analytics.subjects[0].activePercent, 60);
   assert.equal(analytics.subjects[0].problemTopics[0].errorRate, 40);
   assert.equal(analytics.subjects[0].problemQuestions[0].errorRate, 70);
+});
+
+test('every admin student aggregate excludes guest accounts', () => {
+  const source = fs.readFileSync(
+    path.join(__dirname, '../src/services/adminStatsAnalytics.js'),
+    'utf8'
+  );
+  const studentChecks = (source.match(/u\.role = 'student'/g) || []).length;
+  const guestExclusions = (source.match(/COALESCE\(u\."isGuest", false\) = false/g) || []).length;
+
+  assert.ok(studentChecks > 0);
+  assert.equal(guestExclusions, studentChecks);
 });

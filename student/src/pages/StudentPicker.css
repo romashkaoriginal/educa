@@ -1,0 +1,44 @@
+.student-picker {
+  height: 100%;
+  height: var(--app-height, 100dvh);
+  background: #eaf3fa;
+  color: #1a405f;
+  padding: 24px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+.student-picker__shell { max-width: 640px; height: 100%; margin: 0 auto; display: flex; flex-direction: column; background: #fff; border-radius: 16px; overflow: hidden; }
+.student-picker__header { flex-shrink: 0; padding: 28px 28px 0; border-bottom: 1px solid #dce5ec; }
+.student-picker h1 { font-size: 26px; line-height: 1.2; letter-spacing: -.02em; margin: 0 0 10px; }
+.student-picker__header p { font-size: 14px; color: #526777; line-height: 1.5; margin: 0 0 24px; }
+.student-picker label { display: block; font-size: 13px; font-weight: 700; margin-bottom: 8px; }
+.student-picker__search { display: flex; align-items: center; gap: 10px; padding: 0 14px; border: 1px solid #8299ab; border-radius: 10px; }
+.student-picker__search:focus-within { outline: 2px solid #337bae; outline-offset: 2px; }
+.student-picker__search input { min-width: 0; width: 100%; height: 48px; border: 0; outline: none; background: transparent; font: inherit; font-size: 16px; color: #1a405f; }
+.student-picker__search input::placeholder { color: #526777; }
+.student-picker__toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 56px; font-size: 13px; color: #526777; }
+.student-picker__toolbar button, .student-picker__empty button { min-height: 44px; padding: 8px; border: 0; background: transparent; color: #235d85; font: inherit; font-weight: 700; cursor: pointer; }
+.student-picker button:focus-visible, .student-preview-bar button:focus-visible { outline: 2px solid #337bae; outline-offset: -3px; }
+.student-picker button:disabled { cursor: default; }
+.student-picker__toolbar button:disabled { color: #526777; }
+.student-picker__results { min-height: 0; flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 0 12px env(safe-area-inset-bottom, 0px); }
+.student-picker ul { margin: 0; padding: 0; list-style: none; }
+.student-picker li + li { border-top: 1px solid #e5ecf1; }
+.student-picker__row { display: flex; width: 100%; align-items: center; gap: 14px; padding: 18px 16px; border: 0; border-radius: 8px; background: transparent; color: inherit; text-align: left; font: inherit; cursor: pointer; transition: background 160ms ease-out; }
+.student-picker__row:disabled { background: #f5f7f9; }
+.student-picker__avatar { flex-shrink: 0; width: 40px; height: 40px; display: grid; place-items: center; border-radius: 50%; background: #eaf3fa; color: #235d85; font-size: 14px; font-weight: 700; }
+.student-picker__identity { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 4px; overflow-wrap: anywhere; }
+.student-picker__identity strong { font-size: 15px; line-height: 1.4; }
+.student-picker__identity > span { font-size: 13px; color: #235d85; }
+.student-picker__identity small { font-size: 12px; line-height: 1.5; color: #526777; }
+.student-picker__arrow { font-size: 21px; color: #337bae; }
+.student-picker__empty { text-align: center; padding: 44px 16px; font-size: 14px; line-height: 1.6; }
+.student-picker__empty p { color: #526777; margin: 8px 0; }
+.student-picker__skeleton { padding: 8px 16px; }
+.student-picker__skeleton div { height: 64px; margin: 16px 0; border-radius: 8px; background: #edf2f6; }
+.student-preview-bar { display: flex; flex-shrink: 0; align-items: center; gap: 12px; padding: 4px 16px; background: #fff; border-bottom: 1px solid #dce5ec; color: #1a405f; font-size: 12px; }
+.student-preview-bar button { flex-shrink: 0; min-height: 44px; background: transparent; border: 0; color: #235d85; font: inherit; font-weight: 700; cursor: pointer; }
+.student-preview-bar span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (hover: hover) { .student-picker__row:not(:disabled):hover { background: #eef5fa; } }
+@media (max-width: 600px) { .student-picker { padding: 0; } .student-picker__shell { border-radius: 0; } .student-picker__header { padding: 24px 20px 0; } .student-picker__results { padding-left: 4px; padding-right: 4px; } }
+@media (prefers-reduced-motion: reduce) { .student-picker__row { transition: none; } }

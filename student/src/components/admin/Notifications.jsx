@@ -25,10 +25,49 @@ const HOMEWORK_PERCENT_OPTIONS = [
 ];
 
 const ROLE_LABELS = {
+  superadmin: '🛡️ Суперадмин',
   admin: '👨‍💼 Администратор',
   teacher: '👨‍🏫 Преподаватель',
   manager: '📊 Менеджер',
 };
+
+function NotificationHistoryRecipients({ recipients }) {
+  const delivery = Array.isArray(recipients) ? recipients : [];
+  const delivered = delivery.filter((recipient) => recipient.status === 'sent');
+  const failed = delivery.filter((recipient) => recipient.status === 'failed');
+
+  if (delivery.length === 0) {
+    return <p className="history-delivery-empty">Для этой старой рассылки детальный список не сохранён.</p>;
+  }
+
+  return (
+    <section className="history-delivery" aria-label="Результаты доставки уведомлений">
+      <strong>Результаты доставки</strong>
+      <div className="history-delivery-columns">
+        <div>
+          <div className="history-delivery-title success">✅ Доставлено ({delivered.length})</div>
+          <div className="history-delivery-list">
+            {delivered.map((recipient) => (
+              <div key={recipient.id} className="history-delivery-row success">{recipient.name}</div>
+            ))}
+            {delivered.length === 0 && <p>Нет доставленных сообщений</p>}
+          </div>
+        </div>
+        <div>
+          <div className="history-delivery-title error">❌ Не доставлено ({failed.length})</div>
+          <div className="history-delivery-list">
+            {failed.map((recipient) => (
+              <div key={recipient.id} className="history-delivery-row error">
+                {recipient.name}{recipient.reason ? ` — ${recipient.reason}` : ''}
+              </div>
+            ))}
+            {failed.length === 0 && <p>Все сообщения доставлены</p>}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
 
 function Notifications({ subjects, currentUser, dataRefreshKey = 0 }) {
   const [tab, setTab] = useState('send'); // 'send' | 'history'
@@ -157,7 +196,21 @@ function Notifications({ subjects, currentUser, dataRefreshKey = 0 }) {
         body: JSON.stringify(body)
       });
       const data = await res.json();
-      setSendResult(data);
+      const results = {
+        sent: Array.isArray(data?.results?.sent) ? data.results.sent : [],
+        failed: Array.isArray(data?.results?.failed) ? data.results.failed : [],
+      };
+      if (!res.ok) {
+        results.failed.push({
+          id: 'request-error',
+          name: 'Рассылка не выполнена',
+          reason: data?.message || 'Не удалось отправить уведомление',
+        });
+      }
+      setSendResult({
+        message: data?.message || `Доставлено: ${results.sent.length}, не доставлено: ${results.failed.length}`,
+        results,
+      });
     } catch (e) {
       setSendResult({ message: 'Ошибка соединения', results: { sent: [], failed: [] } });
     } finally {
@@ -404,26 +457,30 @@ function Notifications({ subjects, currentUser, dataRefreshKey = 0 }) {
         <div className="send-result-screen">
           <div className={`result-banner ${sendResult.results?.failed?.length === 0 ? 'success' : 'partial'}`}>
             {sendResult.results?.failed?.length === 0
-              ? '✅ Все сообщения отправлены!'
+              ? '✅ Сообщения доставлены всем получателям'
               : `⚠️ ${sendResult.message}`}
           </div>
           <div className="result-columns">
-            {sendResult.results?.sent?.length > 0 && (
-              <div className="result-col">
-                <div className="result-col-title">✅ Успешно ({sendResult.results.sent.length})</div>
-                {sendResult.results.sent.map((s, i) => (
-                  <div key={i} className="result-row-item success">{s.name}</div>
-                ))}
+            <div className="result-col">
+              <div className="result-col-title">✅ Доставлено ({sendResult.results.sent.length})</div>
+              <div className="result-list" aria-label="Уведомления доставлены">
+                {sendResult.results.sent.length > 0
+                  ? sendResult.results.sent.map((student) => (
+                    <div key={student.id} className="result-row-item success">{student.name}</div>
+                  ))
+                  : <p className="result-list-empty">Нет доставленных сообщений</p>}
               </div>
-            )}
-            {sendResult.results?.failed?.length > 0 && (
-              <div className="result-col">
-                <div className="result-col-title">❌ Ошибки ({sendResult.results.failed.length})</div>
-                {sendResult.results.failed.map((s, i) => (
-                  <div key={i} className="result-row-item error">{s.name} — <span>{s.reason}</span></div>
-                ))}
+            </div>
+            <div className="result-col">
+              <div className="result-col-title">❌ Не доставлено ({sendResult.results.failed.length})</div>
+              <div className="result-list" aria-label="Уведомления не доставлены">
+                {sendResult.results.failed.length > 0
+                  ? sendResult.results.failed.map((student) => (
+                    <div key={student.id} className="result-row-item error">{student.name} — <span>{student.reason}</span></div>
+                  ))
+                  : <p className="result-list-empty">Все сообщения доставлены</p>}
               </div>
-            )}
+            </div>
           </div>
           <button className="send-btn" onClick={resetForm}>← Новое уведомление</button>
         </div>
@@ -466,6 +523,9 @@ function Notifications({ subjects, currentUser, dataRefreshKey = 0 }) {
                     {log.filters && Object.keys(log.filters).length > 0 && (
                       <div className="history-filters">
                         <strong>Фильтры:</strong>
+                        {log.filters.mode && (
+                          <span>🎯 {log.filters.mode === 'single' ? 'Одному ученику' : 'По фильтрам'}</span>
+                        )}
                         {log.filters.subjectIds?.length > 0 && (
                         <span>📚 {log.filters.subjectIds.map(id => {
                           const subj = subjects.find(s => s.id === id || s.id === parseInt(id));
@@ -479,24 +539,16 @@ function Notifications({ subjects, currentUser, dataRefreshKey = 0 }) {
                         {log.filters.homeworkPercent && (
                           <span>📝 {HOMEWORK_PERCENT_OPTIONS.find(o => o.value === log.filters.homeworkPercent)?.label}</span>
                         )}
+                        {log.filters.kind && (
+                          <span>🔔 Событие: {log.filters.kind === 'lesson_start' ? 'начало занятия' : log.filters.kind === 'lesson_reminder' ? 'напоминание о занятии' : log.filters.kind}</span>
+                        )}
+                        {log.filters.lessonId && <span>📚 Занятие №{log.filters.lessonId}</span>}
                       </div>
                     )}
                     {/* Полный текст */}
+                    <div className="history-field-label">Сообщение</div>
                     <div className="history-full-text">{log.text}</div>
-                    {/* Получатели */}
-                    {log.recipients && (
-                      <div className="history-recipients">
-                        <strong>Получатели:</strong>
-                        <div className="recipients-chips" style={{marginTop:8}}>
-                          {log.recipients.filter(r => r.status === 'sent').map((r, i) => (
-                            <span key={i} className="recipient-chip">✅ {r.name}</span>
-                          ))}
-                          {log.recipients.filter(r => r.status === 'failed').map((r, i) => (
-                            <span key={i} className="recipient-chip error">❌ {r.name}</span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                    <NotificationHistoryRecipients recipients={log.recipients} />
                   </div>
                 )}
               </div>

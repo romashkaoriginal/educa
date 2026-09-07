@@ -44,7 +44,7 @@ async function getTeacherSubjectIds(teacherId) {
 
 async function teacherCanManageLesson(user, lessonId) {
   if (!user) return false;
-  if (user.role === 'admin') return true;
+  if (user.role === 'admin' || user.role === 'superadmin') return true;
   if (user.role !== 'teacher') return false;
   const lesson = await Lesson.findByPk(lessonId, { attributes: ['id', 'teacherId', 'subjectId'] });
   if (!lesson) return false;

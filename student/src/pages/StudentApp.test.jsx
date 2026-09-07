@@ -5,29 +5,29 @@ import { StudentAppContent } from './StudentApp';
 import Lesson from './Lesson';
 import { useData } from './DataContext';
 
-jest.mock('./Practice', () => () => <div>Практика</div>);
-jest.mock('./Homework', () => () => <div>Домашка</div>);
-jest.mock('./Statistics', () => () => <div>Статистика</div>);
-jest.mock('./Lesson', () => jest.fn(() => <div>Раздел занятий</div>));
-jest.mock('./DataContext', () => ({
+vi.mock('./Practice', () => ({ default: () => <div>Практика</div> }));
+vi.mock('./Homework', () => ({ default: () => <div>Домашка</div> }));
+vi.mock('./Statistics', () => ({ default: () => <div>Статистика</div> }));
+vi.mock('./Lesson', () => ({ default: vi.fn(() => <div>Раздел занятий</div>) }));
+vi.mock('./DataContext', () => ({
   DataProvider: ({ children }) => children,
-  useData: jest.fn()
+  useData: vi.fn()
 }));
 
 beforeEach(() => {
-  jest.clearAllMocks();
+  vi.clearAllMocks();
   window.history.replaceState({}, '', '/');
 });
 
 test('клик по глобальному уведомлению открывает конкретное live-занятие', async () => {
-  const dismissLessonNotice = jest.fn();
+  const dismissLessonNotice = vi.fn();
   useData.mockReturnValue({
     subjects: [],
-    preloadAllData: jest.fn(),
-    loadStreak: jest.fn(),
-    refreshDashboard: jest.fn(),
-    requestPracticeHome: jest.fn(),
-    requestHomeworkHome: jest.fn(),
+    preloadAllData: vi.fn(),
+    loadStreak: vi.fn(),
+    refreshDashboard: vi.fn(),
+    requestPracticeHome: vi.fn(),
+    requestHomeworkHome: vi.fn(),
     lessonNotice: { type: 'started', lesson: { id: 17, subject: { name: 'Физика' } } },
     dismissLessonNotice
   });
@@ -48,13 +48,13 @@ test('lessonId из Telegram-ссылки сразу открывает конк
   window.history.replaceState({}, '', '/?v=123&lessonId=23');
   useData.mockReturnValue({
     subjects: [],
-    preloadAllData: jest.fn(),
-    loadStreak: jest.fn(),
-    refreshDashboard: jest.fn(),
-    requestPracticeHome: jest.fn(),
-    requestHomeworkHome: jest.fn(),
+    preloadAllData: vi.fn(),
+    loadStreak: vi.fn(),
+    refreshDashboard: vi.fn(),
+    requestPracticeHome: vi.fn(),
+    requestHomeworkHome: vi.fn(),
     lessonNotice: null,
-    dismissLessonNotice: jest.fn()
+    dismissLessonNotice: vi.fn()
   });
 
   render(<StudentAppContent selectedStudent={{ id: 1, firstName: 'Иван' }} />);
@@ -64,4 +64,22 @@ test('lessonId из Telegram-ссылки сразу открывает конк
     expect(props.isTabActive).toBe(true);
     expect(props.entryRequest).toEqual({ lessonId: 23, nonce: 1 });
   });
+});
+
+test('гость не монтирует закрытый раздел занятия', () => {
+  useData.mockReturnValue({
+    subjects: [],
+    preloadAllData: vi.fn(),
+    loadStreak: vi.fn(),
+    refreshDashboard: vi.fn(),
+    requestPracticeHome: vi.fn(),
+    requestHomeworkHome: vi.fn(),
+    lessonNotice: null,
+    dismissLessonNotice: vi.fn()
+  });
+
+  render(<StudentAppContent selectedStudent={{ id: 299, firstName: 'Гость' }} isGuest />);
+
+  expect(Lesson).not.toHaveBeenCalled();
+  expect(screen.queryByText('Раздел занятий')).not.toBeInTheDocument();
 });

@@ -108,7 +108,7 @@ export default function LessonAdmin({ subjects = [], currentUser, dataRefreshKey
   const noticeTimersRef = useRef({});
   const processNoticeQueueRef = useRef(null);
 
-  const isAdmin = currentUser?.role === 'admin' || !currentUser?.role;
+  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'superadmin' || !currentUser?.role;
   const selected = useMemo(() => lessons.find((lesson) => Number(lesson.id) === Number(selectedId)) || null, [lessons, selectedId]);
   const teachers = users.filter((user) => user.role === 'teacher' && user.isActive !== false);
 

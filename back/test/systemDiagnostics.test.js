@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { countOnlineUsers, parseMeminfo } = require('../src/services/systemDiagnostics');
+const { countOnlineUsers, parseMeminfo, readServerDisk } = require('../src/services/systemDiagnostics');
 
 test('parseMeminfo считает занятую память через MemAvailable', () => {
   const result = parseMeminfo([
@@ -24,4 +24,13 @@ test('countOnlineUsers не считает несколько соединени
   ]);
 
   assert.equal(countOnlineUsers({ sockets: { sockets } }), 2);
+});
+
+test('readServerDisk возвращает объём и доступное место файловой системы', () => {
+  const result = readServerDisk(process.cwd());
+  assert.ok(result);
+  assert.ok(result.totalBytes > 0);
+  assert.ok(result.availableBytes >= 0);
+  assert.ok(result.usedBytes >= 0);
+  assert.ok(result.usagePercent >= 0 && result.usagePercent <= 100);
 });

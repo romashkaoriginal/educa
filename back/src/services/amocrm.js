@@ -32,6 +32,9 @@ function buildNoteText(application) {
 }
 
 async function sendToAmoCRM(application) {
+  if (process.env.EXTERNAL_DELIVERY_ENABLED === 'false') {
+    return { ok: false, disabled: true, error: 'External delivery disabled for this environment' };
+  }
   const subdomain = process.env.AMOCRM_SUBDOMAIN;
   const token = process.env.AMOCRM_TOKEN;
   const pipelineId = process.env.AMOCRM_PIPELINE_ID ? Number(process.env.AMOCRM_PIPELINE_ID) : null;

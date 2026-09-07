@@ -218,12 +218,12 @@ exports.getAdminStats = async (req, res) => {
 
     // Общая аналитика практики: участие, проблемные темы и задания.
     if (!section || section === 'practice') {
-      result.practice = await getAdminPracticeAnalytics();
+      result.practice = await getAdminPracticeAnalytics({ dateFrom, dateTo });
     }
 
     // Общая аналитика ДЗ: лучшие попытки учеников и частые ошибки.
     if (!section || section === 'homework') {
-      result.homework = await getAdminHomeworkAnalytics();
+      result.homework = await getAdminHomeworkAnalytics({ dateFrom, dateTo });
     }
 
     // Статистика по викторинам
@@ -241,7 +241,8 @@ exports.getAdminStats = async (req, res) => {
             include: [{ model: Subject, as: 'subject', attributes: ['name'] }]
           }
         ],
-        order: [['createdAt', 'DESC']]
+        // У quiz_participants нет timestamps: используем фактическое время входа.
+        order: [['joinedAt', 'DESC']]
       });
 
       result.quiz = quizzes;
@@ -258,7 +259,9 @@ exports.getAdminStats = async (req, res) => {
 exports.getStudentsForFilter = async (req, res) => {
   try {
     const students = await User.findAll({
-      where: { role: 'student', isActive: true },
+      // A guest has role=student only for access-control compatibility; it is
+      // not an enrolled student and must not appear in admin statistics.
+      where: { role: 'student', isActive: true, isGuest: false },
       attributes: ['id', 'firstName', 'lastName', 'telegramUsername'],
       include: [{
         model: Subject,

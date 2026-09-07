@@ -43,18 +43,24 @@
 
 .superadmin-diagnostics {
   display: grid;
-  grid-template-columns: minmax(0, 1.75fr) minmax(240px, 0.85fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr)) minmax(220px, .72fr);
   gap: 16px;
   align-items: stretch;
 }
 
 .superadmin-memory,
+.superadmin-storage,
 .superadmin-online {
   border-radius: 16px;
   background: #fff;
 }
 
-.superadmin-memory { padding: 22px; border: 1px solid var(--kubik-border, #e3e6e4); }
+.superadmin-memory,
+.superadmin-storage { padding: 22px; border: 1px solid var(--kubik-border, #e3e6e4); }
+
+.superadmin-storage .superadmin-memory-ring__value { stroke: #2e9e6b; }
+.superadmin-storage .superadmin-memory-ring--warning .superadmin-memory-ring__value { stroke: var(--medium, #b7791f); }
+.superadmin-storage .superadmin-memory-ring--critical .superadmin-memory-ring__value { stroke: var(--low, #b13e3e); }
 
 .superadmin-section-heading {
   display: flex;
@@ -316,7 +322,8 @@
 }
 
 @media (max-width: 480px) {
-  .superadmin-memory { padding: 18px; }
+  .superadmin-memory,
+  .superadmin-storage { padding: 18px; }
   .superadmin-memory-body { align-items: flex-start; flex-direction: column; gap: 22px; }
   .superadmin-memory-ring { align-self: center; }
   .superadmin-memory-values { width: 100%; gap: 16px; }

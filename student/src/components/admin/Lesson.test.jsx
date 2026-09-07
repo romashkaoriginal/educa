@@ -5,9 +5,9 @@ import LessonAdmin, { mergeStudentQuestionUpdate } from './Lesson';
 import { adminFetch } from './adminApi';
 import { io } from 'socket.io-client';
 
-jest.mock('./adminApi', () => ({ adminFetch: jest.fn(), getTelegramInitData: jest.fn(() => 'test') }));
-jest.mock('socket.io-client', () => ({ io: jest.fn() }));
-jest.mock('./ImageUploadField', () => () => null);
+vi.mock('./adminApi', () => ({ adminFetch: vi.fn(), getTelegramInitData: vi.fn(() => 'test') }));
+vi.mock('socket.io-client', () => ({ io: vi.fn() }));
+vi.mock('./ImageUploadField', () => ({ default: () => null }));
 
 const response = (body) => Promise.resolve({
   ok: true,
@@ -30,11 +30,11 @@ let lesson;
 let sessionState;
 
 beforeEach(() => {
-  jest.clearAllMocks();
+  vi.clearAllMocks();
   lesson = { ...baseLesson };
   sessionState = { lesson, polls: [], quizzes: [], materials: [] };
-  window.confirm = jest.fn(() => true);
-  io.mockReturnValue({ on: jest.fn(), emit: jest.fn(), disconnect: jest.fn() });
+  window.confirm = vi.fn(() => true);
+  io.mockReturnValue({ on: vi.fn(), emit: vi.fn(), disconnect: vi.fn() });
   adminFetch.mockImplementation((url, options = {}) => {
     if (url.endsWith('/lesson-admin/lessons/7/polls') && options.method === 'POST') {
       return response({ poll: { id: 22, question: 'Всё понятно?', status: 'draft', options: [] } });

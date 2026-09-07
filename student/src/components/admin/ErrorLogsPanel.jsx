@@ -3,7 +3,7 @@ import { API_URL } from '../../config';
 import { adminFetch } from './adminApi';
 
 const REFRESH_INTERVAL_MS = 5000;
-const ROLE_LABELS = { admin: 'Администратор', teacher: 'Преподаватель', manager: 'Менеджер', student: 'Ученик' };
+const ROLE_LABELS = { superadmin: 'Суперадмин', admin: 'Администратор', teacher: 'Преподаватель', manager: 'Менеджер', student: 'Ученик' };
 const AREA_LABELS = {
   application: 'Приложение', auth: 'Авторизация', homework: 'Домашка', practice: 'Практика',
   lesson: 'Занятие', quiz: 'Викторина', statistics: 'Статистика', students: 'Ученики',

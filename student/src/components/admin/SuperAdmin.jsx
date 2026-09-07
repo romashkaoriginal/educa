@@ -19,6 +19,12 @@ function getMemoryStatus(percent) {
   return { label: 'Норма', tone: 'normal' };
 }
 
+function getDiskStatus(percent) {
+  if (percent >= 90) return { label: 'Мало места', tone: 'critical' };
+  if (percent >= 75) return { label: 'Стоит проверить', tone: 'warning' };
+  return { label: 'Достаточно места', tone: 'normal' };
+}
+
 function MemoryRing({ percent, tone = 'normal' }) {
   const safePercent = Math.min(100, Math.max(0, Number(percent) || 0));
   const radius = 54;
@@ -37,6 +43,25 @@ function MemoryRing({ percent, tone = 'normal' }) {
           strokeDasharray={circumference}
           strokeDashoffset={offset}
         />
+      </svg>
+      <strong>{safePercent.toLocaleString('ru-RU')}%</strong>
+      <span>занято</span>
+    </div>
+  );
+}
+
+function DiskRing({ percent, tone = 'normal' }) {
+  const safePercent = Math.min(100, Math.max(0, Number(percent) || 0));
+  const freePercent = Math.max(0, 100 - safePercent);
+  const radius = 54;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference * (1 - safePercent / 100);
+
+  return (
+    <div className={`superadmin-memory-ring superadmin-memory-ring--${tone}`} role="img" aria-label={`Диск заполнен на ${safePercent}%, свободно ${freePercent}%`}>
+      <svg viewBox="0 0 128 128" aria-hidden="true">
+        <circle className="superadmin-memory-ring__track" cx="64" cy="64" r={radius} />
+        <circle className="superadmin-memory-ring__value" cx="64" cy="64" r={radius} strokeDasharray={circumference} strokeDashoffset={offset} />
       </svg>
       <strong>{safePercent.toLocaleString('ru-RU')}%</strong>
       <span>занято</span>
@@ -73,7 +98,9 @@ function SuperAdmin({ dataRefreshKey = 0 }) {
   }, [loadDiagnostics, dataRefreshKey]);
 
   const memory = diagnostics?.memory;
+  const disk = diagnostics?.disk;
   const memoryStatus = getMemoryStatus(memory?.usagePercent);
+  const diskStatus = getDiskStatus(disk?.usagePercent);
   const measuredAt = diagnostics?.measuredAt
     ? new Date(diagnostics.measuredAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
     : '—';
@@ -136,6 +163,40 @@ function SuperAdmin({ dataRefreshKey = 0 }) {
             </div>
           </article>
 
+          {disk && (
+            <article className="superadmin-storage" aria-labelledby="disk-title">
+              <div className="superadmin-section-heading">
+                <div>
+                  <h3 id="disk-title">Диск сервера</h3>
+                  <p>Свободное место на SSD, где работают приложение и база данных.</p>
+                </div>
+                <span className={`superadmin-status superadmin-status--${diskStatus.tone}`}>{diskStatus.label}</span>
+              </div>
+
+              <div className="superadmin-memory-body">
+                <DiskRing percent={disk.usagePercent} tone={diskStatus.tone} />
+                <dl className="superadmin-memory-values">
+                  <div>
+                    <dt>Свободно</dt>
+                    <dd>{formatBytes(disk.availableBytes)}</dd>
+                  </div>
+                  <div>
+                    <dt>Занято</dt>
+                    <dd>{formatBytes(disk.usedBytes)}</dd>
+                  </div>
+                  <div>
+                    <dt>Всего</dt>
+                    <dd>{formatBytes(disk.totalBytes)}</dd>
+                  </div>
+                  <div>
+                    <dt>Заполнено</dt>
+                    <dd>{Number(disk.usagePercent || 0).toLocaleString('ru-RU')}%</dd>
+                  </div>
+                </dl>
+              </div>
+            </article>
+          )}
+
           <aside className="superadmin-online" aria-labelledby="online-title">
             <div className="superadmin-online__signal" aria-hidden="true">
               <span /><span /><span />
@@ -155,5 +216,5 @@ function SuperAdmin({ dataRefreshKey = 0 }) {
   );
 }
 
-export { formatBytes, getMemoryStatus, MemoryRing };
+export { formatBytes, getMemoryStatus, getDiskStatus, MemoryRing, DiskRing };
 export default SuperAdmin;

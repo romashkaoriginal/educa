@@ -8,11 +8,12 @@ RUN npm ci
 COPY scripts ./scripts
 COPY public ./public
 COPY src ./src
+COPY index.html vite.config.mjs ./
 
 ARG REACT_APP_BACKEND_URL
-ENV REACT_APP_BACKEND_URL=$REACT_APP_BACKEND_URL
+ENV VITE_BACKEND_URL=$REACT_APP_BACKEND_URL
 
-RUN DISABLE_ESLINT_PLUGIN=true npm run build
+RUN npm run build
 
 FROM nginx:alpine
 

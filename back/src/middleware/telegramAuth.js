@@ -1,7 +1,8 @@
 const crypto = require('crypto');
 const { User } = require('../models');
+const { SUPER_ADMIN_TELEGRAM_ID } = require('./superAdmin');
 
-const STAFF_ROLES = ['admin', 'manager', 'teacher'];
+const STAFF_ROLES = ['superadmin', 'admin', 'manager', 'teacher'];
 
 function isStaffRole(role) {
   return STAFF_ROLES.includes(role);
@@ -102,7 +103,9 @@ exports.blockGuests = (req, res, next) => {
 };
 
 exports.requireAdmin = (req, res, next) => {
-  if (!req.dbUser || req.dbUser.role !== 'admin') {
+  const telegramId = String(req.telegramUser?.id || req.dbUser?.telegramId || '');
+  const isSuperAdmin = telegramId === SUPER_ADMIN_TELEGRAM_ID;
+  if (!req.dbUser || !['admin', 'superadmin'].includes(req.dbUser.role) || (req.dbUser.role === 'superadmin' && !isSuperAdmin)) {
     return res.status(403).json({ message: 'Admin access required' });
   }
   next();
@@ -112,7 +115,9 @@ exports.requireAdmin = (req, res, next) => {
 exports.requireRole = (roles) => (req, res, next) => {
   if (!req.dbUser) return res.status(403).json({ message: 'User not registered in system' });
   if (!req.dbUser.isActive) return res.status(403).json({ message: 'Account is deactivated' });
-  if (!roles.includes(req.dbUser.role)) {
+  const roleAllowed = roles.includes(req.dbUser.role)
+    || (req.dbUser.role === 'superadmin' && roles.includes('admin'));
+  if (!roleAllowed) {
     return res.status(403).json({ message: 'Access denied' });
   }
   next();

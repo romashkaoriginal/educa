@@ -4,12 +4,12 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import StudentHomework, { MatchingWire } from './Homework';
 import { apiFetch } from './api';
 
-jest.mock('./api', () => ({ apiFetch: jest.fn() }));
-jest.mock('./DataContext', () => ({
+vi.mock('./api', () => ({ apiFetch: vi.fn() }));
+vi.mock('./DataContext', () => ({
   useData: () => ({
     homeworks: [],
     subjects: [],
-    refreshAfterHomework: jest.fn(),
+    refreshAfterHomework: vi.fn(),
     loading: { homework: false },
     homeworkHomeToken: 0,
   }),
@@ -21,7 +21,7 @@ const pairs = [
 ];
 
 test('matching прокручивается по тексту и поддерживает выбор через коннекторы', () => {
-  const onChange = jest.fn();
+  const onChange = vi.fn();
 
   render(
     <MatchingWire
@@ -45,7 +45,7 @@ test('matching прокручивается по тексту и поддерж�
 });
 
 test('предпросмотр преподавателя проверяет ответы локально и не создаёт попытку', () => {
-  const onExitPreview = jest.fn();
+  const onExitPreview = vi.fn();
   const previewHomework = {
     id: 25,
     title: 'Проверка интерфейса',

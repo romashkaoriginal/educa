@@ -1,11 +1,24 @@
 const { User } = require('../models');
+const { SUPER_ADMIN_TELEGRAM_ID } = require('../middleware/superAdmin');
+
+function isOwnerSuperAdmin(req) {
+  return req.dbUser?.role === 'superadmin'
+    && String(req.dbUser.telegramId || '') === SUPER_ADMIN_TELEGRAM_ID;
+}
+
+function rejectProtectedSuperAdminChange(req, res, user) {
+  if (user.role !== 'superadmin') return false;
+  if (isOwnerSuperAdmin(req) && Number(req.dbUser.id) === Number(user.id)) return false;
+  res.status(403).json({ message: 'Аккаунт суперадмина может изменять только сам суперадмин' });
+  return true;
+}
 
 // Получить всех пользователей системы (админы, учителя, менеджеры)
 exports.getAllUsers = async (req, res) => {
   try {
     const users = await User.findAll({
       where: { 
-        role: ['admin', 'teacher', 'manager']
+        role: ['superadmin', 'admin', 'teacher', 'manager']
       },
       attributes: [
         'id', 
@@ -53,6 +66,9 @@ exports.createUser = async (req, res) => {
     if (!/^\d+$/.test(tid)) {
       return res.status(400).json({ message: 'Некорректный Telegram ID' });
     }
+    if (tid === SUPER_ADMIN_TELEGRAM_ID) {
+      return res.status(403).json({ message: 'Аккаунт суперадмина нельзя создать или назначить через приложение' });
+    }
 
     const name = String(firstName).trim();
     if (!name) {
@@ -69,7 +85,7 @@ exports.createUser = async (req, res) => {
 
     let user = await User.findOne({ where: { telegramId: tid } });
 
-    if (user && ['admin', 'teacher', 'manager'].includes(user.role) && !user.isGuest) {
+    if (user && ['superadmin', 'admin', 'teacher', 'manager'].includes(user.role) && !user.isGuest) {
       return res.status(400).json({
         message: 'Пользователь с этим Telegram ID уже есть в системе'
       });
@@ -140,13 +156,20 @@ exports.updateUser = async (req, res) => {
     const { userId } = req.params;
     const { firstName, lastName, telegramUsername, role, isActive } = req.body;
 
-    if (Object.prototype.hasOwnProperty.call(req.body, 'role') && req.dbUser?.role !== 'admin') {
+    if (Object.prototype.hasOwnProperty.call(req.body, 'role') && !['admin', 'superadmin'].includes(req.dbUser?.role)) {
       return res.status(403).json({ message: 'Только администратор может изменять роли' });
     }
 
     const user = await User.findByPk(userId);
     if (!user || user.role === 'student') {
       return res.status(404).json({ message: 'User not found' });
+    }
+    if (rejectProtectedSuperAdminChange(req, res, user)) return;
+    if (role === 'superadmin' && user.role !== 'superadmin') {
+      return res.status(403).json({ message: 'Роль суперадмина нельзя назначить через приложение' });
+    }
+    if (user.role === 'superadmin' && role && role !== 'superadmin') {
+      return res.status(403).json({ message: 'Роль суперадмина нельзя изменить через приложение' });
     }
 
     // Обновление полей
@@ -207,6 +230,7 @@ exports.toggleUserStatus = async (req, res) => {
     if (!user || user.role === 'student') {
       return res.status(404).json({ message: 'User not found' });
     }
+    if (rejectProtectedSuperAdminChange(req, res, user)) return;
 
     user.isActive = !user.isActive;
     await user.save();
@@ -270,6 +294,7 @@ exports.deleteUser = async (req, res) => {
         message: 'Cannot delete student through this endpoint. Use /students/:id instead'
       });
     }
+    if (rejectProtectedSuperAdminChange(req, res, user)) return;
 
     const { Homework, Quiz, BotUser, sequelize } = require('../models');
     const telegramId = user.telegramId;

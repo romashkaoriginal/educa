@@ -428,10 +428,56 @@
   border: 1px solid var(--kubik-border);
   border-radius: 12px;
   padding: 12px;
-  max-height: 70vh;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  block-size: min(68vh, 640px);
+  overflow: hidden;
   position: sticky;
   top: 0;
+}
+
+.as-students-list {
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.as-students-empty {
+  margin: 12px 4px;
+  color: var(--kubik-text-soft);
+  font-size: 13px;
+}
+
+.as-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 20px;
+}
+
+.as-period-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 20px;
+  color: var(--kubik-text-soft);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.as-period-filter select {
+  min-height: 44px;
+  max-width: 100%;
+  border: 1px solid var(--kubik-border);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--kubik-text);
+  padding: 6px 10px;
+  font: inherit;
+}
+
+.as-period-filter select:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 .as-content {
@@ -657,8 +703,8 @@
     grid-template-columns: 1fr;
   }
   .as-sidebar {
-    max-height: 200px;
-    position: static;
+      block-size: min(42vh, 320px);
+      position: static;
   }
   .as-overview {
     grid-template-columns: 1fr;
@@ -942,7 +988,7 @@
 @media (max-width: 600px) {
   /* Sidebar becomes a horizontal pick list above the content */
   .as-sidebar {
-    max-height: none;
+      block-size: min(42vh, 300px);
   }
   .as-stat-item {
     font-size: 13px;

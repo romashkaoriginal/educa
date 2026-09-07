@@ -116,26 +116,6 @@ function reportClientError(details = {}) {
   }).catch(() => {});
 }
 
-async function reportApiFailure(response, url, options = {}) {
-  try {
-    if (!response || response.ok || String(url).includes('/client-errors')) return;
-    let body = {};
-    const clone = typeof response.clone === 'function' ? response.clone() : response;
-    try { body = await clone.json(); } catch (_) { /* non-JSON error response */ }
-    const request = inferRequest(url, options.method || 'GET');
-    reportClientError({
-      ...request,
-      message: body?.message || body?.error || `HTTP ${response.status}`,
-      code: body?.code,
-      statusCode: response.status,
-      severity: response.status >= 500 ? 'error' : 'warning',
-      context: extractRequestContext(options.body)
-    });
-  } catch (_) {
-    /* Error reporting must not affect the original request. */
-  }
-}
-
 function installGlobalErrorReporting() {
   if (window.__kubikErrorReportingInstalled) return;
   window.__kubikErrorReportingInstalled = true;
@@ -167,7 +147,6 @@ export {
   extractRequestContext,
   inferRequest,
   installGlobalErrorReporting,
-  reportApiFailure,
   reportClientError,
   sanitizeContext
 };

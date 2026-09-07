@@ -8,27 +8,31 @@ const {
 } = require('../models');
 const { Op } = require('sequelize');
 const { getWebAppUrlSync } = require('../utils/webAppUrl');
+const { sendTelegramMessage } = require('../services/telegramDelivery');
 
 function formatDate(date) {
   if (!date) return 'бессрочно';
   return new Date(date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
-async function notifyStudent(telegramId, message) {
+async function notifyStudent(telegramId, message, { req, recipient, notificationKind } = {}) {
   if (!telegramId) return;
-  try {
-    const { getBot } = require('../bot');
-    const bot = getBot();
-    if (!bot) return;
-    await bot.sendMessage(telegramId, message, {
+  const { getBot } = require('../bot');
+  const bot = getBot();
+  await sendTelegramMessage({
+    bot,
+    chatId: telegramId,
+    text: message,
+    options: {
       parse_mode: 'HTML',
       reply_markup: {
         inline_keyboard: [[{ text: '📚 Открыть приложение', web_app: { url: getWebAppUrlSync() } }]]
       }
-    });
-  } catch (e) {
-    console.error('Notify student error:', e.message);
-  }
+    },
+    req,
+    recipient,
+    notificationKind: notificationKind || 'student_access'
+  });
 }
 
 function buildSubjectsText(subjects) {
@@ -41,6 +45,14 @@ function buildSubjectsText(subjects) {
   }).join('\n');
 }
 
+function normalizeTelegramId(value) {
+  const normalized = String(value ?? '').trim();
+  return normalized || null;
+}
+
+function isValidTelegramId(value) {
+  return value === null || /^\d+$/.test(value);
+}
 
 // Получить всех студентов
 exports.getAllStudents = async (req, res) => {
@@ -93,6 +105,7 @@ exports.createStudent = async (req, res) => {
       subjectIds,
       subjectAccessDates // Формат: { subjectId: { startDate, endDate } }
     } = req.body;
+    const normalizedTelegramId = normalizeTelegramId(telegramId);
 
     // ИСПРАВЛЕНО: lastName больше не обязательное поле
     if (!firstName) {
@@ -100,13 +113,16 @@ exports.createStudent = async (req, res) => {
         message: 'Required fields: firstName' 
       });
     }
+    if (!isValidTelegramId(normalizedTelegramId)) {
+      return res.status(400).json({ message: 'Telegram ID должен содержать только цифры' });
+    }
 
     // Проверка: студент уже существует?
     // Если это ГОСТЬ — переносим (промоутим) его в ученика, сохраняя всю
     // практику/статистику (она уже привязана к этому User.id) — ТЗ §24.
     let student = null;
-    if (telegramId) {
-      const existingStudent = await User.findOne({ where: { telegramId } });
+    if (normalizedTelegramId) {
+      const existingStudent = await User.findOne({ where: { telegramId: normalizedTelegramId } });
       if (existingStudent && !existingStudent.isGuest) {
         return res.status(400).json({
           message: 'Student with this Telegram ID already exists'
@@ -132,7 +148,7 @@ exports.createStudent = async (req, res) => {
     // Создаём студента (если не было гостя для промоута)
     if (!student) {
       student = await User.create({
-        telegramId: telegramId || null,
+        telegramId: normalizedTelegramId,
         telegramUsername: telegramUsername || null,
         firstName,
         lastName: lastName || null,
@@ -174,7 +190,9 @@ exports.createStudent = async (req, res) => {
     });
 
     // ВАЖНО: Обновляем BotUser если такой есть
-    const botUser = await BotUser.findOne({ where: { telegramId } });
+    const botUser = normalizedTelegramId
+      ? await BotUser.findOne({ where: { telegramId: normalizedTelegramId } })
+      : null;
     if (botUser) {
       botUser.isAssigned = true;
       botUser.userId = student.id;
@@ -182,13 +200,14 @@ exports.createStudent = async (req, res) => {
     }
 
     // 🔔 Уведомляем студента о создании аккаунта
-    if (telegramId) {
+    if (normalizedTelegramId) {
       const subjectsText = buildSubjectsText(studentWithSubjects.subjects);
-      await notifyStudent(telegramId,
+      await notifyStudent(normalizedTelegramId,
         `👋 Привет, <b>${firstName}</b>!\n\n` +
         `🎓 Вам открыт доступ к образовательной платформе <b>KUBIK</b>.\n\n` +
         `📚 <b>Ваши предметы:</b>\n${subjectsText}\n\n` +
-        `Нажмите кнопку ниже чтобы войти в приложение:`
+        `Нажмите кнопку ниже чтобы войти в приложение:`,
+        { req, recipient: studentWithSubjects, notificationKind: 'student_created' }
       );
     }
 
@@ -215,6 +234,11 @@ exports.updateStudent = async (req, res) => {
       subjectIds,
       subjectAccessDates 
     } = req.body;
+    const normalizedTelegramId = telegramId === undefined ? undefined : normalizeTelegramId(telegramId);
+
+    if (normalizedTelegramId !== undefined && !isValidTelegramId(normalizedTelegramId)) {
+      return res.status(400).json({ message: 'Telegram ID должен содержать только цифры' });
+    }
 
     const student = await User.findByPk(studentId);
     if (!student || student.role !== 'student') {
@@ -227,7 +251,7 @@ exports.updateStudent = async (req, res) => {
     });
 
     // Обновляем основные данные
-    if (telegramId !== undefined) student.telegramId = telegramId || null;
+    if (normalizedTelegramId !== undefined) student.telegramId = normalizedTelegramId;
     if (telegramUsername !== undefined) student.telegramUsername = telegramUsername || null;
     if (firstName !== undefined) student.firstName = firstName;
     if (lastName !== undefined) student.lastName = lastName || null;
@@ -261,8 +285,8 @@ exports.updateStudent = async (req, res) => {
     }
 
     // Обновляем BotUser если нужно
-    if (telegramId) {
-      const botUser = await BotUser.findOne({ where: { telegramId } });
+    if (normalizedTelegramId) {
+      const botUser = await BotUser.findOne({ where: { telegramId: normalizedTelegramId } });
       if (botUser && !botUser.isAssigned) {
         botUser.isAssigned = true;
         botUser.userId = student.id;
@@ -299,7 +323,8 @@ exports.updateStudent = async (req, res) => {
         await notifyStudent(notifyId,
           `📋 <b>Изменения в вашем доступе</b>\n\n` +
           `📚 <b>Актуальные предметы:</b>\n${subjectsText}\n\n` +
-          `Войдите в приложение:`
+          `Войдите в приложение:`,
+          { req, recipient: updatedStudent, notificationKind: 'student_access_updated' }
         );
       }
     }
@@ -372,13 +397,15 @@ exports.updateStudentSubjects = async (req, res) => {
         const subjectsText = buildSubjectsText(updatedStudent.subjects);
         await notifyStudent(student.telegramId,
           `📋 <b>Изменены ваши предметы</b>${changeText}\n\n` +
-          `📚 <b>Актуальный список:</b>\n${subjectsText}\n\nВойдите в приложение:`
+          `📚 <b>Актуальный список:</b>\n${subjectsText}\n\nВойдите в приложение:`,
+          { req, recipient: updatedStudent, notificationKind: 'student_subjects_updated' }
         );
       } else {
         const subjectsText = buildSubjectsText(updatedStudent.subjects);
         await notifyStudent(student.telegramId,
           `📋 <b>Обновлены сроки доступа</b>\n\n` +
-          `📚 <b>Ваши предметы:</b>\n${subjectsText}\n\nВойдите в приложение:`
+          `📚 <b>Ваши предметы:</b>\n${subjectsText}\n\nВойдите в приложение:`,
+          { req, recipient: updatedStudent, notificationKind: 'student_access_dates_updated' }
         );
       }
     }
