@@ -132,6 +132,10 @@ router.get('/schedule/week', async (req, res) => {
 
 router.get('/lessons/:id/state', requireAccess, async (req, res) => {
   try {
+    // Состояние живого занятия меняется по Socket.IO-событиям. Его нельзя
+    // кэшировать, иначе Telegram WebView отдаёт ученику прошлый опрос/викторину.
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.set('Pragma', 'no-cache');
     res.json(await getLessonState(req.params.id, effectiveStudentId(req)));
   } catch (error) {
     handleError(res, error, 'Get lesson state');

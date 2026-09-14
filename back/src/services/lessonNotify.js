@@ -102,8 +102,14 @@ async function sendNotificationBatch(lesson, { reminder = false } = {}) {
   const results = [];
 
   for (const recipient of recipients) {
+    const name = [recipient.firstName, recipient.lastName].filter(Boolean).join(' ') || `Пользователь #${recipient.id}`;
     if (!bot || !recipient.telegramId) {
-      results.push({ userId: recipient.id, ok: false, reason: 'no_bot_or_telegram_id' });
+      results.push({
+        id: recipient.id,
+        name,
+        status: 'failed',
+        reason: !bot ? 'Бот не запущен' : 'Нет Telegram ID'
+      });
       continue;
     }
     const delivery = await sendTelegramMessage({
@@ -118,9 +124,9 @@ async function sendNotificationBatch(lesson, { reminder = false } = {}) {
       context: { lessonId: lesson.id }
     });
     if (delivery.ok) {
-      results.push({ userId: recipient.id, ok: true });
+      results.push({ id: recipient.id, name, status: 'sent' });
     } else {
-      results.push({ userId: recipient.id, ok: false, reason: delivery.reason });
+      results.push({ id: recipient.id, name, status: 'failed', reason: delivery.reason });
     }
   }
 
@@ -131,8 +137,8 @@ async function sendNotificationBatch(lesson, { reminder = false } = {}) {
     text,
     filters: { lessonId: lesson.id, kind: reminder ? 'lesson_reminder' : 'lesson_start' },
     recipientCount: recipients.length,
-    successCount: results.filter((item) => item.ok).length,
-    failedCount: results.filter((item) => !item.ok).length,
+    successCount: results.filter((item) => item.status === 'sent').length,
+    failedCount: results.filter((item) => item.status === 'failed').length,
     recipients: results
   });
   return { recipients, results };

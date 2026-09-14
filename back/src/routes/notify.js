@@ -120,16 +120,55 @@ router.post('/send', async (req, res) => {
 // GET /api/notify/history
 router.get('/history', async (req, res) => {
   try {
-    const logs = await NotificationLog.findAll({
+    const storedLogs = await NotificationLog.findAll({
       order: [['createdAt', 'DESC']],
       limit: 50
     });
+    const logsData = storedLogs.map((log) => log.toJSON ? log.toJSON() : log);
+    const recipientIds = [...new Set(logsData.flatMap((log) =>
+      (Array.isArray(log.recipients) ? log.recipients : [])
+        .map((recipient) => recipient.id ?? recipient.userId)
+        .filter((id) => id !== undefined && id !== null)
+    ))];
+    const users = recipientIds.length
+      ? await User.findAll({
+        where: { id: { [Op.in]: recipientIds } },
+        attributes: ['id', 'firstName', 'lastName']
+      })
+      : [];
+    const usersById = new Map(users.map((user) => {
+      const data = user.toJSON ? user.toJSON() : user;
+      return [String(data.id), data];
+    }));
+    const logs = logsData.map((log) => ({
+      ...log,
+      recipients: normalizeHistoryRecipients(log.recipients, usersById)
+    }));
     res.json({ logs });
   } catch (error) {
     console.error('History error:', error);
     res.status(500).json({ message: 'Ошибка сервера' });
   }
 });
+
+function normalizeHistoryRecipients(recipients, usersById) {
+  if (!Array.isArray(recipients)) return [];
+
+  return recipients.map((recipient, index) => {
+    const id = recipient.id ?? recipient.userId ?? `unknown-${index}`;
+    const user = usersById.get(String(id));
+    const name = String(
+      recipient.name || [user?.firstName, user?.lastName].filter(Boolean).join(' ')
+    ).trim() || `Пользователь #${id}`;
+
+    return {
+      id,
+      name,
+      status: recipient.status === 'failed' || recipient.ok === false ? 'failed' : 'sent',
+      ...(recipient.reason ? { reason: recipient.reason } : {})
+    };
+  });
+}
 
 // ===== HELPER =====
 async function getFilteredStudents(filters) {

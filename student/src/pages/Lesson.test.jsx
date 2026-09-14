@@ -44,7 +44,7 @@ const mockLive = (state = {}) => {
     if (url.includes('/current?studentId=1')) return jsonResponse({ lesson: liveLesson });
     if (url.includes('/schedule/upcoming-list')) return jsonResponse({ lessons: [] });
     if (url.includes('/schedule/upcoming')) return jsonResponse({ lesson: null });
-    if (url.includes('/state?studentId=1')) return jsonResponse({
+    if (url.includes('/state?')) return jsonResponse({
       lesson: liveLesson, isLive: true, canAskQuestions: true,
       activePoll: null, activeQuiz: null, myQuestions: [], materials: [], ...state
     });
@@ -177,6 +177,43 @@ test('карточка голосования появляется только 
   expect(screen.queryByText('Ожидайте заданий от преподавателя')).not.toBeInTheDocument();
 });
 
+test('событие голосования получает свежее состояние без перезагрузки Telegram', async () => {
+  const handlers = {};
+  const lessonSocket = {
+    emit: vi.fn(),
+    on: vi.fn((event, handler) => { handlers[event] = handler; }),
+    off: vi.fn()
+  };
+  mockContext(liveLesson, { lessonSocket, lessonConnected: true });
+  let activePoll = null;
+  mockLive();
+  apiFetch.mockImplementation((url) => {
+    if (url.includes('/current?studentId=1')) return jsonResponse({ lesson: liveLesson });
+    if (url.includes('/schedule/upcoming-list')) return jsonResponse({ lessons: [] });
+    if (url.includes('/schedule/upcoming')) return jsonResponse({ lesson: null });
+    if (url.includes('/state?')) return jsonResponse({
+      lesson: liveLesson, isLive: true, canAskQuestions: true,
+      activePoll, activeQuiz: null, myQuestions: [], materials: []
+    });
+    return jsonResponse({ attendance: {} });
+  });
+
+  render(<Lesson studentId={1} isTabActive />);
+  expect(await screen.findByText('Ожидайте заданий от преподавателя')).toBeInTheDocument();
+
+  activePoll = {
+    id: 5, status: 'active', question: 'Всё понятно?', hasAnswered: false, myOptionId: null,
+    options: [{ id: 1, text: 'Понятно', order: 0 }, { id: 2, text: 'Нужно повторить', order: 1 }]
+  };
+  handlers['poll:started']?.({ pollId: 5 });
+
+  expect(await screen.findByText('Всё понятно?')).toBeInTheDocument();
+  expect(apiFetch).toHaveBeenCalledWith(
+    expect.stringMatching(/\/lessons\/11\/state\?refresh=\d+&studentId=1/),
+    expect.objectContaining({ cache: 'no-store' })
+  );
+});
+
 test('вопрос викторины скрыт, пока преподаватель его не показал', async () => {
   const lessonSocket = { emit: vi.fn(), on: vi.fn(), off: vi.fn() };
   mockContext(liveLesson, { lessonSocket, lessonConnected: true });
@@ -201,25 +238,16 @@ test('вопрос преподавателю скрыт, если он откл
   expect(screen.queryByText('Задать вопрос преподавателю')).not.toBeInTheDocument();
 });
 
-test('отправляет вопрос преподавателю во время занятия', async () => {
+test('вопрос преподавателю временно скрыт даже при разрешении в состоянии занятия', async () => {
   const lessonSocket = { emit: vi.fn(), on: vi.fn(), off: vi.fn() };
   mockContext(liveLesson, { lessonSocket, lessonConnected: true });
   mockLive();
 
   render(<Lesson studentId={1} isTabActive />);
 
-  fireEvent.click(await screen.findByRole('button', { name: /Задать вопрос преподавателю/ }));
-  const dialog = screen.getByRole('dialog', { name: 'Задать вопрос' });
-  fireEvent.change(within(dialog).getByPlaceholderText('Что осталось непонятным?'), { target: { value: 'Можно повторить?' } });
-  fireEvent.click(within(dialog).getByRole('button', { name: 'Отправить' }));
-
-  expect(await screen.findByText('Преподаватель получил уведомление')).toBeInTheDocument();
-  // Заголовок кнопки остаётся неизменным даже сразу после отправки.
-  expect(screen.getByRole('button', { name: /Задать вопрос преподавателю/ })).toBeInTheDocument();
-  expect(apiFetch).toHaveBeenCalledWith(
-    expect.stringContaining('/lessons/11/questions?studentId=1'),
-    expect.objectContaining({ method: 'POST', body: JSON.stringify({ text: 'Можно повторить?' }) })
-  );
+  await screen.findByText('Занятие идёт');
+  expect(screen.queryByRole('button', { name: /Задать вопрос преподавателю/ })).not.toBeInTheDocument();
+  expect(screen.queryByRole('dialog', { name: 'Задать вопрос' })).not.toBeInTheDocument();
 });
 
 test('голосование исчезает у ученика, когда преподаватель его закрывает', async () => {
@@ -236,7 +264,7 @@ test('голосование исчезает у ученика, когда пр
     if (url.includes('/current?studentId=1')) return jsonResponse({ lesson: liveLesson });
     if (url.includes('/schedule/upcoming-list')) return jsonResponse({ lessons: [] });
     if (url.includes('/schedule/upcoming')) return jsonResponse({ lesson: null });
-    if (url.includes('/state?studentId=1')) return jsonResponse({
+    if (url.includes('/state?')) return jsonResponse({
       lesson: liveLesson, isLive: true, canAskQuestions: true,
       // Закрытая без раскрытия результатов викторина возвращается как activePoll: null
       // (back/src/services/lessonState.js serializeActivePoll) — карточка должна пропасть.
@@ -260,25 +288,13 @@ test('голосование исчезает у ученика, когда пр
   expect(await screen.findByText('Ожидайте заданий от преподавателя')).toBeInTheDocument();
 });
 
-test('текст кнопки вопроса не меняется, статус вопроса виден только в подписи', async () => {
-  const handlers = {};
-  const lessonSocket = {
-    emit: vi.fn(),
-    on: vi.fn((event, cb) => { handlers[event] = cb; }),
-    off: vi.fn()
-  };
+test('вопрос преподавателю остаётся скрыт, если в состоянии есть прошлый вопрос', async () => {
+  const lessonSocket = { emit: vi.fn(), on: vi.fn(), off: vi.fn() };
   mockContext(liveLesson, { lessonSocket, lessonConnected: true });
   mockLive({ myQuestions: [{ id: 40, status: 'pending', text: 'Можно повторить?' }] });
 
   render(<Lesson studentId={1} isTabActive />);
 
-  // Заголовок кнопки всегда «Задать вопрос преподавателю» — статус виден только
-  // в подписи под ним, чтобы кнопка не выглядела занятой прошлым вопросом.
-  expect(await screen.findByRole('button', { name: /Задать вопрос преподавателю/ })).toBeInTheDocument();
-  expect(screen.getByText('Ожидает ответа')).toBeInTheDocument();
-
-  handlers['question:status-changed']?.({ question: { id: 40, status: 'answered', text: 'Можно повторить?' } });
-
-  await waitFor(() => expect(screen.queryByText('Ожидает ответа')).not.toBeInTheDocument());
-  expect(screen.getByRole('button', { name: /Задать вопрос преподавателю/ })).toBeInTheDocument();
+  await screen.findByText('Занятие идёт');
+  expect(screen.queryByRole('button', { name: /Задать вопрос преподавателю/ })).not.toBeInTheDocument();
 });

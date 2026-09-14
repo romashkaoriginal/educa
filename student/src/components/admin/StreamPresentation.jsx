@@ -17,6 +17,11 @@ export function StreamScreen({ source, hostWindow, onClose }) {
   const [revision, setRevision] = useState(0);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState('');
+  const [fullscreen, setFullscreen] = useState(() => Boolean(
+    hostWindow.Telegram?.WebApp?.isFullscreen
+    || hostWindow.document.fullscreenElement
+    || hostWindow.document.webkitFullscreenElement
+  ));
   const action = async name => {
     if (busy) return;
     setBusy(true); setActionError('');
@@ -56,13 +61,76 @@ export function StreamScreen({ source, hostWindow, onClose }) {
     const timer = hostWindow.setInterval(() => setClock(Date.now() + offset.current), 200);
     return () => hostWindow.clearInterval(timer);
   }, [hostWindow]);
+  useEffect(() => {
+    const documentNode = hostWindow.document;
+    const updateFullscreen = () => setFullscreen(Boolean(
+      hostWindow.Telegram?.WebApp?.isFullscreen
+      || documentNode.fullscreenElement
+      || documentNode.webkitFullscreenElement
+    ));
+    documentNode.addEventListener('fullscreenchange', updateFullscreen);
+    documentNode.addEventListener('webkitfullscreenchange', updateFullscreen);
+    return () => {
+      documentNode.removeEventListener('fullscreenchange', updateFullscreen);
+      documentNode.removeEventListener('webkitfullscreenchange', updateFullscreen);
+    };
+  }, [hostWindow]);
+  useEffect(() => {
+    const telegram = hostWindow.Telegram?.WebApp;
+    if (!telegram?.onEvent) return undefined;
+
+    const updateFullscreen = () => setFullscreen(Boolean(telegram.isFullscreen));
+    const fullscreenFailed = ({ error } = {}) => {
+      setActionError(error === 'UNSUPPORTED'
+        ? 'Полный экран не поддерживается этой версией Telegram. Обновите Telegram.'
+        : 'Telegram не смог включить полный экран. Попробуйте ещё раз.');
+    };
+    telegram.onEvent('fullscreenChanged', updateFullscreen);
+    telegram.onEvent('fullscreenFailed', fullscreenFailed);
+    return () => {
+      telegram.offEvent?.('fullscreenChanged', updateFullscreen);
+      telegram.offEvent?.('fullscreenFailed', fullscreenFailed);
+    };
+  }, [hostWindow]);
+  const toggleFullscreen = async event => {
+    const documentNode = hostWindow.document;
+    const telegram = hostWindow.Telegram?.WebApp;
+    try {
+      // В Telegram Mini App нужен нативный API Telegram, а не Web Fullscreen API.
+      // Иначе мобильный клиент не разворачивает приложение и показывает подсказку F11.
+      if (telegram?.requestFullscreen && telegram?.exitFullscreen) {
+        if (telegram.isFullscreen) telegram.exitFullscreen();
+        else telegram.requestFullscreen();
+        return;
+      }
+
+      const fullscreenElement = documentNode.fullscreenElement || documentNode.webkitFullscreenElement;
+      if (fullscreenElement) {
+        const exit = documentNode.exitFullscreen || documentNode.webkitExitFullscreen;
+        if (!exit) throw new Error('Fullscreen API is unavailable');
+        await exit.call(documentNode);
+        return;
+      }
+      // У встроенного экрана fullscreen должен получать сам dialog. Если запросить
+      // его у documentElement, некоторые браузеры оставляют невидимый dialog в top-layer,
+      // который затем перехватывает все клики страницы.
+      const target = event.currentTarget.closest('.stream-inline-dialog') || documentNode.documentElement;
+      const request = target.requestFullscreen || target.webkitRequestFullscreen;
+      if (!request) throw new Error('Fullscreen API is unavailable');
+      await request.call(target);
+    } catch {
+      setActionError(telegram
+        ? 'Полный экран не поддерживается этой версией Telegram. Обновите Telegram.'
+        : 'Браузер не поддерживает полноэкранный режим.');
+    }
+  };
   const remaining = data?.deadline ? Math.max(0, Math.ceil((data.deadline - clock) / 1000)) : 0;
   const phase = data?.phase === 'question' && remaining === 0 ? 'leaderboard' : data?.phase;
   const progress = data?.question?.timeLimit ? Math.max(0, Math.min(1, remaining / data.question.timeLimit)) : 0;
   return <main className={`stream-screen stream-screen--${phase || 'loading'}`}>
     <header className="stream-header"><div className="stream-brand-group"><strong className="stream-brand">KUBIK</strong><span className="stream-live"><i />ПРЯМОЙ ЭФИР</span></div>
       <span className="stream-subject">{source.subjectName || (source.lessonQuizId ? 'Викторина занятия' : 'Все предметы')}</span>
-      <button className="stream-fullscreen" onClick={() => hostWindow.document.documentElement.requestFullscreen?.().catch(() => {})}>На весь экран</button>
+      <button type="button" className="stream-fullscreen" aria-pressed={fullscreen} onClick={toggleFullscreen}>{fullscreen ? 'Выйти из полного экрана' : 'На весь экран'}</button>
     </header>
     {error && <p className="stream-error" role="status">{error}</p>}
     {actionError && <p className="stream-error" role="alert">{actionError}</p>}
@@ -104,7 +172,17 @@ export default function StreamPresentation({ source, hostWindow, onClose }) {
     const overflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     if (node.showModal) node.showModal(); else node.setAttribute('open', '');
-    return () => { node.close?.(); document.body.style.overflow = overflow; previous?.focus?.(); };
+    return () => {
+      const fullscreenElement = document.fullscreenElement || document.webkitFullscreenElement;
+      if (fullscreenElement === node) {
+        const exit = document.exitFullscreen || document.webkitExitFullscreen;
+        const pending = exit?.call(document);
+        pending?.catch?.(() => {});
+      }
+      node.close?.();
+      document.body.style.overflow = overflow;
+      previous?.focus?.();
+    };
   }, [hostWindow]);
   useEffect(() => {
     if (!hostWindow) return undefined;

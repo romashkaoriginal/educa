@@ -8,6 +8,10 @@ import MathText from '../components/MathText';
 import LessonQuizArena from '../components/LessonQuizArena';
 import './Lesson.css';
 
+// Временный переключатель: вопросы преподавателю не показываются ученикам.
+// Чтобы вернуть функцию, достаточно поменять значение на true.
+const STUDENT_QUESTIONS_VISIBLE = false;
+
 const formatTime = (value) => value
   ? new Date(value).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
   : '—';
@@ -439,7 +443,10 @@ export default function Lesson({ studentId, isTabActive, entryRequest = null }) 
 
   const refreshState = useCallback(async (lessonId = currentLesson?.id) => {
     if (!lessonId) return;
-    try { applyState(await studentRequest(`/lessons/${lessonId}/state`)); }
+    // Telegram WebView способен вернуть закэшированное состояние занятия по
+    // одному и тому же URL. После Socket.IO-события нужен именно свежий ответ.
+    const cacheBuster = `refresh=${Date.now()}`;
+    try { applyState(await studentRequest(`/lessons/${lessonId}/state?${cacheBuster}`, { cache: 'no-store' })); }
     catch (error) { setMessage(error.message); }
   }, [currentLesson?.id, applyState, studentRequest]);
 
@@ -598,6 +605,7 @@ export default function Lesson({ studentId, isTabActive, entryRequest = null }) 
   }, [live, activeQuiz?.id, activeQuiz?.status, activeQuiz?.phase, activeQuiz?.joined, activeQuiz?.rosterLocked, pending]);
 
   const sendQuestion = async () => {
+    if (!STUDENT_QUESTIONS_VISIBLE) return;
     if (pending === 'question') return;
     clearTimeout(questionFeedbackTimerRef.current);
     setPending('question');
@@ -706,7 +714,7 @@ export default function Lesson({ studentId, isTabActive, entryRequest = null }) 
 
           {quizScreenAvailable ? <section className="lesson-panel lesson-panel--attention">
             <div className="lesson-panel-heading"><h2>{activeQuiz.title}</h2></div>
-            <button type="button" className="lesson-primary" onClick={() => setDismissedQuizScreen(null)}>{activeQuiz.status === 'finished' ? 'Посмотреть итоги и пьедестал' : 'Открыть экран викторины →'}</button>
+            <button type="button" className="lesson-primary" onClick={() => setDismissedQuizScreen(null)}>{activeQuiz.status === 'finished' ? 'Посмотреть итоги' : 'Открыть экран викторины →'}</button>
           </section> : hasQuizCard && (
             <QuizCard
               quiz={activeQuiz}
@@ -720,7 +728,7 @@ export default function Lesson({ studentId, isTabActive, entryRequest = null }) 
           {!hasActivity && <p className="lesson-waiting">Ожидайте заданий от преподавателя</p>}
 
           {/* ТЗ §4.2: блок вопроса не показывается, если преподаватель их отключил. */}
-          {canAskQuestions && (
+          {STUDENT_QUESTIONS_VISIBLE && canAskQuestions && (
             <button
               type="button"
               className={`lesson-question-button ${questionFeedback === 'success' ? 'lesson-question-button--success' : ''}`}
@@ -749,7 +757,7 @@ export default function Lesson({ studentId, isTabActive, entryRequest = null }) 
       )}
       </div>
 
-      {questionOpen && typeof document !== 'undefined' && createPortal(
+      {STUDENT_QUESTIONS_VISIBLE && questionOpen && typeof document !== 'undefined' && createPortal(
         <div className="lesson-modal-backdrop" onClick={() => setQuestionOpen(false)}>
           <div className="lesson-modal" role="dialog" aria-modal="true" aria-labelledby="lesson-question-title" onClick={(event) => event.stopPropagation()}>
             <button type="button" className="lesson-details-close" onClick={() => setQuestionOpen(false)}>×</button>
