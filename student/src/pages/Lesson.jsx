@@ -450,6 +450,16 @@ export default function Lesson({ studentId, isTabActive, entryRequest = null }) 
     catch (error) { setMessage(error.message); }
   }, [currentLesson?.id, applyState, studentRequest]);
 
+  const requestRealtimeState = useCallback((lessonId = currentLesson?.id) => {
+    const targetLessonId = lessonId || joinedLessonRef.current;
+    if (!targetLessonId) return;
+    if (lessonSocket && lessonConnected) {
+      lessonSocket.emit('student:request-state', { lessonId: targetLessonId, studentId });
+      return;
+    }
+    refreshState(targetLessonId);
+  }, [currentLesson?.id, lessonSocket, lessonConnected, studentId, refreshState]);
+
   const resetSessionState = useCallback(() => {
     joinedLessonRef.current = null;
     setActivePoll(null);
@@ -468,7 +478,7 @@ export default function Lesson({ studentId, isTabActive, entryRequest = null }) 
   useEffect(() => {
     if (!lessonSocket) return undefined;
     const onState = (state) => applyState(state);
-    const reload = () => refreshState();
+    const reload = () => requestRealtimeState();
     const onStarted = () => loadSchedule();
     const onFinished = ({ lessonId } = {}) => {
       if (!lessonId || Number(joinedLessonRef.current) === Number(lessonId)) resetSessionState();
@@ -498,7 +508,7 @@ export default function Lesson({ studentId, isTabActive, entryRequest = null }) 
       lessonSocket.off('question:status-changed', onQuestionStatus);
       lessonSocket.off('error', onError);
     };
-  }, [lessonSocket, applyState, refreshState, loadSchedule, resetSessionState]);
+  }, [lessonSocket, applyState, requestRealtimeState, loadSchedule, resetSessionState]);
 
   // Занятие идёт — экран сразу показывает активную сессию (ТЗ §4.2).
   const live = currentLesson?.status === 'live';
@@ -647,13 +657,17 @@ export default function Lesson({ studentId, isTabActive, entryRequest = null }) 
     ? latestQuestion
     : null;
   // ТЗ §5 состояние №6: на экране показывается не больше одной основной активности.
-  const hasQuizCard = Boolean(activeQuiz && (['lobby', 'leaderboard', 'finished'].includes(activeQuiz.phase) || (activeQuiz.mode === 'single_step'
+  const quizIsRunning = activeQuiz?.status === 'active';
+  const quizHasContent = Boolean(activeQuiz && (['lobby', 'leaderboard', 'finished'].includes(activeQuiz.phase) || (activeQuiz.mode === 'single_step'
     ? activeQuiz.currentQuestion
     : (activeQuiz.questions || []).length)));
-  const hasPollCard = Boolean(activePoll) && !hasQuizCard;
+  // Завершённая викторина остаётся доступной в итогах, но не должна скрывать
+  // новое голосование преподавателя.
+  const hasPollCard = Boolean(activePoll) && !quizIsRunning;
+  const hasQuizCard = quizHasContent && !hasPollCard;
   const hasActivity = hasQuizCard || hasPollCard;
   const quizScreenKey = activeQuiz ? `${activeQuiz.id}:${activeQuiz.status}:${activeQuiz.currentQuestionIndex}:${activeQuiz.questionStartedAt || ''}` : null;
-  const quizScreenAvailable = live && activeQuiz && ['active', 'finished'].includes(activeQuiz.status);
+  const quizScreenAvailable = live && activeQuiz && ['active', 'finished'].includes(activeQuiz.status) && !hasPollCard;
   const arena = quizScreenAvailable && dismissedQuizScreen !== quizScreenKey ? <LessonQuizArena
     quiz={activeQuiz} studentId={studentId} subjectName={currentLesson.subject?.name}
     onAnswer={answerQuiz} onClose={() => setDismissedQuizScreen(quizScreenKey)}

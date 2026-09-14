@@ -1,6 +1,6 @@
 import React from 'react';
 import '@testing-library/jest-dom';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import Lesson from './Lesson';
 import { apiFetch } from './api';
 import { useData } from './DataContext';
@@ -177,7 +177,7 @@ test('карточка голосования появляется только 
   expect(screen.queryByText('Ожидайте заданий от преподавателя')).not.toBeInTheDocument();
 });
 
-test('событие голосования получает свежее состояние без перезагрузки Telegram', async () => {
+test('событие голосования получает свежее состояние по сокету без перезагрузки Telegram', async () => {
   const handlers = {};
   const lessonSocket = {
     emit: vi.fn(),
@@ -185,33 +185,44 @@ test('событие голосования получает свежее сос
     off: vi.fn()
   };
   mockContext(liveLesson, { lessonSocket, lessonConnected: true });
-  let activePoll = null;
   mockLive();
-  apiFetch.mockImplementation((url) => {
-    if (url.includes('/current?studentId=1')) return jsonResponse({ lesson: liveLesson });
-    if (url.includes('/schedule/upcoming-list')) return jsonResponse({ lessons: [] });
-    if (url.includes('/schedule/upcoming')) return jsonResponse({ lesson: null });
-    if (url.includes('/state?')) return jsonResponse({
-      lesson: liveLesson, isLive: true, canAskQuestions: true,
-      activePoll, activeQuiz: null, myQuestions: [], materials: []
-    });
-    return jsonResponse({ attendance: {} });
-  });
 
   render(<Lesson studentId={1} isTabActive />);
   expect(await screen.findByText('Ожидайте заданий от преподавателя')).toBeInTheDocument();
 
-  activePoll = {
+  act(() => handlers['poll:started']?.({ pollId: 5 }));
+  expect(lessonSocket.emit).toHaveBeenCalledWith('student:request-state', { lessonId: 11, studentId: 1 });
+
+  const activePoll = {
     id: 5, status: 'active', question: 'Всё понятно?', hasAnswered: false, myOptionId: null,
     options: [{ id: 1, text: 'Понятно', order: 0 }, { id: 2, text: 'Нужно повторить', order: 1 }]
   };
-  handlers['poll:started']?.({ pollId: 5 });
+  act(() => handlers['lesson:state']?.({
+    lesson: liveLesson, isLive: true, canAskQuestions: true,
+    activePoll, activeQuiz: null, myQuestions: [], materials: []
+  }));
 
   expect(await screen.findByText('Всё понятно?')).toBeInTheDocument();
-  expect(apiFetch).toHaveBeenCalledWith(
-    expect.stringMatching(/\/lessons\/11\/state\?refresh=\d+&studentId=1/),
-    expect.objectContaining({ cache: 'no-store' })
-  );
+});
+
+test('активное голосование не скрывается итогами завершённой викторины', async () => {
+  const lessonSocket = { emit: vi.fn(), on: vi.fn(), off: vi.fn() };
+  mockContext(liveLesson, { lessonSocket, lessonConnected: true });
+  mockLive({
+    activePoll: {
+      id: 5, status: 'active', question: 'Всё понятно?', hasAnswered: false, myOptionId: null,
+      options: [{ id: 1, text: 'Понятно', order: 0 }, { id: 2, text: 'Нужно повторить', order: 1 }]
+    },
+    activeQuiz: {
+      id: 7, status: 'finished', phase: 'finished', title: 'test', mode: 'single_step',
+      leaderboard: [], totalQuestions: 1, currentQuestionIndex: 0
+    }
+  });
+
+  render(<Lesson studentId={1} isTabActive />);
+
+  expect(await screen.findByText('Всё понятно?')).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Посмотреть итоги' })).not.toBeInTheDocument();
 });
 
 test('вопрос викторины скрыт, пока преподаватель его не показал', async () => {
@@ -259,7 +270,6 @@ test('голосование исчезает у ученика, когда пр
   };
   mockContext(liveLesson, { lessonSocket, lessonConnected: true });
 
-  let pollActive = true;
   apiFetch.mockImplementation((url) => {
     if (url.includes('/current?studentId=1')) return jsonResponse({ lesson: liveLesson });
     if (url.includes('/schedule/upcoming-list')) return jsonResponse({ lessons: [] });
@@ -268,10 +278,8 @@ test('голосование исчезает у ученика, когда пр
       lesson: liveLesson, isLive: true, canAskQuestions: true,
       // Закрытая без раскрытия результатов викторина возвращается как activePoll: null
       // (back/src/services/lessonState.js serializeActivePoll) — карточка должна пропасть.
-      activePoll: pollActive
-        ? { id: 5, status: 'active', question: 'Всё понятно?', hasAnswered: false, myOptionId: null,
-            options: [{ id: 1, text: 'Понятно', order: 0 }, { id: 2, text: 'Нужно повторить', order: 1 }] }
-        : null,
+      activePoll: { id: 5, status: 'active', question: 'Всё понятно?', hasAnswered: false, myOptionId: null,
+        options: [{ id: 1, text: 'Понятно', order: 0 }, { id: 2, text: 'Нужно повторить', order: 1 }] },
       activeQuiz: null, myQuestions: [], materials: []
     });
     return jsonResponse({ attendance: {} });
@@ -281,8 +289,12 @@ test('голосование исчезает у ученика, когда пр
 
   expect(await screen.findByText('Всё понятно?')).toBeInTheDocument();
 
-  pollActive = false;
-  handlers['poll:closed']?.({ pollId: 5 });
+  act(() => handlers['poll:closed']?.({ pollId: 5 }));
+  expect(lessonSocket.emit).toHaveBeenCalledWith('student:request-state', { lessonId: 11, studentId: 1 });
+  act(() => handlers['lesson:state']?.({
+    lesson: liveLesson, isLive: true, canAskQuestions: true,
+    activePoll: null, activeQuiz: null, myQuestions: [], materials: []
+  }));
 
   await waitFor(() => expect(screen.queryByText('Всё понятно?')).not.toBeInTheDocument());
   expect(await screen.findByText('Ожидайте заданий от преподавателя')).toBeInTheDocument();
