@@ -4,10 +4,13 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import LessonAdmin, { mergeStudentQuestionUpdate } from './Lesson';
 import { adminFetch } from './adminApi';
 import { io } from 'socket.io-client';
+import { openStreamWindow } from './streamWindow';
 
 vi.mock('./adminApi', () => ({ adminFetch: vi.fn(), getTelegramInitData: vi.fn(() => 'test') }));
 vi.mock('socket.io-client', () => ({ io: vi.fn() }));
 vi.mock('./ImageUploadField', () => ({ default: () => null }));
+vi.mock('./StreamPresentation', () => ({ default: ({ source }) => <div data-testid="stream-screen">Экран викторины {source.lessonQuizId}</div> }));
+vi.mock('./streamWindow', () => ({ openStreamWindow: vi.fn() }));
 
 const response = (body) => Promise.resolve({
   ok: true,
@@ -34,6 +37,7 @@ beforeEach(() => {
   lesson = { ...baseLesson };
   sessionState = { lesson, polls: [], quizzes: [], materials: [] };
   window.confirm = vi.fn(() => true);
+  openStreamWindow.mockReturnValue({ closed: false, close: vi.fn() });
   io.mockReturnValue({ on: vi.fn(), emit: vi.fn(), disconnect: vi.fn() });
   adminFetch.mockImplementation((url, options = {}) => {
     if (url.endsWith('/lesson-admin/lessons/7/polls') && options.method === 'POST') {
@@ -83,7 +87,7 @@ test('показывает подготовку только после откр
   await waitFor(() => expect(screen.queryByText('Расписание')).not.toBeInTheDocument());
 });
 
-test('после завершения активности позволяет создать новое голосование и новую викторину', async () => {
+test('после завершения активности позволяет создать голосование, а викторину готовят в отдельном разделе', async () => {
   lesson.status = 'live';
   sessionState = {
     lesson,
@@ -99,39 +103,48 @@ test('после завершения активности позволяет с
   fireEvent.click(await screen.findByRole('button', { name: '+ Новое голосование' }));
   fireEvent.click(screen.getByRole('button', { name: 'Создать голосование' }));
 
-  fireEvent.click(await screen.findByRole('button', { name: '+ Новая викторина' }));
-  fireEvent.change(screen.getByPlaceholderText('Название викторины'), { target: { value: 'Новая викторина' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Создать викторину' }));
+  expect(screen.queryByRole('button', { name: '+ Новая викторина' })).not.toBeInTheDocument();
 
   await waitFor(() => expect(adminFetch).toHaveBeenCalledWith(
     expect.stringContaining('/lesson-admin/lessons/7/polls'),
     expect.objectContaining({ method: 'POST' })
   ));
-  await waitFor(() => expect(adminFetch).toHaveBeenCalledWith(
-    expect.stringContaining('/lesson-admin/lessons/7/quizzes'),
-    expect.objectContaining({ method: 'POST' })
-  ));
 });
 
-test('позволяет выбрать одну из нескольких подготовленных викторин', async () => {
+test('переход из раздела викторин открывает привязанное занятие', async () => {
   sessionState = {
     lesson,
     polls: [],
     quizzes: [
       { id: 31, title: 'Первая викторина', status: 'draft', mode: 'single_step', questions: [] },
-      { id: 32, title: 'Вторая викторина', status: 'draft', mode: 'self_paced', questions: [] }
     ],
     materials: []
   };
 
-  render(<LessonAdmin subjects={[{ id: 1, name: 'Математика' }]} currentUser={{ role: 'teacher' }} />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Открыть →' }));
+  render(<LessonAdmin subjects={[{ id: 1, name: 'Математика' }]} currentUser={{ role: 'teacher' }} entryRequest={{ lessonId: 7, nonce: 1 }} />);
+  expect(await screen.findByText('Первая викторина')).toBeInTheDocument();
+  expect(screen.getByText('Подготовка занятия')).toBeInTheDocument();
+});
 
-  const picker = await screen.findByLabelText('Подготовленные викторины');
-  expect(picker).toHaveValue('31');
-  fireEvent.change(picker, { target: { value: '32' } });
-  expect(picker).toHaveValue('32');
-  expect(screen.getByText(/самостоятельно · вопросов: 0/)).toBeInTheDocument();
+test.each(['teacher', 'admin', 'superadmin'])('экран викторины открывается внутри приложения для %s', async (role) => {
+  lesson.status = 'live';
+  sessionState = {
+    lesson,
+    polls: [],
+    quizzes: [{
+      id: 31, title: 'Викторина занятия', status: 'active', mode: 'single_step',
+      currentQuestionIndex: 0, questionRevealState: 'question', questions: [{ id: 41, order: 0, timeLimit: 30 }]
+    }],
+    materials: []
+  };
+
+  render(<LessonAdmin subjects={[{ id: 1, name: 'Математика' }]} currentUser={{ role }} />);
+  fireEvent.click(await screen.findByRole('button', { name: /Математика/ }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Экран викторины ↗' }));
+
+  expect(openStreamWindow).not.toHaveBeenCalled();
+  expect(screen.getByTestId('stream-screen')).toHaveTextContent('31');
+  expect(screen.getAllByText('Викторина занятия').length).toBeGreaterThan(0);
 });
 
 // Групп как сущности больше нет: ученик попадает на занятие по доступу к предмету,

@@ -283,6 +283,7 @@ export function MatchingWire({ pairs, rightOrder, connections, colors, onChange 
 }
 
 function formatDeadline(date) {
+  if (!date) return 'Бессрочно';
   return new Date(date).toLocaleString('ru-RU', {
     day: 'numeric',
     month: 'long',
@@ -301,8 +302,8 @@ function getDeadlineHint(minutesLeft) {
 }
 
 function getHomeworkCardState(homework, now = new Date()) {
-  const closeDate = new Date(homework.closeDate);
-  const minutesLeft = Math.floor((closeDate - now) / (1000 * 60));
+  const closeDate = homework.closeDate ? new Date(homework.closeDate) : null;
+  const minutesLeft = closeDate ? Math.floor((closeDate - now) / (1000 * 60)) : Number.POSITIVE_INFINITY;
   const questionCount = (homework.questions || []).length;
   const maxScore = homework.stats?.maxScore
     || (homework.questions || []).reduce((sum, q) => sum + (q.points || 0), 0);
@@ -358,7 +359,7 @@ function getHomeworkCardState(homework, now = new Date()) {
     actionLabel,
     attemptsText,
     bestResultText,
-    deadlineHint: getDeadlineHint(minutesLeft),
+    deadlineHint: closeDate ? getDeadlineHint(minutesLeft) : { text: 'Без ограничения по времени', tone: 'ok' },
     disabled: isExpired || attemptsExhausted
   };
 }

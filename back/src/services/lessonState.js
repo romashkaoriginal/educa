@@ -1,7 +1,8 @@
 const { Op } = require('sequelize');
+const { buildLessonQuizLeaderboard } = require('./streamPresentation');
 const {
   Lesson, Subject, User, LessonPoll, LessonPollOption, LessonPollAnswer,
-  LessonQuiz, LessonQuizQuestion, LessonQuizAnswer, LessonQuestion, LessonMaterial,
+  LessonQuiz, LessonQuizQuestion, LessonQuizAnswer, LessonQuizDelivery, LessonQuizParticipant, LessonQuestion, LessonMaterial,
   PracticeImage
 } = require('../models');
 
@@ -66,7 +67,7 @@ async function serializeActivePoll(lessonId, userId) {
 
 async function serializeActiveQuiz(lessonId, userId) {
   const quiz = await LessonQuiz.findOne({
-    where: { lessonId, status: 'active' },
+    where: { lessonId, status: { [Op.in]: ['draft', 'active', 'finished'] } },
     order: [['startedAt', 'DESC']],
     include: [{
       model: LessonQuizQuestion,
@@ -79,17 +80,59 @@ async function serializeActiveQuiz(lessonId, userId) {
   });
   if (!quiz) return null;
   const questions = [...(quiz.questions || [])].sort((a, b) => a.order - b.order);
-  const reveal = quiz.questionRevealState === 'answer';
+  // Правильный вариант остаётся только в кабинете преподавателя и на
+  // презентационном экране. Ученический API никогда не выдаёт ключ ответа.
+  const reveal = false;
   const answers = await LessonQuizAnswer.findAll({
     where: { lessonQuizId: quiz.id, userId },
-    attributes: ['questionId', 'selectedAnswer', 'isCorrect'],
+    // Даже признак «верно/неверно» раскрывает ключ в одиночном вопросе.
+    attributes: ['questionId', 'selectedAnswer'],
     raw: true
   });
   const answerByQuestion = new Map(answers.map((answer) => [Number(answer.questionId), answer]));
   const base = quiz.toJSON();
   delete base.questions;
+  base.totalQuestions = questions.length;
+  base.serverNow = Date.now();
+  base.phase = quiz.status === 'active' ? 'waiting' : 'lobby';
+
+  const participant = await LessonQuizParticipant.findOne({ where: { lessonQuizId: quiz.id, userId }, attributes: ['id'] });
+  base.joined = Boolean(participant);
+  if (quiz.status === 'draft') {
+    base.phase = 'lobby';
+    base.currentQuestion = null;
+    return base;
+  }
+
+  const current = questions[quiz.currentQuestionIndex] || null;
+  const deadline = current && quiz.questionStartedAt
+    ? new Date(quiz.questionStartedAt).getTime() + Number(current.timeLimit || 30) * 1000
+    : null;
+  base.deadline = deadline;
+  const leaderboardPhase = quiz.status === 'finished' || (quiz.mode === 'single_step' && (quiz.questionRevealState === 'answer' || (deadline && Date.now() >= deadline)));
+  if (leaderboardPhase) {
+    const [allAnswers, roster] = await Promise.all([
+      LessonQuizAnswer.findAll({
+        where: { lessonQuizId: quiz.id },
+        include: [{ model: User, as: 'user', attributes: ['id', 'firstName'] }]
+      }),
+      LessonQuizParticipant.findAll({
+        where: { lessonQuizId: quiz.id },
+        include: [{ model: User, as: 'user', attributes: ['id', 'firstName'] }]
+      })
+    ]);
+    const ranked = buildLessonQuizLeaderboard(allAnswers, roster, quiz.isAnonymous, Infinity);
+    base.phase = quiz.status === 'finished' ? 'finished' : 'leaderboard';
+    base.leaderboard = ranked.slice(0, 10);
+    base.myStanding = ranked.find((entry) => entry.id === Number(userId)) || null;
+    base.participantCount = ranked.length;
+    base.currentQuestion = null;
+    base.myAnswer = null;
+    return base;
+  }
 
   if (quiz.mode === 'self_paced') {
+    base.phase = 'question';
     base.questions = questions.map((question) => {
       const safe = stripQuestionAnswer(question, reveal);
       if (!quiz.explanationRevealed || !quiz.showExplanations) {
@@ -100,12 +143,12 @@ async function serializeActiveQuiz(lessonId, userId) {
       return { ...safe, myAnswer: answerByQuestion.get(Number(question.id)) || null };
     });
   } else {
-    const current = questions[quiz.currentQuestionIndex] || null;
     if (quiz.questionRevealState === 'hidden') {
       base.currentQuestion = null;
     } else {
+      base.phase = 'question';
       base.currentQuestion = stripQuestionAnswer(current, reveal);
-      if (!quiz.explanationRevealed || !quiz.showExplanations) {
+      if (base.currentQuestion && (!quiz.explanationRevealed || !quiz.showExplanations)) {
         delete base.currentQuestion.explanation;
         delete base.currentQuestion.hintImageId;
         delete base.currentQuestion.hintImage;

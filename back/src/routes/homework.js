@@ -350,7 +350,10 @@ router.get('/student/:studentId', assertSelfOrStaff('studentId'), async (req, re
         subjectId: { [Op.in]: subjectIds },
         isActive: true,
         openDate: { [Op.lte]: now },
-        closeDate: { [Op.gte]: now }
+        [Op.or]: [
+          { closeDate: { [Op.gte]: now } },
+          { closeDate: { [Op.is]: null } }
+        ]
       },
       include: [
         {
@@ -418,7 +421,7 @@ router.post('/create', isAdmin, async (req, res) => {
 
     console.log(`${logPrefix} request: title="${title}" subjectId=${subjectId} openDate=${openDate} closeDate=${closeDate} maxAttempts=${maxAttempts} questions=${Array.isArray(questions) ? questions.length : questions}`);
 
-    if (!title || !subjectId || !openDate || !closeDate || !questions || questions.length === 0) {
+    if (!title || !subjectId || !openDate || !questions || questions.length === 0) {
       console.warn(`${logPrefix} FAILED: Missing required fields`, {
         hasTitle: !!title, hasSubjectId: !!subjectId, hasOpenDate: !!openDate,
         hasCloseDate: !!closeDate, questionsCount: questions?.length
@@ -584,7 +587,7 @@ router.post('/submit', assertBodyStudentId, async (req, res) => {
     }
 
     const now = new Date();
-    if (now < new Date(homework.openDate) || now > new Date(homework.closeDate)) {
+    if (now < new Date(homework.openDate) || (homework.closeDate && now > new Date(homework.closeDate))) {
       return res.status(400).json({ message: 'Homework is not open for submissions' });
     }
 
@@ -897,8 +900,8 @@ router.get('/student/:studentId/stats', assertSelfOrStaff('studentId'), async (r
     const now = new Date();
     const total = homeworks.length;
     const completed = homeworksWithStats.filter(hw => hw.bestSubmission).length;
-    const active = homeworks.filter(hw => 
-      new Date(hw.openDate) <= now && new Date(hw.closeDate) >= now
+    const active = homeworks.filter(hw =>
+      new Date(hw.openDate) <= now && (!hw.closeDate || new Date(hw.closeDate) >= now)
     ).length;
 
     const avgScore = completed > 0

@@ -1,11 +1,44 @@
 const { Op } = require('sequelize');
 const { Lesson, LessonPoll } = require('../models');
-const { finishLessonById } = require('./lessonSession');
+const { SESSION_DURATION_MS, finishLessonById } = require('./lessonSession');
 const { sendLessonReminderNotifications } = require('./lessonNotify');
 const { emitToLesson } = require('./lessonRealtime');
 
 const TICK_MS = 60 * 1000;
 let timer = null;
+
+// Для урока из расписания нет отдельной длительности. Используем ту же
+// стандартную длительность, что и у ручной live-сессии. Не отменённый урок
+// после этого окна считаем проведённым: так расписание и отчёты не расходятся.
+async function finishOverdueScheduledLessons(now = new Date(), { LessonModel = Lesson, emit = emitToLesson } = {}) {
+  const threshold = new Date(now.getTime() - SESSION_DURATION_MS);
+  const overdue = await LessonModel.findAll({
+    where: {
+      status: 'scheduled',
+      fromSchedule: true,
+      scheduledAt: { [Op.lte]: threshold }
+    },
+    attributes: ['id', 'scheduledAt']
+  });
+
+  const finishedIds = [];
+  for (const lesson of overdue) {
+    const scheduledAt = new Date(lesson.scheduledAt);
+    const scheduledEnd = new Date(scheduledAt.getTime() + SESSION_DURATION_MS);
+    const [updated] = await LessonModel.update({
+      status: 'finished',
+      startedAt: scheduledAt,
+      sessionEndsAt: scheduledEnd,
+      finishedAt: scheduledEnd
+    }, {
+      where: { id: lesson.id, status: 'scheduled' }
+    });
+    if (!updated) continue;
+    finishedIds.push(lesson.id);
+    emit(lesson.id, 'lesson:finished', { lessonId: lesson.id, auto: true, bySchedule: true });
+  }
+  return finishedIds;
+}
 
 async function tick() {
   const now = new Date();
@@ -26,6 +59,12 @@ async function tick() {
     }
   } catch (error) {
     console.error('Lesson reminder scheduler:', error.message);
+  }
+
+  try {
+    await finishOverdueScheduledLessons(now);
+  } catch (error) {
+    console.error('Lesson scheduled auto-finish scheduler:', error.message);
   }
 
   try {
@@ -58,4 +97,10 @@ function stopLessonScheduler() {
   timer = null;
 }
 
-module.exports = { tick, startLessonScheduler, stopLessonScheduler };
+module.exports = {
+  SESSION_DURATION_MS,
+  finishOverdueScheduledLessons,
+  tick,
+  startLessonScheduler,
+  stopLessonScheduler
+};

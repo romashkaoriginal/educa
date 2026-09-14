@@ -4,6 +4,7 @@ import { adminFetch } from './adminApi';
 import { API_URL } from '../../config';
 import { useSectionRefresh } from './useSectionRefresh';
 import MathText from '../MathText';
+import StreamPresentation from './StreamPresentation';
 
 const PERIOD_OPTIONS = [
   { value: 'today', label: 'Сегодня' },
@@ -37,6 +38,9 @@ function AdminStatistics({ currentUser, dataRefreshKey = 0 }) {
   const [period, setPeriod] = useState('30d');
   const [subjectId, setSubjectId] = useState('');
   const [homeworkSort, setHomeworkSort] = useState('name');
+  const [leaderboardPeriod, setLeaderboardPeriod] = useState(7);
+  const [leaderboardSubjectId, setLeaderboardSubjectId] = useState('');
+  const [stream, setStream] = useState(null);
 
   // Данные для режима "все"
   const [practiceData, setAllPractice] = useState(null);
@@ -182,6 +186,15 @@ function AdminStatistics({ currentUser, dataRefreshKey = 0 }) {
     return `${a.firstName || ''} ${a.lastName || ''}`.localeCompare(`${b.firstName || ''} ${b.lastName || ''}`, 'ru');
   });
 
+  const openLeaderboard = () => {
+    if (!leaderboardSubjectId) return;
+    const subject = subjects.find((item) => String(item.id) === String(leaderboardSubjectId));
+    setStream({
+      hostWindow: null,
+      source: { subjectId: Number(leaderboardSubjectId), subjectName: subject?.name || 'Предмет', periodDays: leaderboardPeriod }
+    });
+  };
+
   // ===== КОМПОНЕНТ ПРОГРЕСС-БАРА =====
   const PercentBadge = ({ value }) => (
     <span className={`as-percent ${value >= 70 ? 'good' : value >= 50 ? 'medium' : 'low'}`}>{value}%</span>
@@ -201,6 +214,20 @@ function AdminStatistics({ currentUser, dataRefreshKey = 0 }) {
             {mode === 'all' ? '📊 Статистика учеников' : `📊 ${selectedStudent?.firstName} ${selectedStudent?.lastName || ''}`}
           </h2>
         </div>
+
+        {mode === 'all' && !isManager && (
+          <div className="as-leaderboard-launcher">
+            <select aria-label="Предмет лидерборда" value={leaderboardSubjectId} onChange={(event) => setLeaderboardSubjectId(event.target.value)}>
+              <option value="">Лидерборд: выберите предмет</option>
+              {subjects.map((subject) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}
+            </select>
+            <select aria-label="Период лидерборда" value={leaderboardPeriod} onChange={(event) => setLeaderboardPeriod(Number(event.target.value))}>
+              <option value={7}>7 дней</option>
+              <option value={30}>30 дней</option>
+            </select>
+            <button type="button" className="as-leaderboard-launch" disabled={!leaderboardSubjectId} onClick={openLeaderboard}>Открыть лидерборд ↗</button>
+          </div>
+        )}
 
         {/* Переключатель все / конкретный */}
         {mode === 'all' && (
@@ -509,7 +536,7 @@ function AdminStatistics({ currentUser, dataRefreshKey = 0 }) {
                           const sub = hw.bestSubmission;
                           const pct = sub ? Math.round(sub.totalScore / sub.maxScore * 100) : null;
                           const now = new Date();
-                          const expired = new Date(hw.closeDate) < now;
+                          const expired = hw.closeDate ? new Date(hw.closeDate) < now : false;
                           return (
                             <div key={hi} className="homework-stat-card">
                               <div className="hw-stat-header">
@@ -556,7 +583,7 @@ function AdminStatistics({ currentUser, dataRefreshKey = 0 }) {
                                 <div className="hw-date-item">
                                   <span className="hw-date-label">⏰ Дедлайн:</span>
                                   <span className={`hw-date-value ${expired && !sub ? 'expired' : ''}`}>
-                                    {new Date(hw.closeDate).toLocaleString('ru-RU', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}
+                                    {hw.closeDate ? new Date(hw.closeDate).toLocaleString('ru-RU', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}) : 'Без дедлайна'}
                                   </span>
                                 </div>
                               </div>
@@ -571,6 +598,7 @@ function AdminStatistics({ currentUser, dataRefreshKey = 0 }) {
           )}
         </div>
       )}
+      {stream && <StreamPresentation source={stream.source} hostWindow={stream.hostWindow} onClose={() => setStream(null)} />}
     </div>
   );
 }

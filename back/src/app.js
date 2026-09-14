@@ -13,6 +13,7 @@ const { startBot, stopBot } = require('./bot');
 const authRoutes = require('./routes/auth');
 const subjectRoutes = require('./routes/subjects');
 const studentRoutes = require('./routes/students');
+const parentRoutes = require('./routes/parents');
 const statsRoutes = require('./routes/stats');
 const adminRoutes = require('./routes/admin');
 const homeworkRoutes = require('./routes/homework');
@@ -33,6 +34,7 @@ const setupQuizSocket = require('./socket/quizSocket');
 const setupLessonSocket = require('./socket/lessonSocket');
 const { startGuestScheduler } = require('./services/guestScheduler');
 const { startLessonScheduler, stopLessonScheduler } = require('./services/lessonScheduler');
+const { startParentReportScheduler, stopParentReportScheduler } = require('./services/parentReportScheduler');
 const { startErrorLogRetention, stopErrorLogRetention } = require('./services/errorLogRetention');
 const { telegramAuth, requireUser, requireAdmin, requireRole, blockGuests } = require('./middleware/telegramAuth');
 const {
@@ -155,6 +157,7 @@ app.use('/api/admin', telegramAuth, requireAdmin, adminRoutes);
 
 // admin + manager
 app.use('/api/students', telegramAuth, requireRole(['admin', 'manager']), studentRoutes);
+app.use('/api/parents', telegramAuth, requireRole(['admin', 'manager']), parentRoutes);
 app.use('/api/users', telegramAuth, requireRole(['admin', 'manager']), usersRoutes);
 
 // admin + manager + teacher
@@ -193,6 +196,7 @@ const startServer = async () => {
     startBot();
     startGuestScheduler();
     startLessonScheduler();
+    startParentReportScheduler();
   });
 };
 
@@ -200,6 +204,7 @@ process.on('SIGTERM', () => {
   console.log('\n🛑 Получен сигнал завершения...');
   stopBot();
   stopLessonScheduler();
+  stopParentReportScheduler();
   stopErrorLogRetention();
   process.exit(0);
 });

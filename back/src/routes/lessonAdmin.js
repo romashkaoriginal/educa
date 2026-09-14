@@ -1,9 +1,9 @@
 const express = require('express');
-const { Op, fn, col } = require('sequelize');
+const { Op, fn, col, QueryTypes } = require('sequelize');
 const {
   sequelize, User, Subject, UserSubject, TeacherSubject,
   Lesson, LessonPoll, LessonPollOption, LessonPollAnswer,
-  LessonQuiz, LessonQuizQuestion, LessonQuizAnswer, LessonQuizDelivery, PracticeQuestion,
+  LessonQuiz, LessonQuizQuestion, LessonQuizAnswer, LessonQuizDelivery, LessonQuizParticipant, PracticeQuestion, PracticeImage,
   LessonQuestion, LessonReaction, LessonAttendance, LessonMaterial, Homework
 } = require('../models');
 const {
@@ -13,8 +13,42 @@ const { startLessonById, startInstantLesson, finishLessonById } = require('../se
 const { getPollResults, lessonInclude } = require('../services/lessonState');
 const { emitToLesson, emitToLessonAdmins } = require('../services/lessonRealtime');
 const { nextQuestionState } = require('../services/lessonQuizFlow');
+const {
+  WEEKLY_SQL, buildLessonQuizLeaderboard, presentLessonQuiz
+} = require('../services/streamPresentation');
 
 const router = express.Router();
+const quizQuestionTimers = new Map();
+
+function clearQuizQuestionTimer(quizId) {
+  const timer = quizQuestionTimers.get(Number(quizId));
+  if (timer) clearTimeout(timer);
+  quizQuestionTimers.delete(Number(quizId));
+}
+
+// Таймер — серверный: после дедлайна вопрос закрывается даже если преподаватель
+// не держит открытым экран трансляции. Повторная проверка защищает от старого
+// таймера после перехода к следующему вопросу или завершения викторины.
+function scheduleQuizQuestionClose(quiz, question) {
+  if (!quiz?.questionStartedAt || !question?.timeLimit) return;
+  clearQuizQuestionTimer(quiz.id);
+  const startedAt = new Date(quiz.questionStartedAt).getTime();
+  const delay = Math.max(0, startedAt + Number(question.timeLimit) * 1000 - Date.now());
+  const timer = setTimeout(async () => {
+    quizQuestionTimers.delete(Number(quiz.id));
+    try {
+      const current = await LessonQuiz.findByPk(quiz.id);
+      if (!current || current.status !== 'active' || current.questionRevealState !== 'question'
+        || Number(current.currentQuestionIndex) !== Number(quiz.currentQuestionIndex)
+        || new Date(current.questionStartedAt).getTime() !== startedAt) return;
+      await current.update({ questionRevealState: 'answer' });
+      emitToLesson(current.lessonId, 'quiz:answer-revealed', { quizId: current.id, closed: true, reason: 'timer' });
+    } catch (error) {
+      console.error('Close lesson quiz question by timer', error);
+    }
+  }, delay + 20);
+  quizQuestionTimers.set(Number(quiz.id), timer);
+}
 
 const POLL_TEMPLATES = {
   clear_unclear: { question: 'Всё понятно?', options: ['Понятно', 'Непонятно'] },
@@ -92,6 +126,48 @@ async function resolveParentLesson(req, res, next) {
     fail(res, error, 'Resolve lesson parent');
   }
 }
+
+router.get('/stream/weekly', async (req, res) => {
+  try {
+    const requestedSubjectId = req.query.subjectId ? Number(req.query.subjectId) : null;
+    const periodDays = Number(req.query.periodDays || 7);
+    if (!Number.isInteger(requestedSubjectId) || ![7, 30].includes(periodDays)) return bad(res, 'Выберите предмет и период 7 или 30 дней');
+    const allowedSubjectIds = await manageableSubjectIds(req.dbUser);
+    if (allowedSubjectIds && requestedSubjectId && !allowedSubjectIds.includes(requestedSubjectId)) {
+      return bad(res, 'Нет доступа к этому предмету', 403);
+    }
+    if (allowedSubjectIds?.length === 0) {
+      return res.json({
+        title: 'Лидеры недели', phase: 'weekly', serverNow: Date.now(),
+        periodDays, participantCount: 0, leaderboard: []
+      });
+    }
+    const until = new Date();
+    const since = new Date(until.getTime() - periodDays * 24 * 60 * 60 * 1000);
+    const rows = await sequelize.query(WEEKLY_SQL, {
+      type: QueryTypes.SELECT,
+      replacements: {
+        since, until, subjectId: requestedSubjectId,
+        restrictSubjects: Boolean(allowedSubjectIds),
+        allowedSubjectIds: allowedSubjectIds?.length ? allowedSubjectIds : [0]
+      }
+    });
+    res.json({
+      title: `Лидеры за ${periodDays} дней`, phase: 'weekly', serverNow: until.getTime(), periodDays,
+      participantCount: rows.length,
+      leaderboard: rows.map((row, index) => {
+        const previous = rows[index - 1];
+        const samePlace = previous
+          && Number(previous.totalScore) === Number(row.totalScore)
+          && Number(previous.homeworkScore) === Number(row.homeworkScore);
+        return {
+          id: Number(row.id), name: row.name || 'Участник', totalScore: Number(row.totalScore) || 0,
+          place: samePlace ? rows.findIndex((item) => Number(item.totalScore) === Number(row.totalScore) && Number(item.homeworkScore) === Number(row.homeworkScore)) + 1 : index + 1
+        };
+      })
+    });
+  } catch (error) { fail(res, error, 'Get weekly stream leaderboard'); }
+});
 
 router.get('/teacher-subjects', async (req, res) => {
   if (!['admin', 'superadmin'].includes(req.dbUser.role)) return bad(res, 'Только администратор видит назначения', 403);
@@ -174,6 +250,60 @@ router.get('/lessons/:id/state', requireLessonAccess, async (req, res) => {
     ]);
     res.json({ lesson, polls, quizzes, materials });
   } catch (error) { fail(res, error, 'Get lesson admin state'); }
+});
+
+// Викторины готовятся в отдельном разделе. В карточке занятия преподаватель
+// только выбирает уже привязанную викторину и управляет её проведением.
+router.get('/standalone-quizzes', async (req, res) => {
+  try {
+    const allowedSubjectIds = await manageableSubjectIds(req.dbUser);
+    const where = {};
+    if (allowedSubjectIds) where.subjectId = { [Op.in]: allowedSubjectIds };
+    const lessons = await Lesson.findAll({
+      where,
+      include: [{
+        model: LessonQuiz,
+        as: 'quizzes',
+        include: [{ model: LessonQuizQuestion, as: 'questions' }]
+      }, { model: Subject, as: 'subject', attributes: ['id', 'name', 'icon'] }],
+      order: [['scheduledAt', 'DESC']]
+    });
+    const quizzes = lessons.flatMap((lesson) => (lesson.quizzes || []).map((quiz) => ({
+      ...quiz.toJSON(),
+      lesson: {
+        id: lesson.id,
+        subjectId: lesson.subjectId,
+        subject: lesson.subject,
+        topic: lesson.topic,
+        scheduledAt: lesson.scheduledAt,
+        status: lesson.status,
+        teacherId: lesson.teacherId
+      }
+    })));
+    res.json({ quizzes });
+  } catch (error) { fail(res, error, 'Get standalone lesson quizzes'); }
+});
+
+router.get('/scheduled-lessons-for-quizzes', async (req, res) => {
+  try {
+    const allowedSubjectIds = await manageableSubjectIds(req.dbUser);
+    const where = { status: 'scheduled' };
+    if (allowedSubjectIds) where.subjectId = { [Op.in]: allowedSubjectIds };
+    const lessons = await Lesson.findAll({
+      where,
+      include: [
+        { model: Subject, as: 'subject', attributes: ['id', 'name', 'icon'] },
+        { model: LessonQuiz, as: 'quizzes', attributes: ['id', 'title'] },
+        { model: User, as: 'teacher', attributes: ['id', 'firstName', 'lastName'] }
+      ],
+      order: [['scheduledAt', 'ASC']]
+    });
+    res.json({ lessons: lessons.map((lesson) => ({
+      ...lesson.toJSON(),
+      hasQuiz: (lesson.quizzes || []).length > 0,
+      quizId: lesson.quizzes?.[0]?.id || null
+    })) });
+  } catch (error) { fail(res, error, 'Get scheduled lessons for quizzes'); }
 });
 
 // ТЗ §3.1/§8.7-8.9: в расписании указываются только дата, время и тема.
@@ -436,18 +566,72 @@ router.delete('/polls/:pollId/answers/:userId', resolveParentLesson, async (req,
 router.post('/lessons/:id/quizzes', requireLessonAccess, async (req, res) => {
   try {
     const lesson = await Lesson.findByPk(req.lessonId);
-    // ТЗ §8.2: викторина — интерактив активного занятия, вне него она недоступна.
-    if (!lesson || lesson.status !== 'live') return bad(res, 'Викторина доступна только во время активного занятия', 409);
+    if (!lesson || !['scheduled', 'live'].includes(lesson.status)) return bad(res, 'Викторину можно привязать только к предстоящему или идущему занятию', 409);
+    if (await LessonQuiz.count({ where: { lessonId: lesson.id } })) return bad(res, 'К занятию уже привязана викторина', 409);
     const title = String(req.body.title || '').trim();
-    if (!title || !['single_step', 'self_paced'].includes(req.body.mode)) return bad(res, 'Укажите название и режим викторины');
+    if (!title) return bad(res, 'Укажите название викторины');
     const quiz = await LessonQuiz.create({
-      lessonId: req.lessonId, title, mode: req.body.mode,
+      lessonId: req.lessonId, title, mode: 'single_step',
       isAnonymous: Boolean(req.body.isAnonymous),
       showExplanations: req.body.showExplanations !== false,
       createdBy: req.dbUser.id
     });
     res.status(201).json({ quiz });
   } catch (error) { fail(res, error, 'Create lesson quiz'); }
+});
+
+// Викторина остаётся редактируемой, пока занятие, в котором она используется,
+// не идёт. Перепривязать можно только к будущему занятию без другой викторины.
+router.patch('/quizzes/:quizId', resolveParentLesson, async (req, res) => {
+  try {
+    const quiz = await LessonQuiz.findByPk(req.params.quizId);
+    const currentLesson = await Lesson.findByPk(req.lessonId);
+    if (!quiz || !currentLesson) return bad(res, 'Викторина или занятие не найдены', 404);
+    if (currentLesson.status === 'live') {
+      return bad(res, 'Нельзя изменить викторину: занятие уже идёт', 409);
+    }
+
+    const patch = {};
+    if (req.body.title !== undefined) {
+      const title = String(req.body.title || '').trim();
+      if (!title) return bad(res, 'Укажите название викторины');
+      patch.title = title;
+    }
+
+    if (req.body.lessonId !== undefined && Number(req.body.lessonId) !== quiz.lessonId) {
+      const targetLessonId = Number(req.body.lessonId);
+      const targetLesson = await Lesson.findByPk(targetLessonId);
+      if (!targetLesson) return bad(res, 'Занятие для привязки не найдено', 404);
+      if (!(await teacherCanManageLesson(req.dbUser, targetLessonId))) {
+        return bad(res, 'Нет прав на выбранное занятие', 403);
+      }
+      if (targetLesson.status !== 'scheduled') {
+        return bad(res, 'Перепривязать викторину можно только к предстоящему занятию', 409);
+      }
+      if (await LessonQuiz.count({ where: { lessonId: targetLessonId } })) {
+        return bad(res, 'К выбранному занятию уже привязана викторина', 409);
+      }
+      patch.lessonId = targetLessonId;
+    }
+
+    await quiz.update(patch);
+    res.json({ quiz });
+  } catch (error) { fail(res, error, 'Update lesson quiz'); }
+});
+
+router.delete('/quizzes/:quizId', resolveParentLesson, async (req, res) => {
+  try {
+    const [quiz, lesson] = await Promise.all([
+      LessonQuiz.findByPk(req.params.quizId),
+      Lesson.findByPk(req.lessonId)
+    ]);
+    if (!quiz || !lesson) return bad(res, 'Викторина или занятие не найдены', 404);
+    if (lesson.status === 'live') {
+      return bad(res, 'Нельзя удалить викторину: занятие уже идёт', 409);
+    }
+    await quiz.destroy();
+    res.json({ ok: true });
+  } catch (error) { fail(res, error, 'Delete lesson quiz'); }
 });
 
 router.post('/quizzes/:quizId/questions', resolveParentLesson, async (req, res) => {
@@ -463,6 +647,7 @@ router.post('/quizzes/:quizId/questions', resolveParentLesson, async (req, res) 
       correctAnswer: Array.isArray(req.body.correctAnswer) ? req.body.correctAnswer : [req.body.correctAnswer],
       explanation: String(req.body.explanation || '').trim() || null,
       hintImageId: req.body.hintImageId || null,
+      timeLimit: req.body.timeLimit === undefined ? 30 : Number(req.body.timeLimit),
       order: req.body.order ?? count
     });
     res.status(201).json({ question });
@@ -477,7 +662,7 @@ router.patch('/quizzes/:quizId/questions/:questionId', resolveParentLesson, asyn
     ]);
     if (!question) return bad(res, 'Вопрос не найден', 404);
     if (quiz.status !== 'draft') return bad(res, 'Вопросы меняются только до запуска', 409);
-    const fields = ['questionText', 'questionImageId', 'options', 'correctAnswer', 'explanation', 'hintImageId', 'order'];
+    const fields = ['questionText', 'questionImageId', 'options', 'correctAnswer', 'explanation', 'hintImageId', 'timeLimit', 'order'];
     const patch = {};
     fields.forEach((field) => { if (req.body[field] !== undefined) patch[field] = req.body[field]; });
     await question.update(patch);
@@ -527,7 +712,8 @@ router.post('/quizzes/:quizId/start', resolveParentLesson, async (req, res) => {
       status: 'active', startedAt: new Date(), finishedAt: null,
       currentQuestionIndex: quiz.mode === 'single_step' ? 0 : -1,
       questionRevealState: quiz.mode === 'single_step' ? 'hidden' : 'question',
-      explanationRevealed: false
+      explanationRevealed: false, rosterLocked: quiz.mode !== 'single_step',
+      questionStartedAt: null
     });
     emitToLesson(lesson.id, 'quiz:started', { quizId: quiz.id, mode: quiz.mode });
     res.json({ quiz });
@@ -543,14 +729,15 @@ async function updateQuizReveal(req, res, action) {
     if (quiz.mode === 'single_step' && !question) return bad(res, 'Вопрос не найден', 404);
     if (action === 'question') {
       if (quiz.mode !== 'single_step') return bad(res, 'В самостоятельном режиме вопросы уже показаны', 409);
-      await quiz.update({ questionRevealState: 'question', explanationRevealed: false });
+      await quiz.update({ questionRevealState: 'question', explanationRevealed: false, questionStartedAt: new Date(), rosterLocked: true });
+      scheduleQuizQuestionClose(quiz, question);
       const safe = question.toJSON(); delete safe.correctAnswer; delete safe.explanation; delete safe.hintImageId;
       emitToLesson(quiz.lessonId, 'quiz:question-shown', { quizId: quiz.id, question: safe, index: quiz.currentQuestionIndex });
     } else if (action === 'answer') {
       await quiz.update({ questionRevealState: 'answer' });
-      emitToLesson(quiz.lessonId, 'quiz:answer-revealed', quiz.mode === 'single_step'
-        ? { quizId: quiz.id, questionId: question.id, correctAnswer: question.correctAnswer }
-        : { quizId: quiz.id, answers: questions.map((item) => ({ questionId: item.id, correctAnswer: item.correctAnswer })) });
+      clearQuizQuestionTimer(quiz.id);
+      // Закрываем сбор ответов. В эфир и ученический API не попадает ключ ответа.
+      emitToLesson(quiz.lessonId, 'quiz:answer-revealed', { quizId: quiz.id, closed: true });
     } else if (action === 'explanation') {
       if (quiz.questionRevealState !== 'answer') return bad(res, 'Сначала покажите правильный ответ', 409);
       await quiz.update({ explanationRevealed: true });
@@ -574,9 +761,15 @@ router.post('/quizzes/:quizId/next-question', resolveParentLesson, async (req, r
   try {
     const quiz = await LessonQuiz.findByPk(req.params.quizId);
     if (quiz.status !== 'active' || quiz.mode !== 'single_step') return bad(res, 'Действие недоступно', 409);
-    const count = await LessonQuizQuestion.count({ where: { lessonQuizId: quiz.id } });
-    if (quiz.currentQuestionIndex + 1 >= count) return bad(res, 'Это последний вопрос', 409);
-    await quiz.update(nextQuestionState(quiz));
+    const questions = await LessonQuizQuestion.findAll({
+      where: { lessonQuizId: quiz.id }, order: [['order', 'ASC']], attributes: ['id', 'timeLimit']
+    });
+    if (quiz.currentQuestionIndex + 1 >= questions.length) return bad(res, 'Это последний вопрос', 409);
+    if (quiz.questionRevealState !== 'answer') {
+      return bad(res, 'Сначала закройте текущий вопрос и покажите рейтинг', 409);
+    }
+    await quiz.update({ ...nextQuestionState(quiz), questionStartedAt: new Date() });
+    scheduleQuizQuestionClose(quiz, questions[quiz.currentQuestionIndex]);
     emitToLesson(quiz.lessonId, 'quiz:next-question', { quizId: quiz.id, index: quiz.currentQuestionIndex });
     res.json({ quiz });
   } catch (error) { fail(res, error, 'Next lesson quiz question'); }
@@ -586,9 +779,43 @@ router.post('/quizzes/:quizId/finish', resolveParentLesson, async (req, res) => 
   try {
     const quiz = await LessonQuiz.findByPk(req.params.quizId);
     if (quiz.status === 'active') await quiz.update({ status: 'finished', finishedAt: new Date() });
+    clearQuizQuestionTimer(quiz.id);
     emitToLesson(quiz.lessonId, 'quiz:finished', { quizId: quiz.id });
     res.json({ quiz });
   } catch (error) { fail(res, error, 'Finish lesson quiz'); }
+});
+
+router.get('/quizzes/:quizId/stream', resolveParentLesson, async (req, res) => {
+  try {
+    const quiz = await LessonQuiz.findByPk(req.params.quizId, {
+      include: [{
+        model: LessonQuizQuestion,
+        as: 'questions',
+        include: [{ model: PracticeImage, as: 'questionImage', attributes: ['storageKey', 'width', 'height'] }]
+      }]
+    });
+    if (!quiz) return bad(res, 'Викторина не найдена', 404);
+    const [answers, roster] = await Promise.all([
+      LessonQuizAnswer.findAll({
+        where: { lessonQuizId: quiz.id },
+        include: [{ model: User, as: 'user', attributes: ['id', 'firstName', 'lastName'] }]
+      }),
+      LessonQuizParticipant.findAll({
+        where: { lessonQuizId: quiz.id },
+        include: [{ model: User, as: 'user', attributes: ['id', 'firstName', 'lastName'] }]
+      })
+    ]);
+    const participants = new Set([
+      ...answers.map((answer) => Number(answer.userId)),
+      ...roster.map((member) => Number(member.userId))
+    ]);
+    const questions = [...(quiz.questions || [])].sort((a, b) => a.order - b.order);
+    const currentQuestion = quiz.mode === 'single_step' ? questions[quiz.currentQuestionIndex] || null : null;
+    const leaderboard = buildLessonQuizLeaderboard(answers, roster, quiz.isAnonymous);
+    res.json(presentLessonQuiz(
+      quiz, currentQuestion, leaderboard, questions.length, participants.size, Date.now()
+    ));
+  } catch (error) { fail(res, error, 'Get lesson quiz stream'); }
 });
 
 router.get('/quizzes/:quizId/live-stats', resolveParentLesson, async (req, res) => {
@@ -610,9 +837,12 @@ router.get('/quizzes/:quizId/live-stats', resolveParentLesson, async (req, res) 
         where: { role: 'student', isActive: true, isGuest: false }
       }]
     });
-    const deliveries = await LessonQuizDelivery.findAll({
+    const [deliveries, participants] = await Promise.all([LessonQuizDelivery.findAll({
       where: { lessonQuizId: quiz.id }, attributes: ['questionId', 'userId'], raw: true
-    });
+    }), LessonQuizParticipant.findAll({
+      where: { lessonQuizId: quiz.id },
+      include: [{ model: User, as: 'user', attributes: ['id', 'firstName', 'lastName'] }]
+    })]);
     const receivedStudents = new Set(deliveries.map((delivery) => Number(delivery.userId))).size;
     const questions = quiz.questions.map((question) => {
       const questionAnswers = answers.filter((answer) => Number(answer.questionId) === Number(question.id));
@@ -626,7 +856,7 @@ router.get('/quizzes/:quizId/live-stats', resolveParentLesson, async (req, res) 
         ...(!quiz.isAnonymous ? { answers: questionAnswers } : {})
       };
     });
-    res.json({ quiz, totalStudents, receivedStudents, questions });
+    res.json({ quiz, totalStudents, receivedStudents, participants, questions });
   } catch (error) { fail(res, error, 'Lesson quiz live stats'); }
 });
 

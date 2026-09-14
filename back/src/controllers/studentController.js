@@ -3,12 +3,16 @@ const {
   PracticeAttempt, PracticeBest, PracticeDailyLog, BotUser, QuizAnswer, QuizParticipant,
   // Агрегатные таблицы практики — тоже ссылаются на studentId и блокируют удаление
   PracticeQuestionResult, PracticeScoreHistory, PracticeStudentTotals, PracticeDailyStats,
-  PracticeTopicTotals, PracticeDifficultyTotals, PracticeModeTotals, PracticeRecentError,
+  PracticeTopicTotals, PracticeDifficultyTotals, PracticeModeTotals, PracticeRecentError, Parent,
   sequelize
 } = require('../models');
 const { Op } = require('sequelize');
 const { getWebAppUrlSync } = require('../utils/webAppUrl');
 const { sendTelegramMessage } = require('../services/telegramDelivery');
+const {
+  resolveStudentIdentity,
+  usernameLookup
+} = require('../services/systemUserIdentity');
 
 function formatDate(date) {
   if (!date) return 'бессрочно';
@@ -45,13 +49,12 @@ function buildSubjectsText(subjects) {
   }).join('\n');
 }
 
-function normalizeTelegramId(value) {
-  const normalized = String(value ?? '').trim();
-  return normalized || null;
-}
-
-function isValidTelegramId(value) {
-  return value === null || /^\d+$/.test(value);
+function handleStudentIdentityError(res, error) {
+  if (error.statusCode) return res.status(error.statusCode).json({ message: error.message });
+  if (error.name === 'SequelizeUniqueConstraintError') {
+    return res.status(409).json({ message: 'Telegram ID или username уже используется другим пользователем' });
+  }
+  return res.status(500).json({ message: 'Server error' });
 }
 
 // Получить всех студентов
@@ -68,13 +71,14 @@ exports.getAllStudents = async (req, res) => {
           { guestStatus: 'converted_to_student' }
         ]
       },
-      include: [{
-        model: Subject,
-        as: 'subjects',
-        through: { 
-          attributes: ['accessStartDate', 'accessEndDate', 'isActive'] 
-        }
-      }],
+      include: [
+        {
+          model: Subject,
+          as: 'subjects',
+          through: { attributes: ['accessStartDate', 'accessEndDate', 'isActive'] }
+        },
+        { model: Parent, as: 'parent' }
+      ],
       attributes: [
         'id',
         'telegramId',
@@ -105,7 +109,9 @@ exports.createStudent = async (req, res) => {
       subjectIds,
       subjectAccessDates // Формат: { subjectId: { startDate, endDate } }
     } = req.body;
-    const normalizedTelegramId = normalizeTelegramId(telegramId);
+    const identity = await resolveStudentIdentity({ telegramId, telegramUsername });
+    const normalizedTelegramId = identity.telegramId;
+    const normalizedTelegramUsername = identity.telegramUsername;
 
     // ИСПРАВЛЕНО: lastName больше не обязательное поле
     if (!firstName) {
@@ -113,16 +119,13 @@ exports.createStudent = async (req, res) => {
         message: 'Required fields: firstName' 
       });
     }
-    if (!isValidTelegramId(normalizedTelegramId)) {
-      return res.status(400).json({ message: 'Telegram ID должен содержать только цифры' });
-    }
-
     // Проверка: студент уже существует?
     // Если это ГОСТЬ — переносим (промоутим) его в ученика, сохраняя всю
     // практику/статистику (она уже привязана к этому User.id) — ТЗ §24.
     let student = null;
+    let existingStudent = null;
     if (normalizedTelegramId) {
-      const existingStudent = await User.findOne({ where: { telegramId: normalizedTelegramId } });
+      existingStudent = await User.findOne({ where: { telegramId: normalizedTelegramId } });
       if (existingStudent && !existingStudent.isGuest) {
         return res.status(400).json({
           message: 'Student with this Telegram ID already exists'
@@ -133,7 +136,7 @@ exports.createStudent = async (req, res) => {
         await existingStudent.update({
           firstName,
           lastName: lastName || null,
-          telegramUsername: telegramUsername || existingStudent.telegramUsername,
+          telegramUsername: normalizedTelegramUsername || existingStudent.telegramUsername,
           role: 'student',
           isActive: true,
           isGuest: false,
@@ -145,11 +148,24 @@ exports.createStudent = async (req, res) => {
       }
     }
 
+    if (normalizedTelegramUsername) {
+      const duplicateByUsername = await User.findOne({
+        where: {
+          ...usernameLookup(normalizedTelegramUsername),
+          isGuest: false,
+          ...(existingStudent ? { id: { [Op.ne]: existingStudent.id } } : {})
+        }
+      });
+      if (duplicateByUsername) {
+        return res.status(409).json({ message: 'Ученик с таким Telegram username уже существует' });
+      }
+    }
+
     // Создаём студента (если не было гостя для промоута)
     if (!student) {
       student = await User.create({
         telegramId: normalizedTelegramId,
-        telegramUsername: telegramUsername || null,
+        telegramUsername: normalizedTelegramUsername,
         firstName,
         lastName: lastName || null,
         role: 'student',
@@ -190,9 +206,9 @@ exports.createStudent = async (req, res) => {
     });
 
     // ВАЖНО: Обновляем BotUser если такой есть
-    const botUser = normalizedTelegramId
+    const botUser = identity.botUser || (normalizedTelegramId
       ? await BotUser.findOne({ where: { telegramId: normalizedTelegramId } })
-      : null;
+      : null);
     if (botUser) {
       botUser.isAssigned = true;
       botUser.userId = student.id;
@@ -217,7 +233,7 @@ exports.createStudent = async (req, res) => {
     });
   } catch (error) {
     console.error('Create student error:', error);
-    res.status(500).json({ message: 'Server error' });
+    handleStudentIdentityError(res, error);
   }
 };
 
@@ -234,15 +250,31 @@ exports.updateStudent = async (req, res) => {
       subjectIds,
       subjectAccessDates 
     } = req.body;
-    const normalizedTelegramId = telegramId === undefined ? undefined : normalizeTelegramId(telegramId);
-
-    if (normalizedTelegramId !== undefined && !isValidTelegramId(normalizedTelegramId)) {
-      return res.status(400).json({ message: 'Telegram ID должен содержать только цифры' });
-    }
+    const identity = (telegramId !== undefined || telegramUsername !== undefined)
+      ? await resolveStudentIdentity({
+          telegramId: telegramId === undefined ? undefined : telegramId,
+          telegramUsername: telegramUsername === undefined ? undefined : telegramUsername
+        })
+      : null;
+    const normalizedTelegramId = telegramId === undefined ? undefined : identity.telegramId;
+    const normalizedTelegramUsername = telegramUsername === undefined ? undefined : identity.telegramUsername;
 
     const student = await User.findByPk(studentId);
     if (!student || student.role !== 'student') {
       return res.status(404).json({ message: 'Student not found' });
+    }
+
+    if (normalizedTelegramUsername) {
+      const duplicateByUsername = await User.findOne({
+        where: {
+          ...usernameLookup(normalizedTelegramUsername),
+          isGuest: false,
+          id: { [Op.ne]: student.id }
+        }
+      });
+      if (duplicateByUsername) {
+        return res.status(409).json({ message: 'Ученик с таким Telegram username уже существует' });
+      }
     }
 
     // Старые предметы для сравнения
@@ -252,7 +284,7 @@ exports.updateStudent = async (req, res) => {
 
     // Обновляем основные данные
     if (normalizedTelegramId !== undefined) student.telegramId = normalizedTelegramId;
-    if (telegramUsername !== undefined) student.telegramUsername = telegramUsername || null;
+    if (telegramUsername !== undefined) student.telegramUsername = normalizedTelegramUsername;
     if (firstName !== undefined) student.firstName = firstName;
     if (lastName !== undefined) student.lastName = lastName || null;
     if (typeof isActive === 'boolean') student.isActive = isActive;
@@ -335,7 +367,7 @@ exports.updateStudent = async (req, res) => {
     });
   } catch (error) {
     console.error('Update student error:', error);
-    res.status(500).json({ message: 'Server error' });
+    handleStudentIdentityError(res, error);
   }
 };
 
@@ -529,7 +561,8 @@ exports.deleteStudent = async (req, res) => {
       await QuizAnswer.destroy({ where: { userId: studentId }, transaction: t });
       await QuizParticipant.destroy({ where: { userId: studentId }, transaction: t });
 
-      // 4. Предметы
+      // 4. Родитель и предметы
+      await Parent.destroy({ where: { studentId }, transaction: t });
       await UserSubject.destroy({ where: { userId: studentId }, transaction: t });
 
       // 5. Полностью удаляем BotUser-запись (а не просто отвязываем).

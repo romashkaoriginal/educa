@@ -169,6 +169,20 @@ router.get('/lessons/:id/quiz/active', requireAccess, async (req, res) => {
   }
 });
 
+router.post('/lesson-quiz/:quizId/join', async (req, res) => {
+  try {
+    const { LessonQuiz, LessonQuizParticipant } = require('../models');
+    const quiz = await LessonQuiz.findByPk(req.params.quizId);
+    if (!quiz) return res.status(404).json({ message: 'Викторина не найдена' });
+    await requireLiveAccess(quiz.lessonId, effectiveStudentId(req));
+    const registrationOpen = quiz.status === 'draft'
+      || (quiz.status === 'active' && quiz.mode === 'single_step' && quiz.questionRevealState === 'hidden');
+    if (!registrationOpen || quiz.rosterLocked) return res.status(409).json({ message: 'Регистрация в викторину уже закрыта' });
+    await LessonQuizParticipant.findOrCreate({ where: { lessonQuizId: quiz.id, userId: effectiveStudentId(req) }, defaults: { lessonQuizId: quiz.id, userId: effectiveStudentId(req) } });
+    res.status(201).json({ quiz: await serializeActiveQuiz(quiz.lessonId, effectiveStudentId(req)) });
+  } catch (error) { handleError(res, error, 'Join lesson quiz'); }
+});
+
 router.post('/lesson-quiz/:quizId/questions/:questionId/answer', async (req, res) => {
   try {
     const result = await submitQuizAnswer({
@@ -182,8 +196,12 @@ router.post('/lesson-quiz/:quizId/questions/:questionId/answer', async (req, res
       questionId: Number(req.params.questionId),
       userId: effectiveStudentId(req)
     });
+    if (result.allAnswered) {
+      // Состояние меняется автоматически, но ключи ответов ученикам не отправляются.
+      emitToLesson(result.lessonId, 'quiz:answer-revealed', { quizId: Number(req.params.quizId), closed: true });
+    }
     emitToLessonAdmins(result.lessonId, 'attendance:updated', { attendance: result.attendance });
-    res.status(201).json({ answer: result.answer, quiz: result.activeQuiz });
+    res.status(201).json({ answer: { questionId: result.answer.questionId, selectedAnswer: result.answer.selectedAnswer }, quiz: result.activeQuiz });
   } catch (error) {
     handleError(res, error, 'Submit quiz answer');
   }

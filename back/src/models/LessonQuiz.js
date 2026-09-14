@@ -27,6 +27,8 @@ const LessonQuiz = sequelize.define('LessonQuiz', {
     defaultValue: 'hidden'
   },
   explanationRevealed: { type: DataTypes.BOOLEAN, defaultValue: false },
+  questionStartedAt: { type: DataTypes.DATE, allowNull: true },
+  rosterLocked: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
   startedAt: { type: DataTypes.DATE, allowNull: true },
   finishedAt: { type: DataTypes.DATE, allowNull: true },
   createdBy: {

@@ -5,6 +5,7 @@ import { apiFetch } from './api';
 import { useData } from './DataContext';
 import StudentBrandMark from '../components/StudentBrandMark';
 import MathText from '../components/MathText';
+import LessonQuizArena from '../components/LessonQuizArena';
 import './Lesson.css';
 
 const formatTime = (value) => value
@@ -289,24 +290,47 @@ function QuizQuestion({ question, myAnswer, disabled, onSubmit, resultVisible, e
 }
 
 // ТЗ §4.2: карточка викторины появляется только после запуска вопроса преподавателем.
-function QuizCard({ quiz, onAnswer, pendingQuestionId }) {
+function QuizCard({ quiz, onAnswer, onJoin, pendingQuestionId }) {
   const [selfPacedIndex, setSelfPacedIndex] = useState(0);
   useEffect(() => setSelfPacedIndex(0), [quiz?.id]);
+  const questionDeadline = quiz?.mode === 'single_step' && quiz.questionStartedAt && quiz.currentQuestion
+    ? new Date(quiz.questionStartedAt).getTime() + Number(quiz.currentQuestion.timeLimit || 30) * 1000
+    : null;
+  const questionRemainingMs = useCountdown(questionDeadline);
   if (!quiz) return null;
+
+  if (quiz.phase === 'lobby') {
+    return <section className="lesson-panel lesson-panel--attention"><div className="lesson-panel-heading"><h2>{quiz.title}</h2></div>
+      {quiz.joined ? <p className="lesson-accepted">Вы в списке участников. Ждём запуска преподавателем.</p> : <button type="button" className="lesson-primary" onClick={onJoin}>Присоединиться</button>}
+    </section>;
+  }
+
+  if (['leaderboard', 'finished'].includes(quiz.phase)) {
+    return (
+      <section className="lesson-panel lesson-panel--attention">
+        <div className="lesson-panel-heading"><h2>{quiz.phase === 'finished' ? 'Итоги викторины' : 'Рейтинг викторины'}</h2></div>
+        <ol className="lesson-quiz-leaderboard">
+          {(quiz.leaderboard || []).map((entry) => <li key={entry.id}><span>{entry.place}</span><strong>{entry.name}</strong><b>{entry.totalScore} б.</b></li>)}
+        </ol>
+        <p className="lesson-accepted">{quiz.phase === 'finished' ? 'Викторина завершена.' : 'Ответы закрыты. Преподаватель готовит следующий вопрос.'}</p>
+      </section>
+    );
+  }
 
   if (quiz.mode === 'single_step') {
     // До показа вопроса преподавателем блок не занимает место на экране (§8.14).
     if (!quiz.currentQuestion) return null;
+    const questionExpired = questionRemainingMs !== null && questionRemainingMs <= 0;
     return (
       <section className="lesson-panel lesson-panel--attention">
-        <div className="lesson-panel-heading"><h2>Вопрос от преподавателя</h2></div>
+        <div className="lesson-panel-heading"><h2>Вопрос от преподавателя</h2>{questionDeadline && <span className={`lesson-countdown ${questionExpired ? 'lesson-countdown--expired' : ''}`}>{questionExpired ? 'Время истекло' : formatCountdown(questionRemainingMs)}</span>}</div>
         <QuizQuestion
           question={quiz.currentQuestion}
           myAnswer={quiz.myAnswer}
-          disabled={pendingQuestionId === quiz.currentQuestion.id || quiz.questionRevealState !== 'question'}
+          disabled={pendingQuestionId === quiz.currentQuestion.id || quiz.questionRevealState !== 'question' || questionExpired}
           onSubmit={(selected) => onAnswer(quiz.currentQuestion.id, selected)}
-          resultVisible={quiz.questionRevealState === 'answer'}
-          explanationVisible={quiz.explanationRevealed}
+          resultVisible={false}
+          explanationVisible={false}
         />
       </section>
     );
@@ -374,6 +398,7 @@ export default function Lesson({ studentId, isTabActive, entryRequest = null }) 
   const [upcomingList, setUpcomingList] = useState([]);
   const [activePoll, setActivePoll] = useState(null);
   const [activeQuiz, setActiveQuiz] = useState(null);
+  const [dismissedQuizScreen, setDismissedQuizScreen] = useState(null);
   const [myQuestions, setMyQuestions] = useState([]);
   const [canAskQuestions, setCanAskQuestions] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
@@ -499,6 +524,15 @@ export default function Lesson({ studentId, isTabActive, entryRequest = null }) 
     refreshState(currentLesson.id);
   }, [live, currentLesson?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Recover missed quiz events after Telegram backgrounds the WebView.
+  useEffect(() => {
+    if (!live) return undefined;
+    const recover = () => { if (document.visibilityState !== 'hidden') refreshState(); };
+    const timer = setInterval(recover, 5000);
+    document.addEventListener('visibilitychange', recover);
+    return () => { clearInterval(timer); document.removeEventListener('visibilitychange', recover); };
+  }, [live, refreshState]);
+
   useEffect(() => {
     if (!isTabActive || !live) return;
     studentRequest(`/lessons/${currentLesson.id}/attendance/ping`, { method: 'POST' }).catch(() => {});
@@ -521,6 +555,16 @@ export default function Lesson({ studentId, isTabActive, entryRequest = null }) 
     studentRequest
   ]);
 
+  // Таймер истёк на сервере: запрашиваем актуальное состояние и переключаем
+  // ученика на промежуточный рейтинг, даже если преподаватель ещё не нажал кнопку.
+  useEffect(() => {
+    if (!live || activeQuiz?.mode !== 'single_step' || !activeQuiz?.currentQuestion || !activeQuiz?.questionStartedAt) return undefined;
+    const deadline = new Date(activeQuiz.questionStartedAt).getTime() + Number(activeQuiz.currentQuestion.timeLimit || 30) * 1000;
+    const delay = Math.max(0, deadline - Date.now()) + 80;
+    const timer = setTimeout(() => refreshState(), delay);
+    return () => clearTimeout(timer);
+  }, [live, activeQuiz?.id, activeQuiz?.currentQuestion?.id, activeQuiz?.questionStartedAt, activeQuiz?.currentQuestion?.timeLimit, refreshState]);
+
   const act = async (key, callback) => {
     setPending(key); setMessage('');
     try { await callback(); } catch (error) { setMessage(error.message); }
@@ -538,6 +582,20 @@ export default function Lesson({ studentId, isTabActive, entryRequest = null }) 
     });
     await refreshState();
   });
+
+  const joinQuiz = () => act('join-quiz', async () => {
+    await studentRequest(`/lesson-quiz/${activeQuiz.id}/join`, { method: 'POST' });
+    await refreshState();
+  });
+
+  // После запуска сервер оставляет короткое окно регистрации до показа первого
+  // вопроса. Ученик попадает в игру автоматически, без отдельной кнопки.
+  useEffect(() => {
+    if (!live || activeQuiz?.status !== 'active' || activeQuiz.phase !== 'waiting'
+      || activeQuiz.joined || activeQuiz.rosterLocked || pending === 'join-quiz') return;
+    joinQuiz();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [live, activeQuiz?.id, activeQuiz?.status, activeQuiz?.phase, activeQuiz?.joined, activeQuiz?.rosterLocked, pending]);
 
   const sendQuestion = async () => {
     if (pending === 'question') return;
@@ -581,11 +639,20 @@ export default function Lesson({ studentId, isTabActive, entryRequest = null }) 
     ? latestQuestion
     : null;
   // ТЗ §5 состояние №6: на экране показывается не больше одной основной активности.
-  const hasQuizCard = Boolean(activeQuiz && (activeQuiz.mode === 'single_step'
+  const hasQuizCard = Boolean(activeQuiz && (['lobby', 'leaderboard', 'finished'].includes(activeQuiz.phase) || (activeQuiz.mode === 'single_step'
     ? activeQuiz.currentQuestion
-    : (activeQuiz.questions || []).length));
+    : (activeQuiz.questions || []).length)));
   const hasPollCard = Boolean(activePoll) && !hasQuizCard;
   const hasActivity = hasQuizCard || hasPollCard;
+  const quizScreenKey = activeQuiz ? `${activeQuiz.id}:${activeQuiz.status}:${activeQuiz.currentQuestionIndex}:${activeQuiz.questionStartedAt || ''}` : null;
+  const quizScreenAvailable = live && activeQuiz && ['active', 'finished'].includes(activeQuiz.status);
+  const arena = quizScreenAvailable && dismissedQuizScreen !== quizScreenKey ? <LessonQuizArena
+    quiz={activeQuiz} studentId={studentId} subjectName={currentLesson.subject?.name}
+    onAnswer={answerQuiz} onClose={() => setDismissedQuizScreen(quizScreenKey)}
+    pendingQuestionId={pending.startsWith('quiz-') ? Number(pending.slice(5)) : null}
+    joining={pending === 'join-quiz'}
+    connected={lessonConnected && !lessonReconnecting} error={message}
+  /> : null;
 
   // Синяя шапка — общий для всех разделов элемент (практика, домашка, статистика).
   const hero = (
@@ -620,6 +687,7 @@ export default function Lesson({ studentId, isTabActive, entryRequest = null }) 
         <div className="lesson-content">
           {message && <button type="button" className="lesson-toast" onClick={() => setMessage('')}>{message}<span>×</span></button>}
           <ScheduleView lessons={upcomingList} onClose={() => setScheduleOpen(false)} />
+          {arena}
         </div>
       </div>
     );
@@ -636,13 +704,18 @@ export default function Lesson({ studentId, isTabActive, entryRequest = null }) 
         <>
           <ActiveLessonCard lesson={currentLesson} onStream={openStream} />
 
-          {hasQuizCard && (
+          {quizScreenAvailable ? <section className="lesson-panel lesson-panel--attention">
+            <div className="lesson-panel-heading"><h2>{activeQuiz.title}</h2></div>
+            <button type="button" className="lesson-primary" onClick={() => setDismissedQuizScreen(null)}>{activeQuiz.status === 'finished' ? 'Посмотреть итоги и пьедестал' : 'Открыть экран викторины →'}</button>
+          </section> : hasQuizCard && (
             <QuizCard
               quiz={activeQuiz}
               onAnswer={answerQuiz}
+              onJoin={joinQuiz}
               pendingQuestionId={pending.startsWith('quiz-') ? Number(pending.slice(5)) : null}
             />
           )}
+          {arena}
           {hasPollCard && <PollCard poll={activePoll} onAnswer={answerPoll} pending={pending === 'poll'} />}
           {!hasActivity && <p className="lesson-waiting">Ожидайте заданий от преподавателя</p>}
 

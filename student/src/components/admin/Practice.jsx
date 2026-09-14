@@ -85,6 +85,7 @@ function Practice({ dataRefreshKey = 0 }) {
   const [showImportModal, setShowImportModal] = useState(false);
   const [importFile, setImportFile] = useState(null);
   const [importLoading, setImportLoading] = useState(false);
+  const [importPreview, setImportPreview] = useState(null);
   const [importResult, setImportResult] = useState(null);
 
   const [topicForm, setTopicForm] = useState({
@@ -200,26 +201,39 @@ function Practice({ dataRefreshKey = 0 }) {
     }
   };
 
-  const handleImport = async () => {
+  const handleImport = async ({ preview = false } = {}) => {
     if (!importFile || !selectedTopic) return;
     setImportLoading(true);
-    setImportResult(null);
+    if (preview) {
+      setImportPreview(null);
+    } else {
+      setImportResult(null);
+    }
     try {
       const formData = new FormData();
       formData.append('file', importFile);
       const response = await adminFetch(
-        `${API_URL}/practice/questions/${selectedTopic.id}/import`,
+        `${API_URL}/practice/questions/${selectedTopic.id}/import${preview ? '?preview=true' : ''}`,
         { method: 'POST', body: formData }
       );
       const data = await response.json();
       if (response.ok) {
-        setImportResult(data);
-        await refreshQuestionsAndTopicCount();
+        if (preview) {
+          setImportPreview(data);
+        } else {
+          setImportResult(data);
+          setImportPreview(null);
+          await refreshQuestionsAndTopicCount();
+        }
       } else {
-        setImportResult({ error: data.message || 'Ошибка импорта' });
+        const error = { error: data.message || 'Ошибка импорта' };
+        if (preview) setImportPreview(error);
+        else setImportResult(error);
       }
     } catch (e) {
-      setImportResult({ error: 'Ошибка сети: ' + e.message });
+      const error = { error: 'Ошибка сети: ' + e.message };
+      if (preview) setImportPreview(error);
+      else setImportResult(error);
     } finally {
       setImportLoading(false);
     }
@@ -677,6 +691,7 @@ function Practice({ dataRefreshKey = 0 }) {
             onClick={() => {
               setShowImportModal(true);
               setImportFile(null);
+              setImportPreview(null);
               setImportResult(null);
             }}
           >
@@ -1003,10 +1018,31 @@ function Practice({ dataRefreshKey = 0 }) {
                   className="import-file-input"
                   onChange={(e) => {
                     setImportFile(e.target.files[0]);
+                    setImportPreview(null);
                     setImportResult(null);
                   }}
                 />
               </div>
+
+              {importPreview && !importPreview.error && (
+                <div className="import-result-ok" role="status">
+                  Готово к загрузке: <strong>{importPreview.ready}</strong> вопросов
+                  {importPreview.skipped > 0 && (
+                    <>, не пройдут проверку: <strong>{importPreview.skipped}</strong></>
+                  )}
+                  {importPreview.errors?.length > 0 && (
+                    <div className="import-result-errors">
+                      {importPreview.errors.map((e, i) => (
+                        <div key={i}>⚠️ Строка {e.row}: {e.reason}</div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {importPreview?.error && (
+                <div className="import-result-error">❌ {importPreview.error}</div>
+              )}
 
               {importResult && !importResult.error && (
                 <div className="import-result-ok">
@@ -1029,17 +1065,29 @@ function Practice({ dataRefreshKey = 0 }) {
               )}
 
               <div className="modal-actions">
-                <button type="button" className="btn-secondary" onClick={() => setShowImportModal(false)}>
-                  Закрыть
+                <button type="button" className="btn-secondary" onClick={() => setShowImportModal(false)} disabled={importLoading}>
+                  {importResult && !importResult.error ? 'Закрыть' : 'Отмена'}
                 </button>
-                <button
-                  type="button"
-                  className="btn-primary"
-                  onClick={handleImport}
-                  disabled={!importFile || importLoading}
-                >
-                  {importLoading ? 'Загружаю...' : 'Загрузить'}
-                </button>
+                {(!importPreview || importPreview.error) && !importResult && (
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={() => handleImport({ preview: true })}
+                    disabled={!importFile || importLoading}
+                  >
+                    {importLoading ? 'Проверяю...' : 'Проверить файл'}
+                  </button>
+                )}
+                {importPreview && !importPreview.error && !importResult && (
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={handleImport}
+                    disabled={importPreview.ready === 0 || importLoading}
+                  >
+                    {importLoading ? 'Загружаю...' : `Загрузить ${importPreview.ready} вопросов`}
+                  </button>
+                )}
               </div>
             </div>
           </div>

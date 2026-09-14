@@ -23,11 +23,15 @@ const LessonQuizAnswer = sequelize.define('LessonQuizAnswer', {
   },
   selectedAnswer: { type: DataTypes.JSON, allowNull: false },
   isCorrect: { type: DataTypes.BOOLEAN, allowNull: false },
+  responseTimeMs: { type: DataTypes.INTEGER, allowNull: true },
   answeredAt: { type: DataTypes.DATE, defaultValue: DataTypes.NOW }
 }, {
   tableName: 'lesson_quiz_answers',
   timestamps: false,
-  indexes: [{ unique: true, fields: ['questionId', 'userId'] }]
+  indexes: [
+    { unique: true, fields: ['questionId', 'userId'] },
+    { fields: ['lessonQuizId', 'userId'] }
+  ]
 });
 
 module.exports = LessonQuizAnswer;

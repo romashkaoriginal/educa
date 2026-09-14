@@ -23,8 +23,19 @@ function App() {
   const [guestMode, setGuestMode] = useState(null);
   const [guestState, setGuestState] = useState(null);
 
+  const waitForTelegramUser = async (tg, attempts = 20) => {
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      const user = tg?.initDataUnsafe?.user;
+      if (user?.id && tg?.initData) return user;
+      if (attempt === 0) tg?.ready?.();
+      await new Promise((resolve) => setTimeout(resolve, 150));
+    }
+    return null;
+  };
+
   useEffect(() => {
-    const checkTelegramWebApp = () => {
+    let cancelled = false;
+    const checkTelegramWebApp = async () => {
       const tg = window.Telegram?.WebApp;
       
       // Проверяем что действительно в Telegram (не просто наличие SDK)
@@ -35,6 +46,8 @@ function App() {
       );
 
       if (isTelegram) {
+        const user = await waitForTelegramUser(tg);
+        if (cancelled) return;
         setIsTelegramWebApp(true);
         tg.ready();
         tg.expand();
@@ -64,21 +77,22 @@ function App() {
         applyAppHeight();
         tg.onEvent?.('viewportChanged', applyAppHeight);
 
-        const user = tg.initDataUnsafe?.user;
-        
         if (user && user.id) {
           checkUserRole(user.id);
         } else {
-          // Нет user.id - пробуем получить из query параметров
+          // Telegram иногда открывает WebView раньше, чем передаёт initData.
+          // Не запускаем приложение с пустым пользователем: это приводит к
+          // ложному экрану «Не удалось определить аккаунт».
           const urlParams = new URLSearchParams(window.location.search);
           const userId = urlParams.get('user_id');
           
           if (userId) {
             checkUserRole(parseInt(userId));
           } else {
-            setUserRole('student');
-            setSelectedRole('student');
-            setLoading(false);
+            setTimeout(() => {
+              if (!cancelled) checkTelegramWebApp();
+            }, 1000);
+            return;
           }
         }
       } else {
@@ -92,9 +106,10 @@ function App() {
           if (userId) {
             checkUserRole(parseInt(userId));
           } else {
-            setUserRole('student');
-            setSelectedRole('student');
-            setLoading(false);
+            setTimeout(() => {
+              if (!cancelled) checkTelegramWebApp();
+            }, 1000);
+            return;
           }
         } else {
           setIsTelegramWebApp(false);
@@ -109,6 +124,8 @@ function App() {
       // Небольшая задержка на случай поздней инициализации
       setTimeout(checkTelegramWebApp, 500);
     }
+
+    return () => { cancelled = true; };
 
     // dashboard загружается в AdminPanel
   }, []);

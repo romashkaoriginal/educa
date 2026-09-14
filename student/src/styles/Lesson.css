@@ -396,6 +396,26 @@
 .lesson-admin-session .admin-section-header { padding-bottom: 16px; border-bottom: 1px solid var(--kubik-border); }
 .lesson-admin-session-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 12px; }
 
+.lesson-admin-stream-hub {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border-color: rgba(51, 123, 174, 0.38);
+  background: linear-gradient(112deg, #15364f 0%, #1a405f 62%, #255e87 100%);
+  color: #fcfcfa;
+  overflow: hidden;
+  position: relative;
+}
+.lesson-admin-stream-hub::after { content: ''; position: absolute; width: 190px; height: 190px; right: 28%; top: -130px; border: 1px solid rgba(234, 243, 250, 0.2); border-radius: 50%; pointer-events: none; }
+.lesson-admin-stream-title { position: relative; z-index: 1; }
+.lesson-admin-stream-title span { color: #ffbebd; font-size: 11px; font-weight: 800; letter-spacing: .12em; }
+.lesson-admin-stream-title h3 { margin: 6px 0 0; color: #fcfcfa; font-size: clamp(20px, 2.2vw, 29px); letter-spacing: -.03em; }
+.lesson-admin-stream-actions { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 10px; position: relative; z-index: 1; }
+.lesson-admin-stream-actions select { min-width: 180px; min-height: 44px; border-color: rgba(234, 243, 250, 0.45); background: rgba(234, 243, 250, 0.12); color: #fcfcfa; }
+.lesson-admin-stream-actions select option { color: #15364f; background: #fcfcfa; }
+.lesson-admin-stream-actions .admin-btn { min-height: 44px; border-color: #ffbebd; background: #ffbebd; color: #15364f; }
+
 .lesson-admin-tool {
   display: grid;
   align-content: start;
@@ -417,6 +437,11 @@
 .lesson-admin-active > span { color: #596978; font-size: 12px; }
 .lesson-admin-active > div { display: flex; flex-wrap: wrap; gap: 6px; }
 .lesson-admin-question-form { display: grid !important; gap: 8px; }
+.lesson-admin-time-limit { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: #596978; font-size: 12px; font-weight: 700; }
+.lesson-admin-time-limit > span:last-child { display: inline-flex; align-items: center; gap: 7px; }
+.lesson-admin-time-limit input { width: 82px; min-height: 44px; }
+.lesson-admin-quiz-stream-row { display: flex !important; align-items: center; justify-content: space-between; gap: 10px; padding-top: 2px; }
+.lesson-admin-stream-button { min-height: 44px !important; margin-left: auto; border-color: #15364f !important; background: #15364f !important; color: #fcfcfa !important; }
 .lesson-admin-import { display: flex !important; gap: 7px; }
 .lesson-admin-import select { flex: 1; min-width: 0; }
 .lesson-admin-poll-results { display: grid !important; gap: 6px !important; }
@@ -517,6 +542,11 @@
 }
 
 @media (max-width: 760px) {
+  .lesson-admin-stream-hub { align-items: stretch; flex-direction: column; }
+  .lesson-admin-stream-actions { justify-content: stretch; }
+  .lesson-admin-stream-actions label,
+  .lesson-admin-stream-actions select,
+  .lesson-admin-stream-actions .admin-btn { width: 100%; }
   .lesson-admin-create-grid { grid-template-columns: 1fr; }
   .lesson-admin-wide { grid-column: auto; }
   .lesson-admin-section .admin-section-header,
@@ -634,3 +664,26 @@
   .lesson-admin-modal-actions { flex-direction: column-reverse; }
   .lesson-admin-modal-actions button { width: 100%; }
 }
+
+.lesson-quiz-leaderboard {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 18px;
+  display: grid;
+  gap: 8px;
+}
+
+.lesson-quiz-leaderboard li {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: var(--kubik-blue-soft, #eef6fc);
+}
+
+.lesson-quiz-leaderboard li > span { font-weight: 800; color: var(--kubik-blue, #337bae); }
+.lesson-quiz-leaderboard li > strong { overflow-wrap: anywhere; }
+.lesson-quiz-leaderboard li > b { color: var(--kubik-navy, #1a405f); }

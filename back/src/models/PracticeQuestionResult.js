@@ -34,6 +34,8 @@ const PracticeQuestionResult = sequelize.define('PracticeQuestionResult', {
   },
   // Текущий (последний) результат по заданию
   isCorrect: { type: DataTypes.BOOLEAN, defaultValue: false },
+  // Preserved after a later wrong answer; supports the rolling weekly leaderboard.
+  lastCorrectAt: { type: DataTypes.DATE, allowNull: true },
   // Сколько раз ученик решал это задание (для XP/геймификации, не влияет на прогноз)
   attempts: { type: DataTypes.INTEGER, defaultValue: 1 }
 }, {
@@ -42,7 +44,8 @@ const PracticeQuestionResult = sequelize.define('PracticeQuestionResult', {
   indexes: [
     { unique: true, fields: ['studentId', 'questionId'] },
     { fields: ['studentId', 'subjectId'] },
-    { fields: ['studentId', 'topicId'] }
+    { fields: ['studentId', 'topicId'] },
+    { fields: ['subjectId', 'lastCorrectAt'] }
   ]
 });
 

@@ -8,6 +8,8 @@ import { API_URL } from '../../config';
 import { useConfirmDelete } from './useConfirmDelete';
 import { getDeleteConfirm } from './cascadeDeleteMessages';
 
+const cleanTelegramUsername = (value) => String(value || '').trim().replace(/^@+/, '');
+
 function Students({ subjects, dataRefreshKey = 0 }) {
   const { refresh } = useAdminData();
   const { confirmDelete, ConfirmDeleteDialog } = useConfirmDelete();
@@ -34,6 +36,8 @@ const [editFormData, setEditFormData] = useState({
   telegramUsername: '',
   firstName: '',
   lastName: '',
+  parentTelegramId: '',
+  parentTelegramUsername: '',
   subjectIds: [],
   subjectAccessDates: {}
 });
@@ -53,6 +57,8 @@ const [editFormData, setEditFormData] = useState({
     telegramUsername: '',
     firstName: '',
     lastName: '',
+    parentTelegramId: '',
+    parentTelegramUsername: '',
     subjectIds: [],
     accessStartDate: new Date().toISOString().split('T')[0],
     accessEndDate: '',
@@ -69,6 +75,7 @@ const [editFormData, setEditFormData] = useState({
       const response = await adminFetch(`${API_URL}/students`);
       const data = await response.json();
       setStudents(data.students || []);
+      return data.students || [];
     } catch (error) {
       console.error('Error loading students:', error);
     } finally {
@@ -112,6 +119,8 @@ const [editFormData, setEditFormData] = useState({
       telegramUsername: '',
       firstName: '',
       lastName: '',
+      parentTelegramId: '',
+      parentTelegramUsername: '',
       subjectIds: [],
       accessStartDate: new Date().toISOString().split('T')[0],
       accessEndDate: '',
@@ -238,7 +247,24 @@ const [editFormData, setEditFormData] = useState({
         body: JSON.stringify(convertedData)
       });
 
+      const responseData = await response.json();
       if (response.ok) {
+        let parentWarning = null;
+        if (formData.parentTelegramId.trim() || formData.parentTelegramUsername.trim()) {
+          const parentResponse = await adminFetch(`${API_URL}/parents`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              studentId: responseData.student.id,
+              telegramId: formData.parentTelegramId || null,
+              telegramUsername: formData.parentTelegramUsername
+            })
+          });
+          if (!parentResponse.ok) {
+            const parentError = await parentResponse.json();
+            parentWarning = parentError.message || 'Родитель не добавлен';
+          }
+        }
         setShowAddModal(false);
         resetForm();
         await loadStudents();
@@ -246,9 +272,9 @@ const [editFormData, setEditFormData] = useState({
         if (addMode === 'bot') {
           await loadBotUsers();
         }
+        if (parentWarning) alert(`Ученик создан, но родитель не добавлен: ${parentWarning}`);
       } else {
-        const error = await response.json();
-        alert(`Ошибка: ${error.message}`);
+        alert(`Ошибка: ${responseData.message}`);
       }
     } catch (error) {
       console.error('Error creating student:', error);
@@ -352,7 +378,7 @@ const [editFormData, setEditFormData] = useState({
       const matchesSearch = 
         student.firstName?.toLowerCase().includes(query) ||
         student.lastName?.toLowerCase().includes(query) ||
-        student.telegramUsername?.toLowerCase().includes(query) ||
+        cleanTelegramUsername(student.telegramUsername).toLowerCase().includes(query.replace(/^@+/, '')) ||
         student.telegramId?.toString().includes(query);
 
       if (!matchesSearch) return false;
@@ -402,7 +428,7 @@ const [editFormData, setEditFormData] = useState({
     return (
       user.firstName?.toLowerCase().includes(query) ||
       user.lastName?.toLowerCase().includes(query) ||
-      user.telegramUsername?.toLowerCase().includes(query) ||
+      cleanTelegramUsername(user.telegramUsername).toLowerCase().includes(query.replace(/^@+/, '')) ||
       user.telegramId?.toString().includes(query)
     );
   });
@@ -450,6 +476,8 @@ const [editFormData, setEditFormData] = useState({
     telegramUsername: student.telegramUsername || '',
     firstName: student.firstName || '',
     lastName: student.lastName || '',
+    parentTelegramId: student.parent?.telegramId?.toString() || '',
+    parentTelegramUsername: student.parent?.telegramUsername || '',
     subjectIds,
     subjectAccessDates
   });
@@ -540,12 +568,37 @@ const handleSaveEdit = async () => {
       body: JSON.stringify(convertedData)
     });
 
+    const responseData = await response.json();
     if (response.ok) {
-      await loadStudents();
+      const hasParentContact = editFormData.parentTelegramId.trim() || editFormData.parentTelegramUsername.trim();
+      let parentResponse = null;
+      if (hasParentContact) {
+        parentResponse = await adminFetch(
+          selectedStudent.parent ? `${API_URL}/parents/${selectedStudent.parent.id}` : `${API_URL}/parents`,
+          {
+            method: selectedStudent.parent ? 'PUT' : 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              studentId: selectedStudent.id,
+              telegramId: editFormData.parentTelegramId || null,
+              telegramUsername: editFormData.parentTelegramUsername
+            })
+          }
+        );
+      } else if (selectedStudent.parent) {
+        parentResponse = await adminFetch(`${API_URL}/parents/${selectedStudent.parent.id}`, { method: 'DELETE' });
+      }
+      if (parentResponse && !parentResponse.ok) {
+        const parentError = await parentResponse.json();
+        throw new Error(parentError.message || 'Не удалось обновить родителя');
+      }
+      const updatedStudents = await loadStudents();
       refresh('students');
-      const updated = students.find(s => s.id === selectedStudent.id);
+      const updated = updatedStudents.find(s => s.id === selectedStudent.id);
       setSelectedStudent(updated);
       setIsEditingStudent(false);
+    } else {
+      throw new Error(responseData.message || 'Не удалось обновить ученика');
     }
   } catch (error) {
     if (error.message !== 'Invalid dates') {
@@ -648,7 +701,7 @@ const handleSaveEdit = async () => {
                 
                 <div className="student-info">
                   <h3>{student.firstName} {student.lastName}</h3>
-                  <p className="student-username">@{student.telegramUsername || 'no username'}</p>
+                  <p className="student-username">{student.telegramUsername ? `@${cleanTelegramUsername(student.telegramUsername)}` : 'no username'}</p>
                   
                   <div className="student-meta">
                     <span className={`status-badge ${student.isActive ? 'active' : 'inactive'}`}>
@@ -775,7 +828,7 @@ const handleSaveEdit = async () => {
                         </div>
                         <div className="bot-user-info">
                           <h4>{user.firstName} {user.lastName}</h4>
-                          <p>@{user.telegramUsername || 'no username'} • ID: {user.telegramId}</p>
+                          <p>{user.telegramUsername ? `@${cleanTelegramUsername(user.telegramUsername)}` : 'no username'} • ID: {user.telegramId}</p>
                           <div className="bot-user-meta">
                             <span>📅 {new Date(user.firstInteractionAt).toLocaleDateString('ru-RU')}</span>
                             <span>💬 {user.messageCount} сообщ.</span>
@@ -829,6 +882,31 @@ const handleSaveEdit = async () => {
                         type="text"
                         value={formData.lastName}
                         onChange={(e) => setFormData({...formData, lastName: e.target.value})}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="form-section parent-inline-section">
+                  <h3>👪 Родитель <span className="optional-label">необязательно</span></h3>
+                  <p className="section-description">Укажите Telegram ID или username. Отчёт будет приходить по понедельникам в 18:00.</p>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Telegram ID родителя</label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={formData.parentTelegramId}
+                        onChange={(e) => setFormData({...formData, parentTelegramId: e.target.value})}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Username родителя</label>
+                      <input
+                        type="text"
+                        placeholder="@username"
+                        value={formData.parentTelegramUsername}
+                        onChange={(e) => setFormData({...formData, parentTelegramUsername: e.target.value})}
                       />
                     </div>
                   </div>
@@ -917,7 +995,7 @@ const handleSaveEdit = async () => {
           <div className="detail-section">
             <h3>📱 Контактные данные</h3>
             <p><strong>Telegram ID:</strong> {selectedStudent.telegramId || 'Не указан'}</p>
-            <p><strong>Username:</strong> @{selectedStudent.telegramUsername || 'не указан'}</p>
+            <p><strong>Username:</strong> {selectedStudent.telegramUsername ? `@${cleanTelegramUsername(selectedStudent.telegramUsername)}` : 'не указан'}</p>
             <p><strong>Имя:</strong> {selectedStudent.firstName}</p>
             <p><strong>Фамилия:</strong> {selectedStudent.lastName}</p>
             <p><strong>Статус:</strong> 
@@ -946,6 +1024,17 @@ const handleSaveEdit = async () => {
             ) : (
               <p className="empty-message">Предметы не назначены</p>
             )}
+          </div>
+
+          <div className="detail-section">
+            <h3>👪 Родитель</h3>
+            {selectedStudent.parent ? (
+              <>
+                <p><strong>Telegram ID:</strong> {selectedStudent.parent.telegramId || 'Не подтверждён'}</p>
+                <p><strong>Username:</strong> {selectedStudent.parent.telegramUsername ? `@${cleanTelegramUsername(selectedStudent.parent.telegramUsername)}` : 'Не указан'}</p>
+                <p><strong>Отчёты:</strong> Отправляются по доступу ученика</p>
+              </>
+            ) : <p className="empty-message">Родитель не добавлен</p>}
           </div>
 
           <div className="detail-actions">
@@ -1002,6 +1091,31 @@ const handleSaveEdit = async () => {
                   placeholder="@username"
                   value={editFormData.telegramUsername}
                   onChange={(e) => setEditFormData({...editFormData, telegramUsername: e.target.value})}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="form-section parent-inline-section">
+            <h3>👪 Родитель <span className="optional-label">необязательно</span></h3>
+            <p className="section-description">Очистите оба поля, чтобы удалить привязку родителя.</p>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Telegram ID родителя</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={editFormData.parentTelegramId}
+                  onChange={(e) => setEditFormData({...editFormData, parentTelegramId: e.target.value})}
+                />
+              </div>
+              <div className="form-group">
+                <label>Username родителя</label>
+                <input
+                  type="text"
+                  placeholder="@username"
+                  value={editFormData.parentTelegramUsername}
+                  onChange={(e) => setEditFormData({...editFormData, parentTelegramUsername: e.target.value})}
                 />
               </div>
             </div>

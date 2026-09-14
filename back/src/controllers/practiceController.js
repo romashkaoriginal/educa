@@ -12,6 +12,7 @@ const { calculatePredictedScore, getGrowthTopicIds, CONFIG } = require('../servi
 const { calculateHomeworkScore } = require('../services/homeworkScore');
 const { buildSubjectDashboard } = require('../services/practiceDashboard');
 const { recordPracticeStatsIncrement, hasAggregatedStats } = require('../services/practiceStatsAggregate');
+const { isPracticeAnswerCorrect } = require('../services/streamPresentation');
 const { loadExcelWorkbook, normaliseExcelHeader } = require('../utils/loadExcelWorkbook');
 
 // In-memory кэш статистики (TTL 60 секунд)
@@ -288,6 +289,14 @@ async function persistPracticeAnswer({
   selectedAnswer = 0,
   practiceMode = 'general'
 }) {
+  const question = await PracticeQuestion.findByPk(questionId);
+  const topic = question && await PracticeTopic.findByPk(question.topicId);
+  if (!question || !topic || Number(topic.id) !== Number(topicId) || Number(topic.subjectId) !== Number(subjectId)) {
+    throw new Error('Practice question does not belong to the requested topic and subject');
+  }
+  isCorrect = isPracticeAnswerCorrect(selectedAnswer, question.correctAnswer);
+  difficulty = question.difficulty;
+  const answeredAt = new Date();
   await recordPracticeStatsIncrement({
     studentId,
     subjectId,
@@ -310,6 +319,7 @@ async function persistPracticeAnswer({
       subjectId: parseInt(subjectId),
       difficulty: difficulty || 'medium',
       isCorrect: !!isCorrect,
+      lastCorrectAt: isCorrect ? answeredAt : null,
       attempts: 1
     }
   });
@@ -317,6 +327,7 @@ async function persistPracticeAnswer({
   if (!created) {
     await record.update({
       isCorrect: !!isCorrect,
+      lastCorrectAt: isCorrect ? answeredAt : record.lastCorrectAt || (record.isCorrect ? record.updatedAt : null),
       attempts: (record.attempts || 1) + 1,
       difficulty: difficulty || record.difficulty,
       topicId: parseInt(topicId),
@@ -1303,6 +1314,7 @@ exports.getQuestionsImportTemplate = async (req, res) => {
 exports.importQuestionsFromExcel = async (req, res) => {
   try {
     const { topicId } = req.params;
+    const isPreview = req.query.preview === 'true';
 
     if (!req.file) {
       return res.status(400).json({ message: 'Файл не загружен' });
@@ -1386,6 +1398,13 @@ exports.importQuestionsFromExcel = async (req, res) => {
         isActive: true,
       });
     });
+
+    // Предпросмотр намеренно не записывает ничего в БД. Сначала администратор
+    // видит, сколько строк действительно пройдёт проверку, и только затем
+    // подтверждает импорт отдельным запросом.
+    if (isPreview) {
+      return res.json({ ready: toCreate.length, skipped: errors.length, errors });
+    }
 
     let imported = 0;
     if (toCreate.length > 0) {

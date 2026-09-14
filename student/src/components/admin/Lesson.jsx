@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { io } from 'socket.io-client';
 import { API_URL, SOCKET_URL } from '../../config';
 import { adminFetch, getTelegramInitData } from './adminApi';
-import ImageUploadField from './ImageUploadField';
+import StreamPresentation from './StreamPresentation';
 import MathText, { LatexHelp } from '../MathText';
 import '../../styles/Lesson.css';
 
@@ -19,8 +19,6 @@ const emptyLesson = { subjectId: '', scheduledAt: '', topic: '' };
 // ТЗ §3.2/§7: ссылка на трансляцию задаётся в момент запуска занятия.
 const emptyStart = { lessonId: null, subjectId: '', topic: '', streamUrl: '' };
 const emptyPoll = { template: 'clear_unclear', question: '', optionsText: 'Понятно\nНепонятно', isAnonymous: true, showResultsToStudents: true, durationSec: '' };
-const emptyQuiz = { title: '', mode: 'single_step', isAnonymous: false, showExplanations: true };
-const emptyQuestion = { questionText: '', questionImage: null, optionsText: '', correctText: '1', explanation: '', hintImage: null };
 
 async function request(path, options = {}) {
   const response = await adminFetch(`${API_URL}/lesson-admin${path}`, options);
@@ -76,7 +74,7 @@ function CountdownBadge({ targetDate, expiredLabel = 'Время истекло'
   );
 }
 
-export default function LessonAdmin({ subjects = [], currentUser, dataRefreshKey }) {
+export default function LessonAdmin({ subjects = [], currentUser, dataRefreshKey, entryRequest }) {
   const [lessons, setLessons] = useState([]);
   const [users, setUsers] = useState([]);
   const [assignments, setAssignments] = useState([]);
@@ -86,24 +84,20 @@ export default function LessonAdmin({ subjects = [], currentUser, dataRefreshKey
   const [editForm, setEditForm] = useState(null);
   const [teacherForm, setTeacherForm] = useState({ teacherId: '', subjectId: '' });
   const [pollForm, setPollForm] = useState(emptyPoll);
-  const [quizForm, setQuizForm] = useState(emptyQuiz);
-  const [questionForm, setQuestionForm] = useState(emptyQuestion);
   const [polls, setPolls] = useState([]);
   const [quizzes, setQuizzes] = useState([]);
   const [selectedQuizId, setSelectedQuizId] = useState(null);
   const [studentQuestions, setStudentQuestions] = useState([]);
   const [attendance, setAttendance] = useState([]);
   const [materials, setMaterials] = useState([]);
-  const [practiceTopics, setPracticeTopics] = useState([]);
-  const [importTopicId, setImportTopicId] = useState('');
   const [pollResults, setPollResults] = useState(null);
   const [quizStats, setQuizStats] = useState(null);
   const [pollComposerOpen, setPollComposerOpen] = useState(false);
-  const [quizComposerOpen, setQuizComposerOpen] = useState(false);
   const [materialForm, setMaterialForm] = useState({ type: 'link', title: '', url: '', homeworkId: '' });
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState('');
   const [currentNotice, setCurrentNotice] = useState(null);
+  const [stream, setStream] = useState(null);
   const noticeQueueRef = useRef([]);
   const noticeTimersRef = useRef({});
   const processNoticeQueueRef = useRef(null);
@@ -127,6 +121,11 @@ export default function LessonAdmin({ subjects = [], currentUser, dataRefreshKey
   }, [isAdmin]);
 
   useEffect(() => { loadBase(); }, [dataRefreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!entryRequest?.lessonId) return;
+    setSelectedId(Number(entryRequest.lessonId));
+    loadBase();
+  }, [entryRequest?.lessonId, entryRequest?.nonce, loadBase]);
 
   const loadSession = useCallback(async (lesson) => {
     if (!lesson) return;
@@ -162,14 +161,6 @@ export default function LessonAdmin({ subjects = [], currentUser, dataRefreshKey
 
   useEffect(() => { if (selected) loadSession(selected); }, [selected?.id, selected?.status]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
-    if (!selected?.subjectId) { setPracticeTopics([]); return; }
-    adminFetch(`${API_URL}/practice/topics/${selected.subjectId}`)
-      .then((response) => response.ok ? response.json() : { topics: [] })
-      .then((data) => setPracticeTopics(data.topics || []))
-      .catch(() => setPracticeTopics([]));
-  }, [selected?.subjectId]);
-
   const run = async (key, action, { reload = true, refreshSession = true } = {}) => {
     setBusy(key); setMessage('');
     try {
@@ -180,6 +171,11 @@ export default function LessonAdmin({ subjects = [], currentUser, dataRefreshKey
     } catch (error) { setMessage(error.message); return null; }
     finally { setBusy(''); }
   };
+
+  const launchStream = (source) => {
+    setStream({ hostWindow: null, source });
+  };
+  const closeStream = useCallback(() => setStream(null), []);
 
   const createLesson = () => run('create-lesson', async () => {
     if (!lessonForm.subjectId) throw new Error('Выберите предмет');
@@ -299,52 +295,17 @@ export default function LessonAdmin({ subjects = [], currentUser, dataRefreshKey
     else await loadSession(selected);
   }, { reload: false });
 
-  const createQuiz = () => run('create-quiz', async () => {
-    const data = await request(`/lessons/${selected.id}/quizzes`, { method: 'POST', body: JSON.stringify(quizForm) });
-    setQuizzes((items) => [data.quiz, ...items]);
-    setSelectedQuizId(data.quiz.id);
-    setQuizForm(emptyQuiz);
-    setQuizComposerOpen(false);
-  }, { reload: false });
-
-  const addQuizQuestion = (quiz) => run('add-question', async () => {
-    const options = questionForm.optionsText.split('\n').map((item) => item.trim()).filter(Boolean);
-    const correctAnswer = questionForm.correctText.split(',').map((item) => Number(item.trim()) - 1).filter((item) => Number.isInteger(item) && item >= 0);
-    await request(`/quizzes/${quiz.id}/questions`, {
-      method: 'POST',
-      body: JSON.stringify({
-        questionText: questionForm.questionText,
-        questionImageId: questionForm.questionImage?.id || null,
-        options,
-        correctAnswer,
-        explanation: questionForm.explanation,
-        hintImageId: questionForm.hintImage?.id || null
-      })
-    });
-    setQuestionForm(emptyQuestion);
-    setMessage('Вопрос добавлен');
-  }, { reload: false });
-
   const quizAction = (quiz, action) => run(`quiz-${action}`, async () => {
     await request(`/quizzes/${quiz.id}/${action}`, { method: 'POST' });
     await loadSession(selected);
-  }, { reload: false });
-
-  const importPracticeQuestions = (quiz) => run('import-practice', async () => {
-    if (!importTopicId) throw new Error('Выберите раздел практики');
-    const data = await request('/quiz-questions/import-from-practice', {
-      method: 'POST', body: JSON.stringify({ quizId: quiz.id, topicId: Number(importTopicId) })
-    });
-    setMessage(`Импортировано вопросов: ${data.imported}`);
-    setImportTopicId('');
-    await loadSession(selected);
+    if (action === 'start') launchStream({ lessonQuizId: quiz.id, subjectName: selected.subject?.name });
   }, { reload: false });
 
   const loadLiveMetrics = useCallback(async (poll, quiz) => {
     try {
       if (poll?.id) setPollResults((await request(`/polls/${poll.id}/results`)).results || null);
       else setPollResults(null);
-      if (quiz?.id && quiz.status === 'active') setQuizStats(await request(`/quizzes/${quiz.id}/live-stats?withStudents=1`));
+      if (quiz?.id) setQuizStats(await request(`/quizzes/${quiz.id}/live-stats?withStudents=1`));
       else setQuizStats(null);
     } catch (error) { setMessage(error.message); }
   }, []);
@@ -379,10 +340,8 @@ export default function LessonAdmin({ subjects = [], currentUser, dataRefreshKey
 
   useEffect(() => {
     setPollComposerOpen(false);
-    setQuizComposerOpen(false);
     setSelectedQuizId(null);
     setPollForm(emptyPoll);
-    setQuizForm(emptyQuiz);
   }, [selectedId]);
 
   useEffect(() => {
@@ -566,24 +525,26 @@ export default function LessonAdmin({ subjects = [], currentUser, dataRefreshKey
               {selected.status !== 'live' && <p className="lesson-admin-empty">Голосование создаётся после начала занятия.</p>}
             </article>
 
-            <article className="lesson-admin-tool"><div className="lesson-admin-tool-heading"><h4>Викторина занятия</h4>{selected.status !== 'finished' && preparedQuiz && !quizzes.some((quiz) => quiz.status === 'active') && !quizComposerOpen && <button type="button" onClick={() => setQuizComposerOpen(true)}>+ Новая викторина</button>}</div>
-              {quizzes.length > 1 && <label className="lesson-admin-quiz-picker"><span>Подготовленные викторины</span><select value={preparedQuiz?.id || ''} onChange={(event) => setSelectedQuizId(Number(event.target.value))}>{quizzes.map((quiz) => <option key={quiz.id} value={quiz.id}>{quiz.title} · {QUIZ_STATUS[quiz.status] || quiz.status}</option>)}</select></label>}
-              {selected.status !== 'finished' && (!preparedQuiz || quizComposerOpen) && <div className="lesson-admin-composer"><input placeholder="Название викторины" value={quizForm.title} onChange={(event) => setQuizForm((form) => ({ ...form, title: event.target.value }))} /><select value={quizForm.mode} onChange={(event) => setQuizForm((form) => ({ ...form, mode: event.target.value }))}><option value="single_step">Один вопрос — управляет преподаватель</option><option value="self_paced">Несколько вопросов — самостоятельно</option></select><div className="lesson-admin-composer-actions"><button type="button" className="admin-btn admin-btn--primary" disabled={busy === 'create-quiz'} onClick={createQuiz}>Создать викторину</button>{preparedQuiz && <button type="button" onClick={() => setQuizComposerOpen(false)}>Отмена</button>}</div></div>}
+            <article className="lesson-admin-tool"><div className="lesson-admin-tool-heading"><h4>Викторина занятия</h4></div>
+              {!preparedQuiz && <p className="lesson-admin-empty">Викторина не привязана. Создайте её в разделе «Викторины» и выберите это занятие.</p>}
               {preparedQuiz && <div className="lesson-admin-active">
-                <strong>{preparedQuiz.title}</strong><span>{QUIZ_STATUS[preparedQuiz.status] || preparedQuiz.status} · {preparedQuiz.mode === 'single_step' ? 'ручной режим' : 'самостоятельно'} · вопросов: {preparedQuiz.questions?.length || 0}</span>
-                {preparedQuiz.status === 'draft' && <div className="lesson-admin-question-form">
-                  <div className="lesson-admin-import"><select value={importTopicId} onChange={(event) => setImportTopicId(event.target.value)}><option value="">Раздел практики для импорта…</option>{practiceTopics.map((topic) => <option key={topic.id} value={topic.id}>{topic.name} ({topic.questionCount})</option>)}</select><button type="button" onClick={() => importPracticeQuestions(preparedQuiz)}>Импортировать</button></div>
-                  <textarea placeholder="Текст вопроса" value={questionForm.questionText} onChange={(event) => setQuestionForm((form) => ({ ...form, questionText: event.target.value }))} />
-                  <LatexHelp />
-                  <ImageUploadField label="Изображение вопроса" value={questionForm.questionImage} onChange={(image) => setQuestionForm((form) => ({ ...form, questionImage: image }))} />
-                  <textarea placeholder="Варианты — каждый с новой строки" value={questionForm.optionsText} onChange={(event) => setQuestionForm((form) => ({ ...form, optionsText: event.target.value }))} />
-                  <input placeholder="Номера правильных ответов: 1 или 1,3" value={questionForm.correctText} onChange={(event) => setQuestionForm((form) => ({ ...form, correctText: event.target.value }))} />
-                  <textarea placeholder="Объяснение" value={questionForm.explanation} onChange={(event) => setQuestionForm((form) => ({ ...form, explanation: event.target.value }))} />
-                  <ImageUploadField label="Изображение подсказки" value={questionForm.hintImage} onChange={(image) => setQuestionForm((form) => ({ ...form, hintImage: image }))} />
-                  <button type="button" onClick={() => addQuizQuestion(preparedQuiz)}>Добавить вопрос</button>{selected.status === 'live' && <button type="button" className="primary" onClick={() => quizAction(preparedQuiz, 'start')}>Запустить викторину</button>}
-                </div>}
+                <strong>{preparedQuiz.title}</strong><span>{QUIZ_STATUS[preparedQuiz.status] || preparedQuiz.status} · вопросов: {preparedQuiz.questions?.length || 0}</span>
+                {quizStats && <div className="lesson-admin-answer-list"><strong>Участники ({quizStats.participants?.length || 0})</strong>{(quizStats.participants || []).map((member) => <span key={member.id}>{fullName(member.user)}</span>)}</div>}
+                {preparedQuiz.status === 'draft' && selected.status === 'live' && <button type="button" className="primary" onClick={() => quizAction(preparedQuiz, 'start')}>Начать викторину</button>}
+                <div className="lesson-admin-quiz-stream-row">
+                  {preparedQuiz.mode === 'single_step' && preparedQuiz.status === 'active' && preparedQuiz.questionRevealState === 'question' && preparedQuiz.questionStartedAt && <CountdownBadge targetDate={new Date(new Date(preparedQuiz.questionStartedAt).getTime() + Number(preparedQuiz.questions?.find((question) => Number(question.order) === Number(preparedQuiz.currentQuestionIndex))?.timeLimit || 30) * 1000)} />}
+                  <button type="button" className="lesson-admin-stream-button" onClick={() => launchStream({ lessonQuizId: preparedQuiz.id, subjectName: selected.subject?.name })}>{preparedQuiz.mode === 'single_step' ? 'Экран викторины ↗' : 'Экран рейтинга ↗'}</button>
+                </div>
                 {preparedQuiz.status === 'active' && <>
-                  <div>{preparedQuiz.mode === 'single_step' ? <><button type="button" onClick={() => quizAction(preparedQuiz, 'show-question')}>Показать вопрос</button><button type="button" onClick={() => quizAction(preparedQuiz, 'show-answer')}>Правильный ответ</button><button type="button" onClick={() => quizAction(preparedQuiz, 'show-explanation')}>Объяснение</button><button type="button" onClick={() => quizAction(preparedQuiz, 'next-question')}>Следующий</button></> : <><button type="button" onClick={() => quizAction(preparedQuiz, 'show-answer')}>Показать правильные ответы</button><button type="button" onClick={() => quizAction(preparedQuiz, 'show-explanation')}>Показать объяснения</button></>}<button type="button" onClick={() => quizAction(preparedQuiz, 'finish')}>Завершить</button></div>
+                  <div>{preparedQuiz.mode === 'single_step' ? <>
+                    {preparedQuiz.questionRevealState === 'hidden' && <button type="button" onClick={() => quizAction(preparedQuiz, 'show-question')}>Показать вопрос</button>}
+                    {preparedQuiz.questionRevealState === 'question' && <button type="button" onClick={() => quizAction(preparedQuiz, 'show-answer')}>Ответы приняты · рейтинг</button>}
+                    {preparedQuiz.questionRevealState === 'answer' && <>
+                      {preparedQuiz.currentQuestionIndex + 1 < (preparedQuiz.questions?.length || 0)
+                        ? <button type="button" onClick={() => quizAction(preparedQuiz, 'next-question')}>Следующий вопрос</button>
+                        : <button type="button" onClick={() => quizAction(preparedQuiz, 'finish')}>Завершить викторину</button>}
+                    </>}
+                  </> : <button type="button" onClick={() => quizAction(preparedQuiz, 'finish')}>Завершить викторину</button>}</div>
                   {quizStats && <div className="lesson-admin-quiz-stats"><strong>Получили хотя бы один вопрос: {quizStats.receivedStudents} из {quizStats.totalStudents}</strong>{quizStats.questions?.map((question, index) => <div key={question.questionId}><span>Вопрос {index + 1}: получили {question.received}, ответили {question.answered}, правильно {question.correctPercent}%</span><div>{question.distribution?.map((count, optionIndex) => <i key={optionIndex}>Вариант {optionIndex + 1}: {count}</i>)}</div>{question.answers?.length > 0 && <small>{question.answers.map((answer) => `${fullName(answer.user)} — ${answer.selectedAnswer.map((item) => item + 1).join(', ')}`).join('; ')}</small>}</div>)}</div>}
                 </>}
               </div>}
@@ -653,6 +614,11 @@ export default function LessonAdmin({ subjects = [], currentUser, dataRefreshKey
           </div>
         </div>
       )}
+      {stream && <StreamPresentation
+        source={stream.source}
+        hostWindow={stream.hostWindow}
+        onClose={closeStream}
+      />}
     </div>
   );
 }

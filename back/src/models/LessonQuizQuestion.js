@@ -25,6 +25,12 @@ const LessonQuizQuestion = sequelize.define('LessonQuizQuestion', {
     references: { model: 'practice_images', key: 'id' },
     onDelete: 'SET NULL'
   },
+  timeLimit: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    defaultValue: 30,
+    validate: { min: 5, max: 300 }
+  },
   order: { type: DataTypes.INTEGER, defaultValue: 0 },
   sourcePracticeQuestionId: {
     type: DataTypes.INTEGER,

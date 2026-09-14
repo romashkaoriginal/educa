@@ -92,6 +92,31 @@
   box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
 }
 
+.edit-btn {
+  background: var(--kubik-blue-soft);
+  color: var(--kubik-navy);
+  border: 2px solid var(--kubik-blue);
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out);
+}
+
+.edit-btn:hover:not(:disabled) {
+  background: var(--kubik-blue);
+  color: white;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(51, 123, 174, 0.25);
+}
+
+.quiz-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  transform: none;
+  box-shadow: none;
+}
+
 .save-btn {
   width: 100%;
   background: linear-gradient(135deg, var(--kubik-navy) 0%, var(--kubik-blue) 100%);
@@ -250,6 +275,18 @@
   max-width: 900px;
 }
 
+.quiz-edit-form {
+  max-width: 680px;
+}
+
+.quiz-field-label {
+  display: block;
+  margin: 0 0 8px;
+  color: var(--kubik-navy);
+  font-size: 14px;
+  font-weight: 700;
+}
+
 .form-input,
 .form-textarea,
 .form-select {
@@ -273,6 +310,24 @@
 .form-textarea {
   min-height: 80px;
   resize: vertical;
+}
+
+.quiz-form-hint {
+  margin: -6px 0 16px;
+  color: var(--kubik-text-soft);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.quiz-inline-retry {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--kubik-blue);
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 /* ========== ВОПРОСЫ ========== */

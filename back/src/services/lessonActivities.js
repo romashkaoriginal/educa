@@ -1,7 +1,7 @@
 const { UniqueConstraintError } = require('sequelize');
 const {
   Lesson, LessonPoll, LessonPollOption, LessonPollAnswer,
-  LessonQuiz, LessonQuizQuestion, LessonQuizAnswer, LessonQuizDelivery
+  LessonQuiz, LessonQuizQuestion, LessonQuizAnswer, LessonQuizDelivery, LessonQuizParticipant
 } = require('../models');
 const { assertStudentCanAccessLesson } = require('../middleware/lessonAccess');
 const { touchAttendance } = require('./lessonAttendance');
@@ -63,6 +63,7 @@ async function submitQuizAnswer({ quizId, questionId, selectedAnswer, userId }) 
   if (!quiz) throw new LessonActionError('Викторина не найдена', 404, 'NOT_FOUND');
   await requireLiveAccess(quiz.lessonId, userId);
   if (quiz.status !== 'active') throw new LessonActionError('Викторина не активна', 409, 'QUIZ_CLOSED');
+  if (LessonQuizParticipant && !await LessonQuizParticipant.count({ where: { lessonQuizId: quiz.id, userId } })) throw new LessonActionError('Сначала присоединитесь к викторине', 409, 'NOT_JOINED');
 
   const question = await LessonQuizQuestion.findOne({ where: { id: questionId, lessonQuizId: quiz.id } });
   if (!question) throw new LessonActionError('Вопрос не найден', 404, 'NOT_FOUND');
@@ -71,6 +72,11 @@ async function submitQuizAnswer({ quizId, questionId, selectedAnswer, userId }) 
     const current = questions[quiz.currentQuestionIndex];
     if (!current || Number(current.id) !== Number(question.id) || quiz.questionRevealState !== 'question') {
       throw new LessonActionError('Этот вопрос сейчас недоступен', 409, 'QUESTION_HIDDEN');
+    }
+    const startedAt = quiz.questionStartedAt ? new Date(quiz.questionStartedAt).getTime() : NaN;
+    const deadline = startedAt + Number(question.timeLimit || 30) * 1000;
+    if (!Number.isFinite(startedAt) || Date.now() >= deadline) {
+      throw new LessonActionError('Время на ответ истекло', 409, 'QUESTION_TIME_EXPIRED');
     }
   }
 
@@ -86,13 +92,26 @@ async function submitQuizAnswer({ quizId, questionId, selectedAnswer, userId }) 
       questionId: question.id,
       userId,
       selectedAnswer: selected,
-      isCorrect
+      isCorrect,
+      responseTimeMs: quiz.mode === 'single_step'
+        ? Math.max(0, Date.now() - new Date(quiz.questionStartedAt).getTime())
+        : null
     });
     const attendance = await touchAttendance(quiz.lessonId, userId, 'quiz');
+    let allAnswered = false;
+    if (quiz.mode === 'single_step') {
+      const [delivered, answered] = await Promise.all([
+        LessonQuizParticipant ? LessonQuizParticipant.count({ where: { lessonQuizId: quiz.id } }) : (LessonQuizDelivery.count ? LessonQuizDelivery.count({ where: { lessonQuizId: quiz.id, questionId: question.id } }) : 0),
+        LessonQuizAnswer.count ? LessonQuizAnswer.count({ where: { lessonQuizId: quiz.id, questionId: question.id } }) : 0
+      ]);
+      allAnswered = delivered > 0 && answered >= delivered;
+      if (allAnswered) await quiz.update({ questionRevealState: 'answer' });
+    }
     return {
       answer,
       attendance,
       lessonId: quiz.lessonId,
+      allAnswered,
       activeQuiz: await serializeActiveQuiz(quiz.lessonId, userId)
     };
   } catch (error) {
@@ -108,6 +127,7 @@ async function markQuizQuestionReceived({ quizId, questionId, userId }) {
   if (!quiz) throw new LessonActionError('Викторина не найдена', 404, 'NOT_FOUND');
   await requireLiveAccess(quiz.lessonId, userId);
   if (quiz.status !== 'active') throw new LessonActionError('Викторина не активна', 409, 'QUIZ_CLOSED');
+  if (LessonQuizParticipant && !await LessonQuizParticipant.count({ where: { lessonQuizId: quiz.id, userId } })) throw new LessonActionError('Сначала присоединитесь к викторине', 409, 'NOT_JOINED');
 
   const question = await LessonQuizQuestion.findOne({ where: { id: questionId, lessonQuizId: quiz.id } });
   if (!question) throw new LessonActionError('Вопрос не найден', 404, 'NOT_FOUND');

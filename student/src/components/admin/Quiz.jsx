@@ -8,13 +8,20 @@ import { useSectionRefresh } from './useSectionRefresh';
 import { useConfirmDelete } from './useConfirmDelete';
 import { getDeleteConfirm } from './cascadeDeleteMessages';
 import MathText, { LatexHelp } from '../MathText';
+import StreamPresentation from './StreamPresentation';
 
-function Quiz({ subjects, currentUserId, dataRefreshKey = 0 }) {
+function Quiz({ subjects, currentUserId, dataRefreshKey = 0, isActive = true, onOpenLesson }) {
   const { confirmDelete, ConfirmDeleteDialog } = useConfirmDelete();
   const [quizzes, setQuizzes] = useState([]);
+  const [scheduledLessons, setScheduledLessons] = useState([]);
+  const [scheduledLessonsLoading, setScheduledLessonsLoading] = useState(false);
+  const [scheduledLessonsError, setScheduledLessonsError] = useState('');
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState('list');
   const [activeQuiz, setActiveQuiz] = useState(null);
+  const [editingQuiz, setEditingQuiz] = useState(null);
+  const [editData, setEditData] = useState({ title: '', lessonId: '' });
+  const [historyStream, setHistoryStream] = useState(null);
   const [socket, setSocket] = useState(null);
 
   // Форма создания
@@ -22,6 +29,7 @@ function Quiz({ subjects, currentUserId, dataRefreshKey = 0 }) {
     title: '',
     description: '',
     subjectId: '',
+    lessonId: '',
     showLeaderboardAfterQuestion: true,
     showQuestionReview: true,
     showExplanations: true
@@ -54,7 +62,13 @@ function Quiz({ subjects, currentUserId, dataRefreshKey = 0 }) {
   const [resultsData, setResultsData] = useState(null);
   const [loadingResults, setLoadingResults] = useState(false);
 
-  useEffect(() => { loadQuizzes(); }, []);
+  useEffect(() => {
+    if (!isActive) return;
+    loadQuizzes();
+    loadScheduledLessons();
+    // The admin keeps visited sections mounted, so data must refresh on every return.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isActive]);
 
   // Сокет подключается ТОЛЬКО когда есть код
   useEffect(() => {
@@ -128,7 +142,7 @@ function Quiz({ subjects, currentUserId, dataRefreshKey = 0 }) {
 
   const loadQuizzes = async () => {
     try {
-      const response = await adminFetch(`${API_URL}/quiz/all`);
+      const response = await adminFetch(`${API_URL}/lesson-admin/standalone-quizzes`);
       const data = await response.json();
       setQuizzes(data.quizzes || []);
     } catch (error) {
@@ -138,7 +152,42 @@ function Quiz({ subjects, currentUserId, dataRefreshKey = 0 }) {
     }
   };
 
-  useSectionRefresh(dataRefreshKey, loadQuizzes);
+  const loadScheduledLessons = async () => {
+    setScheduledLessonsLoading(true);
+    setScheduledLessonsError('');
+    try {
+      const response = await adminFetch(`${API_URL}/lesson-admin/scheduled-lessons-for-quizzes`);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Не удалось загрузить занятия');
+      setScheduledLessons(data.lessons || []);
+    } catch (error) {
+      console.error('Error loading scheduled lessons:', error);
+      setScheduledLessonsError(error.message || 'Не удалось загрузить занятия');
+    } finally {
+      setScheduledLessonsLoading(false);
+    }
+  };
+
+  useSectionRefresh(dataRefreshKey, () => {
+    loadQuizzes();
+    loadScheduledLessons();
+  });
+
+  const openCreateView = () => {
+    loadScheduledLessons();
+    setView('create');
+  };
+
+  const openEditView = (quiz) => {
+    if (quiz.lesson?.status === 'live') {
+      alert('Нельзя изменить викторину: занятие уже идёт');
+      return;
+    }
+    setEditingQuiz(quiz);
+    setEditData({ title: quiz.title || '', lessonId: String(quiz.lesson?.id || quiz.lessonId || '') });
+    loadScheduledLessons();
+    setView('edit');
+  };
 
   const addQuestion = () => {
     if (!currentQ.questionText.trim()) { alert('Введите текст вопроса'); return; }
@@ -201,28 +250,41 @@ function Quiz({ subjects, currentUserId, dataRefreshKey = 0 }) {
   };
 
   const saveQuiz = async () => {
-    if (!formData.title || !formData.subjectId) { alert('Заполните название и предмет'); return; }
+    if (!formData.title || !formData.lessonId) { alert('Укажите название и занятие'); return; }
     if (questions.length === 0) { alert('Добавьте хотя бы один вопрос'); return; }
     try {
-      const response = await adminFetch(`${API_URL}/quiz/create`, {
+      const response = await adminFetch(`${API_URL}/lesson-admin/lessons/${formData.lessonId}/quizzes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...formData, subjectId: parseInt(formData.subjectId), questions, createdBy: currentUserId || 1 })
+        body: JSON.stringify({ title: formData.title, createdBy: currentUserId || 1 })
       });
-      if (response.ok) {
-        setFormData({
-          title: '', description: '', subjectId: '',
-          showLeaderboardAfterQuestion: true,
-          showQuestionReview: true,
-          showExplanations: true
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Не удалось создать викторину');
+      for (let order = 0; order < questions.length; order += 1) {
+        const question = questions[order];
+        const questionResponse = await adminFetch(`${API_URL}/lesson-admin/quizzes/${data.quiz.id}/questions`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            questionText: question.questionText,
+            options: question.options,
+            correctAnswer: [question.correctAnswer],
+            explanation: question.explanation,
+            timeLimit: question.timeLimit,
+            order
+          })
         });
-        setQuestions([]);
-        setView('list');
-        loadQuizzes();
+        if (!questionResponse.ok) {
+          const error = await questionResponse.json().catch(() => ({}));
+          throw new Error(error.message || `Не удалось сохранить вопрос ${order + 1}`);
+        }
       }
+      setFormData({ title: '', description: '', subjectId: '', lessonId: '', showLeaderboardAfterQuestion: true, showQuestionReview: true, showExplanations: true });
+      setQuestions([]);
+      setView('list');
+      await Promise.all([loadQuizzes(), loadScheduledLessons()]);
     } catch (error) {
       console.error('Error:', error);
-      alert('Ошибка создания');
+      alert(error.message || 'Ошибка создания');
     }
   };
 
@@ -279,15 +341,46 @@ function Quiz({ subjects, currentUserId, dataRefreshKey = 0 }) {
   };
 
   const deleteQuiz = async (quiz) => {
+    if (quiz.lesson?.status === 'live') {
+      alert('Нельзя удалить викторину: занятие уже идёт');
+      return;
+    }
     const confirmed = await confirmDelete(getDeleteConfirm('quiz', {
       name: quiz.title,
     }));
     if (!confirmed) return;
     try {
-      await adminFetch(`${API_URL}/quiz/${quiz.id}`, { method: 'DELETE' });
-      loadQuizzes();
+      const response = await adminFetch(`${API_URL}/lesson-admin/quizzes/${quiz.id}`, { method: 'DELETE' });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.message || 'Не удалось удалить викторину');
+      await Promise.all([loadQuizzes(), loadScheduledLessons()]);
     } catch (error) {
       console.error('Error:', error);
+      alert(error.message || 'Не удалось удалить викторину');
+    }
+  };
+
+  const saveQuizEdits = async () => {
+    if (!editingQuiz) return;
+    if (!editData.title.trim() || !editData.lessonId) {
+      alert('Укажите название и занятие');
+      return;
+    }
+    try {
+      const response = await adminFetch(`${API_URL}/lesson-admin/quizzes/${editingQuiz.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: editData.title, lessonId: Number(editData.lessonId) })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.message || 'Не удалось сохранить изменения');
+      setEditingQuiz(null);
+      setEditData({ title: '', lessonId: '' });
+      setView('list');
+      await Promise.all([loadQuizzes(), loadScheduledLessons()]);
+    } catch (error) {
+      console.error('Error updating lesson quiz:', error);
+      alert(error.message || 'Не удалось сохранить изменения');
     }
   };
 
@@ -623,10 +716,28 @@ function Quiz({ subjects, currentUserId, dataRefreshKey = 0 }) {
             onChange={(e) => setFormData({ ...formData, title: e.target.value })} className="form-input" />
           <textarea placeholder="Описание (необязательно)" value={formData.description}
             onChange={(e) => setFormData({ ...formData, description: e.target.value })} className="form-textarea" />
-          <select value={formData.subjectId} onChange={(e) => setFormData({ ...formData, subjectId: e.target.value })} className="form-select">
-            <option value="">Выберите предмет</option>
-            {subjects.map(s => <option key={s.id} value={s.id}>{s.icon} {s.name}</option>)}
+          <select value={formData.lessonId} disabled={scheduledLessonsLoading} onChange={(e) => {
+            const lesson = scheduledLessons.find((item) => Number(item.id) === Number(e.target.value));
+            setFormData({ ...formData, lessonId: e.target.value, subjectId: lesson?.subjectId || '' });
+          }} className="form-select">
+            <option value="">Выберите занятие</option>
+            {scheduledLessons.map((lesson) => (
+              <option key={lesson.id} value={lesson.id} disabled={lesson.hasQuiz}>
+                {lesson.subject?.name} · {new Date(lesson.scheduledAt).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' })} · {lesson.teacher?.firstName || 'преподаватель'}{lesson.hasQuiz ? ' · викторина уже привязана' : ''}
+              </option>
+            ))}
           </select>
+          {scheduledLessonsLoading && <p className="quiz-form-hint">Обновляем список занятий...</p>}
+          {!scheduledLessonsLoading && scheduledLessonsError && (
+            <p className="quiz-form-hint">
+              {scheduledLessonsError}.{' '}
+              <button type="button" className="quiz-inline-retry" onClick={loadScheduledLessons}>Повторить</button>
+            </p>
+          )}
+          {!scheduledLessonsLoading && !scheduledLessonsError && scheduledLessons.length === 0 && (
+            <p className="quiz-form-hint">Нет запланированных занятий, доступных для привязки.</p>
+          )}
+          <p className="quiz-form-hint">Викторина появится у учеников только после начала выбранного занятия. На самом занятии её можно лишь запустить и провести.</p>
           <div className="questions-section">
             <div className="questions-section-header">
               <h3>Вопросы ({questions.length})</h3>
@@ -677,12 +788,51 @@ function Quiz({ subjects, currentUserId, dataRefreshKey = 0 }) {
     );
   }
 
+  // ========== РЕДАКТИРОВАНИЕ ===========
+  if (view === 'edit' && editingQuiz) {
+    const currentLessonInList = scheduledLessons.some((lesson) => Number(lesson.id) === Number(editingQuiz.lesson?.id || editingQuiz.lessonId));
+    return (
+      <div className="admin-section">
+        <div className="section-header">
+          <button className="back-btn" onClick={() => { setView('list'); setEditingQuiz(null); }}>← Назад</button>
+          <h2>Редактировать викторину</h2>
+        </div>
+        <div className="quiz-form quiz-edit-form">
+          <label className="quiz-field-label" htmlFor="quiz-edit-title">Название</label>
+          <input id="quiz-edit-title" type="text" value={editData.title}
+            onChange={(e) => setEditData({ ...editData, title: e.target.value })} className="form-input" />
+          <label className="quiz-field-label" htmlFor="quiz-edit-lesson">Занятие</label>
+          <select id="quiz-edit-lesson" value={editData.lessonId} disabled={scheduledLessonsLoading}
+            onChange={(e) => setEditData({ ...editData, lessonId: e.target.value })} className="form-select">
+            {!currentLessonInList && (
+              <option value={editingQuiz.lesson?.id || editingQuiz.lessonId}>
+                {editingQuiz.lesson?.subject?.name} · {editingQuiz.lesson?.topic || 'Текущее занятие'} · текущее
+              </option>
+            )}
+            {scheduledLessons.map((lesson) => {
+              const isCurrent = Number(lesson.id) === Number(editingQuiz.lesson?.id || editingQuiz.lessonId);
+              return (
+                <option key={lesson.id} value={lesson.id} disabled={lesson.hasQuiz && !isCurrent}>
+                  {lesson.subject?.name} · {new Date(lesson.scheduledAt).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' })} · {lesson.teacher?.firstName || 'преподаватель'}{lesson.hasQuiz && !isCurrent ? ' · викторина уже привязана' : ''}
+                </option>
+              );
+            })}
+          </select>
+          {scheduledLessonsLoading && <p className="quiz-form-hint">Обновляем список занятий...</p>}
+          {!scheduledLessonsLoading && scheduledLessonsError && <p className="quiz-form-hint">{scheduledLessonsError}</p>}
+          <p className="quiz-form-hint">Перепривязка доступна только к предстоящему занятию. Во время идущего занятия изменить или удалить викторину нельзя.</p>
+          <button onClick={saveQuizEdits} className="save-btn">Сохранить изменения</button>
+        </div>
+      </div>
+    );
+  }
+
   // ========== СПИСОК ==========
   return (
     <div className="admin-section">
       <div className="section-header">
         <h2>🎯 Викторины</h2>
-        <button className="primary-btn" onClick={() => setView('create')}>+ Создать</button>
+        <button className="primary-btn" onClick={openCreateView}>+ Создать</button>
       </div>
       {loading ? <p>Загрузка...</p> : (
         <div className="quizzes-grid">
@@ -702,25 +852,23 @@ function Quiz({ subjects, currentUserId, dataRefreshKey = 0 }) {
                   {q.status === 'finished' && '✅ Завершена'}
                 </span>
               </div>
-              {q.description && <div className="quiz-description"><MathText text={q.description} /></div>}
+              <div className="quiz-description">{q.lesson?.topic || 'Без темы'} · {q.lesson?.scheduledAt ? new Date(q.lesson.scheduledAt).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' }) : 'занятие не указано'}</div>
               <div className="quiz-info">
                 <span>📚 {q.questions?.length || 0} вопросов</span>
                 <span>👥 {q.participants?.length || 0} участников</span>
               </div>
               <div className="quiz-actions">
-                {q.status === 'finished' && (
-                  <button onClick={() => viewResults(q)} className="view-results-btn">📊 Результаты</button>
-                )}
-                {q.status !== 'finished' && (
-                  <button onClick={() => startLiveQuiz(q)} className="live-btn">🎮 Лобби</button>
-                )}
-                <button onClick={() => deleteQuiz(q)} className="delete-btn">🗑</button>
+                <button onClick={() => onOpenLesson?.(q.lesson?.id || q.lessonId)} className="live-btn">Открыть занятие →</button>
+                {q.status === 'finished' && <button onClick={() => setHistoryStream({ lessonQuizId: q.id, subjectName: q.lesson?.subject?.name })} className="edit-btn">Итоги</button>}
+                <button onClick={() => openEditView(q)} className="edit-btn" disabled={q.lesson?.status === 'live'} title={q.lesson?.status === 'live' ? 'Занятие уже идёт' : 'Изменить название или занятие'}>Изменить</button>
+                <button onClick={() => deleteQuiz(q)} className="delete-btn" disabled={q.lesson?.status === 'live'} title={q.lesson?.status === 'live' ? 'Занятие уже идёт' : 'Удалить викторину'}>Удалить</button>
               </div>
             </div>
           ))}
         </div>
       )}
       {ConfirmDeleteDialog}
+      {historyStream && <StreamPresentation source={historyStream} onClose={() => setHistoryStream(null)} />}
     </div>
   );
 }

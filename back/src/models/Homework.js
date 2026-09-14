@@ -29,7 +29,7 @@ const Homework = sequelize.define('Homework', {
   },
   closeDate: {
     type: DataTypes.DATE,
-    allowNull: false
+    allowNull: true
   },
   maxAttempts: {
     type: DataTypes.INTEGER,

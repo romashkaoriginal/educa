@@ -1,0 +1,239 @@
+.parents-section {
+  animation: fadeIn 0.3s ease;
+}
+
+.parents-header-actions,
+.manual-report-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.manual-report-button {
+  min-height: 42px;
+  white-space: nowrap;
+}
+
+.parent-report-result {
+  margin: -8px 0 18px;
+  padding: 10px 14px;
+  border: 1px solid rgba(34, 197, 94, 0.24);
+  border-radius: 10px;
+  background: rgba(34, 197, 94, 0.08);
+  color: var(--good);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.parent-schedule-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0 0 18px;
+}
+
+.parent-schedule-card {
+  display: grid;
+  gap: 5px;
+  padding: 13px 15px;
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 11px;
+  background: rgba(59, 130, 246, 0.06);
+}
+
+.parent-schedule-card span {
+  color: var(--kubik-text-soft);
+  font-size: 12px;
+}
+
+.parent-schedule-card strong {
+  color: var(--kubik-navy);
+  font-size: 14px;
+  text-transform: capitalize;
+}
+
+.parents-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 18px;
+}
+
+.parent-card {
+  padding: 20px;
+  border: 2px solid var(--kubik-border);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 4px 14px rgba(26, 64, 95, 0.06);
+}
+
+.parent-card-top {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.parent-avatar {
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  color: #fff;
+  background: linear-gradient(135deg, var(--kubik-navy), var(--kubik-blue));
+  font-weight: 800;
+  font-size: 18px;
+}
+
+.parent-card-title {
+  min-width: 0;
+  flex: 1;
+}
+
+.parent-card-title h3,
+.parent-card-title p {
+  overflow: hidden;
+  margin: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.parent-card-title h3 {
+  color: var(--kubik-navy);
+  font-size: 17px;
+}
+
+.parent-card-title p {
+  margin-top: 3px;
+  color: var(--kubik-text-soft);
+  font-size: 13px;
+}
+
+.parent-student-link,
+.parent-report-state {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: 11px;
+  background: var(--kubik-white);
+  color: var(--kubik-text);
+  font-size: 13px;
+}
+
+.parent-student-link span,
+.parent-report-state span {
+  color: var(--kubik-text-soft);
+}
+
+.parent-subjects {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  min-height: 30px;
+  margin-top: 12px;
+}
+
+.parent-subjects > span {
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: rgba(59, 130, 246, 0.1);
+  color: var(--kubik-navy);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.parent-subjects .parent-warning,
+.report-failed,
+.report-skipped_no_access,
+.report-skipped_no_telegram {
+  color: var(--low);
+}
+
+.report-sent {
+  color: var(--good);
+}
+
+.parent-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.parent-actions button {
+  flex: 1;
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
+.parents-empty {
+  padding: 52px 20px;
+  text-align: center;
+  color: var(--kubik-text-soft);
+}
+
+.parent-modal {
+  max-width: 680px;
+}
+
+.parent-form {
+  padding: 24px 30px 30px;
+}
+
+.parent-form select {
+  width: 100%;
+  padding: 12px 14px;
+  border: 2px solid var(--kubik-border);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--kubik-text);
+  font: inherit;
+}
+
+.parent-form input[type='search'] {
+  width: 100%;
+  margin-bottom: 8px;
+  padding: 12px 14px;
+  border: 2px solid var(--kubik-border);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--kubik-text);
+  font: inherit;
+}
+
+.parent-form input[type='search']:focus {
+  outline: none;
+  border-color: var(--kubik-blue);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.parent-search-empty {
+  display: block;
+  margin-top: 6px;
+  color: var(--kubik-text-soft);
+  font-size: 12px;
+}
+
+.parent-form select:focus {
+  outline: none;
+  border-color: var(--kubik-blue);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.parent-form-note {
+  margin: -4px 0 18px;
+  color: var(--kubik-text-soft);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+@media (max-width: 640px) {
+  .parents-header-actions,
+  .manual-report-actions { width: 100%; flex-direction: column; align-items: stretch; }
+  .parents-header-actions button { width: 100%; }
+  .parents-grid { grid-template-columns: 1fr; }
+  .parent-schedule-grid { grid-template-columns: 1fr; }
+  .parent-form { padding: 20px 18px 24px; }
+  .parent-actions { flex-direction: column; }
+}

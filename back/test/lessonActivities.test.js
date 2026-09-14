@@ -114,3 +114,56 @@ test('markQuizQuestionReceived stores an idempotent delivery for the visible que
   assert.equal(result.created, true);
   assert.equal(result.lessonId, 2);
 });
+
+test('submitQuizAnswer rejects an answer after the in-lesson question timer expires', async () => {
+  const liveLesson = { id: 2, subjectId: 7, status: 'live', sessionEndsAt: null };
+  let created = false;
+  const activities = loadActivities({
+    accessCheck: async () => ({ ok: true, lesson: liveLesson }),
+    findLesson: async () => liveLesson,
+    models: {
+      LessonQuiz: { findByPk: async () => ({
+        id: 5, lessonId: 2, status: 'active', mode: 'single_step',
+        currentQuestionIndex: 0, questionRevealState: 'question',
+        questionStartedAt: new Date(Date.now() - 31_000)
+      }) },
+      LessonQuizQuestion: {
+        findOne: async () => ({ id: 9, lessonQuizId: 5, timeLimit: 30, options: ['A', 'B'], correctAnswer: [1] }),
+        findAll: async () => [{ id: 9 }]
+      },
+      LessonQuizAnswer: { create: async () => { created = true; } }
+    }
+  });
+
+  await assert.rejects(
+    () => activities.submitQuizAnswer({ quizId: 5, questionId: 9, selectedAnswer: [1], userId: 42 }),
+    (error) => error.code === 'QUESTION_TIME_EXPIRED' && error.status === 409
+  );
+  assert.equal(created, false);
+});
+
+test('submitQuizAnswer stores server-measured response time for lesson ranking', async () => {
+  const liveLesson = { id: 2, subjectId: 7, status: 'live', sessionEndsAt: null };
+  const startedAt = new Date(Date.now() - 4_000);
+  let payload = null;
+  const activities = loadActivities({
+    accessCheck: async () => ({ ok: true, lesson: liveLesson }),
+    findLesson: async () => liveLesson,
+    models: {
+      LessonQuiz: { findByPk: async () => ({
+        id: 5, lessonId: 2, status: 'active', mode: 'single_step',
+        currentQuestionIndex: 0, questionRevealState: 'question', questionStartedAt: startedAt
+      }) },
+      LessonQuizQuestion: {
+        findOne: async () => ({ id: 9, lessonQuizId: 5, timeLimit: 30, options: ['A', 'B'], correctAnswer: [1] }),
+        findAll: async () => [{ id: 9 }]
+      },
+      LessonQuizAnswer: { create: async (values) => { payload = values; return values; } }
+    }
+  });
+
+  await activities.submitQuizAnswer({ quizId: 5, questionId: 9, selectedAnswer: [1], userId: 42 });
+
+  assert.equal(payload.isCorrect, true);
+  assert.ok(payload.responseTimeMs >= 4_000 && payload.responseTimeMs < 5_000);
+});

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import './AdminPanel.css';
 import kubikLogo from '../assets/kubik-logo-transparent.png';
 import Students from '../components/admin/Students';
+import Parents from '../components/admin/Parents';
 import Users from '../components/admin/Users';
 import Practice from '../components/admin/Practice';
 import Homework from '../components/admin/Homework';
@@ -20,15 +21,16 @@ const SUPER_ADMIN_TELEGRAM_ID = '1218874137';
 
 // Доступные разделы по ролям
 const ROLE_SECTIONS = {
-  superadmin: ['users', 'students', 'applications', 'practice', 'lesson', 'quiz', 'homework', 'statistics', 'notifications', 'superadmin'],
-  admin: ['users', 'students', 'applications', 'practice', 'lesson', 'quiz', 'homework', 'statistics', 'notifications'],
-  manager: ['users', 'students', 'applications', 'statistics', 'notifications'],
+  superadmin: ['users', 'students', 'parents', 'applications', 'practice', 'lesson', 'quiz', 'homework', 'statistics', 'notifications', 'superadmin'],
+  admin: ['users', 'students', 'parents', 'applications', 'practice', 'lesson', 'quiz', 'homework', 'statistics', 'notifications'],
+  manager: ['users', 'students', 'parents', 'applications', 'statistics', 'notifications'],
   teacher: ['practice', 'lesson', 'quiz', 'homework', 'statistics', 'notifications'],
 };
 
 const ALL_SECTIONS = [
   { id: 'users', name: 'Пользователи', icon: '👨‍💼' },
   { id: 'students', name: 'Ученики', icon: '👥' },
+  { id: 'parents', name: 'Родители', icon: '👪' },
   { id: 'applications', name: 'Заявки', icon: '📋' },
   { id: 'practice', name: 'Практика', icon: '💪' },
   { id: 'lesson', name: 'Занятие', icon: '🎓' },
@@ -46,6 +48,7 @@ function AdminPanelContent() {
   const [userRole, setUserRole] = useState('admin');
   const [activeSection, setActiveSection] = useState(null);
   const [visitedSections, setVisitedSections] = useState([]);
+  const [lessonEntryRequest, setLessonEntryRequest] = useState(null);
 
   useEffect(() => {
     const tg = window.Telegram?.WebApp;
@@ -174,11 +177,12 @@ function AdminPanelContent() {
       <main className="admin-content">
         {canRenderSection('users') && <div style={{ display: activeSection === 'users' ? 'block' : 'none' }}><Users currentUser={currentUser} dataRefreshKey={dataRefreshKey} /></div>}
         {canRenderSection('students') && <div style={{ display: activeSection === 'students' ? 'block' : 'none' }}><Students subjects={subjects} dataRefreshKey={dataRefreshKey} /></div>}
+        {canRenderSection('parents') && <div style={{ display: activeSection === 'parents' ? 'block' : 'none' }}><Parents currentUser={currentUser} dataRefreshKey={dataRefreshKey} /></div>}
         {canRenderSection('practice') && <div style={{ display: activeSection === 'practice' ? 'block' : 'none' }}><Practice dataRefreshKey={dataRefreshKey} /></div>}
-        {canRenderSection('lesson') && <div style={{ display: activeSection === 'lesson' ? 'block' : 'none' }}><Lesson subjects={subjects} currentUser={currentUser} dataRefreshKey={dataRefreshKey} /></div>}
+        {canRenderSection('lesson') && <div style={{ display: activeSection === 'lesson' ? 'block' : 'none' }}><Lesson subjects={subjects} currentUser={currentUser} dataRefreshKey={dataRefreshKey} entryRequest={lessonEntryRequest} /></div>}
         {canRenderSection('homework') && <div style={{ display: activeSection === 'homework' ? 'block' : 'none' }}><Homework subjects={subjects} currentUserId={currentUser?.id} dataRefreshKey={dataRefreshKey} /></div>}
         {canRenderSection('statistics') && <div style={{ display: activeSection === 'statistics' ? 'block' : 'none' }}><Statistics currentUser={currentUser} dataRefreshKey={dataRefreshKey} /></div>}
-        {canRenderSection('quiz') && <div style={{ display: activeSection === 'quiz' ? 'block' : 'none' }}><Quiz subjects={subjects} currentUserId={currentUser?.id} dataRefreshKey={dataRefreshKey} /></div>}
+        {canRenderSection('quiz') && <div style={{ display: activeSection === 'quiz' ? 'block' : 'none' }}><Quiz subjects={subjects} currentUserId={currentUser?.id} dataRefreshKey={dataRefreshKey} isActive={activeSection === 'quiz'} onOpenLesson={(lessonId) => { setLessonEntryRequest({ lessonId, nonce: Date.now() }); setActiveSection('lesson'); }} /></div>}
         {canRenderSection('notifications') && <div style={{ display: activeSection === 'notifications' ? 'block' : 'none' }}><Notifications subjects={subjects} currentUser={currentUser} dataRefreshKey={dataRefreshKey} /></div>}
         {canRenderSection('applications') && <div style={{ display: activeSection === 'applications' ? 'block' : 'none' }}><Applications dataRefreshKey={dataRefreshKey} /></div>}
         {isSuperAdmin && canRenderSection('superadmin') && (

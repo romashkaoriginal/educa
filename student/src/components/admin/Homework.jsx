@@ -122,7 +122,7 @@ function Homework({ subjects, currentUserId, dataRefreshKey = 0 }) {
   };
 
   const handleSaveHomework = async () => {
-    if (!formData.title || !formData.subjectId || !formData.openDate || !formData.closeDate) {
+    if (!formData.title || !formData.subjectId || !formData.openDate) {
       alert('Заполните все обязательные поля');
       return;
     }
@@ -745,9 +745,10 @@ function Homework({ subjects, currentUserId, dataRefreshKey = 0 }) {
                 onChange={(e) => setFormData({ ...formData, openDate: e.target.value })} />
             </div>
             <div className="form-group">
-              <label>Дата и время закрытия *</label>
+              <label>Дата и время закрытия</label>
               <input type="datetime-local" value={formData.closeDate}
                 onChange={(e) => setFormData({ ...formData, closeDate: e.target.value })} />
+              <small>Оставьте пустым для домашки без дедлайна</small>
             </div>
           </div>
 
@@ -892,7 +893,7 @@ function Homework({ subjects, currentUserId, dataRefreshKey = 0 }) {
                 <div className="homework-meta">
                   <span>📝 Вопросов: {homework.questions?.length || 0}</span>
                   <span>📅 Открытие: {new Date(homework.openDate).toLocaleString('ru-RU')}</span>
-                  <span>⏰ Закрытие: {new Date(homework.closeDate).toLocaleString('ru-RU')}</span>
+                  <span>⏰ Закрытие: {homework.closeDate ? new Date(homework.closeDate).toLocaleString('ru-RU') : 'без дедлайна'}</span>
                   {homework.maxAttempts && <span>🔄 Попыток: {homework.maxAttempts}</span>}
                 </div>
               </div>

@@ -5,6 +5,9 @@ const { refreshWebAppUrl, getWebAppUrlSync } = require('./utils/webAppUrl');
 const { parseUtm } = require('./utils/utm');
 const { getBotUserUtmFields } = require('./services/botUserUtm');
 const guestAccess = require('./services/guestAccess');
+const { findParentForTelegramUser } = require('./services/parentIdentity');
+const { claimPendingStudent } = require('./services/systemUserIdentity');
+const { normalizeTelegramUsername } = require('./services/telegramIdentity');
 
 const token = process.env.BOT_TOKEN;
 
@@ -82,11 +85,12 @@ function isStartThrottled(telegramId) {
 
 async function registerBotUser(user, utm = null) {
   try {
+    const telegramUsername = normalizeTelegramUsername(user.username);
     const [botUser, created] = await BotUser.findOrCreate({
       where: { telegramId: user.id },
       defaults: {
         telegramId: user.id,
-        telegramUsername: user.username || null,
+        telegramUsername,
         firstName: user.first_name || 'Пользователь',
         lastName: user.last_name || '',
         languageCode: user.language_code || 'ru',
@@ -101,7 +105,7 @@ async function registerBotUser(user, utm = null) {
       const updateFields = {
         lastInteractionAt: new Date(),
         messageCount: (botUser.messageCount || 0) + 1,
-        telegramUsername: user.username || botUser.telegramUsername,
+        telegramUsername: telegramUsername || botUser.telegramUsername,
         isBotBlocked: false,
         botBlockedAt: null,
         botLastDeliveryError: null
@@ -223,7 +227,16 @@ function startBot() {
 
     try {
       await registerBotUser(user, utm);
-      const systemUser = await checkUserRole(user.id);
+      const parent = await findParentForTelegramUser(user);
+      if (parent) {
+        await resetChatMenuButton(chatId);
+        const studentName = [parent.student?.firstName, parent.student?.lastName].filter(Boolean).join(' ');
+        return sendStartMessage(
+          chatId,
+          `👋 Привет, ${firstName}!\n\nВы подключены к еженедельным отчётам об обучении${studentName ? ` ученика ${studentName}` : ''}.\n\nОтчёт приходит каждый понедельник в 18:00 по минскому времени.`
+        );
+      }
+      const systemUser = await claimPendingStudent(user) || await checkUserRole(user.id);
 
       // ===== Ученик / сотрудник =====
       if (systemUser) {
@@ -298,6 +311,10 @@ function startBot() {
     const msg = ctx.message;
     const chatId = msg.chat.id;
     await registerBotUser(msg.from);
+    const parent = await findParentForTelegramUser(msg.from);
+    if (parent) {
+      return bot.sendMessage(chatId, '📚 Еженедельный отчёт приходит автоматически по понедельникам в 18:00 по минскому времени.');
+    }
     const systemUser = await checkUserRole(msg.from.id);
 
     if (systemUser) {
@@ -313,6 +330,14 @@ function startBot() {
     const chatId = msg.chat.id;
     const user = msg.from;
     await registerBotUser(user);
+    const parent = await findParentForTelegramUser(user);
+    if (parent) {
+      const studentName = [parent.student?.firstName, parent.student?.lastName].filter(Boolean).join(' ');
+      return bot.sendMessage(
+        chatId,
+        `👤 Родительский доступ\n\nУченик: ${studentName || 'не указан'}\n🆔 Telegram ID: ${user.id}\n\nДоступ к отчётам определяется доступом ученика.\nОтчёт: понедельник, 18:00 (Минск)`
+      );
+    }
     const systemUser = await checkUserRole(user.id);
 
     if (systemUser) {
@@ -395,6 +420,8 @@ function startBot() {
     await registerBotUser(msg.from);
 
     // Сотрудники/ученики игнорируются
+    const parent = await findParentForTelegramUser(msg.from);
+    if (parent) return;
     const systemUser = await checkUserRole(msg.from.id);
     if (systemUser) return;
 

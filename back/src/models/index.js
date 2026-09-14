@@ -45,8 +45,11 @@ const LessonQuiz = require('./LessonQuiz');
 const LessonQuizQuestion = require('./LessonQuizQuestion');
 const LessonQuizAnswer = require('./LessonQuizAnswer');
 const LessonQuizDelivery = require('./LessonQuizDelivery');
+const LessonQuizParticipant = require('./LessonQuizParticipant');
 const ErrorLog = require('./ErrorLog');
 const HomeworkDraft = require('./HomeworkDraft');
+const Parent = require('./Parent');
+const ParentReportLog = require('./ParentReportLog');
 
 // ========== СВЯЗИ С SUBJECTS ==========
 
@@ -67,6 +70,15 @@ PracticeTopic.belongsTo(Subject, { foreignKey: 'subjectId', as: 'subject' });
 // ========== СВЯЗИ BOTUSER ==========
 BotUser.belongsTo(User, { foreignKey: 'userId', as: 'assignedUser' });
 User.hasOne(BotUser, { foreignKey: 'userId', as: 'botProfile' });
+
+// ========== PARENTS ==========
+// Связь строго один-к-одному: уникальные studentId и telegramId закреплены в модели.
+User.hasOne(Parent, { foreignKey: 'studentId', as: 'parent', onDelete: 'CASCADE' });
+Parent.belongsTo(User, { foreignKey: 'studentId', as: 'student' });
+Parent.hasMany(ParentReportLog, { foreignKey: 'parentId', as: 'reportLogs' });
+ParentReportLog.belongsTo(Parent, { foreignKey: 'parentId', as: 'parent' });
+User.hasMany(ParentReportLog, { foreignKey: 'studentId', as: 'parentReportLogs' });
+ParentReportLog.belongsTo(User, { foreignKey: 'studentId', as: 'student' });
 
 // ========== QUIZ ==========
 Quiz.belongsTo(Subject, { foreignKey: 'subjectId', as: 'subject' });
@@ -246,6 +258,9 @@ LessonQuizDelivery.belongsTo(LessonQuiz, { foreignKey: 'lessonQuizId', as: 'quiz
 LessonQuizQuestion.hasMany(LessonQuizDelivery, { foreignKey: 'questionId', as: 'deliveries' });
 LessonQuizDelivery.belongsTo(LessonQuizQuestion, { foreignKey: 'questionId', as: 'question' });
 LessonQuizDelivery.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+LessonQuiz.hasMany(LessonQuizParticipant, { foreignKey: 'lessonQuizId', as: 'participants' });
+LessonQuizParticipant.belongsTo(LessonQuiz, { foreignKey: 'lessonQuizId', as: 'quiz' });
+LessonQuizParticipant.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 
 // Ручная миграция practice_questions.correct_answer: integer → json (массив
 // индексов, поддержка нескольких правильных вариантов). sequelize.sync({alter})
@@ -311,7 +326,7 @@ module.exports = {
   Group, GroupStudent, TeacherSubject, Lesson, LessonGroup,
   LessonAttendance, LessonMaterial, LessonQuestion, LessonReaction,
   LessonPoll, LessonPollOption, LessonPollAnswer,
-  LessonQuiz, LessonQuizQuestion, LessonQuizAnswer, LessonQuizDelivery,
-  ErrorLog,
+  LessonQuiz, LessonQuizQuestion, LessonQuizAnswer, LessonQuizDelivery, LessonQuizParticipant,
+  ErrorLog, Parent, ParentReportLog,
   syncDatabase
 };

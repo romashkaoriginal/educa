@@ -26,7 +26,8 @@ const HomeworkSubmission = sequelize.define('HomeworkSubmission', {
   indexes: [
     { fields: ['userId'] },
     { fields: ['homeworkId'] },
-    { fields: ['userId', 'homeworkId'] }
+    { fields: ['userId', 'homeworkId'] },
+    { fields: ['submittedAt'] }
   ]
 });
 
