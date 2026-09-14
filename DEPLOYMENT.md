@@ -37,6 +37,29 @@
 .\deploy-production.ps1 -ValidateOnly
 ```
 
+### Точный production-деплой
+
+Если нужно выложить только конкретное изменение, не запускайте обычный полный
+деплой: он заменяет все исходники. Используйте один из режимов:
+
+```powershell
+# Выбрать файлы из текущей рабочей папки.
+.\deploy-production.ps1 -Files back/src/controllers/practiceController.js,student/src/components/admin/Practice.jsx
+
+# Выложить только файлы, изменённые в коммите; содержимое берётся из Git-коммита.
+.\deploy-production.ps1 -Commit af0c380
+```
+
+`-Files` и `-Commit` нельзя совмещать. Режим принимает только файлы frontend и
+backend, проверяет пути, копирует их по одному и пересобирает лишь затронутые
+сервисы. Для коммита также удаляются файлы, которые были удалены именно в нём.
+Перед запуском можно выполнить ту же проверку без записи на сервер:
+
+```powershell
+.\deploy-production.ps1 -ValidateOnly -Files back/src/controllers/practiceController.js
+.\deploy-production.ps1 -ValidateOnly -Commit af0c380
+```
+
 Скрипты останавливаются при первой ошибке: не продолжают сборку после неудачного `scp`, не считают неуспешный HTTP-проверку удачным деплоем и не выполняют команды на втором окружении.
 
 ## Перед каждым деплоем
