@@ -688,6 +688,10 @@ function Practice({ studentId, isTabActive = true, onClose, onActivate }) {
     const normalized = normalizeQuestion(question);
     if (!normalized) return null;
     const indices = normalized.options.map((_, i) => i);
+    const sourceIndexes = Array.isArray(normalized.originalOptionIndexes)
+      && normalized.originalOptionIndexes.length === normalized.options.length
+      ? normalized.originalOptionIndexes
+      : normalized.options.map((_, index) => index);
     for (let i = indices.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [indices[i], indices[j]] = [indices[j], indices[i]];
@@ -696,6 +700,9 @@ function Practice({ studentId, isTabActive = true, onClose, onActivate }) {
       ...normalized,
       options: indices.map((i) => normalized.options[i]),
       correctAnswer: normalized.correctAnswer.map((oldIdx) => indices.indexOf(oldIdx)),
+      // Сервер проверяет индексы относительно исходного порядка из БД.
+      // Сохраняем соответствие даже при повторном перемешивании вопроса.
+      originalOptionIndexes: indices.map((i) => sourceIndexes[i]),
     };
   };
 
@@ -1051,10 +1058,14 @@ function Practice({ studentId, isTabActive = true, onClose, onActivate }) {
     blurActiveElement();
 
     const practiceSnapshot = activePractice;
+    const storedAnswerIndexes = answerIndexes.map(
+      (displayIndex) => currentQuestion.originalOptionIndexes?.[displayIndex] ?? displayIndex
+    );
 
     const answerPayload = {
       questionId: currentQuestion.id,
-      selectedAnswer: answerIndexes,
+      selectedAnswer: storedAnswerIndexes,
+      displayAnswer: answerIndexes,
       correctAnswer: currentQuestion.correctAnswer,
       isCorrect: correct,
     };
@@ -1140,7 +1151,7 @@ function Practice({ studentId, isTabActive = true, onClose, onActivate }) {
   const restoreQuestionState = (index) => {
     const ans = userAnswers[index];
     if (ans) {
-      setSelectedAnswer(ans.selectedAnswer);
+      setSelectedAnswer(ans.displayAnswer || ans.selectedAnswer);
       setAnswered(true);
       setIsCorrect(ans.isCorrect);
     } else {
