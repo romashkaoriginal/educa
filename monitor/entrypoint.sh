@@ -12,13 +12,10 @@ BACKEND_URL="${BACKEND_URL:-http://backend:5000/}"
 POSTGRES_HOST="${POSTGRES_HOST:-postgres}"
 POSTGRES_PORT="${POSTGRES_PORT:-5432}"
 CHECK_INTERVAL="${MONITOR_INTERVAL_SECONDS:-60}"
-HEARTBEAT_MINUTES="${MONITOR_HEARTBEAT_MINUTES:-60}"
-HEARTBEAT_SECONDS=$((HEARTBEAT_MINUTES * 60))
 STARTUP_GRACE_SECONDS="${MONITOR_STARTUP_GRACE_SECONDS:-90}"
 
 last_failure=""
-last_heartbeat=$(date +%s)
-started_at="$last_heartbeat"
+started_at=$(date +%s)
 
 log() {
   printf '%s %s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$*"
@@ -121,11 +118,6 @@ while true; do
       last_failure=""
     fi
 
-    if [ $((now - last_heartbeat)) -ge "$HEARTBEAT_SECONDS" ]; then
-      log "all checks passed"
-      send_telegram "✅ Production monitor работает: frontend, backend и база данных доступны. Продолжаю проверку раз в минуту." || true
-      last_heartbeat="$now"
-    fi
   fi
 
   server_error_cursor=$(latest_server_error_cursor)

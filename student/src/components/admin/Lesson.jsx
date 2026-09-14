@@ -98,6 +98,8 @@ export default function LessonAdmin({ subjects = [], currentUser, dataRefreshKey
   const [busy, setBusy] = useState('');
   const [currentNotice, setCurrentNotice] = useState(null);
   const [stream, setStream] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const deleteConfirmRef = useRef(null);
   const noticeQueueRef = useRef([]);
   const noticeTimersRef = useRef({});
   const processNoticeQueueRef = useRef(null);
@@ -160,6 +162,20 @@ export default function LessonAdmin({ subjects = [], currentUser, dataRefreshKey
   }, []);
 
   useEffect(() => { if (selected) loadSession(selected); }, [selected?.id, selected?.status]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!deleteTarget) return undefined;
+    const previous = document.activeElement;
+    const focusTimer = window.setTimeout(() => deleteConfirmRef.current?.focus(), 0);
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') setDeleteTarget(null);
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.clearTimeout(focusTimer);
+      document.removeEventListener('keydown', handleKeyDown);
+      previous?.focus?.();
+    };
+  }, [deleteTarget]);
 
   const run = async (key, action, { reload = true, refreshSession = true } = {}) => {
     setBusy(key); setMessage('');
@@ -228,12 +244,31 @@ export default function LessonAdmin({ subjects = [], currentUser, dataRefreshKey
     run(`finish-${lesson.id}`, async () => request(`/lessons/${lesson.id}/finish`, { method: 'POST' }));
   };
 
-  const deleteLesson = (lesson) => {
-    if (!window.confirm(`Удалить занятие «${lesson.subject?.name || lesson.topic || 'Без темы'}»? Будут безвозвратно удалены опросы, викторины, ответы, посещаемость и материалы этого занятия.`)) return;
+  const deleteLesson = (lesson) => setDeleteTarget(lesson);
+
+  const confirmDeleteLesson = () => {
+    const lesson = deleteTarget;
+    if (!lesson) return;
+    // Снимаем модальный слой до запроса: даже при ошибке API он не останется
+    // поверх страницы и не заблокирует дальнейшие клики.
+    setDeleteTarget(null);
     run(`delete-lesson-${lesson.id}`, async () => {
       await request(`/lessons/${lesson.id}`, { method: 'DELETE' });
       setLessons((items) => items.filter((item) => Number(item.id) !== Number(lesson.id)));
-      if (Number(selectedId) === Number(lesson.id)) setSelectedId(null);
+      if (Number(selectedId) === Number(lesson.id)) {
+        setSelectedId(null);
+        setPolls([]);
+        setQuizzes([]);
+        setSelectedQuizId(null);
+        setStudentQuestions([]);
+        setAttendance([]);
+        setMaterials([]);
+        setPollResults(null);
+        setQuizStats(null);
+        setStream(null);
+        setStartForm(null);
+        setEditForm(null);
+      }
       setMessage('Занятие удалено');
     }, { reload: false, refreshSession: false });
   };
@@ -610,6 +645,18 @@ export default function LessonAdmin({ subjects = [], currentUser, dataRefreshKey
                 disabled={!editForm.scheduledAt || busy === 'edit-lesson'}
                 onClick={submitEdit}
               >Сохранить</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {deleteTarget && (
+        <div className="lesson-admin-modal-backdrop" onClick={() => setDeleteTarget(null)}>
+          <div className="lesson-admin-modal" role="dialog" aria-modal="true" aria-labelledby="lesson-delete-title" aria-describedby="lesson-delete-description" onClick={(event) => event.stopPropagation()}>
+            <h3 id="lesson-delete-title">Удалить занятие?</h3>
+            <p id="lesson-delete-description">Занятие «{deleteTarget.subject?.name || deleteTarget.topic || 'Без темы'}» будет удалено вместе с опросами, викторинами, ответами, посещаемостью и материалами. Это действие нельзя отменить.</p>
+            <div className="lesson-admin-modal-actions">
+              <button type="button" className="admin-btn" onClick={() => setDeleteTarget(null)}>Отмена</button>
+              <button ref={deleteConfirmRef} type="button" className="admin-btn admin-btn--danger" onClick={confirmDeleteLesson}>Удалить занятие</button>
             </div>
           </div>
         </div>

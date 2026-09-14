@@ -209,11 +209,17 @@ test('показывает удаление завершённого занят�
   render(<LessonAdmin subjects={[{ id: 1, name: 'Математика' }]} currentUser={{ role: 'teacher' }} />);
   fireEvent.click(await screen.findByRole('button', { name: 'Удалить' }));
 
-  expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining('безвозвратно удалены'));
+  const deleteDialog = await screen.findByRole('dialog', { name: 'Удалить занятие?' });
+  expect(within(deleteDialog).getByText(/нельзя отменить/)).toBeInTheDocument();
+  fireEvent.click(within(deleteDialog).getByRole('button', { name: 'Удалить занятие' }));
   await waitFor(() => expect(adminFetch).toHaveBeenCalledWith(
     expect.stringContaining('/lesson-admin/lessons/7'),
     expect.objectContaining({ method: 'DELETE' })
   ));
+  await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Удалить занятие?' })).not.toBeInTheDocument());
+
+  fireEvent.click(await screen.findByRole('button', { name: 'Начать занятие сейчас' }));
+  expect(await screen.findByRole('dialog', { name: 'Начать занятие' })).toBeInTheDocument();
 });
 
 test('редактирование занятия открывает модалку и отправляет PATCH с новой темой и датой', async () => {
