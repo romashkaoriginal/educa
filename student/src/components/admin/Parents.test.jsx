@@ -93,3 +93,31 @@ test('преподаватель не видит кнопки принудите
   await screen.findByText('Иван Ученик');
   expect(screen.queryByRole('button', { name: 'Отправить отчёт за неделю' })).not.toBeInTheDocument();
 });
+
+test.each([
+  ['skipped_no_telegram', 'Родитель ещё не подтвердил Telegram ID через бота', 'Не запускал бота'],
+  ['failed', 'Forbidden: bot was blocked by the user', 'Заблокировал бота'],
+  ['failed', 'Bad Request: chat not found', 'Не запускал бота или неверный ID'],
+  ['failed', 'Connection timed out', 'Ошибка: Connection timed out']
+])('объясняет менеджеру причину статуса %s', async (status, error, expectedLabel) => {
+  adminFetch.mockImplementation((url) => {
+    if (url.endsWith('/parents')) {
+      return response({
+        parents: [{
+          id: 10,
+          studentId: 1,
+          telegramId: '555',
+          firstName: 'Анна',
+          student: { id: 1, firstName: 'Иван', isActive: true, subjects: [] },
+          lastReport: { status, error }
+        }]
+      });
+    }
+    if (url.endsWith('/students')) return response({ students: [] });
+    return response({});
+  });
+
+  render(<Parents currentUser={{ role: 'manager' }} />);
+
+  expect(await screen.findByText(expectedLabel)).toBeInTheDocument();
+});

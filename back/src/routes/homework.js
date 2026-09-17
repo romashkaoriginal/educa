@@ -28,6 +28,20 @@ function sanitizeHomeworkPayload(homework /* , staff */) {
   return typeof homework.toJSON === 'function' ? homework.toJSON() : { ...homework };
 }
 
+function isDraftAnswerFilled(answer, questionType) {
+  if (answer === undefined || answer === null) return false;
+  if (questionType === 'short_answer' || questionType === 'text_input') return String(answer).trim().length > 0;
+  if (questionType === 'numeric' || questionType === 'number_input') {
+    return Number.isFinite(parseFloat(String(answer).replace(',', '.')));
+  }
+  if (questionType === 'fill_blanks' || questionType === 'fill_in_blank') {
+    return Array.isArray(answer) && answer.length > 0 && answer.every(value => String(value ?? '').trim().length > 0);
+  }
+  if (questionType === 'multiple_choice') return Array.isArray(answer) && answer.length > 0;
+  if (questionType === 'matching') return Object.keys(answer?.connections || {}).length > 0;
+  return true;
+}
+
 async function assertHomeworkReadable(req, res, next) {
   try {
     const id = parseInt(req.params.id, 10);
@@ -371,15 +385,27 @@ router.get('/student/:studentId', assertSelfOrStaff('studentId'), async (req, re
       order: [['closeDate', 'ASC']]
     });
 
-    // Get student's submissions to check attempts
-    const submissions = await HomeworkSubmission.findAll({
-      where: {
-        userId: studentId,
-        homeworkId: { [Op.in]: homeworks.map(h => h.id) }
-      },
-      attributes: ['homeworkId', 'attemptNumber', 'totalScore', 'maxScore', 'correctCount'],
-      order: [['attemptNumber', 'DESC']]
-    });
+    const homeworkIds = homeworks.map(homework => homework.id);
+    // A submission is only created after the final submit. Drafts must be
+    // included separately so an interrupted assignment is not shown as new.
+    const [submissions, drafts] = await Promise.all([
+      HomeworkSubmission.findAll({
+        where: {
+          userId: studentId,
+          homeworkId: { [Op.in]: homeworkIds }
+        },
+        attributes: ['homeworkId', 'attemptNumber', 'totalScore', 'maxScore', 'correctCount'],
+        order: [['attemptNumber', 'DESC']]
+      }),
+      HomeworkDraft.findAll({
+        where: {
+          userId: studentId,
+          homeworkId: { [Op.in]: homeworkIds },
+          data: { [Op.not]: null }
+        },
+        attributes: ['homeworkId', 'data']
+      })
+    ]);
 
     const submissionsMap = {};
     submissions.forEach(sub => {
@@ -398,11 +424,26 @@ router.get('/student/:studentId', assertSelfOrStaff('studentId'), async (req, re
       }
     });
 
+    const draftsMap = new Map(drafts.map(draft => [Number(draft.homeworkId), draft.data]));
     const homeworksWithStats = homeworks.map(hw => {
       const payload = sanitizeHomeworkPayload(hw, staff);
+      const draft = draftsMap.get(Number(hw.id));
+      const answers = draft?.answers && typeof draft.answers === 'object' ? draft.answers : {};
+      const answeredCount = (payload.questions || []).filter((question, index) =>
+        isDraftAnswerFilled(answers[index], question.questionType)
+      ).length;
+      const currentQuestionIndex = Number.isInteger(Number(draft?.currentQuestionIndex))
+        ? Math.max(0, Math.min((payload.questions?.length || 1) - 1, Number(draft.currentQuestionIndex)))
+        : 0;
       return {
         ...payload,
-        stats: submissionsMap[hw.id] || null
+        stats: submissionsMap[hw.id] || null,
+        // Do not expose answers in the list response. The UI only needs enough
+        // metadata to show that the saved draft can be continued.
+        draftProgress: draft ? {
+          currentQuestionIndex,
+          answeredCount: Math.min(answeredCount, payload.questions?.length || 0)
+        } : null
       };
     });
 

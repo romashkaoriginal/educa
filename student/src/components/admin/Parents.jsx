@@ -38,11 +38,22 @@ function activeSubjects(student) {
 
 const REPORT_LABELS = {
   sent: 'Отправлен',
-  failed: 'Ошибка',
   processing: 'Отправляется',
   skipped_no_access: 'Нет доступа',
-  skipped_no_telegram: 'Нет Telegram ID'
+  skipped_no_telegram: 'Не запускал бота'
 };
+
+function reportStatusLabel(report) {
+  if (!report) return 'Ещё не отправлялся';
+  if (report.status !== 'failed') return REPORT_LABELS[report.status] || report.status;
+
+  const error = String(report.error || '').trim();
+  const normalizedError = error.toLowerCase();
+  if (normalizedError.includes('bot was blocked by the user')) return 'Заблокировал бота';
+  if (normalizedError.includes('chat not found')) return 'Не запускал бота или неверный ID';
+  if (normalizedError.includes('bot not running') || normalizedError.includes('бот не запущен')) return 'Бот не запущен';
+  return error ? `Ошибка: ${error}` : 'Неизвестная ошибка';
+}
 
 function Parents({ currentUser, dataRefreshKey = 0 }) {
   const [parents, setParents] = useState([]);
@@ -290,8 +301,8 @@ function Parents({ currentUser, dataRefreshKey = 0 }) {
                 </div>
                 <div className="parent-report-state">
                   <span>Последний отчёт</span>
-                  <strong className={`report-${report?.status || 'none'}`}>
-                    {report ? REPORT_LABELS[report.status] || report.status : 'Ещё не отправлялся'}
+                  <strong className={`report-${report?.status || 'none'}`} title={report?.error || undefined}>
+                    {reportStatusLabel(report)}
                   </strong>
                 </div>
                 <div className="parent-actions">

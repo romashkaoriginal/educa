@@ -131,6 +131,13 @@ export function MatchingWire({ pairs, rightOrder, connections, colors, onChange 
   const [dragging, setDragging] = React.useState(false);
   const [svgH, setSvgH] = React.useState(300);
 
+  const getTextDensityClass = (value) => {
+    const length = String(value ?? '').replace(/\s+/g, ' ').trim().length;
+    if (length > 72) return 'mw-block--text-xl';
+    if (length > 42) return 'mw-block--text-lg';
+    return '';
+  };
+
   React.useEffect(() => {
     if (containerRef.current) setSvgH(containerRef.current.offsetHeight);
   });
@@ -206,7 +213,7 @@ export function MatchingWire({ pairs, rightOrder, connections, colors, onChange 
             return (
               <div
                 key={li}
-                className={`mw-block mw-left ${stateClass}`}
+                className={`mw-block mw-left ${stateClass} ${getTextDensityClass(p.left)}`.trim()}
                 data-idx={li}
                 style={{ '--mw-color': color }}
               >
@@ -258,7 +265,7 @@ export function MatchingWire({ pairs, rightOrder, connections, colors, onChange 
               <button
                 type="button"
                 key={ri}
-                className={`mw-block mw-right ${isConnected ? 'mw-block--connected' : 'mw-block--idle'}`}
+                className={`mw-block mw-right ${isConnected ? 'mw-block--connected' : 'mw-block--idle'} ${getTextDensityClass(pairs[ri].right)}`.trim()}
                 data-idx={ri}
                 aria-label={`Выбрать соответствие «${pairs[ri].right}»`}
                 onClick={() => {
@@ -311,11 +318,14 @@ function getHomeworkCardState(homework, now = new Date()) {
   const bestScore = homework.stats?.bestScore || 0;
   const bestCorrectCount = homework.stats?.bestCorrectCount ?? null;
   const hasResult = !!homework.stats;
+  const draftProgress = homework.draftProgress;
+  const hasDraft = !hasResult && !!draftProgress;
+  const answeredCount = Math.min(Number(draftProgress?.answeredCount) || 0, questionCount);
   const attemptsExhausted = homework.maxAttempts && usedAttempts >= homework.maxAttempts;
   const isExpired = minutesLeft <= 0;
-  const progressPercent = maxScore > 0 && hasResult
-    ? Math.round((bestScore / maxScore) * 100)
-    : 0;
+  const progressPercent = hasResult
+    ? (maxScore > 0 ? Math.round((bestScore / maxScore) * 100) : 0)
+    : (questionCount > 0 && hasDraft ? Math.round((answeredCount / questionCount) * 100) : 0);
 
   let status = 'new';
   let statusLabel = 'Не начато';
@@ -328,7 +338,7 @@ function getHomeworkCardState(homework, now = new Date()) {
   } else if (hasResult) {
     status = 'done';
     statusLabel = 'Выполнено';
-  } else if (usedAttempts > 0) {
+  } else if (usedAttempts > 0 || hasDraft) {
     status = 'progress';
     statusLabel = 'В процессе';
   }
@@ -337,6 +347,7 @@ function getHomeworkCardState(homework, now = new Date()) {
   if (attemptsExhausted) actionLabel = 'Попытки исчерпаны';
   else if (isExpired) actionLabel = 'Срок истёк';
   else if (hasResult) actionLabel = 'Пройти заново';
+  else if (hasDraft) actionLabel = 'Продолжить выполнение';
 
   const attemptsText = homework.maxAttempts
     ? `${usedAttempts} / ${homework.maxAttempts}`
@@ -351,6 +362,8 @@ function getHomeworkCardState(homework, now = new Date()) {
     usedAttempts,
     bestScore,
     hasResult,
+    hasDraft,
+    answeredCount,
     attemptsExhausted,
     isExpired,
     progressPercent,
@@ -372,6 +385,7 @@ function StudentHomework({ studentId, previewHomework = null, onExitPreview = nu
   const [selectedHomework, setSelectedHomework] = useState(() => previewHomework);
   const [questions, setQuestions] = useState(() => previewHomework?.questions || []);
   const [answers, setAnswers] = useState({});
+  const answersRef = useRef({});
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [showResult, setShowResult] = useState(false);
   const [result, setResult] = useState(null);
@@ -402,6 +416,8 @@ function StudentHomework({ studentId, previewHomework = null, onExitPreview = nu
   const initialOrderRef = useRef({});
   const matchingStateRef = useRef({});
   const hwModeRef = useRef(null);
+  const homeworkViewportHeightRef = useRef(0);
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
 
   const hwActive = !!(selectedHomework && questions.length > 0 && !showResult);
   useEffect(() => {
@@ -409,6 +425,10 @@ function StudentHomework({ studentId, previewHomework = null, onExitPreview = nu
 
     const vv = window.visualViewport;
     const tg = window.Telegram?.WebApp;
+    const isAnswerField = (target) => target instanceof HTMLElement && (
+      target.matches('input, textarea, [contenteditable="true"]')
+      || Boolean(target.closest('input, textarea, [contenteditable="true"]'))
+    );
 
     const applyViewport = () => {
       const el = hwModeRef.current;
@@ -416,27 +436,46 @@ function StudentHomework({ studentId, previewHomework = null, onExitPreview = nu
       if (!vv) {
         el.style.height = '';
         el.style.top = '';
+        setIsKeyboardOpen(false);
         return;
       }
       const tgH = tg?.viewportStableHeight || tg?.viewportHeight;
       const height = tgH ? Math.min(vv.height, tgH) : vv.height;
       el.style.height = `${height}px`;
       el.style.top = `${vv.offsetTop}px`;
+      homeworkViewportHeightRef.current = Math.max(homeworkViewportHeightRef.current, height);
+      setIsKeyboardOpen(homeworkViewportHeightRef.current - height > 120);
+    };
+
+    // Telegram on iOS may not shrink visualViewport for the numeric keyboard.
+    // The question picker is secondary UI, so hide it on answer-field focus too.
+    const handleFocusIn = (event) => {
+      if (isAnswerField(event.target)) setIsKeyboardOpen(true);
+    };
+    const handleFocusOut = () => {
+      window.setTimeout(() => {
+        if (!isAnswerField(document.activeElement)) applyViewport();
+      }, 0);
     };
 
     applyViewport();
     vv?.addEventListener('resize', applyViewport);
     vv?.addEventListener('scroll', applyViewport);
     tg?.onEvent?.('viewportChanged', applyViewport);
+    document.addEventListener('focusin', handleFocusIn);
+    document.addEventListener('focusout', handleFocusOut);
 
     return () => {
       vv?.removeEventListener('resize', applyViewport);
       vv?.removeEventListener('scroll', applyViewport);
+      document.removeEventListener('focusin', handleFocusIn);
+      document.removeEventListener('focusout', handleFocusOut);
       const el = hwModeRef.current;
       if (el) {
         el.style.height = '';
         el.style.top = '';
       }
+      setIsKeyboardOpen(false);
     };
   }, [hwActive, currentQuestionIndex]);
 
@@ -475,6 +514,9 @@ function StudentHomework({ studentId, previewHomework = null, onExitPreview = nu
 
   const draftSyncRef = useRef(null);
   const [draftStatus, setDraftStatus] = useState('');
+  useEffect(() => {
+    answersRef.current = answers;
+  }, [answers]);
   useEffect(() => {
     const flush = () => { void draftSyncRef.current?.flush(); };
     window.addEventListener('pagehide', flush);
@@ -560,8 +602,26 @@ function StudentHomework({ studentId, previewHomework = null, onExitPreview = nu
     if (draftSyncRef.current) draftSyncRef.current.update(draft);
   }, [currentQuestionIndex, answers, selectedHomework, showResult, questions, studentId, startTime, previewMode]);
 
+  const saveAnswersImmediately = useCallback((nextAnswers) => {
+    if (previewMode || !selectedHomework || showResult || questions.length === 0) return;
+    draftSyncRef.current?.update({
+      questionIds: questions.map(question => question.id),
+      currentQuestionIndex,
+      answers: nextAnswers,
+      matchingState: matchingStateRef.current,
+      initialOrder: initialOrderRef.current,
+      startTime,
+    });
+  }, [currentQuestionIndex, previewMode, questions, selectedHomework, showResult, startTime]);
+
   const handleAnswer = (questionIndex, answer) => {
-    setAnswers(prev => ({ ...prev, [questionIndex]: answer }));
+    // Do not wait for useEffect: a tab switch can unmount the homework screen
+    // immediately after a tap. The draft sync writes localStorage synchronously
+    // and starts the server request before that transition happens.
+    const nextAnswers = { ...answersRef.current, [questionIndex]: answer };
+    answersRef.current = nextAnswers;
+    setAnswers(nextAnswers);
+    saveAnswersImmediately(nextAnswers);
   };
 
   const closeHomework = (wasSubmitted = false) => {
@@ -578,7 +638,9 @@ function StudentHomework({ studentId, previewHomework = null, onExitPreview = nu
     setAnswers({});
     setShowResult(false);
     setResult(null);
-    if (wasSubmitted) refreshAfterHomework(selectedHomework?.subjectId || selectedHomework?.subject?.id);
+    if (selectedHomework) {
+      void refreshAfterHomework(selectedHomework.subjectId || selectedHomework.subject?.id);
+    }
   };
 
   const resetHomeRef = useRef(() => {});
@@ -1369,7 +1431,7 @@ function StudentHomework({ studentId, previewHomework = null, onExitPreview = nu
 
     return renderHomeworkOverlay(
       <div
-        className="homework-mode"
+        className={`homework-mode ${isKeyboardOpen ? 'homework-mode--keyboard-open' : ''}`}
         ref={hwModeRef}
         onFocusCapture={(e) => {
           const t = e.target;

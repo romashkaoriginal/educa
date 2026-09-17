@@ -691,6 +691,13 @@
   font-size: 11px;
 }
 
+/* The question picker is useful between answers, but it steals the only
+   available vertical space when the system keyboard is open. The main Back /
+   Next controls remain visible above the keyboard. */
+.homework-mode--keyboard-open .homework-mode-nav {
+  display: none;
+}
+
 /* РљРѕРјРїР°РєС‚РЅС‹Рµ РІР°СЂРёР°РЅС‚С‹ РѕС‚РІРµС‚РѕРІ вЂ” Р±РµР· СЂР°СЃС‚СЏРіРёРІР°РЅРёСЏ */
 .homework-mode .question-options {
   flex: 0 1 auto;
@@ -807,6 +814,9 @@
   flex-direction: column;
   overflow: visible;
   width: 100%;
+  /* Не даём iOS увеличивать текст только в узкой правой колонке. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 .matching-wire-columns {
@@ -814,10 +824,11 @@
   flex: 0 1 auto;
   display: flex;
   align-items: flex-start;
+  gap: 8px;
 }
 
 .matching-wire-col {
-  width: 44%;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -828,6 +839,11 @@
 
 .matching-wire-col--right {
   margin-left: auto;
+  flex: 0 1 57%;
+}
+
+.matching-wire-col--left {
+  flex: 0 1 35%;
 }
 
 .matching-wire-svg {
@@ -843,13 +859,14 @@
 
 .mw-block {
   flex: 0 0 auto;
-  min-height: 36px;
+  min-height: 44px;
   padding: 8px 10px;
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: clamp(11px, 3.05vw, 13px);
   line-height: 1.25;
+  overflow-wrap: anywhere;
   transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
 }
 
@@ -869,13 +886,28 @@
   font: inherit;
   text-align: left;
   cursor: pointer;
+  box-sizing: border-box;
 }
 
 .mw-block-text {
   color: var(--kubik-navy, #1A405F);
   flex: 1;
   min-width: 0;
-  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+/* Longer definitions remain fully visible but use denser typography rather
+   than turning one half of the matching board into a tall column. */
+.mw-right.mw-block--text-lg {
+  padding-block: 7px;
+  font-size: clamp(10.5px, 2.85vw, 12px);
+  line-height: 1.22;
+}
+
+.mw-right.mw-block--text-xl {
+  padding-block: 6px;
+  font-size: clamp(10px, 2.65vw, 11px);
+  line-height: 1.18;
 }
 
 .mw-dot {
