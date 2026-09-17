@@ -261,12 +261,18 @@
   .quiz-arena-ranking-heading { margin-top: 22px; }
   .quiz-arena-ranking-heading h1 { font-size: 38px; }
   .quiz-arena .stream-ranking { display: flex; flex-direction: column; min-height: 0; }
-  .quiz-arena .stream-stage { padding: 64px 0 16px; }
+  /* min-height: 0 — тот же общий класс со стримом, что и .stream-name выше:
+     без сброса на узких экранах подтягивался min-height: 430px из правила
+     презентации на 500px. */
+  .quiz-arena .stream-stage { min-height: 0; padding: 48px 0 16px; }
   .quiz-arena .stream-podium { gap: 8px; }
   .quiz-arena .stream-avatar { width: 54px; height: 54px; border-width: 4px; font-size: 16px; box-shadow: 4px 4px 0 #0f2d44; }
   .quiz-arena .stream-place-1 .stream-avatar { width: 68px; height: 68px; font-size: 22px; box-shadow: 5px 5px 0 #0f2d44; }
-  .quiz-arena .stream-name { font-size: 14px; }
-  .quiz-arena .stream-points { font-size: 19px; margin: 8px 0 24px; padding: 5px 7px; }
+  /* .stream-name делит класс с презентацией на большом экране, и её правило
+     на 500px (min-height: 3.9em — под двухстрочные имена на стриме) сюда
+     утекало, раздувая карточку участника. У ученика имя короче — своя высота. */
+  .quiz-arena .stream-name { font-size: 14px; min-height: 2.1em; }
+  .quiz-arena .stream-points { font-size: 19px; margin: 8px 0 16px; padding: 5px 7px; }
   .quiz-arena .stream-points small { font-size: 10px; }
   .quiz-arena .stream-plinth { height: 90px; padding-right: 8px; }
   .quiz-arena .stream-place-1 .stream-plinth { height: 128px; }
@@ -276,7 +282,7 @@
   .quiz-arena .stream-plinth small { font-size: 9px; }
   .quiz-arena .stream-standings { padding: 16px; box-shadow: 7px 7px 0 #0f2d44; }
   .quiz-arena .stream-runners li { min-height: 54px; gap: 8px; font-size: 14px; }
-  .quiz-arena-ranking-footer { flex-direction: column; align-items: stretch; padding-top: 20px; margin-top: 20px; }
+  .quiz-arena-ranking-footer { flex-direction: column; align-items: stretch; padding-top: 16px; margin-top: 16px; }
   .quiz-arena-personal { justify-content: space-between; gap: 16px; }
   .quiz-arena-wait-label { text-align: center; }
   .quiz-arena-atmosphere::before { right: -260px; top: 22vh; opacity: .35; }
@@ -288,6 +294,27 @@
   .quiz-arena-question-head h1 { font-size: 27px; }
   .quiz-arena-answer { min-height: 70px; padding: 12px 16px; }
   .quiz-arena-answer-footer { min-height: 82px; padding-top: 18px; }
+}
+
+/* Итоговый экран на низком телефоне: пьедестал с крупными плинтами не
+   оставлял места для кнопки «Вернуться к занятию» — она пряталась в один
+   пиксель от края экрана, и ученик не понимал, что нужно скроллить. */
+@media (max-width: 700px) and (max-height: 700px) {
+  .quiz-arena-ranking-heading { margin-top: 10px; }
+  .quiz-arena-ranking-heading h1 { font-size: 30px; }
+  .quiz-arena-ranking-heading p { margin: 4px auto; }
+  /* .stream-stage — общий класс с презентацией на большом экране: её правило
+     на 500px задавало min-height: 430px без привязки к .quiz-arena и
+     утекало сюда, перекрывая все сокращения ниже. */
+  .quiz-arena .stream-stage { min-height: 0; padding: 28px 0 12px; }
+  .quiz-arena .stream-avatar-wrap { margin-bottom: 10px; }
+  .quiz-arena .stream-points { margin: 6px 0 10px; }
+  .quiz-arena .stream-plinth { height: 64px; }
+  .quiz-arena .stream-place-1 .stream-plinth { height: 92px; }
+  .quiz-arena .stream-place-3 .stream-plinth { height: 48px; }
+  .quiz-arena .stream-plinth > span { font-size: 34px; }
+  .quiz-arena .stream-place-1 .stream-plinth > span { font-size: 50px; }
+  .quiz-arena-ranking-footer { padding-top: 12px; margin-top: 12px; }
 }
 
 @keyframes arena-enter { from { opacity: .25; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
