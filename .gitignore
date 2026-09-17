@@ -43,3 +43,7 @@ coverage/
 # Temporary files
 *.tmp
 .cache/
+
+# Изолированный локальный тестовый Postgres (local-test-env.ps1) — данные
+# кластера, никогда не должны попадать в git.
+.local-test-env/

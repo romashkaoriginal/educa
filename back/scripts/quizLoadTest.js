@@ -143,6 +143,14 @@ async function main() {
   // Регистрация в викторине — так же разом, как при реальном старте.
   await Promise.all(students.map((student) => call(`/lesson/lesson-quiz/${QUIZ_ID}/join`, student.initData, { method: 'POST' })));
 
+  // Реальный сценарий: учитель жмёт «Начать викторину», прежде чем показать
+  // первый вопрос — без этого сервер отвечает 409 (нужен status: active).
+  const startResponse = await call(`/lesson-admin/quizzes/${QUIZ_ID}/start`, teacherInitData, { method: 'POST' });
+  if (!startResponse || !startResponse.ok) {
+    console.log(`Не удалось запустить викторину: ${startResponse ? startResponse.status : 'сбой сети'}`);
+    process.exit(1);
+  }
+
   for (let index = 0; index < QUESTIONS; index += 1) {
     const questionStartedAt = Date.now();
     const action = index === 0 ? 'show-question' : 'next-question';
