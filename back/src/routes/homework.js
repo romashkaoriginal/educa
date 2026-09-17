@@ -918,11 +918,25 @@ router.get('/student/:studentId/stats', assertSelfOrStaff('studentId'), async (r
           )
         : null;
 
-      // Считаем правильные ответы для лучшей попытки
+      // Считаем правильные ответы для лучшей попытки. correctCount уже
+      // сохранён на самой попытке при сдаче — это источник истины. Ответы
+      // в homework_answers пересчитываем как уточнение, но если их нет
+      // (старые попытки до фикса bulkCreate 16.09.2026, когда ответы не
+      // записывались при успешном submission) — используем correctCount,
+      // а не 0: иначе статистика показывала "0 ответов" при реально сданной
+      // и засчитанной домашке.
       let bestSubmissionWithCorrect = null;
       if (bestSubmission) {
         const answersForBest = allAnswers.filter(a => a.submissionId === bestSubmission.id);
-        const correctAnswers = answersForBest.filter(a => a.isCorrect).length;
+        const correctFromAnswers = answersForBest.filter(a => a.isCorrect).length;
+        const savedCorrectCount = Number(bestSubmission.correctCount);
+        const rawCorrectAnswers = answersForBest.length > 0
+          ? correctFromAnswers
+          : (Number.isFinite(savedCorrectCount) ? savedCorrectCount : correctFromAnswers);
+        // На части попыток до фикса подсчёта correctCount мог превышать число
+        // вопросов задания (напр. 45 верных из 39) — обрезаем, чтобы это не
+        // попадало на экран, вместо того чтобы чинить каждый экран отдельно.
+        const correctAnswers = Math.min(rawCorrectAnswers, hw.questions?.length || rawCorrectAnswers);
         bestSubmissionWithCorrect = {
           ...bestSubmission.toJSON(),
           correctAnswers,
