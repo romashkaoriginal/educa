@@ -28,7 +28,11 @@ function loadActivities({ accessCheck, findLesson, models = {} }) {
       return { touchAttendance: async () => ({}) };
     }
     if (fromActivities && request === './lessonState') {
-      return { getPollResults: async () => null, serializeActiveQuiz: async () => null };
+      return {
+        getPollResults: async () => null,
+        serializeActiveQuiz: async () => null,
+        invalidateSharedQuizCache: () => {}
+      };
     }
     return originalLoad.call(this, request, parent, isMain);
   };

@@ -2,9 +2,11 @@ const { isStaffRole } = require('../middleware/telegramAuth');
 const { teacherCanManageLesson } = require('../middleware/lessonAccess');
 const { User } = require('../models');
 const { touchAttendance } = require('../services/lessonAttendance');
-const { getLessonState } = require('../services/lessonState');
-const { requireLiveAccess, submitPollAnswer, submitQuizAnswer, LessonActionError } = require('../services/lessonActivities');
-const { setLessonIo } = require('../services/lessonRealtime');
+const { getLessonState, invalidateSharedQuizCache, pruneSharedCache } = require('../services/lessonState');
+const {
+  requireLiveAccess, submitPollAnswer, submitQuizAnswer, markQuizQuestionReceived, LessonActionError
+} = require('../services/lessonActivities');
+const { setLessonIo, setStateInvalidator } = require('../services/lessonRealtime');
 
 const activeStudentSockets = new Map();
 const keyFor = (lessonId, userId) => `${lessonId}:${userId}`;
@@ -35,6 +37,11 @@ async function resolveStudentId(user, requestedStudentId) {
 
 function setupLessonSocket(io) {
   setLessonIo(io);
+  setStateInvalidator(invalidateSharedQuizCache);
+  // Кэш состояния живёт доли секунды, но записи остаются от каждого занятия.
+  // Периодическая уборка держит его размер привязанным к идущим занятиям.
+  const cachePrune = setInterval(() => pruneSharedCache(), 60000);
+  cachePrune.unref?.();
 
   io.on('connection', (socket) => {
     const user = socket.data.dbUser;
@@ -104,6 +111,21 @@ function setupLessonSocket(io) {
         socket.emit('poll:answer-accepted', { pollId: Number(pollId), optionId: Number(optionId) });
         io.to(`lesson-${result.lessonId}-admin`).emit('poll:results-updated', result.results);
         io.to(`lesson-${result.lessonId}-admin`).emit('attendance:updated', { attendance: result.attendance });
+      } catch (error) { emitError(socket, error); }
+    });
+
+    // Отметка доставки вопроса. Приходит от всего класса разом на каждый
+    // вопрос, поэтому держим её на сокете, а не на HTTP.
+    socket.on('student:quiz-question-received', async ({ quizId, questionId } = {}) => {
+      try {
+        const effectiveUserId = socket.data.lessonStudentId || user.id;
+        const result = await markQuizQuestionReceived({ quizId, questionId, userId: effectiveUserId });
+        // Преподавателя интересует только реально новая доставка.
+        if (result.created) {
+          io.to(`lesson-${result.lessonId}-admin`).emit('quiz:delivery-received', {
+            quizId: Number(quizId), questionId: Number(questionId), userId: effectiveUserId
+          });
+        }
       } catch (error) { emitError(socket, error); }
     });
 

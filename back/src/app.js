@@ -4,7 +4,7 @@ const { Server } = require('socket.io');
 const cors = require('cors');
 const compression = require('compression');
 const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
+const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
 require('dotenv').config();
 
 const { syncDatabase } = require('./models');
@@ -36,7 +36,9 @@ const { startGuestScheduler } = require('./services/guestScheduler');
 const { startLessonScheduler, stopLessonScheduler } = require('./services/lessonScheduler');
 const { startParentReportScheduler, stopParentReportScheduler } = require('./services/parentReportScheduler');
 const { startErrorLogRetention, stopErrorLogRetention } = require('./services/errorLogRetention');
-const { telegramAuth, requireUser, requireAdmin, requireRole, blockGuests } = require('./middleware/telegramAuth');
+const {
+  telegramAuth, requireUser, requireAdmin, requireRole, blockGuests, verifyTelegramInitData
+} = require('./middleware/telegramAuth');
 const {
   finalErrorHandler,
   installConsoleErrorCapture,
@@ -88,11 +90,39 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-// Общий лимит на /api/ — по IP. Щадящий потолок: не мешает нормальной работе,
-// отсекает только грубый флуд.
+// Ключ лимита — Telegram-аккаунт, а не IP. Класс из школы или Telegram-прокси
+// приходят с одного адреса: лимит по IP отправлял бы в 429 весь класс из-за
+// активности одного ученика. initData подписан ботом, подменить id нельзя.
+// Анонимные запросы (без initData) остаются на IP.
+function rateLimitKey(req) {
+  const initData = req.headers['x-telegram-init-data'];
+  const telegramId = initData ? verifyTelegramInitData(initData)?.id : null;
+  return telegramId ? `tg:${telegramId}` : `ip:${ipKeyGenerator(req)}`;
+}
+
+// Пути со своим лимитером. Внутри app.use('/api/', ...) в req.path уже нет
+// префикса /api, поэтому сверяем с остатком.
+const LIMITED_SEPARATELY = /^\/(lesson|lesson-admin|auth|practice-images)(\/|$)/;
+
+// Общий лимит на /api/ — на пользователя. Щадящий потолок: не мешает нормальной
+// работе, отсекает только грубый флуд.
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 200,
+  max: 300,
+  keyGenerator: rateLimitKey,
+  message: { message: 'Слишком много запросов, попробуйте чуть позже' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Живое занятие — самый плотный трафик: викторина, опросы, восстановление
+// состояния после сворачивания Telegram. Учитель за один вопрос кликает
+// «показать ответ», «объяснение», «дальше» и параллельно тянет метрики.
+// Отдельный потолок, чтобы ведущий урок не упирался в общий лимит.
+const lessonLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 600,
+  keyGenerator: rateLimitKey,
   message: { message: 'Слишком много запросов, попробуйте чуть позже' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -123,7 +153,16 @@ app.use('/api/auth', authLimiter, authRoutes);
 // telegram-заголовок), но под тем же apiLimiter, что и остальные /api/*.
 app.use('/api/practice-images', apiLimiter, practiceImagesRoutes);
 
-app.use('/api/', apiLimiter);
+// Занятия — до общего лимита, иначе сработал бы apiLimiter с низким потолком.
+app.use('/api/lesson', lessonLimiter);
+app.use('/api/lesson-admin', lessonLimiter);
+
+// Общий лимит не должен повторно считать то, что уже прошло свой лимитер:
+// иначе занятие упёрлось бы в потолок apiLimiter, а не в свой собственный.
+app.use('/api/', (req, res, next) => {
+  if (LIMITED_SEPARATELY.test(req.path)) return next();
+  return apiLimiter(req, res, next);
+});
 
 // Публичные эндпоинты (бот, проверка)
 app.use('/api/bot-users', botUsersRoutes);

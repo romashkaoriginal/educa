@@ -5,7 +5,7 @@ const {
 } = require('../models');
 const { assertStudentCanAccessLesson } = require('../middleware/lessonAccess');
 const { touchAttendance } = require('./lessonAttendance');
-const { getPollResults, serializeActiveQuiz } = require('./lessonState');
+const { getPollResults, serializeActiveQuiz, invalidateSharedQuizCache } = require('./lessonState');
 
 class LessonActionError extends Error {
   constructor(message, status = 400, code = 'LESSON_ACTION_FAILED') {
@@ -97,6 +97,9 @@ async function submitQuizAnswer({ quizId, questionId, selectedAnswer, userId }) 
         ? Math.max(0, Date.now() - new Date(quiz.questionStartedAt).getTime())
         : null
     });
+    // Новый ответ меняет рейтинг и признак «все ответили»: общий кэш состояния
+    // обязан сброситься до того, как этот же запрос соберёт ответ ученику.
+    invalidateSharedQuizCache(quiz.lessonId);
     const attendance = await touchAttendance(quiz.lessonId, userId, 'quiz');
     let allAnswered = false;
     if (quiz.mode === 'single_step') {
@@ -107,6 +110,9 @@ async function submitQuizAnswer({ quizId, questionId, selectedAnswer, userId }) 
       allAnswered = delivered > 0 && answered >= delivered;
       if (allAnswered) await quiz.update({ questionRevealState: 'answer' });
     }
+    // Ещё раз после возможной смены фазы выше: иначе ученик получил бы
+    // состояние, собранное до перехода к показу ответа.
+    invalidateSharedQuizCache(quiz.lessonId);
     return {
       answer,
       attendance,

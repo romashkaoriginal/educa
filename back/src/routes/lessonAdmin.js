@@ -14,7 +14,7 @@ const { getPollResults, lessonInclude } = require('../services/lessonState');
 const { emitToLesson, emitToLessonAdmins } = require('../services/lessonRealtime');
 const { nextQuestionState } = require('../services/lessonQuizFlow');
 const {
-  WEEKLY_SQL, buildLessonQuizLeaderboard, presentLessonQuiz
+  WEEKLY_SQL, buildLessonQuizLeaderboard, withQuestionTimeLimits, presentLessonQuiz
 } = require('../services/streamPresentation');
 
 const router = express.Router();
@@ -811,7 +811,9 @@ router.get('/quizzes/:quizId/stream', resolveParentLesson, async (req, res) => {
     ]);
     const questions = [...(quiz.questions || [])].sort((a, b) => a.order - b.order);
     const currentQuestion = quiz.mode === 'single_step' ? questions[quiz.currentQuestionIndex] || null : null;
-    const leaderboard = buildLessonQuizLeaderboard(answers, roster, quiz.isAnonymous);
+    const leaderboard = buildLessonQuizLeaderboard(
+      withQuestionTimeLimits(answers, questions), roster, quiz.isAnonymous
+    );
     res.json(presentLessonQuiz(
       quiz, currentQuestion, leaderboard, questions.length, participants.size, Date.now()
     ));

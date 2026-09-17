@@ -2,14 +2,54 @@
 // не должна попадать на стрим без отдельного согласия ученика.
 const displayName = (user) => String(user?.firstName || '').trim() || 'Участник';
 
-// Builds cumulative places for the in-lesson quiz. One correct answer is one
-// point; total response time is only a deterministic tie-breaker.
+// Балл за правильный ответ зависит от скорости: мгновенный ответ даёт полный
+// балл, ответ на последней секунде — половину. Пол в 50% намеренный: без него
+// ученик, ответивший верно на все вопросы медленно, проиграл бы тому, кто
+// быстро угадал пару — это наказывало бы за знание в пользу реакции.
+const QUIZ_SCORE_FLOOR = 0.5;
+const DEFAULT_TIME_LIMIT_MS = 30000;
+// Ответ без замера времени (self_paced или старые записи) не должен получать
+// преимущество перед теми, кого время засекали.
+const UNTIMED_RESPONSE_MS = 300000;
+
+function answerTimeLimitMs(answer) {
+  const seconds = Number(answer?.question?.timeLimit ?? answer?.timeLimit);
+  return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : DEFAULT_TIME_LIMIT_MS;
+}
+
+// Лимит вопроса нужен для расчёта балла, но JOIN на вопросы в каждом запросе
+// лидерборда — лишняя работа: вопросы уже загружены вместе с викториной.
+// Проставляем timeLimit из этого списка.
+function withQuestionTimeLimits(answers = [], questions = []) {
+  const limitByQuestion = new Map(
+    questions.map((question) => [Number(question.id), Number(question.timeLimit) || undefined])
+  );
+  return answers.map((answer) => ({
+    userId: answer.userId,
+    user: answer.user,
+    isCorrect: answer.isCorrect,
+    responseTimeMs: answer.responseTimeMs,
+    timeLimit: answer.question?.timeLimit ?? limitByQuestion.get(Number(answer.questionId))
+  }));
+}
+
+// Доля от полного балла за скорость: 1 при мгновенном ответе, QUIZ_SCORE_FLOOR
+// на дедлайне и после него.
+function speedScore(responseTimeMs, timeLimitMs) {
+  if (!Number.isFinite(responseTimeMs) || responseTimeMs < 0) return QUIZ_SCORE_FLOOR;
+  const ratio = 1 - (responseTimeMs / timeLimitMs);
+  return QUIZ_SCORE_FLOOR + Math.max(0, Math.min(1, ratio)) * (1 - QUIZ_SCORE_FLOOR);
+}
+
+// Builds cumulative places for the in-lesson quiz. A correct answer is worth
+// between QUIZ_SCORE_FLOOR and 1 point depending on how fast it arrived; total
+// response time stays a deterministic tie-breaker.
 function buildLessonQuizLeaderboard(answers = [], deliveries = [], isAnonymous = false, limit = 10) {
   const participants = new Map();
   const ensure = (userId, user) => {
     const id = Number(userId);
     if (!participants.has(id)) participants.set(id, {
-      id, name: displayName(user), totalScore: 0, responseTimeMs: 0
+      id, name: displayName(user), totalScore: 0, correctCount: 0, responseTimeMs: 0
     });
     return participants.get(id);
   };
@@ -17,10 +57,19 @@ function buildLessonQuizLeaderboard(answers = [], deliveries = [], isAnonymous =
   answers.forEach((answer) => {
     const participant = ensure(answer.userId, answer.user);
     if (answer.isCorrect) {
-      participant.totalScore += 1;
-      participant.responseTimeMs += answer.responseTimeMs === null || answer.responseTimeMs === undefined
-        ? 300000 : Math.max(0, Number(answer.responseTimeMs) || 0);
+      const timed = answer.responseTimeMs !== null && answer.responseTimeMs !== undefined;
+      const responseTimeMs = timed ? Math.max(0, Number(answer.responseTimeMs) || 0) : UNTIMED_RESPONSE_MS;
+      participant.totalScore += timed
+        ? speedScore(responseTimeMs, answerTimeLimitMs(answer))
+        : QUIZ_SCORE_FLOOR;
+      participant.correctCount += 1;
+      participant.responseTimeMs += responseTimeMs;
     }
+  });
+  // Накопление долей даёт хвосты плавающей точки (0.1+0.2). Округляем до сотых:
+  // на экране всё равно один-два знака, а равные суммы должны сравниваться как равные.
+  participants.forEach((participant) => {
+    participant.totalScore = Math.round(participant.totalScore * 100) / 100;
   });
   const anonymousName = new Map(
     [...participants.keys()].sort((a, b) => a - b).map((id, index) => [id, `Участник ${index + 1}`])
@@ -32,6 +81,7 @@ function buildLessonQuizLeaderboard(answers = [], deliveries = [], isAnonymous =
     id: entry.id,
     name: isAnonymous ? anonymousName.get(entry.id) : entry.name,
     totalScore: entry.totalScore,
+    correctCount: entry.correctCount,
     // Скорость определяет порядок внутри ничьей, но не меняет место:
     // 1, 1, 3 — а не искусственное 1, 2, 3.
     place: index > 0 && ranked[index - 1].totalScore === entry.totalScore
@@ -75,6 +125,7 @@ function presentLessonQuiz(quiz, question, leaderboard, totalQuestions, particip
     } : null,
     leaderboard: leaderboard.slice(0, 10).map((entry) => ({
       id: Number(entry.id), name: entry.name, totalScore: Number(entry.totalScore) || 0,
+      correctCount: Number(entry.correctCount) || 0,
       place: Number(entry.place) || undefined
     }))
   };
@@ -119,6 +170,7 @@ function isPracticeAnswerCorrect(selected, correct) {
 
 module.exports = {
   buildLessonQuizLeaderboard,
+  withQuestionTimeLimits,
   presentLessonQuiz,
   WEEKLY_SQL,
   isPracticeAnswerCorrect

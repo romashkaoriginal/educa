@@ -1,5 +1,5 @@
 const { Op } = require('sequelize');
-const { buildLessonQuizLeaderboard } = require('./streamPresentation');
+const { buildLessonQuizLeaderboard, withQuestionTimeLimits } = require('./streamPresentation');
 const {
   Lesson, Subject, User, LessonPoll, LessonPollOption, LessonPollAnswer,
   LessonQuiz, LessonQuizQuestion, LessonQuizAnswer, LessonQuizDelivery, LessonQuizParticipant, LessonQuestion, LessonMaterial,
@@ -65,8 +65,40 @@ async function serializeActivePoll(lessonId, userId) {
   return json;
 }
 
+// Смена вопроса будит всех учеников разом, и каждый просит своё состояние.
+// Общая часть (вопросы викторины и рейтинг) у всех одинаковая, поэтому её
+// считаем один раз на короткое окно: 50 учеников дают 1 запрос в БД вместо 50.
+// Окно намеренно меньше секунды — ученик не должен видеть устаревший рейтинг.
+const SHARED_CACHE_MS = 700;
+const sharedCache = new Map();
+
+async function cachedShared(key, load) {
+  const now = Date.now();
+  const hit = sharedCache.get(key);
+  if (hit && now < hit.expiresAt) return hit.promise;
+  // Кладём промис, а не результат: параллельные запросы должны ждать один
+  // общий поход в БД, иначе выигрыш теряется именно в момент наплыва.
+  const promise = load().catch((error) => { sharedCache.delete(key); throw error; });
+  sharedCache.set(key, { promise, expiresAt: now + SHARED_CACHE_MS });
+  return promise;
+}
+
+// Ответ ученика меняет рейтинг: держать его до истечения окна нельзя.
+function invalidateSharedQuizCache(lessonId) {
+  sharedCache.delete(`quiz:${Number(lessonId)}`);
+  sharedCache.delete(`board:${Number(lessonId)}`);
+}
+
+// Кэш живёт только на время всплеска, но без уборки растёт вместе с числом
+// проведённых занятий.
+function pruneSharedCache(now = Date.now()) {
+  for (const [key, entry] of sharedCache.entries()) {
+    if (now >= entry.expiresAt) sharedCache.delete(key);
+  }
+}
+
 async function serializeActiveQuiz(lessonId, userId) {
-  const quiz = await LessonQuiz.findOne({
+  const quiz = await cachedShared(`quiz:${Number(lessonId)}`, () => LessonQuiz.findOne({
     where: { lessonId, status: { [Op.in]: ['draft', 'active', 'finished'] } },
     order: [['startedAt', 'DESC']],
     include: [{
@@ -77,7 +109,7 @@ async function serializeActiveQuiz(lessonId, userId) {
         { model: PracticeImage, as: 'hintImage', attributes: ['storageKey'] }
       ]
     }]
-  });
+  }));
   if (!quiz) return null;
   const questions = [...(quiz.questions || [])].sort((a, b) => a.order - b.order);
   // Правильный вариант остаётся только в кабинете преподавателя и на
@@ -111,17 +143,23 @@ async function serializeActiveQuiz(lessonId, userId) {
   base.deadline = deadline;
   const leaderboardPhase = quiz.status === 'finished' || (quiz.mode === 'single_step' && (quiz.questionRevealState === 'answer' || (deadline && Date.now() >= deadline)));
   if (leaderboardPhase) {
-    const [allAnswers, roster] = await Promise.all([
-      LessonQuizAnswer.findAll({
-        where: { lessonQuizId: quiz.id },
-        include: [{ model: User, as: 'user', attributes: ['id', 'firstName'] }]
-      }),
-      LessonQuizParticipant.findAll({
-        where: { lessonQuizId: quiz.id },
-        include: [{ model: User, as: 'user', attributes: ['id', 'firstName'] }]
-      })
-    ]);
-    const ranked = buildLessonQuizLeaderboard(allAnswers, roster, quiz.isAnonymous, Infinity);
+    // Рейтинг одинаков для всех, а запрос самый тяжёлый: все ответы всех
+    // участников с JOIN на пользователей. Считаем один раз на весь наплыв.
+    const ranked = await cachedShared(`board:${Number(lessonId)}`, async () => {
+      const [allAnswers, roster] = await Promise.all([
+        LessonQuizAnswer.findAll({
+          where: { lessonQuizId: quiz.id },
+          include: [{ model: User, as: 'user', attributes: ['id', 'firstName'] }]
+        }),
+        LessonQuizParticipant.findAll({
+          where: { lessonQuizId: quiz.id },
+          include: [{ model: User, as: 'user', attributes: ['id', 'firstName'] }]
+        })
+      ]);
+      return buildLessonQuizLeaderboard(
+        withQuestionTimeLimits(allAnswers, questions), roster, quiz.isAnonymous, Infinity
+      );
+    });
     base.phase = quiz.status === 'finished' ? 'finished' : 'leaderboard';
     base.leaderboard = ranked.slice(0, 10);
     base.myStanding = ranked.find((entry) => entry.id === Number(userId)) || null;
@@ -189,6 +227,8 @@ async function getLessonState(lessonId, userId) {
 module.exports = {
   lessonInclude,
   stripQuestionAnswer,
+  invalidateSharedQuizCache,
+  pruneSharedCache,
   getPollResults,
   serializeActivePoll,
   serializeActiveQuiz,

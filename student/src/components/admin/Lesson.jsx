@@ -6,6 +6,11 @@ import StreamPresentation from './StreamPresentation';
 import MathText, { LatexHelp } from '../MathText';
 import '../../styles/Lesson.css';
 
+// Всплеск ответов класса схлопывается в одно обновление экрана преподавателя.
+const BURST_COALESCE_MS = 400;
+// Страховочный опрос метрик: основное обновление приходит событиями сокета.
+const METRICS_FALLBACK_MS = 20000;
+
 const STATUS = { scheduled: 'Предстоит', live: 'Идёт сейчас', finished: 'Завершено', cancelled: 'Отменено' };
 const POLL_STATUS = { draft: 'Готово к запуску', active: 'Идёт сейчас', closed: 'Завершено' };
 const QUIZ_STATUS = { draft: 'Подготовка', active: 'Идёт сейчас', finished: 'Завершено' };
@@ -382,7 +387,9 @@ export default function LessonAdmin({ subjects = [], currentUser, dataRefreshKey
   useEffect(() => {
     if (selected?.status !== 'live') return undefined;
     loadLiveMetrics(activePoll, preparedQuiz);
-    const timer = setInterval(() => loadLiveMetrics(activePoll, preparedQuiz), 5000);
+    // Метрики приходят событиями сокета; интервал — только страховка на случай
+    // потерянного события, поэтому редкий.
+    const timer = setInterval(() => loadLiveMetrics(activePoll, preparedQuiz), METRICS_FALLBACK_MS);
     return () => clearInterval(timer);
   }, [selected?.status, activePoll?.id, preparedQuiz?.id, preparedQuiz?.status, loadLiveMetrics]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -423,18 +430,31 @@ export default function LessonAdmin({ subjects = [], currentUser, dataRefreshKey
       transports: ['websocket', 'polling'],
       reconnection: true
     });
-    const refresh = () => loadSession(selected);
+    // Ответы 50 учеников приходят почти одновременно, и каждое событие звало
+    // перезагрузку: класс из 50 человек давал 50 полных загрузок занятия и
+    // 50 запросов метрик за секунду — с этого и начинались 429 у преподавателя.
+    // Схлопываем всплеск в одно обновление.
+    const timers = {};
+    const coalesce = (key, run) => {
+      clearTimeout(timers[key]);
+      timers[key] = setTimeout(run, BURST_COALESCE_MS);
+    };
+    const refresh = () => coalesce('session', () => loadSession(selected));
+    const refreshMetrics = () => coalesce('metrics', () => loadLiveMetrics(activePoll, preparedQuiz));
     socket.on('connect', () => socket.emit('admin:join-lesson', { lessonId: selected.id }));
     socket.on('poll:results-updated', (results) => setPollResults(results));
-    socket.on('quiz:answer-received', () => loadLiveMetrics(activePoll, preparedQuiz));
-    socket.on('quiz:delivery-received', () => loadLiveMetrics(activePoll, preparedQuiz));
+    socket.on('quiz:answer-received', refreshMetrics);
+    socket.on('quiz:delivery-received', refreshMetrics);
     socket.on('attendance:updated', refresh);
     socket.on('question:new', (payload) => {
       refresh();
       pushNotice({ kind: 'question', title: fullName(payload?.question?.student), text: payload?.question?.text || 'Поднял(а) руку' });
     });
     socket.on('lesson:finished', refresh);
-    return () => socket.disconnect();
+    return () => {
+      Object.values(timers).forEach(clearTimeout);
+      socket.disconnect();
+    };
   }, [selected?.id, selected?.status, activePoll?.id, preparedQuiz?.id, loadSession, loadLiveMetrics, pushNotice]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (

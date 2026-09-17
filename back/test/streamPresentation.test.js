@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
-  buildLessonQuizLeaderboard, presentLessonQuiz, isPracticeAnswerCorrect
+  buildLessonQuizLeaderboard, withQuestionTimeLimits, presentLessonQuiz, isPracticeAnswerCorrect
 } = require('../src/services/streamPresentation');
 
 const quiz = {
@@ -46,15 +46,62 @@ test('lesson leaderboard is cumulative, top ten, speed-tiebroken and privacy-saf
   const ranked = buildLessonQuizLeaderboard(answers, deliveries, false);
   assert.equal(ranked.length, 10);
   assert.deepEqual(ranked.slice(0, 3).map((entry) => entry.id), [1, 3, 2]);
-  assert.equal(ranked[0].totalScore, 2);
+  assert.equal(ranked[0].correctCount, 2);
+  // Два верных ответа за 5 и 3 секунды при лимите по умолчанию (30 с):
+  // (0.5 + 25/30 * 0.5) + (0.5 + 27/30 * 0.5) = 0.92 + 0.95.
+  assert.equal(ranked[0].totalScore, 1.87);
   assert.equal(JSON.stringify(ranked).includes('private'), false);
+});
+
+test('correct answers score higher the faster they arrive', () => {
+  const ranked = buildLessonQuizLeaderboard([
+    { userId: 1, user: { firstName: 'Быстрый' }, isCorrect: true, responseTimeMs: 0, timeLimit: 30 },
+    { userId: 2, user: { firstName: 'Средний' }, isCorrect: true, responseTimeMs: 15000, timeLimit: 30 },
+    { userId: 3, user: { firstName: 'Медленный' }, isCorrect: true, responseTimeMs: 30000, timeLimit: 30 },
+    { userId: 4, user: { firstName: 'Неверный' }, isCorrect: false, responseTimeMs: 0, timeLimit: 30 }
+  ], [], false, Infinity);
+  assert.deepEqual(ranked.map((entry) => entry.totalScore), [1, 0.75, 0.5, 0]);
+  // Ровно эта разница и была сломана: у всех верно ответивших совпадали баллы,
+  // и место определялось порядком регистрации.
+  assert.deepEqual(ranked.map((entry) => entry.place), [1, 2, 3, 4]);
+});
+
+test('per-question time limit scales the speed bonus', () => {
+  const [fast] = buildLessonQuizLeaderboard(
+    [{ userId: 1, user: { firstName: 'Аня' }, isCorrect: true, responseTimeMs: 5000, timeLimit: 10 }],
+    [], false, Infinity
+  );
+  // 5 с из 10 — половина времени, значит половина бонуса сверх пола.
+  assert.equal(fast.totalScore, 0.75);
+});
+
+test('a knowledgeable slow student still outranks a fast student who knows less', () => {
+  const slowButRight = Array.from({ length: 3 }, () => ({
+    userId: 1, user: { firstName: 'Знающий' }, isCorrect: true, responseTimeMs: 29000, timeLimit: 30
+  }));
+  const fastButWrong = [
+    { userId: 2, user: { firstName: 'Быстрый' }, isCorrect: true, responseTimeMs: 0, timeLimit: 30 },
+    { userId: 2, user: { firstName: 'Быстрый' }, isCorrect: false, responseTimeMs: 0, timeLimit: 30 },
+    { userId: 2, user: { firstName: 'Быстрый' }, isCorrect: false, responseTimeMs: 0, timeLimit: 30 }
+  ];
+  const ranked = buildLessonQuizLeaderboard([...slowButRight, ...fastButWrong], [], false, Infinity);
+  assert.deepEqual(ranked.map((entry) => entry.id), [1, 2]);
+});
+
+test('answers without a measured response time fall back to the floor score', () => {
+  const ranked = buildLessonQuizLeaderboard([
+    { userId: 1, user: { firstName: 'Аня' }, isCorrect: true, responseTimeMs: null },
+    { userId: 2, user: { firstName: 'Борис' }, isCorrect: true, responseTimeMs: 0, timeLimit: 30 }
+  ], [], false, Infinity);
+  assert.equal(ranked.find((entry) => entry.id === 1).totalScore, 0.5);
+  assert.deepEqual(ranked.map((entry) => entry.id), [2, 1]);
 });
 
 test('students with the same quiz score receive the same place', () => {
   const ranked = buildLessonQuizLeaderboard([
-    { userId: 1, user: { firstName: 'Аня' }, isCorrect: true, responseTimeMs: 1000 },
-    { userId: 2, user: { firstName: 'Борис' }, isCorrect: true, responseTimeMs: 2000 },
-    { userId: 3, user: { firstName: 'Вика' }, isCorrect: false, responseTimeMs: 1000 }
+    { userId: 1, user: { firstName: 'Аня' }, isCorrect: true, responseTimeMs: 1000, timeLimit: 30 },
+    { userId: 2, user: { firstName: 'Борис' }, isCorrect: true, responseTimeMs: 1000, timeLimit: 30 },
+    { userId: 3, user: { firstName: 'Вика' }, isCorrect: false, responseTimeMs: 1000, timeLimit: 30 }
   ], [], false, Infinity);
   assert.deepEqual(ranked.map((entry) => entry.place), [1, 1, 3]);
 });
@@ -73,6 +120,22 @@ test('anonymous lesson quiz never exposes student names', () => {
   ], [], true);
   assert.equal(ranked[0].name, 'Участник 1');
   assert.equal(JSON.stringify(ranked).includes('Анна'), false);
+});
+
+test('question time limits are attached to answers without a database join', () => {
+  const answers = [
+    { userId: 1, questionId: 10, isCorrect: true, responseTimeMs: 1000, user: { firstName: 'Аня' } },
+    { userId: 2, questionId: 11, isCorrect: true, responseTimeMs: 1000, user: { firstName: 'Борис' } }
+  ];
+  const prepared = withQuestionTimeLimits(answers, [
+    { id: 10, timeLimit: 10 }, { id: 11, timeLimit: 60 }
+  ]);
+  assert.deepEqual(prepared.map((answer) => answer.timeLimit), [10, 60]);
+  // Балл считается от доли израсходованного времени, а не от абсолютных секунд:
+  // одна секунда съедает 10% лимита в 10 с и меньше 2% лимита в 60 с.
+  const ranked = buildLessonQuizLeaderboard(prepared, [], false, Infinity);
+  assert.deepEqual(ranked.map((entry) => entry.id), [2, 1]);
+  assert.deepEqual(ranked.map((entry) => entry.totalScore), [0.99, 0.95]);
 });
 
 test('practice score requires exact server answer set, rejecting duplicates and coercion', () => {

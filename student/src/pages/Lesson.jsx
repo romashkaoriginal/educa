@@ -12,6 +12,13 @@ import './Lesson.css';
 // Чтобы вернуть функцию, достаточно поменять значение на true.
 const STUDENT_QUESTIONS_VISIBLE = false;
 
+// Страховочный опрос состояния при разорванном сокете. Держим редким: при
+// 50 учениках каждая секунда интервала — это 50 запросов в минуту на сервер.
+const FALLBACK_POLL_MS = 30000;
+
+// Разброс запросов по истечении таймера вопроса: дедлайн у класса общий.
+const DEADLINE_JITTER_MS = 1500;
+
 const formatTime = (value) => value
   ? new Date(value).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
   : '—';
@@ -541,14 +548,24 @@ export default function Lesson({ studentId, isTabActive, entryRequest = null }) 
     refreshState(currentLesson.id);
   }, [live, currentLesson?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Recover missed quiz events after Telegram backgrounds the WebView.
+  // Восстановление состояния после того, как Telegram сворачивал WebView.
+  // Пока сокет жив, состояние приходит событиями, и опрос не нужен: 50 учеников
+  // с интервалом в 5 секунд давали 600 запросов в минуту и клали сервер.
+  // Поэтому в фоне работает редкий страховочный опрос, а сразу после возврата
+  // на экран состояние запрашивается через сокет.
   useEffect(() => {
     if (!live) return undefined;
-    const recover = () => { if (document.visibilityState !== 'hidden') refreshState(); };
-    const timer = setInterval(recover, 5000);
+    const recover = () => {
+      if (document.visibilityState === 'hidden') return;
+      requestRealtimeState();
+    };
+    const timer = setInterval(() => {
+      // Событие могло потеряться только при разорванном соединении.
+      if (!lessonConnected) recover();
+    }, FALLBACK_POLL_MS);
     document.addEventListener('visibilitychange', recover);
     return () => { clearInterval(timer); document.removeEventListener('visibilitychange', recover); };
-  }, [live, refreshState]);
+  }, [live, lessonConnected, requestRealtimeState]);
 
   useEffect(() => {
     if (!isTabActive || !live) return;
@@ -560,8 +577,14 @@ export default function Lesson({ studentId, isTabActive, entryRequest = null }) 
     const questionIds = activeQuiz.mode === 'self_paced'
       ? (activeQuiz.questions || []).map((question) => question.id)
       : activeQuiz.currentQuestion?.id ? [activeQuiz.currentQuestion.id] : [];
+    // Отметка «вопрос получен» идёт по сокету: он уже открыт и не расходует
+    // лимит HTTP. При 50 учениках это 50 одновременных POST на каждый вопрос.
     questionIds.forEach((questionId) => {
-      studentRequest(`/lesson-quiz/${activeQuiz.id}/questions/${questionId}/received`, { method: 'POST' }).catch(() => {});
+      if (lessonSocket && lessonConnected) {
+        lessonSocket.emit('student:quiz-question-received', { quizId: activeQuiz.id, questionId });
+      } else {
+        studentRequest(`/lesson-quiz/${activeQuiz.id}/questions/${questionId}/received`, { method: 'POST' }).catch(() => {});
+      }
     });
   }, [
     live,
@@ -569,6 +592,8 @@ export default function Lesson({ studentId, isTabActive, entryRequest = null }) 
     activeQuiz?.mode,
     activeQuiz?.currentQuestion?.id,
     activeQuiz?.questions?.map((question) => question.id).join(','),
+    lessonSocket,
+    lessonConnected,
     studentRequest
   ]);
 
@@ -577,10 +602,13 @@ export default function Lesson({ studentId, isTabActive, entryRequest = null }) 
   useEffect(() => {
     if (!live || activeQuiz?.mode !== 'single_step' || !activeQuiz?.currentQuestion || !activeQuiz?.questionStartedAt) return undefined;
     const deadline = new Date(activeQuiz.questionStartedAt).getTime() + Number(activeQuiz.currentQuestion.timeLimit || 30) * 1000;
-    const delay = Math.max(0, deadline - Date.now()) + 80;
-    const timer = setTimeout(() => refreshState(), delay);
+    // Дедлайн у всего класса один, поэтому без разброса 50 учеников уходят в
+    // запрос в одну и ту же миллисекунду. Разброс размазывает всплеск.
+    const jitter = Math.random() * DEADLINE_JITTER_MS;
+    const delay = Math.max(0, deadline - Date.now()) + 80 + jitter;
+    const timer = setTimeout(() => requestRealtimeState(), delay);
     return () => clearTimeout(timer);
-  }, [live, activeQuiz?.id, activeQuiz?.currentQuestion?.id, activeQuiz?.questionStartedAt, activeQuiz?.currentQuestion?.timeLimit, refreshState]);
+  }, [live, activeQuiz?.id, activeQuiz?.currentQuestion?.id, activeQuiz?.questionStartedAt, activeQuiz?.currentQuestion?.timeLimit, requestRealtimeState]);
 
   const act = async (key, callback) => {
     setPending(key); setMessage('');
