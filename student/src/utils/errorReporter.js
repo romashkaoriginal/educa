@@ -120,6 +120,10 @@ function installGlobalErrorReporting() {
   if (window.__kubikErrorReportingInstalled) return;
   window.__kubikErrorReportingInstalled = true;
   window.addEventListener('error', (event) => {
+    // Браузер прячет message/stack за "Script error." для исключений из
+    // скриптов без CORS-доступа (см. crossorigin на telegram-web-app.js в
+    // index.html) — тогда event.error пуст. filename/lineno всё равно
+    // приходят и помогают понять, что это внешний скрипт, а не наш бандл.
     reportClientError({
       message: event.error?.message || event.message || 'Ошибка JavaScript',
       stack: event.error?.stack,
@@ -127,7 +131,13 @@ function installGlobalErrorReporting() {
       area: 'application',
       action: 'render',
       path: window.location.pathname,
-      context: { event: event.type }
+      context: {
+        event: event.type,
+        filename: event.filename || null,
+        line: event.lineno || null,
+        column: event.colno || null,
+        opaque: !event.error
+      }
     });
   });
   window.addEventListener('unhandledrejection', (event) => {

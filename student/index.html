@@ -7,7 +7,12 @@
     <meta http-equiv="Pragma" content="no-cache" />
     <meta name="theme-color" content="#1E40AF" />
     <title>KUBIK - Образовательная платформа</title>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <!-- crossorigin — telegram.org отдаёт Access-Control-Allow-Origin: *, поэтому браузер
+         может раскрыть настоящий message/stack исключений из этого скрипта. Без атрибута
+         любая ошибка внутри него (или в коде, вызванном из его колбэков) доходит до нашего
+         window.onerror как непрозрачное "Script error." без деталей — именно это видно
+         в панели ошибок ученикам. -->
+    <script src="https://telegram.org/js/telegram-web-app.js" crossorigin="anonymous"></script>
   </head>
   <body>
     <noscript>Вам нужно включить JavaScript для работы приложения.</noscript>
