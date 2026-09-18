@@ -1,39 +1,14 @@
-/* Обёртка модалки — сам визуал (тёмный фон, пьедестал) приходит из
-   .stream-screen в styles/StreamPresentation.css, чтобы быть идентичным
-   тому, что видит администратор через «Открыть лидерборд». */
-.lb-modal-portal {
-  position: fixed;
-  inset: 0;
-  height: 100dvh;
-  z-index: 1000;
-  display: flex;
+/* Сам визуал (тёмный фон, скролл, safe-area) приходит из
+   .stream-inline-dialog/.stream-screen в styles/StreamPresentation.css —
+   тот же способ показа, что «Открыть лидерборд» в админке. Здесь только
+   позиционирование кнопки закрытия и анимация появления. */
+.lb-dialog {
   animation: lb-fade 0.18s ease;
 }
 
 @keyframes lb-fade {
   from { opacity: 0; }
   to { opacity: 1; }
-}
-
-/* .stream-screen задаёт overflow: hidden (там это внешняя страница со своим
-   min-height: 100vh, скроллит body) — здесь тот же класс живёт внутри
-   position: fixed модалки, поэтому переопределяем на реальный скролл, второй
-   класс в селекторе поднимает специфичность выше самого .stream-screen. */
-.lb-stream-screen.lb-stream-screen {
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
-  position: relative;
-  padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
-  animation: lb-slide 0.24s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-@keyframes lb-slide {
-  from { transform: translateY(24px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
 }
 
 .lb-modal-close {
