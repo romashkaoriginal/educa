@@ -148,6 +148,8 @@ router.get('/predicted/:studentId/:subjectId', assertSelfOrStaff('studentId'), p
 router.get('/predicted-all/:studentId', assertSelfOrStaff('studentId'), practiceController.getPredictedScoreAll);
 router.get('/daily-goal/:studentId', assertSelfOrStaff('studentId'), practiceController.getDailyGoal);
 router.get('/leaderboard/:subjectId', assertQueryStudentIdOptional, practiceController.getLeaderboard);
+// Лидерборд домашка+практика (тот же расчёт, что видит админ) — доступен любому авторизованному ученику.
+router.get('/leaderboard-combined/:subjectId', practiceController.getCombinedLeaderboard);
 router.get('/weak-topics/:studentId/:subjectId', assertSelfOrStaff('studentId'), practiceController.getWeakTopicsPractice);
 router.get('/dashboard/:studentId/:subjectId', assertSelfOrStaff('studentId'), practiceController.getSubjectDashboard);
 router.get('/score-history/:studentId/:subjectId', assertSelfOrStaff('studentId'), practiceController.getScoreHistory);

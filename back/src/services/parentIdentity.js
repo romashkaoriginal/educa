@@ -57,7 +57,7 @@ async function findParentForTelegramUser(telegramUser) {
   const telegramId = normalizeTelegramId(telegramUser?.id);
   const telegramUsername = normalizeTelegramUsername(telegramUser?.username);
   let parent = telegramId
-    ? await Parent.findOne({ where: { telegramId }, include: [{ association: 'student' }] })
+    ? await Parent.findOne({ where: { telegramId }, include: [{ association: 'students' }] })
     : null;
 
   if (!parent && telegramUsername) {
@@ -68,7 +68,7 @@ async function findParentForTelegramUser(telegramUser) {
           { [Op.or]: [{ telegramId: null }, { telegramId }] }
         ]
       },
-      include: [{ association: 'student' }]
+      include: [{ association: 'students' }]
     });
   }
 

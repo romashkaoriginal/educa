@@ -1730,7 +1730,9 @@ function Practice({ studentId, isTabActive = true, onClose, onActivate }) {
           </svg>
       </div>
 
-      {selectedSubject && (
+      {/* Вкладка «Рейтинг» временно скрыта (инлайн-лидерборд практики заменён
+          общей «Таблицей лидеров» в статистике) — код и роут не удаляем. */}
+      {selectedSubject && false && (
         <div className="practice-tabs">
           <button
             type="button"

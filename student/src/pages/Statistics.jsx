@@ -5,6 +5,7 @@ import { useData } from './DataContext';
 import StudentBrandMark from '../components/StudentBrandMark';
 import PredictedScoreCard from '../components/PredictedScoreCard';
 import MathText from '../components/MathText';
+import LeaderboardModal from '../components/LeaderboardModal';
 
 const DIFF_LABELS = { easy: 'Лёгкие', medium: 'Средние', hard: 'Сложные' };
 const DIFF_WORD = { easy: 'лёгкое', medium: 'среднее', hard: 'сложное' };
@@ -269,6 +270,7 @@ function Statistics({ studentId, isGuest = false, onLockedClick }) {
   const [openSections, setOpenSections] = useState({ topics: false, difficulty: false, errors: false });
   const [scoreBreakdownOpen, setScoreBreakdownOpen] = useState(false);
   const [showScoreHint, setShowScoreHint] = useState(false); // подсказка при недоступном балле
+  const [leaderboardOpen, setLeaderboardOpen] = useState(false);
   const lastRefreshKeyRef = useRef(null);
 
   const subjectIdMatch = (a, b) => Number(a) === Number(b);
@@ -374,6 +376,9 @@ function Statistics({ studentId, isGuest = false, onLockedClick }) {
   const todayDelta = dashboard?.scoreDynamics?.todayDelta ?? null;
 
   // ─── Блок наставника: фиксированная структура, адаптивный контент ───
+  // Временно не рендерится — на этом месте кнопка «Таблица лидеров» (см. ниже).
+  // Логику не удаляем, вдруг вернём или переиспользуем.
+  // eslint-disable-next-line no-unused-vars
   const coach = (() => {
     if (!pred) return null;
 
@@ -597,26 +602,25 @@ function Statistics({ studentId, isGuest = false, onLockedClick }) {
         </div>
       )}
 
-      {activePracticeView && coach && (
-        <div className={`sd-coach${coach.locked ? ' sd-coach--locked' : ''}`}>
-          <p className="sd-coach-headline">{coach.headline}</p>
-          <p className="sd-coach-score">{coach.scoreLabel}</p>
-          {coach.topicName && (
-            <div className="sd-coach-topic">
-              <span className="sd-coach-topic-label">Начни с темы</span>
-              <span className="sd-coach-topic-name">«{coach.topicName}»</span>
-            </div>
-          )}
-          <p className="sd-coach-task">{coach.taskDesc}</p>
-          <button
-            type="button"
-            className="sd-coach-cta"
-            onClick={() => handleAction(coach.mode || 'general', coach.topicId)}
-          >
-            {coach.cta}
-          </button>
-        </div>
+      {activePracticeView && subject && (
+        <button
+          type="button"
+          className="sd-leaderboard-cta"
+          onClick={() => setLeaderboardOpen(true)}
+        >
+          <span className="sd-leaderboard-cta-icon">🏆</span>
+          <span className="sd-leaderboard-cta-text">Таблица лидеров</span>
+          <span className="sd-leaderboard-cta-arrow">→</span>
+        </button>
       )}
+
+      <LeaderboardModal
+        open={leaderboardOpen}
+        onClose={() => setLeaderboardOpen(false)}
+        subjectId={selectedSubjectId}
+        subjectName={subject?.name}
+        studentId={studentId}
+      />
 
       {activePracticeView && loading && !dashboard ? (
         <div className="sd-loading">

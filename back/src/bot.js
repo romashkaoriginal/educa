@@ -134,6 +134,14 @@ async function checkUserRole(telegramId) {
 }
 
 // Клавиатура напоминания/предложения оставить заявку (ТЗ §16, §19, §20)
+// Родитель может быть привязан к нескольким детям — собираем их имена в одну строку.
+function parentStudentsLabel(parent) {
+  return (parent.students || [])
+    .map((student) => [student?.firstName, student?.lastName].filter(Boolean).join(' '))
+    .filter(Boolean)
+    .join(', ');
+}
+
 function leaveApplicationKeyboard(yesText = 'Хочу', noData = 'guest_remind_later') {
   return {
     inline_keyboard: [[
@@ -230,7 +238,7 @@ function startBot() {
       const parent = await findParentForTelegramUser(user);
       if (parent) {
         await resetChatMenuButton(chatId);
-        const studentName = [parent.student?.firstName, parent.student?.lastName].filter(Boolean).join(' ');
+        const studentName = parentStudentsLabel(parent);
         return sendStartMessage(
           chatId,
           `👋 Привет, ${firstName}!\n\nВы подключены к еженедельным отчётам об обучении${studentName ? ` ученика ${studentName}` : ''}.\n\nОтчёт приходит каждый понедельник в 18:00 по минскому времени.`
@@ -332,10 +340,10 @@ function startBot() {
     await registerBotUser(user);
     const parent = await findParentForTelegramUser(user);
     if (parent) {
-      const studentName = [parent.student?.firstName, parent.student?.lastName].filter(Boolean).join(' ');
+      const studentName = parentStudentsLabel(parent);
       return bot.sendMessage(
         chatId,
-        `👤 Родительский доступ\n\nУченик: ${studentName || 'не указан'}\n🆔 Telegram ID: ${user.id}\n\nДоступ к отчётам определяется доступом ученика.\nОтчёт: понедельник, 18:00 (Минск)`
+        `👤 Родительский доступ\n\nУченик: ${studentName || 'не указан'}\n🆔 Telegram ID: ${user.id}\n\nДоступ к отчётам определяется доступом учеников.\nОтчёт: понедельник, 18:00 (Минск)`
       );
     }
     const systemUser = await checkUserRole(user.id);

@@ -73,11 +73,30 @@
 .as-leaderboard-launch:disabled { opacity: .45; cursor: not-allowed; }
 .as-leaderboard-launch:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
+.as-leaderboard-range {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--kubik-navy);
+}
+
+.as-leaderboard-range input[type="date"] {
+  min-height: 42px;
+  border-radius: 10px;
+  border: 1px solid var(--kubik-border);
+  padding: 0 8px;
+  font: inherit;
+  background: #fff;
+  color: var(--kubik-navy);
+}
+
 @media (max-width: 760px) {
   .as-header { align-items: stretch; }
   .as-leaderboard-launcher { width: 100%; flex-wrap: wrap; }
   .as-leaderboard-launcher select:first-child { flex: 1 1 100%; }
   .as-leaderboard-launch { flex: 1; }
+  .as-leaderboard-range { width: 100%; flex-wrap: wrap; }
+  .as-leaderboard-range input[type="date"] { flex: 1; min-width: 0; }
 }
 
 .search-box {

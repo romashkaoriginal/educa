@@ -127,6 +127,23 @@
   color: var(--kubik-text-soft);
 }
 
+.parent-children {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.parent-child-block {
+  border-top: 1px solid var(--kubik-border);
+  padding-top: 10px;
+}
+
+.parent-child-block:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
 .parent-subjects {
   display: flex;
   flex-wrap: wrap;
@@ -213,6 +230,42 @@
   margin-top: 6px;
   color: var(--kubik-text-soft);
   font-size: 12px;
+}
+
+.parent-selected-students {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.parent-selected-students li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: rgba(59, 130, 246, 0.08);
+  color: var(--kubik-navy);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.parent-selected-remove {
+  border: none;
+  background: transparent;
+  color: var(--kubik-text-soft);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
+.parent-selected-remove:hover {
+  color: var(--low);
 }
 
 .parent-form select:focus {

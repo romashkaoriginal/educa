@@ -50,6 +50,7 @@ const ErrorLog = require('./ErrorLog');
 const HomeworkDraft = require('./HomeworkDraft');
 const Parent = require('./Parent');
 const ParentReportLog = require('./ParentReportLog');
+const ParentStudent = require('./ParentStudent');
 
 // ========== СВЯЗИ С SUBJECTS ==========
 
@@ -73,8 +74,13 @@ User.hasOne(BotUser, { foreignKey: 'userId', as: 'botProfile' });
 
 // ========== PARENTS ==========
 // Связь строго один-к-одному: уникальные studentId и telegramId закреплены в модели.
-User.hasOne(Parent, { foreignKey: 'studentId', as: 'parent', onDelete: 'CASCADE' });
-Parent.belongsTo(User, { foreignKey: 'studentId', as: 'student' });
+// Родитель ↔ ученики: многие-ко-многим через parent_students (у родителя
+// может быть несколько детей; ученик привязан не более чем к одному родителю).
+Parent.belongsToMany(User, { through: ParentStudent, foreignKey: 'parentId', otherKey: 'studentId', as: 'students' });
+User.belongsToMany(Parent, { through: ParentStudent, foreignKey: 'studentId', otherKey: 'parentId', as: 'parents' });
+Parent.hasMany(ParentStudent, { foreignKey: 'parentId', as: 'studentLinks' });
+ParentStudent.belongsTo(Parent, { foreignKey: 'parentId', as: 'parent' });
+ParentStudent.belongsTo(User, { foreignKey: 'studentId', as: 'student' });
 Parent.hasMany(ParentReportLog, { foreignKey: 'parentId', as: 'reportLogs' });
 ParentReportLog.belongsTo(Parent, { foreignKey: 'parentId', as: 'parent' });
 User.hasMany(ParentReportLog, { foreignKey: 'studentId', as: 'parentReportLogs' });
@@ -300,11 +306,41 @@ const migrateSelectedAnswerToJson = async () => {
   console.log('✅ practice_recent_errors.selected_answer migrated integer → json');
 };
 
+// Ручная миграция parents.studentId (1:1) → parent_students (многие-ко-многим),
+// чтобы у родителя можно было привязать несколько детей. sync({alter}) сам не
+// перенесёт данные из удаляемой колонки в новую таблицу — переносим их здесь,
+// пока колонка ещё существует, ДО alter-синка. Идемпотентно — проверяем колонку.
+const migrateParentStudentToJoinTable = async () => {
+  const [rows] = await sequelize.query(`
+    SELECT column_name FROM information_schema.columns
+    WHERE table_name = 'parents' AND column_name = 'studentId'
+  `);
+  if (rows.length === 0) return; // уже мигрировано либо таблицы ещё нет
+
+  await sequelize.query(`
+    CREATE TABLE IF NOT EXISTS parent_students (
+      id SERIAL PRIMARY KEY,
+      "parentId" INTEGER NOT NULL REFERENCES parents(id) ON DELETE CASCADE,
+      "studentId" INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+      "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await sequelize.query(`
+    INSERT INTO parent_students ("parentId", "studentId", "createdAt", "updatedAt")
+    SELECT id, "studentId", NOW(), NOW() FROM parents WHERE "studentId" IS NOT NULL
+    ON CONFLICT ("studentId") DO NOTHING
+  `);
+  await sequelize.query(`ALTER TABLE parents DROP COLUMN "studentId"`);
+  console.log('✅ parents.studentId migrated 1:1 → parent_students (many-to-many)');
+};
+
 // Синхронизация
 const syncDatabase = async () => {
   try {
     await migrateCorrectAnswerToJson();
     await migrateSelectedAnswerToJson();
+    await migrateParentStudentToJoinTable();
     await sequelize.sync({ alter: true });
     console.log('✅ Database synced (alter mode)');
   } catch (error) {
@@ -327,6 +363,6 @@ module.exports = {
   LessonAttendance, LessonMaterial, LessonQuestion, LessonReaction,
   LessonPoll, LessonPollOption, LessonPollAnswer,
   LessonQuiz, LessonQuizQuestion, LessonQuizAnswer, LessonQuizDelivery, LessonQuizParticipant,
-  ErrorLog, Parent, ParentReportLog,
+  ErrorLog, Parent, ParentReportLog, ParentStudent,
   syncDatabase
 };

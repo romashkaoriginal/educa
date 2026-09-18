@@ -14,7 +14,7 @@ const { getPollResults, lessonInclude } = require('../services/lessonState');
 const { emitToLesson, emitToLessonAdmins } = require('../services/lessonRealtime');
 const { nextQuestionState } = require('../services/lessonQuizFlow');
 const {
-  WEEKLY_SQL, buildLessonQuizLeaderboard, withQuestionTimeLimits, presentLessonQuiz
+  computeWeeklyLeaderboard, buildLessonQuizLeaderboard, withQuestionTimeLimits, presentLessonQuiz
 } = require('../services/streamPresentation');
 
 const router = express.Router();
@@ -127,44 +127,47 @@ async function resolveParentLesson(req, res, next) {
   }
 }
 
+// Диапазон дат: dateFrom/dateTo (произвольный) либо старый periodDays (7|30, для
+// обратной совместимости) как число дней назад от текущего момента.
+function resolveWeeklyRange(query) {
+  if (query.dateFrom || query.dateTo) {
+    const until = query.dateTo ? new Date(query.dateTo) : new Date();
+    const since = query.dateFrom ? new Date(query.dateFrom) : new Date(0);
+    if (Number.isNaN(since.getTime()) || Number.isNaN(until.getTime())) return null;
+    return { since, until };
+  }
+  const periodDays = Number(query.periodDays || 7);
+  if (![7, 30].includes(periodDays)) return null;
+  const until = new Date();
+  const since = new Date(until.getTime() - periodDays * 24 * 60 * 60 * 1000);
+  return { since, until };
+}
+
 router.get('/stream/weekly', async (req, res) => {
   try {
     const requestedSubjectId = req.query.subjectId ? Number(req.query.subjectId) : null;
-    const periodDays = Number(req.query.periodDays || 7);
-    if (!Number.isInteger(requestedSubjectId) || ![7, 30].includes(periodDays)) return bad(res, 'Выберите предмет и период 7 или 30 дней');
+    const range = resolveWeeklyRange(req.query);
+    if (!Number.isInteger(requestedSubjectId) || !range) return bad(res, 'Выберите предмет и корректный период');
     const allowedSubjectIds = await manageableSubjectIds(req.dbUser);
     if (allowedSubjectIds && requestedSubjectId && !allowedSubjectIds.includes(requestedSubjectId)) {
       return bad(res, 'Нет доступа к этому предмету', 403);
     }
     if (allowedSubjectIds?.length === 0) {
       return res.json({
-        title: 'Лидеры недели', phase: 'weekly', serverNow: Date.now(),
-        periodDays, participantCount: 0, leaderboard: []
+        title: 'Лидеры', phase: 'weekly', serverNow: Date.now(),
+        dateFrom: range.since.toISOString(), dateTo: range.until.toISOString(),
+        participantCount: 0, leaderboard: []
       });
     }
-    const until = new Date();
-    const since = new Date(until.getTime() - periodDays * 24 * 60 * 60 * 1000);
-    const rows = await sequelize.query(WEEKLY_SQL, {
-      type: QueryTypes.SELECT,
-      replacements: {
-        since, until, subjectId: requestedSubjectId,
-        restrictSubjects: Boolean(allowedSubjectIds),
-        allowedSubjectIds: allowedSubjectIds?.length ? allowedSubjectIds : [0]
-      }
+    const leaderboard = await computeWeeklyLeaderboard(sequelize, {
+      QueryTypes, since: range.since, until: range.until, subjectId: requestedSubjectId, allowedSubjectIds,
+      includeUsername: true
     });
     res.json({
-      title: `Лидеры за ${periodDays} дней`, phase: 'weekly', serverNow: until.getTime(), periodDays,
-      participantCount: rows.length,
-      leaderboard: rows.map((row, index) => {
-        const previous = rows[index - 1];
-        const samePlace = previous
-          && Number(previous.totalScore) === Number(row.totalScore)
-          && Number(previous.homeworkScore) === Number(row.homeworkScore);
-        return {
-          id: Number(row.id), name: row.name || 'Участник', totalScore: Number(row.totalScore) || 0,
-          place: samePlace ? rows.findIndex((item) => Number(item.totalScore) === Number(row.totalScore) && Number(item.homeworkScore) === Number(row.homeworkScore)) + 1 : index + 1
-        };
-      })
+      title: 'Лидеры', phase: 'weekly', serverNow: range.until.getTime(),
+      dateFrom: range.since.toISOString(), dateTo: range.until.toISOString(),
+      participantCount: leaderboard.length,
+      leaderboard
     });
   } catch (error) { fail(res, error, 'Get weekly stream leaderboard'); }
 });

@@ -482,6 +482,46 @@
   box-shadow: 0 2px 8px rgba(255, 190, 189, 0.3);
 }
 
+/* Кнопка «Таблица лидеров» — заменяет карточку наставника */
+.sd-leaderboard-cta {
+  margin: 8px 16px 4px;
+  padding: 18px 20px;
+  border: none;
+  border-radius: 22px;
+  background: linear-gradient(145deg, var(--kubik-navy) 0%, #1c5278 55%, var(--kubik-blue) 100%);
+  box-shadow: 0 8px 28px rgba(26, 64, 95, 0.30);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: transform 0.14s ease, box-shadow 0.14s ease;
+}
+
+.sd-leaderboard-cta:active {
+  transform: scale(0.98);
+  box-shadow: 0 4px 16px rgba(26, 64, 95, 0.25);
+}
+
+.sd-leaderboard-cta-icon {
+  font-size: 24px;
+}
+
+.sd-leaderboard-cta-text {
+  flex: 1;
+  text-align: left;
+  font-size: 16px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.02em;
+}
+
+.sd-leaderboard-cta-arrow {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--kubik-pink);
+}
+
 /* Разделитель «Практика» */
 .sd-section-divider {
   display: flex;

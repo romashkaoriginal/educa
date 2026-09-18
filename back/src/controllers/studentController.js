@@ -3,7 +3,7 @@ const {
   PracticeAttempt, PracticeBest, PracticeDailyLog, BotUser, QuizAnswer, QuizParticipant,
   // Агрегатные таблицы практики — тоже ссылаются на studentId и блокируют удаление
   PracticeQuestionResult, PracticeScoreHistory, PracticeStudentTotals, PracticeDailyStats,
-  PracticeTopicTotals, PracticeDifficultyTotals, PracticeModeTotals, PracticeRecentError, Parent,
+  PracticeTopicTotals, PracticeDifficultyTotals, PracticeModeTotals, PracticeRecentError, Parent, ParentStudent,
   sequelize
 } = require('../models');
 const { Op } = require('sequelize');
@@ -77,7 +77,7 @@ exports.getAllStudents = async (req, res) => {
           as: 'subjects',
           through: { attributes: ['accessStartDate', 'accessEndDate', 'isActive'] }
         },
-        { model: Parent, as: 'parent' }
+        { model: Parent, as: 'parents', through: { attributes: [] } }
       ],
       attributes: [
         'id',
@@ -91,7 +91,16 @@ exports.getAllStudents = async (req, res) => {
       order: [['createdAt', 'DESC']]
     });
 
-    res.json({ students });
+    // Родитель теперь может быть общим на нескольких детей (parents — массив,
+    // многие-ко-многим). Карточка ученика (Students.jsx) исторически работает
+    // с одним родителем на ученика — отдаём первого как `parent` для неё,
+    // полный список — как `parents` для мест, которые захотят несколько.
+    res.json({
+      students: students.map((student) => {
+        const json = student.toJSON();
+        return { ...json, parent: json.parents?.[0] || null };
+      })
+    });
   } catch (error) {
     console.error('Get students error:', error);
     res.status(500).json({ message: 'Server error' });
@@ -561,8 +570,8 @@ exports.deleteStudent = async (req, res) => {
       await QuizAnswer.destroy({ where: { userId: studentId }, transaction: t });
       await QuizParticipant.destroy({ where: { userId: studentId }, transaction: t });
 
-      // 4. Родитель и предметы
-      await Parent.destroy({ where: { studentId }, transaction: t });
+      // 4. Привязка к родителю (не сам Parent — у него может быть ещё дети) и предметы
+      await ParentStudent.destroy({ where: { studentId }, transaction: t });
       await UserSubject.destroy({ where: { userId: studentId }, transaction: t });
 
       // 5. Полностью удаляем BotUser-запись (а не просто отвязываем).

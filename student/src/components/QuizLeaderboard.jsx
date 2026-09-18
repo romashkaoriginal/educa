@@ -45,6 +45,7 @@ export function StreamLeaderboard({ entries = [] }) {
           <span className="stream-medal">{top[index].place || index + 1}</span>
         </div>
         <strong className="stream-name">{top[index].name}</strong>
+        {top[index].telegramUsername && <span className="stream-username">@{top[index].telegramUsername}</span>}
         <span className="stream-points">{score(top[index].totalScore)} <small>баллов</small></span>
         <div className="stream-plinth"><span>{top[index].place || index + 1}</span><small>{index === 0 ? 'ЛИДЕР' : 'МЕСТО'}</small><i aria-hidden="true" /></div>
       </div>)}
@@ -57,7 +58,10 @@ export function StreamLeaderboard({ entries = [] }) {
         {top.slice(3).map((entry, index) => <li key={entry.id} data-rank-id={entry.id}>
           <span className="stream-rank">{String(entry.place || index + 4).padStart(2, '0')}</span>
           <span className="stream-runner-avatar" aria-hidden="true"><Initials name={entry.name} /></span>
-          <strong>{entry.name}</strong>
+          <span className="stream-runner-name">
+            <strong>{entry.name}</strong>
+            {entry.telegramUsername && <span className="stream-runner-username">@{entry.telegramUsername}</span>}
+          </span>
           <span className="stream-runner-score">{score(entry.totalScore)}<small>баллов</small></span>
         </li>)}
       </ol>

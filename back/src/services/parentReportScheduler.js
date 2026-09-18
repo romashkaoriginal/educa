@@ -65,10 +65,12 @@ function getReportPeriod(reportType, now, force) {
 
 async function processParent(parent, { bot, now = new Date(), reportType = 'weekly', force = false }) {
   const period = getReportPeriod(reportType, now, force);
+  const students = parent.students || [];
+  const firstStudentId = students[0]?.id ?? null;
   const [log, created] = await ParentReportLog.findOrCreate({
     where: { parentId: parent.id, reportType, periodStart: period.startDate },
     defaults: {
-      studentId: parent.studentId,
+      studentId: firstStudentId,
       periodEnd: period.endDate,
       status: 'processing'
     }
@@ -76,7 +78,7 @@ async function processParent(parent, { bot, now = new Date(), reportType = 'week
   if (!created && !force) return log;
   if (!created) {
     await log.update({
-      studentId: parent.studentId,
+      studentId: firstStudentId,
       periodEnd: period.endDate,
       status: 'processing',
       messageCount: 0,
@@ -89,37 +91,51 @@ async function processParent(parent, { bot, now = new Date(), reportType = 'week
     await log.update({ status: 'skipped_no_telegram', error: 'Родитель ещё не подтвердил Telegram ID через бота' });
     return log;
   }
-  if (!parent.student?.isActive) {
-    await log.update({ status: 'skipped_no_access', error: 'Аккаунт ученика неактивен' });
+  if (!students.length) {
+    await log.update({ status: 'skipped_no_access', error: 'К родителю не привязан ни один ученик' });
     return log;
   }
 
-  const activeSubjects = (parent.student.subjects || []).filter((subject) => isSubjectAccessActive(subject, now));
-  if (!activeSubjects.length) {
-    await log.update({ status: 'skipped_no_access', error: 'У ученика нет активных предметов' });
+  // Для каждого ребёнка отдельно считаем активные предметы. Отчёт пропускаем
+  // целиком, только если НИ у одного ребёнка нет доступа — иначе шлём отчёт
+  // по тем детям, у кого доступ есть, одним потоком сообщений.
+  const studentsWithSubjects = students
+    .filter((student) => student.isActive)
+    .map((student) => ({
+      student,
+      activeSubjects: (student.subjects || []).filter((subject) => isSubjectAccessActive(subject, now))
+    }))
+    .filter(({ activeSubjects }) => activeSubjects.length > 0);
+
+  if (!studentsWithSubjects.length) {
+    await log.update({ status: 'skipped_no_access', error: 'Ни у одного ученика нет активного доступа' });
     return log;
   }
 
   try {
-    const { messages } = await buildReportMessages({
-      student: parent.student,
-      subjects: activeSubjects,
-      reportType,
-      now
-    });
+    const allMessages = [];
+    for (const { student, activeSubjects } of studentsWithSubjects) {
+      const { messages } = await buildReportMessages({
+        student,
+        subjects: activeSubjects,
+        reportType,
+        now
+      });
+      allMessages.push(...messages);
+    }
     let sentCount = 0;
-    for (const [index, text] of messages.entries()) {
+    for (const [index, text] of allMessages.entries()) {
       const result = await sendTelegramMessage({
         bot,
         chatId: parent.telegramId,
         text,
         options: {
           parse_mode: 'HTML',
-          ...(index === messages.length - 1 ? { reply_markup: getManagerContactKeyboard() } : {})
+          ...(index === allMessages.length - 1 ? { reply_markup: getManagerContactKeyboard() } : {})
         },
         recipient: parent,
         notificationKind: `parent_${reportType}_report`,
-        context: { studentId: parent.studentId, reportType, periodStart: period.startDate }
+        context: { parentId: parent.id, reportType, periodStart: period.startDate }
       });
       if (!result.ok) throw new Error(result.reason || 'Не удалось отправить сообщение');
       sentCount += 1;
@@ -135,8 +151,9 @@ async function getActiveParents() {
   return Parent.findAll({
     include: [{
       model: User,
-      as: 'student',
+      as: 'students',
       attributes: ['id', 'firstName', 'lastName', 'isActive'],
+      through: { attributes: [] },
       include: [{
         model: Subject,
         as: 'subjects',

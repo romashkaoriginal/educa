@@ -38,7 +38,12 @@ function AdminStatistics({ currentUser, dataRefreshKey = 0 }) {
   const [period, setPeriod] = useState('30d');
   const [subjectId, setSubjectId] = useState('');
   const [homeworkSort, setHomeworkSort] = useState('name');
-  const [leaderboardPeriod, setLeaderboardPeriod] = useState(7);
+  const [leaderboardPeriod, setLeaderboardPeriod] = useState('7d');
+  const [leaderboardDateFrom, setLeaderboardDateFrom] = useState(() => {
+    const d = new Date(); d.setDate(d.getDate() - 6);
+    return d.toISOString().slice(0, 10);
+  });
+  const [leaderboardDateTo, setLeaderboardDateTo] = useState(() => new Date().toISOString().slice(0, 10));
   const [leaderboardSubjectId, setLeaderboardSubjectId] = useState('');
   const [stream, setStream] = useState(null);
 
@@ -189,10 +194,19 @@ function AdminStatistics({ currentUser, dataRefreshKey = 0 }) {
   const openLeaderboard = () => {
     if (!leaderboardSubjectId) return;
     const subject = subjects.find((item) => String(item.id) === String(leaderboardSubjectId));
-    setStream({
-      hostWindow: null,
-      source: { subjectId: Number(leaderboardSubjectId), subjectName: subject?.name || 'Предмет', periodDays: leaderboardPeriod }
-    });
+    const source = { subjectId: Number(leaderboardSubjectId), subjectName: subject?.name || 'Предмет' };
+    if (leaderboardPeriod === 'custom') {
+      Object.assign(source, {
+        dateFrom: `${leaderboardDateFrom}T00:00:00.000Z`,
+        dateTo: `${leaderboardDateTo}T23:59:59.999Z`
+      });
+    } else {
+      Object.assign(source, getPeriodQuery(leaderboardPeriod));
+      // getPeriodQuery('all') не даёт dateFrom/dateTo — помечаем явно, чтобы
+      // StreamPresentation не решил, что это старый режим periodDays.
+      if (leaderboardPeriod === 'all') Object.assign(source, { dateFrom: new Date(0).toISOString(), dateTo: new Date().toISOString() });
+    }
+    setStream({ hostWindow: null, source });
   };
 
   // ===== КОМПОНЕНТ ПРОГРЕСС-БАРА =====
@@ -221,10 +235,17 @@ function AdminStatistics({ currentUser, dataRefreshKey = 0 }) {
               <option value="">Лидерборд: выберите предмет</option>
               {subjects.map((subject) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}
             </select>
-            <select aria-label="Период лидерборда" value={leaderboardPeriod} onChange={(event) => setLeaderboardPeriod(Number(event.target.value))}>
-              <option value={7}>7 дней</option>
-              <option value={30}>30 дней</option>
+            <select aria-label="Период лидерборда" value={leaderboardPeriod} onChange={(event) => setLeaderboardPeriod(event.target.value)}>
+              {PERIOD_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              <option value="custom">Свой период</option>
             </select>
+            {leaderboardPeriod === 'custom' && (
+              <span className="as-leaderboard-range">
+                <input type="date" aria-label="Дата с" value={leaderboardDateFrom} max={leaderboardDateTo} onChange={(event) => setLeaderboardDateFrom(event.target.value)} />
+                <span>—</span>
+                <input type="date" aria-label="Дата по" value={leaderboardDateTo} min={leaderboardDateFrom} onChange={(event) => setLeaderboardDateTo(event.target.value)} />
+              </span>
+            )}
             <button type="button" className="as-leaderboard-launch" disabled={!leaderboardSubjectId} onClick={openLeaderboard}>Открыть лидерборд ↗</button>
           </div>
         )}

@@ -18,6 +18,13 @@
   --space-inline: 14px;
   --student-bottom-nav-offset: calc(96px + env(safe-area-inset-bottom, 0px));
 
+  /* Telegram Android (режим expand, не fullscreen): системная строка статуса
+     и/или шапка Telegram перекрывают верх WebView, а браузерный
+     safe-area-inset-top её не видит. Значение ставится из JS через
+     tg.safeAreaInset/contentSafeAreaInset (см. App.jsx); без Telegram остаётся 0. */
+  --tg-safe-area-top: 0px;
+  --tg-safe-area-bottom: 0px;
+
   /* Кривые движения — сильнее встроенных CSS-easing */
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);

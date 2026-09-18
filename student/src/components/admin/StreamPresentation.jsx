@@ -9,6 +9,11 @@ import '../../styles/StreamPresentation.css';
 import { StreamLeaderboard } from '../QuizLeaderboard';
 export { StreamLeaderboard } from '../QuizLeaderboard';
 
+function formatStreamDate(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+}
+
 export function StreamScreen({ source, hostWindow, onClose }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
@@ -39,8 +44,15 @@ export function StreamScreen({ source, hostWindow, onClose }) {
     const controller = new AbortController();
     const refresh = async () => {
       try {
+        const weeklyQuery = new URLSearchParams({ subjectId: source.subjectId });
+        if (source.dateFrom || source.dateTo) {
+          if (source.dateFrom) weeklyQuery.set('dateFrom', source.dateFrom);
+          if (source.dateTo) weeklyQuery.set('dateTo', source.dateTo);
+        } else {
+          weeklyQuery.set('periodDays', source.periodDays || 7);
+        }
         const path = source.lessonQuizId ? `/lesson-admin/quizzes/${source.lessonQuizId}/stream`
-          : `/lesson-admin/stream/weekly?subjectId=${source.subjectId}&periodDays=${source.periodDays || 7}`;
+          : `/lesson-admin/stream/weekly?${weeklyQuery}`;
         const response = await adminFetch(`${API_URL}${path}`, { signal: controller.signal });
         if (!response.ok) throw new Error(response.status === 403 ? 'Нет доступа к трансляции' : 'Связь прервана. Восстанавливаем…');
         const next = await response.json();
@@ -138,7 +150,11 @@ export function StreamScreen({ source, hostWindow, onClose }) {
       <div className="stream-heading"><div>
         {['leaderboard', 'question'].includes(phase) && <p>{phase === 'leaderboard' ? (data.questionIndex >= 0 ? `Итоги вопроса ${data.questionIndex + 1}` : 'Текущий рейтинг') : `Вопрос ${data.questionIndex + 1} из ${data.totalQuestions}`}</p>}
         <h1>{phase === 'weekly' ? <>Лидеры <em>предмета</em></> : phase === 'finished' ? <>Итоги <em>викторины</em></> : phase === 'leaderboard' ? <>Рейтинг <em>викторины</em></> : data.title}</h1>
-      </div>{phase === 'weekly' && <div className="stream-period"><strong>{data.periodDays || source.periodDays || 7}</strong><span>дней<br />в зачёте</span></div>}</div>
+      </div>{phase === 'weekly' && (
+        source.dateFrom || source.dateTo
+          ? <div className="stream-period stream-period--range"><strong>{formatStreamDate(data.dateFrom)} — {formatStreamDate(data.dateTo)}</strong></div>
+          : <div className="stream-period"><strong>{data.periodDays || source.periodDays || 7}</strong><span>дней<br />в зачёте</span></div>
+      )}</div>
       {phase === 'question' && data.question ? <section className="stream-question" key={data.question.id || data.questionIndex}>
         <div className="stream-question-head"><h2><MathText text={data.question.questionText} /></h2>
           <div className={`stream-timer ${remaining <= 5 ? 'is-urgent' : ''}`} role="timer" aria-label={`Осталось ${remaining} секунд`}>

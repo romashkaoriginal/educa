@@ -654,15 +654,23 @@ router.post('/submit', assertBodyStudentId, async (req, res) => {
         : []
     );
 
-    homework.questions.forEach((question, index) => {
-      // Новые клиенты передают ответ вместе с ID вопроса. Это исключает
-      // ошибочную проверку, если порядок вопросов в запросах отличается.
-      // Массив по индексам оставлен для совместимости со старым фронтендом.
-      const userAnswer = answersByQuestionId.has(Number(question.id))
-        ? answersByQuestionId.get(Number(question.id))
-        : answers[index];
+    // Если вопросы задания были отредактированы (пересозданы с новыми id)
+    // уже после того, как ученик открыл его в браузере, answersByQuestionId
+    // будет пустой или неполной — ID из клиента больше не существуют. Раньше
+    // в этом случае код подставлял answers[index] (весь объект {questionId,
+    // answer} из тела запроса) как ответ, что никогда не совпадало с
+    // correctAnswer и обнуляло всю попытку. Теперь при таком рассинхроне просим ученика
+    // обновить страницу вместо того, чтобы списывать попытку с нулём.
+    const matchedCount = homework.questions.filter((q) => answersByQuestionId.has(Number(q.id))).length;
+    if (homework.questions.length > 0 && matchedCount === 0 && answersByQuestionId.size > 0) {
+      await transaction.rollback();
+      return res.status(409).json({ message: 'Задание было обновлено. Обнови страницу и ответь заново.' });
+    }
+
+    homework.questions.forEach((question) => {
+      const userAnswer = answersByQuestionId.get(Number(question.id));
       const isCorrect = checkAnswer(question, userAnswer);
-      
+
       maxScore += question.points;
       if (isCorrect) {
         totalScore += question.points;

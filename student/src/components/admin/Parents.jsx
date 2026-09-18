@@ -6,7 +6,7 @@ import { useConfirmDelete } from './useConfirmDelete';
 import { useSectionRefresh } from './useSectionRefresh';
 
 const emptyForm = {
-  studentId: '',
+  studentIds: [],
   telegramId: '',
   telegramUsername: '',
   firstName: '',
@@ -96,10 +96,16 @@ function Parents({ currentUser, dataRefreshKey = 0 }) {
   useEffect(() => { loadData(); }, [loadData]);
   useSectionRefresh(dataRefreshKey, loadData);
 
+  // Ученики, уже привязанные к ДРУГИМ родителям — их нельзя выбрать повторно.
+  // Дети текущего редактируемого родителя сюда не попадают (они не "заняты" им же).
   const availableStudents = useMemo(() => {
-    const assigned = new Set(parents.filter((item) => item.id !== editingParent?.id).map((item) => Number(item.studentId)));
-    return students.filter((student) => !assigned.has(Number(student.id)));
-  }, [parents, students, editingParent]);
+    const assigned = new Set(
+      parents
+        .filter((item) => item.id !== editingParent?.id)
+        .flatMap((item) => (item.students || []).map((s) => Number(s.id)))
+    );
+    return students.filter((student) => !assigned.has(Number(student.id)) && !form.studentIds.map(Number).includes(Number(student.id)));
+  }, [parents, students, editingParent, form.studentIds]);
 
   const filteredParents = useMemo(() => {
     const query = normalizedSearch(search);
@@ -109,8 +115,7 @@ function Parents({ currentUser, dataRefreshKey = 0 }) {
       parent.lastName,
       parent.telegramUsername,
       parent.telegramId,
-      parent.student?.firstName,
-      parent.student?.lastName
+      ...(parent.students || []).flatMap((s) => [s.firstName, s.lastName])
     ].some((value) => normalizedSearch(value).includes(query)));
   }, [parents, search]);
 
@@ -126,10 +131,30 @@ function Parents({ currentUser, dataRefreshKey = 0 }) {
     ].some((value) => normalizedSearch(value).includes(query)));
   }, [availableStudents, studentSearch]);
 
+  const selectedStudents = useMemo(() => (
+    form.studentIds
+      .map((id) => students.find((s) => Number(s.id) === Number(id)))
+      .filter(Boolean)
+  ), [form.studentIds, students]);
+
+  const addStudentToForm = (studentId) => {
+    if (!studentId) return;
+    setForm((prev) => (
+      prev.studentIds.map(Number).includes(Number(studentId))
+        ? prev
+        : { ...prev, studentIds: [...prev.studentIds, Number(studentId)] }
+    ));
+    setStudentSearch('');
+  };
+
+  const removeStudentFromForm = (studentId) => {
+    setForm((prev) => ({ ...prev, studentIds: prev.studentIds.filter((id) => Number(id) !== Number(studentId)) }));
+  };
+
   const openCreate = () => {
     setEditingParent(null);
     setStudentSearch('');
-    setForm({ ...emptyForm, studentId: availableStudents[0]?.id || '' });
+    setForm({ ...emptyForm, studentIds: [] });
     setShowModal(true);
   };
 
@@ -137,7 +162,7 @@ function Parents({ currentUser, dataRefreshKey = 0 }) {
     setEditingParent(parent);
     setStudentSearch('');
     setForm({
-      studentId: parent.studentId,
+      studentIds: (parent.students || []).map((s) => Number(s.id)),
       telegramId: parent.telegramId || '',
       telegramUsername: parent.telegramUsername || '',
       firstName: parent.firstName || '',
@@ -148,8 +173,8 @@ function Parents({ currentUser, dataRefreshKey = 0 }) {
 
   const saveParent = async (event) => {
     event.preventDefault();
-    if (!form.studentId || (!String(form.telegramId).trim() && !form.telegramUsername.trim())) {
-      alert('Выберите ученика и укажите Telegram ID или username родителя');
+    if (!form.studentIds.length || (!String(form.telegramId).trim() && !form.telegramUsername.trim())) {
+      alert('Выберите хотя бы одного ученика и укажите Telegram ID или username родителя');
       return;
     }
     setSaving(true);
@@ -174,9 +199,10 @@ function Parents({ currentUser, dataRefreshKey = 0 }) {
   };
 
   const deleteParent = async (parent) => {
+    const names = (parent.students || []).map(studentName).join(', ') || 'ученика';
     const confirmed = await confirmDelete({
       title: 'Удалить родителя?',
-      message: `Родитель ученика «${studentName(parent.student)}» перестанет получать отчёты.`,
+      message: `Родитель (${names}) перестанет получать отчёты.`,
       confirmText: 'Удалить родителя'
     });
     if (!confirmed) return;
@@ -240,7 +266,7 @@ function Parents({ currentUser, dataRefreshKey = 0 }) {
               </button>
             </div>
           )}
-          <button type="button" className="add-button" onClick={openCreate} disabled={!availableStudents.length}>
+          <button type="button" className="add-button" onClick={openCreate} disabled={!students.length}>
             + Добавить родителя
           </button>
         </div>
@@ -273,11 +299,10 @@ function Parents({ currentUser, dataRefreshKey = 0 }) {
       {loading ? <div className="parents-empty">Загрузка…</div> : (
         <div className="parents-grid">
           {filteredParents.map((parent) => {
-            const subjects = activeSubjects(parent.student);
+            const children = parent.students || [];
             const report = parent.lastReport;
-            const studentIsActive = parent.student?.isActive !== false;
-            const hasStudentAccess = studentIsActive && subjects.length > 0;
-            const accessLabel = !studentIsActive ? 'Ученик неактивен' : (hasStudentAccess ? 'Доступ активен' : 'Нет доступа у ученика');
+            const anyChildHasAccess = children.some((student) => student.isActive !== false && activeSubjects(student).length > 0);
+            const accessLabel = !children.length ? 'Нет привязанных учеников' : (anyChildHasAccess ? 'Доступ активен' : 'Нет доступа ни у одного ученика');
             return (
               <article className="parent-card" key={parent.id}>
                 <div className="parent-card-top">
@@ -286,18 +311,34 @@ function Parents({ currentUser, dataRefreshKey = 0 }) {
                     <h3>{[parent.firstName, parent.lastName].filter(Boolean).join(' ') || 'Родитель'}</h3>
                     <p>{parent.telegramUsername ? `@${telegramUsername(parent.telegramUsername)}` : `ID: ${parent.telegramId || 'не подтверждён'}`}</p>
                   </div>
-                  <span className={`status-badge ${hasStudentAccess ? 'active' : 'inactive'}`}>
+                  <span className={`status-badge ${anyChildHasAccess ? 'active' : 'inactive'}`}>
                     {accessLabel}
                   </span>
                 </div>
-                <div className="parent-student-link">
-                  <span>Ученик</span>
-                  <strong>{studentName(parent.student)}</strong>
-                </div>
-                <div className="parent-subjects">
-                  {subjects.length
-                    ? subjects.map((subject) => <span key={subject.id}>{subject.icon} {subject.name}</span>)
-                    : <span className="parent-warning">Нет активного доступа — отчёт не отправится</span>}
+                <div className="parent-children">
+                  {children.length === 0 && <p className="parent-warning">Нет привязанных учеников</p>}
+                  {children.map((student) => {
+                    const subjects = activeSubjects(student);
+                    const studentIsActive = student.isActive !== false;
+                    const hasAccess = studentIsActive && subjects.length > 0;
+                    return (
+                      <div className="parent-child-block" key={student.id}>
+                        <div className="parent-student-link">
+                          <span>Ученик</span>
+                          <strong>{studentName(student)}</strong>
+                        </div>
+                        <div className="parent-subjects">
+                          {!studentIsActive ? (
+                            <span className="parent-warning">Ученик неактивен</span>
+                          ) : subjects.length ? (
+                            subjects.map((subject) => <span key={subject.id}>{subject.icon} {subject.name}</span>)
+                          ) : (
+                            <span className="parent-warning">Нет активного доступа — отчёт не отправится</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
                 <div className="parent-report-state">
                   <span>Последний отчёт</span>
@@ -328,7 +369,17 @@ function Parents({ currentUser, dataRefreshKey = 0 }) {
             </div>
             <form className="parent-form" onSubmit={saveParent}>
               <div className="form-group">
-                <label htmlFor="parent-student">Ученик *</label>
+                <label htmlFor="parent-student">Ученики *</label>
+                {selectedStudents.length > 0 && (
+                  <ul className="parent-selected-students">
+                    {selectedStudents.map((student) => (
+                      <li key={student.id}>
+                        <span>{studentName(student)} · ID {student.id}</span>
+                        <button type="button" className="parent-selected-remove" onClick={() => removeStudentFromForm(student.id)} aria-label={`Убрать ${studentName(student)}`}>✕</button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 <input
                   id="parent-student-search"
                   type="search"
@@ -337,8 +388,12 @@ function Parents({ currentUser, dataRefreshKey = 0 }) {
                   placeholder="Поиск по имени, username или ID"
                   aria-label="Поиск ученика"
                 />
-                <select id="parent-student" value={form.studentId} onChange={(event) => setForm({ ...form, studentId: event.target.value })} required>
-                  <option value="">Выберите ученика</option>
+                <select
+                  id="parent-student"
+                  value=""
+                  onChange={(event) => addStudentToForm(event.target.value)}
+                >
+                  <option value="">{selectedStudents.length ? 'Добавить ещё ученика' : 'Выберите ученика'}</option>
                   {filteredAvailableStudents.map((student) => <option key={student.id} value={student.id}>{studentName(student)} · ID {student.id}</option>)}
                 </select>
                 {!filteredAvailableStudents.length && <span className="parent-search-empty">Ученики не найдены</span>}

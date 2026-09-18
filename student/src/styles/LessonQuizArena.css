@@ -9,7 +9,9 @@
   min-height: 0;
   margin: 0;
   border: 0;
-  padding: max(20px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left));
+  /* env(safe-area-inset-top) не знает про перекрытие Telegram-шапкой/статус-баром
+     на Android (режим expand) — добавляем --tg-safe-area-top поверх (см. App.jsx). */
+  padding: calc(max(20px, env(safe-area-inset-top)) + var(--tg-safe-area-top, 0px)) max(24px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left));
   overflow-y: auto;
   overscroll-behavior: contain;
   display: block;

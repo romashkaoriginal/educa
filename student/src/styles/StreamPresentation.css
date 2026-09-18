@@ -21,6 +21,7 @@
 .stream-period { display: flex; align-items: center; gap: 14px; padding-right: 8px; }
 .stream-period strong { font-size: 76px; font-weight: 300; line-height: 1; color: var(--stream-coral); letter-spacing: -.04em; }
 .stream-period span { font-size: 16px; line-height: 1.4; color: var(--stream-muted); }
+.stream-period--range strong { font-size: 28px; font-weight: 600; white-space: nowrap; }
 .stream-code { flex-shrink: 0; background: var(--stream-ice); color: var(--stream-navy); padding: 14px 24px; border-radius: 10px; text-align: center; }
 .stream-code small { display: block; font-size: 12px; margin-bottom: 4px; }
 .stream-code strong { font-size: 30px; letter-spacing: .12em; font-variant-numeric: tabular-nums; line-height: 1.2; }
@@ -46,6 +47,7 @@
 .stream-place-1 .stream-medal { background: var(--stream-coral); }
 .stream-crown { position: absolute; width: 40px; height: 36px; top: -44px; left: 50%; transform: translateX(-50%) rotate(-8deg); color: var(--stream-coral); }
 .stream-name { font-size: 21px; font-weight: 750; line-height: 1.3; overflow-wrap: anywhere; max-width: 100%; min-height: 2.6em; display: flex; align-items: center; justify-content: center; padding: 0 3px; }
+.stream-username { font-size: 13px; font-weight: 500; color: var(--stream-muted); overflow-wrap: anywhere; margin-top: -6px; }
 .stream-points { margin: 10px 0 29px; padding: 6px 14px; background: var(--stream-deep); border-radius: 6px; font-size: 23px; font-weight: 750; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .stream-points small { font-size: 12px; font-weight: 500; color: var(--stream-muted); }
 .stream-place-1 .stream-points { color: var(--stream-coral); }
@@ -69,6 +71,8 @@
 .stream-rank { color: #4a6b84; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .stream-runner-avatar { width: 34px; height: 34px; border-radius: 50%; background: #d5e5f0; color: var(--stream-navy); display: grid; place-items: center; font-size: 11px; font-weight: 750; }
 .stream-runners strong { overflow-wrap: anywhere; line-height: 1.3; font-weight: 700; }
+.stream-runner-name { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.stream-runner-username { font-size: 12px; font-weight: 500; color: #4a6b84; overflow-wrap: anywhere; }
 .stream-runner-score { text-align: right; font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .stream-runner-score small { display: block; font-size: 12px; font-weight: 500; color: #4a6b84; }
 .stream-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 70px 20px; font-size: 22px; }

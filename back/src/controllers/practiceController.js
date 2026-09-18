@@ -4,7 +4,7 @@ const {
   PracticeQuestionResult, PracticeScoreHistory, PracticeDailyStats,
   PracticeTopicTotals, PracticeRecentError, Subject, User
 } = require('../models');
-const { Op } = require('sequelize');
+const { Op, QueryTypes } = require('sequelize');
 const sequelize = require('../config/database');
 const practiceImages = require('../services/practiceImages');
 const { checkQuestionFits, FIT_ERROR_MESSAGE } = require('../services/practiceFit');
@@ -12,7 +12,7 @@ const { calculatePredictedScore, getGrowthTopicIds, CONFIG } = require('../servi
 const { calculateHomeworkScore } = require('../services/homeworkScore');
 const { buildSubjectDashboard } = require('../services/practiceDashboard');
 const { recordPracticeStatsIncrement, hasAggregatedStats } = require('../services/practiceStatsAggregate');
-const { isPracticeAnswerCorrect } = require('../services/streamPresentation');
+const { isPracticeAnswerCorrect, computeWeeklyLeaderboard } = require('../services/streamPresentation');
 const { loadExcelWorkbook, normaliseExcelHeader } = require('../utils/loadExcelWorkbook');
 
 // In-memory кэш статистики (TTL 60 секунд)
@@ -1129,6 +1129,35 @@ exports.getLeaderboard = async (req, res) => {
   } catch (error) {
     console.error('Get leaderboard error:', error);
     res.status(500).json({ error: 'Failed to get leaderboard' });
+  }
+};
+
+// Общий лидерборд домашка+практика по предмету за период — то, что видит
+// администратор через "Открыть лидерборд". Ученику доступен на чтение, без
+// @username (только имя), период — dateFrom/dateTo либо пресет.
+exports.getCombinedLeaderboard = async (req, res) => {
+  try {
+    const { subjectId } = req.params;
+    const parsedSubjectId = parseInt(subjectId, 10);
+    if (!Number.isInteger(parsedSubjectId)) return res.status(400).json({ error: 'Invalid subjectId' });
+
+    const until = req.query.dateTo ? new Date(req.query.dateTo) : new Date();
+    const since = req.query.dateFrom ? new Date(req.query.dateFrom) : new Date(0);
+    if (Number.isNaN(since.getTime()) || Number.isNaN(until.getTime())) {
+      return res.status(400).json({ error: 'Invalid date range' });
+    }
+
+    const leaderboard = await computeWeeklyLeaderboard(sequelize, {
+      QueryTypes, since, until, subjectId: parsedSubjectId, allowedSubjectIds: null, limit: 20
+    });
+
+    res.json({
+      dateFrom: since.toISOString(), dateTo: until.toISOString(),
+      participantCount: leaderboard.length, leaderboard
+    });
+  } catch (error) {
+    console.error('Get combined leaderboard error:', error);
+    res.status(500).json({ error: 'Failed to get combined leaderboard' });
   }
 };
 

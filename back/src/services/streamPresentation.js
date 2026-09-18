@@ -151,12 +151,12 @@ WITH homework_best AS (
   SELECT "userId", points AS homework, 0 AS practice FROM homework_best
   UNION ALL SELECT "userId", 0 AS homework, points AS practice FROM practice_unique
 )
-SELECT u.id, COALESCE(NULLIF(TRIM(u."firstName"), ''), 'Участник') AS name,
+SELECT u.id, COALESCE(NULLIF(TRIM(u."firstName"), ''), 'Участник') AS name, u."telegramUsername",
   SUM(s.homework)::float AS "homeworkScore", SUM(s.practice)::float AS "practiceScore",
   SUM(s.homework + s.practice)::float AS "totalScore"
 FROM scores s JOIN users u ON u.id = s."userId"
 WHERE u.role = 'student' AND u."isActive" = true
-GROUP BY u.id, u."firstName"
+GROUP BY u.id, u."firstName", u."telegramUsername"
 HAVING SUM(s.homework + s.practice) > 0
 ORDER BY "totalScore" DESC, "homeworkScore" DESC, u.id ASC LIMIT 10`;
 
@@ -168,10 +168,40 @@ function isPracticeAnswerCorrect(selected, correct) {
     && answers.every(value => Number.isInteger(value) && keys.includes(value));
 }
 
+// Общий расчёт лидерборда домашка+практика за произвольный диапазон дат.
+// Используется и админским стримом (/lesson-admin/stream/weekly), и лидербордом
+// ученика — чтобы не держать две копии WEEKLY_SQL и правил ранжирования.
+// includeUsername — только для админского стрима: ученик не должен получать
+// чужие @username в ответе API, даже если фронт их не отрисовывает (ТЗ в чате
+// с Дмитрием: "к ученикам в лидерборде @ не надо, в админке можно").
+async function computeWeeklyLeaderboard(sequelize, { QueryTypes, since, until, subjectId, allowedSubjectIds, limit = 10, includeUsername = false }) {
+  const rows = await sequelize.query(WEEKLY_SQL.replace('LIMIT 10', `LIMIT ${Number(limit) || 10}`), {
+    type: QueryTypes.SELECT,
+    replacements: {
+      since, until, subjectId,
+      restrictSubjects: Boolean(allowedSubjectIds),
+      allowedSubjectIds: allowedSubjectIds?.length ? allowedSubjectIds : [0]
+    }
+  });
+  return rows.map((row, index) => {
+    const previous = rows[index - 1];
+    const samePlace = previous
+      && Number(previous.totalScore) === Number(row.totalScore)
+      && Number(previous.homeworkScore) === Number(row.homeworkScore);
+    return {
+      id: Number(row.id), name: row.name || 'Участник', totalScore: Number(row.totalScore) || 0,
+      homeworkScore: Number(row.homeworkScore) || 0, practiceScore: Number(row.practiceScore) || 0,
+      ...(includeUsername ? { telegramUsername: row.telegramUsername || null } : {}),
+      place: samePlace ? rows.findIndex((item) => Number(item.totalScore) === Number(row.totalScore) && Number(item.homeworkScore) === Number(row.homeworkScore)) + 1 : index + 1
+    };
+  });
+}
+
 module.exports = {
   buildLessonQuizLeaderboard,
   withQuestionTimeLimits,
   presentLessonQuiz,
   WEEKLY_SQL,
+  computeWeeklyLeaderboard,
   isPracticeAnswerCorrect
 };

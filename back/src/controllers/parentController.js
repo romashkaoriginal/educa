@@ -1,12 +1,13 @@
-const { Parent, ParentReportLog, Subject, User } = require('../models');
+const { Parent, ParentReportLog, ParentStudent, Subject, User } = require('../models');
 const { deactivateGuestForParent, resolveParentIdentity } = require('../services/parentIdentity');
 const { sendParentReports, getNextReportSchedule } = require('../services/parentReportScheduler');
 const { sendTelegramMessage } = require('../services/telegramDelivery');
 
 const parentInclude = [{
   model: User,
-  as: 'student',
+  as: 'students',
   attributes: ['id', 'firstName', 'lastName', 'isActive'],
+  through: { attributes: [] },
   include: [{
     model: Subject,
     as: 'subjects',
@@ -24,17 +25,18 @@ function handleParentError(res, error, label) {
   return res.status(500).json({ message: 'Server error' });
 }
 
-async function notifyParentAssigned(parent, student) {
+async function notifyParentAssigned(parent, students) {
   if (!parent.telegramId) return;
   const { getBot } = require('../bot');
-  const studentName = [student?.firstName, student?.lastName].filter(Boolean).join(' ') || 'ученика';
+  const names = students.map((student) => [student?.firstName, student?.lastName].filter(Boolean).join(' ')).filter(Boolean);
+  const studentsLabel = names.length ? names.join(', ') : 'ученика';
   const result = await sendTelegramMessage({
     bot: getBot(),
     chatId: parent.telegramId,
     recipient: parent,
     notificationKind: 'parent_assigned',
-    context: { studentId: parent.studentId },
-    text: `🎉 Вас успешно добавили как родителя ученика ${studentName}.\n\nЕженедельный отчёт приходит каждый понедельник в 18:00 по минскому времени.\nЕжемесячный отчёт приходит в первый понедельник месяца в 18:00 по минскому времени.\n\nДоступ к отчётам действует, пока у ученика есть активный доступ.`
+    context: { studentIds: students.map((s) => s.id) },
+    text: `🎉 Вас успешно добавили как родителя ученика: ${studentsLabel}.\n\nЕженедельный отчёт приходит каждый понедельник в 18:00 по минскому времени.\nЕжемесячный отчёт приходит в первый понедельник месяца в 18:00 по минскому времени.\n\nДоступ к отчётам действует, пока у ученика есть активный доступ.`
   });
   if (!result.ok) console.warn(`Parent assignment notification was not sent: ${result.reason}`);
 }
@@ -47,6 +49,19 @@ async function requireStudent(studentId) {
     throw error;
   }
   return student;
+}
+
+// Принимает studentIds (массив) либо старый одиночный studentId — не ломает
+// клиентов, которые ещё шлют один id. Возвращает уникальный список чисел.
+function parseStudentIds(body) {
+  const raw = Array.isArray(body.studentIds) ? body.studentIds : (body.studentId !== undefined ? [body.studentId] : []);
+  const ids = [...new Set(raw.map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0))];
+  if (!ids.length) {
+    const error = new Error('Выберите хотя бы одного ученика');
+    error.statusCode = 400;
+    throw error;
+  }
+  return ids;
 }
 
 exports.getAllParents = async (_req, res) => {
@@ -104,17 +119,14 @@ exports.sendReports = async (req, res) => {
 
 exports.createParent = async (req, res) => {
   try {
-    const studentId = Number(req.body.studentId);
-    const student = await requireStudent(studentId);
+    const studentIds = parseStudentIds(req.body);
+    const students = await Promise.all(studentIds.map(requireStudent));
     const identity = await resolveParentIdentity(req.body);
-    const parent = await Parent.create({
-      studentId,
-      ...identity,
-      isActive: true
-    });
+    const parent = await Parent.create({ ...identity, isActive: true });
+    await ParentStudent.bulkCreate(studentIds.map((studentId) => ({ parentId: parent.id, studentId })));
     await deactivateGuestForParent(parent.telegramId);
     const created = await Parent.findByPk(parent.id, { include: parentInclude });
-    await notifyParentAssigned(parent, student);
+    await notifyParentAssigned(parent, students);
     res.status(201).json({ message: 'Parent created successfully', parent: created });
   } catch (error) {
     handleParentError(res, error, 'Create parent error');
@@ -126,19 +138,26 @@ exports.updateParent = async (req, res) => {
     const parent = await Parent.findByPk(req.params.parentId);
     if (!parent) return res.status(404).json({ message: 'Родитель не найден' });
 
-    const studentId = req.body.studentId === undefined ? parent.studentId : Number(req.body.studentId);
-    await requireStudent(studentId);
+    const hasStudentIds = req.body.studentIds !== undefined || req.body.studentId !== undefined;
+    let studentIds = null;
+    if (hasStudentIds) {
+      studentIds = parseStudentIds(req.body);
+      await Promise.all(studentIds.map(requireStudent));
+    }
+
     const identity = await resolveParentIdentity({
       telegramId: req.body.telegramId === undefined ? parent.telegramId : req.body.telegramId,
       telegramUsername: req.body.telegramUsername === undefined ? parent.telegramUsername : req.body.telegramUsername,
       firstName: req.body.firstName === undefined ? parent.firstName : req.body.firstName,
       lastName: req.body.lastName === undefined ? parent.lastName : req.body.lastName
     });
-    await parent.update({
-      studentId,
-      ...identity,
-      isActive: true
-    });
+    await parent.update({ ...identity, isActive: true });
+
+    if (studentIds) {
+      await ParentStudent.destroy({ where: { parentId: parent.id } });
+      await ParentStudent.bulkCreate(studentIds.map((studentId) => ({ parentId: parent.id, studentId })));
+    }
+
     await deactivateGuestForParent(parent.telegramId);
     const updated = await Parent.findByPk(parent.id, { include: parentInclude });
     res.json({ message: 'Parent updated successfully', parent: updated });
@@ -160,6 +179,8 @@ exports.deleteParent = async (req, res) => {
 
 exports.getReportLogs = async (_req, res) => {
   try {
+    // ParentReportLog теперь считается за родителя целиком (может закрывать
+    // несколько детей за раз) — studentId в логе справочный, первый из детей.
     const logs = await ParentReportLog.findAll({
       include: [
         { model: Parent, as: 'parent', attributes: ['id', 'firstName', 'lastName', 'telegramUsername', 'telegramId'] },

@@ -22,18 +22,17 @@ beforeEach(() => {
         },
         parents: [{
           id: 10,
-          studentId: 1,
           telegramId: '555',
           telegramUsername: 'parent_one',
           firstName: 'Анна',
           isActive: true,
-          student: {
+          students: [{
             id: 1,
             firstName: 'Иван',
             lastName: 'Ученик',
             isActive: true,
             subjects: [{ id: 3, name: 'Математика', icon: '📐', UserSubject: { isActive: true } }]
-          },
+          }],
           lastReport: { status: 'sent' }
         }]
       });
@@ -60,6 +59,7 @@ test('показывает связь с учеником и создаёт ро
   expect(screen.getByText('Отправлен')).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: /Добавить родителя/i }));
   expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText('Ученики *'), { target: { value: '2' } });
   fireEvent.change(screen.getByLabelText('Username'), { target: { value: '@maria_parent' } });
   fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
 
@@ -67,7 +67,7 @@ test('показывает связь с учеником и создаёт ро
     const call = adminFetch.mock.calls.find(([url, options]) => url.endsWith('/parents') && options?.method === 'POST');
     expect(call).toBeTruthy();
     expect(JSON.parse(call[1].body)).toMatchObject({
-      studentId: 2,
+      studentIds: [2],
       telegramUsername: '@maria_parent'
     });
   });
@@ -105,10 +105,9 @@ test.each([
       return response({
         parents: [{
           id: 10,
-          studentId: 1,
           telegramId: '555',
           firstName: 'Анна',
-          student: { id: 1, firstName: 'Иван', isActive: true, subjects: [] },
+          students: [{ id: 1, firstName: 'Иван', isActive: true, subjects: [] }],
           lastReport: { status, error }
         }]
       });

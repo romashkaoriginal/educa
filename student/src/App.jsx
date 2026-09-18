@@ -77,6 +77,22 @@ function App() {
         applyAppHeight();
         tg.onEvent?.('viewportChanged', applyAppHeight);
 
+        // На Android (развёрнутый, не fullscreen режим) системная строка статуса
+        // и/или собственная шапка Telegram могут перекрывать верх WebView —
+        // safe-area-inset-top браузера тут ничего не знает про них, это чисто
+        // Telegram-овская врезка. safeAreaInset/contentSafeAreaInset (Bot API 8.0+)
+        // как раз про это; на клиентах без поддержки оба объекта отсутствуют —
+        // тогда просто остаётся 0 и ничего не меняется.
+        const applySafeArea = () => {
+          const top = (tg.safeAreaInset?.top || 0) + (tg.contentSafeAreaInset?.top || 0);
+          const bottom = (tg.safeAreaInset?.bottom || 0) + (tg.contentSafeAreaInset?.bottom || 0);
+          document.documentElement.style.setProperty('--tg-safe-area-top', `${top}px`);
+          document.documentElement.style.setProperty('--tg-safe-area-bottom', `${bottom}px`);
+        };
+        applySafeArea();
+        tg.onEvent?.('safeAreaChanged', applySafeArea);
+        tg.onEvent?.('contentSafeAreaChanged', applySafeArea);
+
         if (user && user.id) {
           checkUserRole(user.id);
         } else {

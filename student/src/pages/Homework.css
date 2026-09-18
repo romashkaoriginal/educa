@@ -413,6 +413,10 @@
   z-index: 1200;
   overflow: hidden;
   font-family: 'Manrope', sans-serif;
+  /* Портал рендерится вне .student-app (createPortal в body) от top: 0 —
+     на Android Telegram-шапка/статус-бар перекрывают контент без этого
+     отступа (см. --tg-safe-area-top в StudentApp.css). */
+  padding-top: var(--tg-safe-area-top, 0px);
 }
 
 .homework-mode-header {
