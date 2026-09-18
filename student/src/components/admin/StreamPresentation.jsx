@@ -140,7 +140,7 @@ export function StreamScreen({ source, hostWindow, onClose }) {
   const phase = data?.phase === 'question' && remaining === 0 ? 'leaderboard' : data?.phase;
   const progress = data?.question?.timeLimit ? Math.max(0, Math.min(1, remaining / data.question.timeLimit)) : 0;
   return <main className={`stream-screen stream-screen--${phase || 'loading'}`}>
-    <header className="stream-header"><div className="stream-brand-group"><strong className="stream-brand">KUBIK</strong><span className="stream-live"><i />ПРЯМОЙ ЭФИР</span></div>
+    <header className="stream-header"><div className="stream-brand-group"><strong className="stream-brand">KUBIK</strong>{phase !== 'weekly' && <span className="stream-live"><i />ПРЯМОЙ ЭФИР</span>}</div>
       <span className="stream-subject">{source.subjectName || (source.lessonQuizId ? 'Викторина занятия' : 'Все предметы')}</span>
       <button type="button" className="stream-fullscreen" aria-pressed={fullscreen} onClick={toggleFullscreen}>{fullscreen ? 'Выйти из полного экрана' : 'На весь экран'}</button>
     </header>

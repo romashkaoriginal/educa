@@ -1,12 +1,11 @@
-.lb-modal-overlay {
+/* Обёртка модалки — сам визуал (тёмный фон, пьедестал) приходит из
+   .stream-screen в styles/StreamPresentation.css, чтобы быть идентичным
+   тому, что видит администратор через «Открыть лидерборд». */
+.lb-modal-portal {
   position: fixed;
   inset: 0;
   z-index: 1000;
-  background: rgba(15, 15, 30, 0.55);
-  backdrop-filter: blur(2px);
   display: flex;
-  align-items: flex-end;
-  justify-content: center;
   animation: lb-fade 0.18s ease;
 }
 
@@ -15,161 +14,30 @@
   to { opacity: 1; }
 }
 
-.lb-modal {
+.lb-stream-screen {
   width: 100%;
-  max-width: 480px;
-  max-height: 82vh;
-  box-sizing: border-box;
-  background: #fff;
-  border-radius: 24px 24px 0 0;
-  padding: 20px 18px calc(20px + env(safe-area-inset-bottom));
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  overflow-y: auto;
+  position: relative;
   animation: lb-slide 0.24s cubic-bezier(0.22, 1, 0.36, 1);
-  overflow: hidden;
 }
 
 @keyframes lb-slide {
-  from { transform: translateY(100%); }
-  to { transform: translateY(0); }
-}
-
-.lb-modal-header {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-}
-
-.lb-modal-header h3 {
-  margin: 0;
-  font-size: 18px;
-  color: #1a1a2e;
-}
-
-.lb-modal-subject {
-  font-size: 13px;
-  color: #6b7280;
+  from { transform: translateY(24px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
 }
 
 .lb-modal-close {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  width: 32px;
-  height: 32px;
-  border: none;
+  position: fixed;
+  top: max(16px, env(safe-area-inset-top, 0px));
+  right: 16px;
+  z-index: 1;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--stream-line, #52728a);
   border-radius: 50%;
-  background: #f3f4f6;
-  color: #6b7280;
+  background: var(--stream-deep, #15364f);
+  color: var(--stream-white, #fcfcfa);
   font-size: 20px;
   line-height: 1;
   cursor: pointer;
-}
-
-.lb-modal-periods {
-  display: flex;
-  gap: 6px;
-  overflow-x: auto;
-  padding-bottom: 2px;
-}
-
-.lb-period-btn {
-  flex: 0 0 auto;
-  padding: 8px 12px;
-  font-size: 13px;
-  font-weight: 600;
-  border-radius: 10px;
-  border: none;
-  background: #f3f4f6;
-  color: #6b7280;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.lb-period-btn.active {
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
-  color: #fff;
-}
-
-.lb-modal-custom-range {
-  display: flex;
-  gap: 10px;
-}
-
-.lb-modal-custom-range label {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 12px;
-  color: #6b7280;
-}
-
-.lb-modal-custom-range input {
-  padding: 8px 10px;
-  border-radius: 10px;
-  border: 1px solid #e5e7eb;
-  font-size: 14px;
-}
-
-.lb-modal-body {
-  overflow-y: auto;
-  min-height: 120px;
-}
-
-.lb-modal-status {
-  text-align: center;
-  color: #6b7280;
-  font-size: 14px;
-  padding: 24px 0;
-  margin: 0;
-}
-
-.lb-modal-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.lb-modal-row {
-  display: grid;
-  grid-template-columns: 32px 1fr auto;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: 12px;
-  background: #f9fafb;
-}
-
-.lb-modal-row.top3 {
-  background: #fef9ec;
-}
-
-.lb-modal-row.me {
-  background: #eef2ff;
-  outline: 1px solid #6366f1;
-}
-
-.lb-modal-rank {
-  font-size: 15px;
-  font-weight: 700;
-  color: #6b7280;
-  text-align: center;
-}
-
-.lb-modal-name {
-  font-size: 14px;
-  color: #1a1a2e;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.lb-modal-score {
-  font-size: 14px;
-  font-weight: 700;
-  color: #1a1a2e;
 }
