@@ -94,7 +94,9 @@
 }
 
 @media (max-width: 760px) {
-  .as-header { align-items: stretch; }
+  /* Заголовок и блок лидерборда стояли в одной строке (justify-content: space-between
+     из базовых .as-header) и вместе были шире экрана — переносим в колонку. */
+  .as-header { flex-direction: column; align-items: stretch; }
   .as-leaderboard-launcher { width: 100%; flex-wrap: wrap; max-width: 100%; }
   .as-leaderboard-launcher select { flex: 1 1 100%; min-width: 0; max-width: 100%; }
   .as-leaderboard-launch { flex: 1 1 100%; min-width: 0; max-width: 100%; }
