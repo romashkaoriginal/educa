@@ -51,6 +51,7 @@ const HomeworkDraft = require('./HomeworkDraft');
 const Parent = require('./Parent');
 const ParentReportLog = require('./ParentReportLog');
 const ParentStudent = require('./ParentStudent');
+const ProblemReport = require('./ProblemReport');
 
 // ========== СВЯЗИ С SUBJECTS ==========
 
@@ -364,5 +365,6 @@ module.exports = {
   LessonPoll, LessonPollOption, LessonPollAnswer,
   LessonQuiz, LessonQuizQuestion, LessonQuizAnswer, LessonQuizDelivery, LessonQuizParticipant,
   ErrorLog, Parent, ParentReportLog, ParentStudent,
+  ProblemReport,
   syncDatabase
 };

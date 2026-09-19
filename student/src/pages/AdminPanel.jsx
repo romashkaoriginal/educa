@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import './AdminPanel.css';
 import kubikLogo from '../assets/kubik-logo-transparent.png';
 import Students from '../components/admin/Students';
@@ -128,6 +128,35 @@ function AdminPanelContent() {
     return (ROLE_SECTIONS[userRole] || ROLE_SECTIONS.admin).includes(s.id);
   });
 
+  // Счётчик новых жалоб «Сообщить о проблеме» — бейдж на вкладке "Суперадмин",
+  // виден даже когда раздел не открыт.
+  const [newReportsCount, setNewReportsCount] = useState(0);
+
+  const loadNewReportsCount = useCallback(async () => {
+    try {
+      const response = await adminFetch(`${API_URL}/problem-reports/unread-count`, { cache: 'no-store' });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok) setNewReportsCount(Number(data.count || 0));
+    } catch {
+      // Тихо игнорируем — бейдж не критичен для работы панели.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+    loadNewReportsCount();
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState === 'visible') loadNewReportsCount();
+    }, 10000);
+    return () => window.clearInterval(intervalId);
+  }, [isSuperAdmin, loadNewReportsCount, dataRefreshKey]);
+
+  // Открыв раздел жалоб, считаем видимые на текущий момент новости просмотренными
+  // на уровне бейджа — реальный статус жалоб меняется в самой панели.
+  useEffect(() => {
+    if (activeSection === 'superadmin') loadNewReportsCount();
+  }, [activeSection, loadNewReportsCount]);
+
   useEffect(() => {
     if (!activeSection) return;
     setVisitedSections((sections) => sections.includes(activeSection)
@@ -170,6 +199,11 @@ function AdminPanelContent() {
           >
             <span className="tab-icon">{section.icon}</span>
             <span className="tab-name">{section.name}</span>
+            {section.id === 'superadmin' && newReportsCount > 0 && (
+              <span className="admin-tab-badge" aria-label={`Новых жалоб: ${newReportsCount}`}>
+                {newReportsCount > 99 ? '99+' : newReportsCount}
+              </span>
+            )}
           </button>
         ))}
       </nav>

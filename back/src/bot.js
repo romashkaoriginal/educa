@@ -1,6 +1,6 @@
 const axios = require('axios');
 const { Bot: TelegramBot } = require('node-telegram-bot-api');
-const { User, BotUser, Application } = require('./models');
+const { User, BotUser, Application, ProblemReport } = require('./models');
 const { refreshWebAppUrl, getWebAppUrlSync } = require('./utils/webAppUrl');
 const { parseUtm } = require('./utils/utm');
 const { getBotUserUtmFields } = require('./services/botUserUtm');
@@ -8,6 +8,9 @@ const guestAccess = require('./services/guestAccess');
 const { findParentForTelegramUser } = require('./services/parentIdentity');
 const { claimPendingStudent } = require('./services/systemUserIdentity');
 const { normalizeTelegramUsername } = require('./services/telegramIdentity');
+const problemReportImages = require('./services/problemReportImages');
+const { sendTelegramMessage } = require('./services/telegramDelivery');
+const { SUPER_ADMIN_TELEGRAM_ID } = require('./middleware/superAdmin');
 
 const token = process.env.BOT_TOKEN;
 
@@ -38,10 +41,14 @@ function getAppOpenButton() {
   return { text: '📚 Открыть приложение', web_app: { url } };
 }
 
+const REPORT_PROBLEM_BUTTON = { text: '⚠️ Сообщить о проблеме', callback_data: 'report_problem_start' };
+
+// Кнопка «Сообщить о проблеме» доступна всем ролям всегда (ТЗ этой задачи),
+// поэтому не зависит от доступности Web App — в отличие от кнопки «Открыть приложение».
 function getAppOpenKeyboard() {
   const button = getAppOpenButton();
-  if (!button) return null;
-  return { inline_keyboard: [[button]] };
+  const rows = button ? [[button], [REPORT_PROBLEM_BUTTON]] : [[REPORT_PROBLEM_BUTTON]];
+  return { inline_keyboard: rows };
 }
 
 async function resetChatMenuButton(chatId) {
@@ -63,6 +70,100 @@ async function sendStartMessage(chatId, text, options = {}) {
 // и для повторного /start после окончания доступа.
 // Формат: { step: 'name'|'phone', fullName, telegramId, telegramUsername, source, context }
 const applicationSessions = {};
+
+// Сессии «Сообщить о проблеме» — доступно абсолютно всем (гость, ученик,
+// сотрудник любой роли, родитель, включая суперадмина).
+// Формат: { step: 'text'|'screenshots', text, screenshots: [storageKey], reporterTelegramId, reporterName, reporterRole }
+const reportSessions = {};
+const MAX_REPORT_SCREENSHOTS = 3;
+
+function skipScreenshotsKeyboard() {
+  return { inline_keyboard: [[{ text: 'Пропустить', callback_data: 'report_skip_screenshots' }]] };
+}
+
+// Определяет отображаемое имя и роль автора жалобы для карточки в БД.
+async function resolveReporterIdentity(fromUser) {
+  const parent = await findParentForTelegramUser(fromUser);
+  if (parent) {
+    const name = [parent.firstName, parent.lastName].filter(Boolean).join(' ') || fromUser.first_name || 'Родитель';
+    return { name, role: 'parent' };
+  }
+  const systemUser = await checkUserRole(fromUser.id);
+  if (systemUser) {
+    const name = [systemUser.firstName, systemUser.lastName].filter(Boolean).join(' ') || fromUser.first_name;
+    return { name, role: systemUser.role };
+  }
+  const name = [fromUser.first_name, fromUser.last_name].filter(Boolean).join(' ') || 'Гость';
+  return { name, role: 'guest' };
+}
+
+async function startReportSession(chatId, fromUser) {
+  const { name, role } = await resolveReporterIdentity(fromUser);
+  reportSessions[chatId] = {
+    step: 'text',
+    text: null,
+    screenshots: [],
+    reporterTelegramId: fromUser.id,
+    reporterName: name,
+    reporterRole: role
+  };
+  await bot.sendMessage(
+    chatId,
+    'ℹ️ Обратите внимание: сюда принимаются жалобы только на проблемы с работой платформы (приложения / Mini App). По остальным вопросам обращайтесь к своему менеджеру.\n\nОпишите проблему текстом.'
+  );
+}
+
+const REPORTER_ROLE_NAMES = {
+  superadmin: 'Суперадмин', admin: 'Администратор', teacher: 'Преподаватель',
+  manager: 'Менеджер', student: 'Ученик', parent: 'Родитель', guest: 'Гость'
+};
+
+// Пуш супер-админу о новой жалобе (ТЗ этой задачи). Не роняет сохранение
+// жалобы при сбое доставки — ошибка уже логируется внутри sendTelegramMessage.
+async function notifySuperAdminAboutReport(report) {
+  if (String(report.reporterTelegramId) === SUPER_ADMIN_TELEGRAM_ID) return; // не пушим самому себе
+  const roleName = REPORTER_ROLE_NAMES[report.reporterRole] || report.reporterRole || '—';
+  const text = `⚠️ <b>Новая жалоба</b>\n\n👤 ${report.reporterName || 'Не определён'} · ${roleName}\n📝 ${report.text.slice(0, 500)}${report.screenshots.length ? `\n📎 Скриншотов: ${report.screenshots.length}` : ''}\n\nОткройте раздел «Суперадмин» → «Жалобы» в приложении.`;
+  await sendTelegramMessage({
+    bot,
+    chatId: SUPER_ADMIN_TELEGRAM_ID,
+    text,
+    options: { parse_mode: 'HTML' },
+    notificationKind: 'problem_report',
+    context: { reportId: report.id }
+  });
+}
+
+async function finishReportSession(chatId) {
+  const session = reportSessions[chatId];
+  if (!session) return;
+  try {
+    const report = await ProblemReport.create({
+      text: session.text,
+      screenshots: session.screenshots,
+      reporterTelegramId: session.reporterTelegramId,
+      reporterName: session.reporterName,
+      reporterRole: session.reporterRole,
+      status: 'new'
+    });
+    await bot.sendMessage(chatId, '✅ Спасибо! Жалоба отправлена, мы её рассмотрим.');
+    notifySuperAdminAboutReport(report).catch((e) => console.error('Ошибка пуша супер-админу о жалобе:', e.message));
+  } catch (e) {
+    console.error('Ошибка сохранения жалобы:', e.message);
+    await bot.sendMessage(chatId, '❌ Не удалось отправить жалобу. Попробуйте ещё раз.');
+  } finally {
+    delete reportSessions[chatId];
+  }
+}
+
+// Скачивает файл из Telegram по file_id и возвращает Buffer.
+async function downloadTelegramFile(fileId) {
+  const file = await telegramBot.api.getFile({ file_id: fileId });
+  if (!file?.file_path) throw new Error('file_path не получен от Telegram');
+  const url = `https://api.telegram.org/file/bot${token}/${file.file_path}`;
+  const response = await axios.get(url, { responseType: 'arraybuffer' });
+  return Buffer.from(response.data);
+}
 
 // Анти-флуд: дебаунс /start по Telegram ID. Защищает БД от спама /start
 // (создание/поиск гостя). Повторный /start чаще, чем раз в N секунд, игнорируется.
@@ -241,7 +342,8 @@ function startBot() {
         const studentName = parentStudentsLabel(parent);
         return sendStartMessage(
           chatId,
-          `👋 Привет, ${firstName}!\n\nВы подключены к еженедельным отчётам об обучении${studentName ? ` ученика ${studentName}` : ''}.\n\nОтчёт приходит каждый понедельник в 18:00 по минскому времени.`
+          `👋 Привет, ${firstName}!\n\nВы подключены к еженедельным отчётам об обучении${studentName ? ` ученика ${studentName}` : ''}.\n\nОтчёт приходит каждый понедельник в 18:00 по минскому времени.`,
+          { reply_markup: { inline_keyboard: [[REPORT_PROBLEM_BUTTON]] } }
         );
       }
       const systemUser = await claimPendingStudent(user) || await checkUserRole(user.id);
@@ -250,7 +352,11 @@ function startBot() {
       if (systemUser) {
         if (!systemUser.isActive) {
           await resetChatMenuButton(chatId);
-          return sendStartMessage(chatId, `❌ Ваш аккаунт деактивирован.\n\nОбратитесь к администратору.`);
+          return sendStartMessage(
+            chatId,
+            `❌ Ваш аккаунт деактивирован.\n\nОбратитесь к администратору.`,
+            { reply_markup: { inline_keyboard: [[REPORT_PROBLEM_BUTTON]] } }
+          );
         }
 
         const roleEmoji = { superadmin: '🛡️', admin: '👨‍💼', teacher: '👨‍🏫', manager: '📊', student: '👨‍🎓' };
@@ -258,17 +364,15 @@ function startBot() {
 
         const welcomeText = `👋 Привет, ${firstName}!\n\n${roleEmoji[systemUser.role]} Роль: ${roleNames[systemUser.role]}\n\n🎓 Добро пожаловать в KUBIK!`;
         const replyMarkup = getAppOpenKeyboard();
+        const appAvailable = !!getAppOpenButton();
 
         await resetChatMenuButton(chatId);
 
-        if (!replyMarkup) {
-          return sendStartMessage(
-            chatId,
-            `${welcomeText}\n\n⚠️ Web App пока недоступен: нужен HTTPS-домен на сервере.`
-          );
-        }
-
-        return sendStartMessage(chatId, welcomeText, { reply_markup: replyMarkup });
+        return sendStartMessage(
+          chatId,
+          appAvailable ? welcomeText : `${welcomeText}\n\n⚠️ Web App пока недоступен: нужен HTTPS-домен на сервере.`,
+          { reply_markup: replyMarkup }
+        );
       }
 
       // ===== Гость =====
@@ -290,7 +394,7 @@ function startBot() {
               inline_keyboard: [[
                 { text: 'Оставить заявку', callback_data: 'guest_remind_yes' },
                 { text: 'Позже', callback_data: 'guest_expired_later' }
-              ]]
+              ], [REPORT_PROBLEM_BUTTON]]
             }
           }
         );
@@ -298,16 +402,14 @@ function startBot() {
 
       // Первый/повторный заход в активный доступ (ТЗ §2)
       const replyMarkup = getAppOpenKeyboard();
+      const appAvailable = !!getAppOpenButton();
       const text = 'Ты ещё не учишься у нас, но можешь глянуть, как тут всё устроено. У тебя 24 часа.';
 
-      if (!replyMarkup) {
-        return sendStartMessage(
-          chatId,
-          `${text}\n\n⚠️ Приложение пока недоступно: нужен HTTPS-домен на сервере.`
-        );
-      }
-
-      return sendStartMessage(chatId, text, { reply_markup: replyMarkup });
+      return sendStartMessage(
+        chatId,
+        appAvailable ? text : `${text}\n\n⚠️ Приложение пока недоступно: нужен HTTPS-домен на сервере.`,
+        { reply_markup: replyMarkup }
+      );
     } catch (error) {
       console.error('Ошибка /start:', error.message);
       await bot.sendMessage(chatId, '❌ Не удалось обработать команду /start. Попробуйте ещё раз через минуту.');
@@ -326,9 +428,31 @@ function startBot() {
     const systemUser = await checkUserRole(msg.from.id);
 
     if (systemUser) {
-      bot.sendMessage(chatId, `📚 <b>Помощь</b>\n\n/start - Открыть приложение\n/help - Справка\n/info - Информация об аккаунте`, { parse_mode: 'HTML' });
+      bot.sendMessage(chatId, `📚 <b>Помощь</b>\n\n/start - Открыть приложение\n/help - Справка\n/info - Информация об аккаунте\n/report - Сообщить о проблеме`, { parse_mode: 'HTML' });
     } else {
-      bot.sendMessage(chatId, `📚 <b>Помощь</b>\n\n/start - Открыть приложение в гостевом режиме\n/help - Справка`, { parse_mode: 'HTML' });
+      bot.sendMessage(chatId, `📚 <b>Помощь</b>\n\n/start - Открыть приложение в гостевом режиме\n/help - Справка\n/report - Сообщить о проблеме`, { parse_mode: 'HTML' });
+    }
+  });
+
+  // /report — «Сообщить о проблеме» (доступно всем: гость, ученик, любой
+  // сотрудник включая суперадмина, родитель).
+  telegramBot.command('report', async (ctx) => {
+    const msg = ctx.message;
+    const chatId = msg.chat.id;
+    await registerBotUser(msg.from);
+    if (reportSessions[chatId]) {
+      await bot.sendMessage(chatId, 'Вы уже начали составлять жалобу. Допишите её или отправьте /cancel, чтобы начать заново.');
+      return;
+    }
+    await startReportSession(chatId, msg.from);
+  });
+
+  // /cancel — прервать активную сессию жалобы.
+  telegramBot.command('cancel', async (ctx) => {
+    const chatId = ctx.message.chat.id;
+    if (reportSessions[chatId]) {
+      delete reportSessions[chatId];
+      await bot.sendMessage(chatId, 'Ок, отменено.');
     }
   });
 
@@ -393,6 +517,24 @@ function startBot() {
       await bot.sendMessage(chatId, 'Хорошо. Если передумаешь — напиши /start.');
       return;
     }
+
+    // «Сообщить о проблеме» — кнопка доступна абсолютно всем (ТЗ этой задачи).
+    if (data === 'report_problem_start') {
+      if (reportSessions[chatId]) {
+        await bot.sendMessage(chatId, 'Вы уже составляете жалобу. Допишите её или отправьте /cancel.');
+        return;
+      }
+      await startReportSession(chatId, query.from);
+      return;
+    }
+
+    // «Пропустить» на шаге скриншотов — сохраняем жалобу без вложений (0 скринов - ок).
+    if (data === 'report_skip_screenshots') {
+      const session = reportSessions[chatId];
+      if (!session || session.step !== 'screenshots') return;
+      await finishReportSession(chatId);
+      return;
+    }
   });
 
   // Контакт из Mini App (WebApp.requestContact) или reply-кнопки «Поделиться номером».
@@ -415,6 +557,78 @@ function startBot() {
       );
     } catch (e) {
       console.error('Ошибка сохранения контакта:', e.message);
+    }
+  });
+
+  // Сбор жалобы «Сообщить о проблеме» — текст и скриншоты (ТЗ этой задачи).
+  // Доступно всем ролям, поэтому идёт раньше и независимо от фильтра
+  // «сотрудники/ученики игнорируются» в обработчике заявок ниже.
+  telegramBot.on('message', async (ctx, next) => {
+    const msg = ctx.message;
+    const chatId = msg.chat.id;
+    const session = reportSessions[chatId];
+    if (!session) return next();
+
+    if (session.step === 'text') {
+      if (!msg.text || msg.text.startsWith('/')) {
+        await bot.sendMessage(chatId, 'Опишите проблему текстом.');
+        return;
+      }
+      const text = msg.text.trim().slice(0, 4000);
+      if (text.length < 5) {
+        await bot.sendMessage(chatId, 'Слишком коротко. Опишите проблему подробнее.');
+        return;
+      }
+      session.text = text;
+      session.step = 'screenshots';
+      await bot.sendMessage(
+        chatId,
+        `Прикрепите скриншоты проблемы (до ${MAX_REPORT_SCREENSHOTS} шт.) или нажмите «Пропустить».`,
+        { reply_markup: skipScreenshotsKeyboard() }
+      );
+      return;
+    }
+
+    if (session.step === 'screenshots') {
+      if (!msg.photo || !msg.photo.length) {
+        await bot.sendMessage(
+          chatId,
+          `Пришлите фото-скриншот или нажмите «Пропустить».`,
+          { reply_markup: skipScreenshotsKeyboard() }
+        );
+        return;
+      }
+      if (session.screenshots.length >= MAX_REPORT_SCREENSHOTS) {
+        await bot.sendMessage(chatId, `Уже прикреплено максимум (${MAX_REPORT_SCREENSHOTS}). Завершаю отправку.`);
+        await finishReportSession(chatId);
+        return;
+      }
+      try {
+        // Берём самый большой размер (последний элемент массива PhotoSize).
+        const best = msg.photo[msg.photo.length - 1];
+        const buffer = await downloadTelegramFile(best.file_id);
+        const storageKey = await problemReportImages.storeScreenshot(buffer);
+        session.screenshots.push(storageKey);
+
+        if (session.screenshots.length >= MAX_REPORT_SCREENSHOTS) {
+          await bot.sendMessage(chatId, 'Максимум скриншотов достигнут. Завершаю отправку.');
+          await finishReportSession(chatId);
+        } else {
+          await bot.sendMessage(
+            chatId,
+            `Скриншот добавлен (${session.screenshots.length}/${MAX_REPORT_SCREENSHOTS}). Пришлите ещё или нажмите «Пропустить».`,
+            { reply_markup: skipScreenshotsKeyboard() }
+          );
+        }
+      } catch (e) {
+        console.error('Ошибка сохранения скриншота жалобы:', e.message);
+        await bot.sendMessage(
+          chatId,
+          '❌ Не удалось сохранить скриншот. Попробуйте другое фото или нажмите «Пропустить».',
+          { reply_markup: skipScreenshotsKeyboard() }
+        );
+      }
+      return;
     }
   });
 

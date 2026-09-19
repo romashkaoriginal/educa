@@ -29,6 +29,7 @@ const guestAdminRoutes = require('./routes/guestAdmin');
 const lessonRoutes = require('./routes/lesson');
 const lessonAdminRoutes = require('./routes/lessonAdmin');
 const clientErrorRoutes = require('./routes/clientErrors');
+const problemReportRoutes = require('./routes/problemReports');
 const setupSocketAuth = require('./socket/authMiddleware');
 const setupQuizSocket = require('./socket/quizSocket');
 const setupLessonSocket = require('./socket/lessonSocket');
@@ -193,6 +194,10 @@ app.use('/api/stats', telegramAuth, requireUser, statsRoutes);
 
 // Только admin
 app.use('/api/admin', telegramAuth, requireAdmin, adminRoutes);
+
+// Жалобы «Сообщить о проблеме» — список/статус/удаление видит только супер-админ
+// (requireSuperAdmin сам проверяет роль и SUPER_ADMIN_TELEGRAM_ID).
+app.use('/api/problem-reports', telegramAuth, problemReportRoutes);
 
 // admin + manager
 app.use('/api/students', telegramAuth, requireRole(['admin', 'manager']), studentRoutes);

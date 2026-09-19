@@ -343,4 +343,169 @@
 @media (prefers-reduced-motion: reduce) {
   .superadmin-memory-ring__value { transition: none; }
   .error-log-item__chevron { transition: none; }
+  .problem-report-item__chevron { transition: none; }
+}
+
+/* ===== Жалобы «Сообщить о проблеме» ===== */
+
+.problem-reports {
+  margin-top: 22px;
+  padding: 22px;
+  border: 1px solid var(--kubik-border, #e3e6e4);
+  border-radius: 16px;
+  background: #fff;
+}
+
+.problem-reports__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 20px;
+}
+
+.problem-reports__header h3 { margin: 0; color: var(--kubik-navy, #1a405f); font-size: 18px; }
+.problem-reports__header p { margin: 5px 0 0; color: var(--kubik-text-soft, #5e6b78); font-size: 12px; }
+
+.problem-reports__summary {
+  display: flex;
+  flex: none;
+  overflow: hidden;
+  border: 1px solid #e5e9e7;
+  border-radius: 11px;
+  background: #f8faf9;
+}
+
+.problem-reports__summary span { min-width: 92px; padding: 10px 13px; color: #68737d; font-size: 10px; }
+.problem-reports__summary span + span { border-left: 1px solid #e5e9e7; }
+.problem-reports__summary strong { display: block; margin-bottom: 2px; color: var(--kubik-navy, #1a405f); font-size: 17px; }
+
+.problem-report-filters { display: flex; gap: 10px; }
+.problem-report-filters label { display: grid; gap: 5px; min-width: 200px; }
+.problem-report-filters label > span { color: #68737d; font-size: 10px; font-weight: 700; }
+.problem-report-filters select {
+  width: 100%;
+  height: 42px;
+  padding: 0 11px;
+  border: 1px solid #dce2df;
+  border-radius: 9px;
+  background: #fbfcfc;
+  color: var(--kubik-text, #2a3744);
+  font: inherit;
+  font-size: 12px;
+  outline: none;
+}
+.problem-report-filters select:focus { border-color: var(--kubik-blue, #337bae); box-shadow: 0 0 0 3px rgba(51, 123, 174, .11); }
+
+.problem-report-feed {
+  max-height: 620px;
+  margin-top: 16px;
+  overflow: auto;
+  border: 1px solid #e3e7e5;
+  border-radius: 12px;
+  background: #f8faf9;
+  overscroll-behavior: contain;
+}
+
+.problem-report-item { background: #fff; }
+.problem-report-item + .problem-report-item { border-top: 1px solid #e8ebe9; }
+
+.problem-report-item__main {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) 18px;
+  align-items: flex-start;
+  gap: 11px;
+  width: 100%;
+  padding: 15px 16px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.problem-report-item__main:hover { background: #fbfcfc; }
+.problem-report-item__main:focus-visible { position: relative; z-index: 1; outline: 2px solid var(--kubik-blue, #337bae); outline-offset: -2px; }
+
+.problem-report-item__content { display: flex; min-width: 0; flex-direction: column; gap: 4px; }
+.problem-report-item__meta { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; color: #7a858e; font-size: 10px; }
+.problem-report-item__content > strong { overflow-wrap: anywhere; color: #273c4c; font-size: 13px; line-height: 1.45; }
+.problem-report-item__user { color: #697681; font-size: 11px; }
+.problem-report-item__chevron { align-self: center; color: #8b969e; font-size: 18px; transition: transform 160ms ease; }
+.problem-report-item__main[aria-expanded="true"] .problem-report-item__chevron { transform: rotate(180deg); }
+
+.problem-report-attach-count { padding: 3px 6px; border-radius: 999px; background: #edf0ee; color: #59656e; font-size: 9px; font-weight: 800; }
+
+.problem-report-status-badge { padding: 4px 9px; border-radius: 999px; font-size: 10px; font-weight: 800; white-space: nowrap; }
+.problem-report-status-badge--new { background: #e7f0f6; color: #2d678e; }
+.problem-report-status-badge--in_progress { background: #f8f0df; color: #93621b; }
+.problem-report-status-badge--resolved { background: #e5f3ec; color: #2a7658; }
+.problem-report-status-badge--rejected { background: #f9eaea; color: #a13d3d; }
+
+.problem-report-details { padding: 0 16px 17px; }
+.problem-report-text { margin: 0 0 12px; overflow-wrap: anywhere; color: #273c4c; font-size: 13px; line-height: 1.5; white-space: pre-wrap; }
+
+.problem-report-screenshots { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
+.problem-report-screenshot {
+  display: block;
+  width: 120px;
+  height: 120px;
+  overflow: hidden;
+  border: 1px solid #dce2df;
+  border-radius: 10px;
+  background: #f2f4f3;
+}
+.problem-report-screenshot img { width: 100%; height: 100%; object-fit: cover; }
+.problem-report-screenshot--loading { animation: problem-report-pulse 1.3s ease-in-out infinite; }
+.problem-report-screenshot--error { display: flex; align-items: center; justify-content: center; padding: 8px; color: #a13d3d; font-size: 10px; text-align: center; }
+
+@keyframes problem-report-pulse {
+  0%, 100% { opacity: .5; }
+  50% { opacity: 1; }
+}
+
+.problem-report-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px 20px; margin: 0 0 14px; padding: 13px; border-radius: 9px; background: #f5f8f7; }
+.problem-report-meta dt { color: #7a858e; font-size: 9px; font-weight: 700; text-transform: uppercase; }
+.problem-report-meta dd { margin: 3px 0 0; overflow-wrap: anywhere; color: #334755; font-size: 11px; line-height: 1.45; }
+
+.problem-report-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.problem-report-status-btn,
+.problem-report-delete-btn {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid #d5ddda;
+  border-radius: 8px;
+  background: #fff;
+  color: #34546b;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.problem-report-status-btn:hover,
+.problem-report-delete-btn:hover { background: #f6f9f8; }
+.problem-report-status-btn:disabled { cursor: default; opacity: .5; }
+.problem-report-delete-btn { margin-left: auto; border-color: rgba(177, 62, 62, .3); color: #a13d3d; }
+
+.problem-reports__empty,
+.problem-reports__error { display: flex; min-height: 120px; margin-top: 16px; align-items: center; justify-content: center; flex-direction: column; gap: 6px; border: 1px dashed #dce2df; border-radius: 12px; background: #fafbfb; color: #78838c; font-size: 12px; text-align: center; }
+.problem-reports__empty strong { color: #425461; font-size: 13px; }
+.problem-reports__error { min-height: 72px; flex-direction: row; justify-content: space-between; padding: 12px 15px; border-style: solid; border-color: rgba(177, 62, 62, .24); background: #fffafa; color: #a13d3d; text-align: left; }
+.problem-reports__error button { min-height: 36px; padding: 0 12px; border: 1px solid #d5ddda; border-radius: 8px; background: #fff; color: #34546b; font: inherit; font-size: 11px; font-weight: 700; cursor: pointer; }
+
+@media (max-width: 760px) {
+  .problem-reports { padding: 18px; }
+  .problem-reports__header { flex-direction: column; gap: 12px; }
+  .problem-report-filters { flex-direction: column; }
+  .problem-report-filters label { min-width: 0; }
+}
+
+@media (max-width: 480px) {
+  .problem-reports { padding: 15px; }
+  .problem-reports__summary { width: 100%; }
+  .problem-reports__summary span { flex: 1; }
+  .problem-report-item__main { grid-template-columns: auto minmax(0, 1fr) 14px; gap: 9px; padding: 13px 12px; }
+  .problem-report-details { padding: 0 12px 14px; }
+  .problem-report-meta { grid-template-columns: 1fr; }
+  .problem-report-screenshot { width: 100px; height: 100px; }
+  .problem-report-delete-btn { margin-left: 0; width: 100%; }
 }

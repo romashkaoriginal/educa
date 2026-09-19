@@ -139,6 +139,26 @@
   font-size: 14px;
 }
 
+.admin-tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #d9483d;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.admin-tab.active .admin-tab-badge {
+  background: #fff;
+  color: #d9483d;
+}
+
 /* ========== CONTENT ========== */
 .admin-content {
   padding: var(--section-pad);

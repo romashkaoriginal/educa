@@ -3,6 +3,7 @@ import '../../styles/SuperAdmin.css';
 import { adminFetch } from './adminApi';
 import { API_URL } from '../../config';
 import ErrorLogsPanel from './ErrorLogsPanel';
+import ProblemReportsPanel from './ProblemReportsPanel';
 
 const REFRESH_INTERVAL_MS = 5000;
 
@@ -211,6 +212,7 @@ function SuperAdmin({ dataRefreshKey = 0 }) {
         </div>
       )}
 
+      <ProblemReportsPanel dataRefreshKey={dataRefreshKey} />
       <ErrorLogsPanel dataRefreshKey={dataRefreshKey} />
     </section>
   );
