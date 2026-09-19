@@ -258,12 +258,16 @@
 
 .quiz-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-top: 16px;
 }
 
 .quiz-actions button {
   flex: 1;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 /* ========== ФОРМА СОЗДАНИЯ ========== */
@@ -1093,6 +1097,14 @@
 @media (max-width: 768px) {
   .quizzes-grid {
     grid-template-columns: 1fr;
+  }
+
+  /* 4 кнопки в ряд не влезают на телефоне и раздувают карточку по горизонтали —
+     переносим в сетку 2×2, каждая кнопка сжимается вместо переполнения. */
+  .quiz-actions button {
+    flex: 1 1 calc(50% - 4px);
+    white-space: normal;
+    text-align: center;
   }
 
   .live-header {
