@@ -121,9 +121,14 @@ function installGlobalErrorReporting() {
   window.__kubikErrorReportingInstalled = true;
   window.addEventListener('error', (event) => {
     // Браузер прячет message/stack за "Script error." для исключений из
-    // скриптов без CORS-доступа (см. crossorigin на telegram-web-app.js в
-    // index.html) — тогда event.error пуст. filename/lineno всё равно
-    // приходят и помогают понять, что это внешний скрипт, а не наш бандл.
+    // скриптов без CORS-доступа — тогда event.error пуст, а filename/lineno
+    // тоже null. На практике (проверено по проду) такие "opaque"-ошибки
+    // приходят не из нашего кода, а из внутреннего кода мобильного Telegram
+    // WebView (crossorigin на telegram-web-app.js в index.html не помогает,
+    // это не сетевой ресурс) — без единой зацепки для диагностики. Не шлём:
+    // они только засоряли журнал супер-админа, ничего не ломая у пользователя
+    // (не React-краш — ErrorBoundary не задействован).
+    if (!event.error && !event.filename && !event.lineno) return;
     reportClientError({
       message: event.error?.message || event.message || 'Ошибка JavaScript',
       stack: event.error?.stack,
