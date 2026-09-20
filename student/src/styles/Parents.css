@@ -59,6 +59,7 @@
 }
 
 .parent-card {
+  min-width: 0;
   padding: 20px;
   border: 2px solid var(--kubik-border);
   border-radius: 16px;
