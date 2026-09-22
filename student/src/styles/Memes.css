@@ -1,0 +1,148 @@
+.meme-form {
+  background: var(--kubik-blue-soft);
+  border: 2px solid var(--kubik-blue);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 420px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.quiz-field-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--kubik-navy);
+}
+
+.save-btn {
+  background: var(--brand-gradient);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 12px 20px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+}
+
+.save-btn:hover:not(:disabled) { opacity: 0.92; }
+.save-btn:active:not(:disabled) { transform: scale(0.98); }
+.save-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.meme-list-heading {
+  color: var(--kubik-navy);
+  font-size: 16px;
+  margin: 0 0 12px;
+}
+
+.meme-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 16px;
+}
+
+.meme-card {
+  position: relative;
+  background: var(--kubik-white, #fff);
+  border: 2px solid var(--kubik-border);
+  border-radius: 12px;
+  overflow: hidden;
+  padding-bottom: 10px;
+}
+
+.meme-card-image {
+  width: 100%;
+  height: 140px;
+  object-fit: cover;
+  display: block;
+}
+
+.meme-card-date {
+  padding: 8px 10px 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--kubik-navy);
+}
+
+.meme-card .remove-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: var(--low-soft, #FBEAEA);
+  color: var(--low);
+  border: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, transform 0.15s;
+}
+
+.meme-card .remove-btn:hover {
+  background: var(--low);
+  color: #fff;
+  transform: scale(1.1);
+}
+
+/* На телефоне форма использует всю доступную ширину, а не сохраняет
+   десктопные двойные отступы внутри общей карточки админки. */
+@media (max-width: 600px) {
+  .memes-section {
+    margin: -6px;
+    padding: 16px;
+    min-height: 0;
+  }
+
+  .memes-section .section-header {
+    margin-bottom: 16px;
+  }
+
+  .meme-form {
+    max-width: none;
+    padding: 16px;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .meme-form .image-upload-dropzone {
+    min-height: 140px;
+    padding: 18px 12px;
+    justify-content: center;
+  }
+
+  .meme-form .image-upload-sub {
+    max-width: 28ch;
+    line-height: 1.4;
+  }
+
+  .meme-form .save-btn {
+    width: 100%;
+    min-height: 46px;
+    padding: 12px 16px;
+  }
+
+  .meme-list-heading {
+    margin-bottom: 10px;
+  }
+}
+
+@media (max-width: 360px) {
+  .memes-section {
+    margin: -10px;
+    padding: 14px;
+  }
+
+  .meme-form {
+    padding: 14px;
+  }
+
+  .meme-form .image-upload-dropzone {
+    min-height: 128px;
+  }
+}

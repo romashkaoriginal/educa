@@ -139,6 +139,10 @@ router.get('/topic-stats/:studentId/:topicId', assertSelfOrStaff('studentId'), p
 // Получить стрик (дней подряд)
 router.get('/streak/:studentId', assertSelfOrStaff('studentId'), practiceController.getStreak);
 
+// Непоказанные события серии (продление/обрыв) для всплывающего экрана
+router.get('/streak-events/:studentId', assertSelfOrStaff('studentId'), practiceController.getStreakEvents);
+router.post('/streak-events/:studentId/shown', assertSelfOrStaff('studentId'), practiceController.markStreakEventsShown);
+
 // Получить вопросы с ошибками
 router.get('/incorrect/:studentId/:topicId', assertSelfOrStaff('studentId'), practiceController.getIncorrectQuestions);
 

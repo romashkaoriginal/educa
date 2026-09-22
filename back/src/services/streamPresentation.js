@@ -147,17 +147,29 @@ WITH homework_best AS (
     AND COALESCE(a."lastCorrectAt", CASE WHEN a."isCorrect" THEN a."updatedAt" END) <= :until
     AND (:subjectId IS NULL OR a."subjectId" = :subjectId)
     AND (:restrictSubjects = false OR a."subjectId" IN (:allowedSubjectIds))
+-- Очки за стрик (ТЗ Дмитрия 22.09.2026: 5/10/.../70 очков в день) идут в
+-- лидерборд того предмета, по которому у ученика в этот день самый длинный
+-- стрик — practice_streak_history.subjectId это уже фиксирует, поэтому
+-- фильтруется так же, как остальные источники очков.
+), streak_unique AS (
+  SELECT h."studentId" AS "userId", h.points
+  FROM practice_streak_history h
+  WHERE h.date >= :since AND h.date <= :until
+    AND (:subjectId IS NULL OR h."subjectId" = :subjectId)
+    AND (:restrictSubjects = false OR h."subjectId" IN (:allowedSubjectIds))
 ), scores AS (
-  SELECT "userId", points AS homework, 0 AS practice FROM homework_best
-  UNION ALL SELECT "userId", 0 AS homework, points AS practice FROM practice_unique
+  SELECT "userId", points AS homework, 0 AS practice, 0 AS streak FROM homework_best
+  UNION ALL SELECT "userId", 0 AS homework, points AS practice, 0 AS streak FROM practice_unique
+  UNION ALL SELECT "userId", 0 AS homework, 0 AS practice, points AS streak FROM streak_unique
 )
 SELECT u.id, COALESCE(NULLIF(TRIM(u."firstName"), ''), 'Участник') AS name, u."telegramUsername",
   SUM(s.homework)::float AS "homeworkScore", SUM(s.practice)::float AS "practiceScore",
-  SUM(s.homework + s.practice)::float AS "totalScore"
+  SUM(s.streak)::float AS "streakScore",
+  SUM(s.homework + s.practice + s.streak)::float AS "totalScore"
 FROM scores s JOIN users u ON u.id = s."userId"
 WHERE u.role = 'student' AND u."isActive" = true
 GROUP BY u.id, u."firstName", u."telegramUsername"
-HAVING SUM(s.homework + s.practice) > 0
+HAVING SUM(s.homework + s.practice + s.streak) > 0
 ORDER BY "totalScore" DESC, "homeworkScore" DESC, u.id ASC LIMIT 10`;
 
 function isPracticeAnswerCorrect(selected, correct) {
@@ -191,6 +203,7 @@ async function computeWeeklyLeaderboard(sequelize, { QueryTypes, since, until, s
     return {
       id: Number(row.id), name: row.name || 'Участник', totalScore: Number(row.totalScore) || 0,
       homeworkScore: Number(row.homeworkScore) || 0, practiceScore: Number(row.practiceScore) || 0,
+      streakScore: Number(row.streakScore) || 0,
       ...(includeUsername ? { telegramUsername: row.telegramUsername || null } : {}),
       place: samePlace ? rows.findIndex((item) => Number(item.totalScore) === Number(row.totalScore) && Number(item.homeworkScore) === Number(row.homeworkScore)) + 1 : index + 1
     };

@@ -325,6 +325,36 @@ export const DataProvider = ({ children, studentId, isGuest = false }) => {
     }
   }, [studentId]); // eslint-disable-line
 
+  const [streakEvents, setStreakEvents] = useState([]);
+
+  const loadStreakEvents = useCallback(async () => {
+    if (!studentId || isGuest) return [];
+    try {
+      const response = await apiFetch(`${API_URL}/practice/streak-events/${studentId}`);
+      const data = await parseOkJson(response, 'loadStreakEvents');
+      const events = data?.events || [];
+      if (events.length) setStreakEvents((prev) => [...prev, ...events]);
+      return events;
+    } catch (error) {
+      console.error('Error loading streak events:', error);
+      return [];
+    }
+  }, [studentId, isGuest]); // eslint-disable-line
+
+  const markStreakEventsShown = useCallback(async (eventIds) => {
+    if (!studentId || !eventIds?.length) return;
+    setStreakEvents((prev) => prev.filter((e) => !eventIds.includes(e.id)));
+    try {
+      await apiFetch(`${API_URL}/practice/streak-events/${studentId}/shown`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventIds })
+      });
+    } catch (error) {
+      console.error('Error marking streak events shown:', error);
+    }
+  }, [studentId]); // eslint-disable-line
+
   const loadPredictedScore = useCallback(async (subjectId) => {
     if (!subjectId) return null;
     try {
@@ -453,9 +483,9 @@ export const DataProvider = ({ children, studentId, isGuest = false }) => {
     // Остальное фоново — не блокируем UI
     const backgroundLoads = isGuest
       ? [loadPracticeStats()]
-      : [loadHomeworks(), loadPracticeStats(), loadHomeworkStats()];
+      : [loadHomeworks(), loadPracticeStats(), loadHomeworkStats(), loadStreakEvents()];
     void Promise.all(backgroundLoads);
-  }, [isGuest, loadSubjects, loadPractice, loadStreak, loadHomeworks, loadPracticeStats, loadHomeworkStats]);
+  }, [isGuest, loadSubjects, loadPractice, loadStreak, loadHomeworks, loadPracticeStats, loadHomeworkStats, loadStreakEvents]);
 
   const refreshAfterPractice = useCallback(async (subjectId, leaderboardPeriod = 'day') => {
     loadedRef.current.practice = false;
@@ -465,13 +495,14 @@ export const DataProvider = ({ children, studentId, isGuest = false }) => {
       loadPracticeStats(true),
       loadStreak(subjectId, true),
       loadDailyGoal(),
+      loadStreakEvents(),
       subjectId ? loadPredictedScore(subjectId) : Promise.resolve(),
       subjectId ? loadScoreHistory(subjectId) : Promise.resolve(),
       subjectId ? loadLeaderboard(subjectId, leaderboardPeriod) : Promise.resolve(),
       subjectId ? loadSubjectDashboard(subjectId) : Promise.resolve(),
     ]);
     return newStreak;
-  }, [loadPractice, loadPracticeStats, loadStreak, loadDailyGoal, loadPredictedScore, loadScoreHistory, loadLeaderboard, loadSubjectDashboard]);
+  }, [loadPractice, loadPracticeStats, loadStreak, loadDailyGoal, loadStreakEvents, loadPredictedScore, loadScoreHistory, loadLeaderboard, loadSubjectDashboard]);
 
   const refreshAfterHomework = useCallback(async (subjectId) => {
     loadedRef.current.homework = false;
@@ -492,6 +523,7 @@ export const DataProvider = ({ children, studentId, isGuest = false }) => {
     preloadAllData, refreshAfterPractice, refreshAfterHomework,
     prefetchQuestions, getQuestions, updatePracticeStatsOptimistic,
     streak, streakLoaded, setStreak, setStreakLoaded, loadStreak,
+    streakEvents, loadStreakEvents, markStreakEventsShown,
     predictedScore, loadPredictedScore,
     dailyGoal, loadDailyGoal, patchDailyGoal,
     leaderboard, loadLeaderboard,

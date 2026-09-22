@@ -45,6 +45,8 @@ function AdminStatistics({ currentUser, dataRefreshKey = 0 }) {
   });
   const [leaderboardDateTo, setLeaderboardDateTo] = useState(() => new Date().toISOString().slice(0, 10));
   const [leaderboardSubjectId, setLeaderboardSubjectId] = useState('');
+  const [leaderboardSubjects, setLeaderboardSubjects] = useState([]);
+  const [leaderboardSubjectsLoading, setLeaderboardSubjectsLoading] = useState(true);
   const [stream, setStream] = useState(null);
 
   // Данные для режима "все"
@@ -59,6 +61,7 @@ function AdminStatistics({ currentUser, dataRefreshKey = 0 }) {
   const [studentLoading, setStudentLoading] = useState(false);
 
   useEffect(() => { loadStudents(); }, []);
+  useEffect(() => { loadLeaderboardSubjects(); }, []);
 
   useEffect(() => {
     if (mode === 'all') loadAllStats();
@@ -81,6 +84,18 @@ function AdminStatistics({ currentUser, dataRefreshKey = 0 }) {
       setStudents(data.students || []);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
+  };
+
+  const loadLeaderboardSubjects = async () => {
+    try {
+      const res = await adminFetch(`${API_URL}/lesson-admin/leaderboard-subjects`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Не удалось загрузить предметы');
+      setLeaderboardSubjects(data.subjects || []);
+    } catch (e) {
+      console.error(e);
+      setLeaderboardSubjects([]);
+    } finally { setLeaderboardSubjectsLoading(false); }
   };
 
   const loadAllStats = async () => {
@@ -193,7 +208,7 @@ function AdminStatistics({ currentUser, dataRefreshKey = 0 }) {
 
   const openLeaderboard = () => {
     if (!leaderboardSubjectId) return;
-    const subject = subjects.find((item) => String(item.id) === String(leaderboardSubjectId));
+    const subject = leaderboardSubjects.find((item) => String(item.id) === String(leaderboardSubjectId));
     const source = { subjectId: Number(leaderboardSubjectId), subjectName: subject?.name || 'Предмет' };
     if (leaderboardPeriod === 'custom') {
       Object.assign(source, {
@@ -231,9 +246,9 @@ function AdminStatistics({ currentUser, dataRefreshKey = 0 }) {
 
         {mode === 'all' && !isManager && (
           <div className="as-leaderboard-launcher">
-            <select aria-label="Предмет лидерборда" value={leaderboardSubjectId} onChange={(event) => setLeaderboardSubjectId(event.target.value)}>
-              <option value="">Лидерборд: выберите предмет</option>
-              {subjects.map((subject) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}
+            <select aria-label="Предмет лидерборда" value={leaderboardSubjectId} disabled={leaderboardSubjectsLoading || leaderboardSubjects.length === 0} onChange={(event) => setLeaderboardSubjectId(event.target.value)}>
+              <option value="">{leaderboardSubjectsLoading ? 'Лидерборд: загружаем предметы' : leaderboardSubjects.length ? 'Лидерборд: выберите предмет' : 'Лидерборд: нет доступных предметов'}</option>
+              {leaderboardSubjects.map((subject) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}
             </select>
             <select aria-label="Период лидерборда" value={leaderboardPeriod} onChange={(event) => setLeaderboardPeriod(event.target.value)}>
               {PERIOD_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}

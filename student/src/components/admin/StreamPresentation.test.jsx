@@ -108,3 +108,17 @@ test('failed stream request displays a recoverable connection error', async () =
   render(<StreamScreen source={{ lessonQuizId: 1 }} hostWindow={window} />);
   await waitFor(() => expect(screen.getByText('Связь прервана. Восстанавливаем…')).toBeInTheDocument());
 });
+
+test('общий лидерборд не называется трансляцией и открывается для выбранного предмета', async () => {
+  adminFetch.mockResolvedValue({ ok: true, json: async () => ({
+    phase: 'weekly', serverNow: Date.now(), periodDays: 7, leaderboard: []
+  }) });
+  render(<StreamPresentation source={{ subjectId: 2, subjectName: 'Английский', periodDays: 7 }} onClose={() => {}} />);
+
+  expect(screen.getByRole('dialog', { name: 'Лидерборд' })).toHaveAttribute('open');
+  await waitFor(() => expect(adminFetch).toHaveBeenCalledWith(
+    expect.stringContaining('/lesson-admin/stream/weekly?subjectId=2&periodDays=7'),
+    expect.any(Object)
+  ));
+  expect(screen.getByRole('button', { name: 'Закрыть лидерборд' })).toBeVisible();
+});

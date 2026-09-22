@@ -18,6 +18,8 @@ const PracticeImage = require('./PracticeImage');
 const PracticeAttempt = require('./PracticeAttempt');
 const PracticeBest = require('./PracticeBest');
 const PracticeDailyLog = require('./PracticeDailyLog');
+const PracticeStreakHistory = require('./PracticeStreakHistory');
+const PracticeStreakEvent = require('./PracticeStreakEvent');
 const PracticeQuestionResult = require('./PracticeQuestionResult');
 const PracticeScoreHistory = require('./PracticeScoreHistory');
 const PracticeStudentTotals = require('./PracticeStudentTotals');
@@ -52,6 +54,7 @@ const Parent = require('./Parent');
 const ParentReportLog = require('./ParentReportLog');
 const ParentStudent = require('./ParentStudent');
 const ProblemReport = require('./ProblemReport');
+const DailyMeme = require('./DailyMeme');
 
 // ========== СВЯЗИ С SUBJECTS ==========
 
@@ -127,6 +130,7 @@ HomeworkAnswer.belongsTo(HomeworkSubmission, { foreignKey: 'submissionId' });
 
 HomeworkQuestion.hasMany(HomeworkAnswer, { foreignKey: 'questionId' });
 HomeworkAnswer.belongsTo(HomeworkQuestion, { foreignKey: 'questionId', as: 'question' });
+HomeworkQuestion.belongsTo(PracticeImage, { foreignKey: 'questionImageId', as: 'questionImage' });
 
 // ========== PRACTICE ==========
 PracticeTopic.hasMany(PracticeQuestion, { foreignKey: 'topicId', as: 'questions' });
@@ -155,6 +159,17 @@ User.hasMany(PracticeBest, { foreignKey: 'studentId', as: 'practiceBests' });
 PracticeDailyLog.belongsTo(User, { foreignKey: 'studentId', as: 'student' });
 PracticeDailyLog.belongsTo(Subject, { foreignKey: 'subjectId', as: 'subject' });
 User.hasMany(PracticeDailyLog, { foreignKey: 'studentId', as: 'dailyLogs' });
+
+PracticeStreakHistory.belongsTo(User, { foreignKey: 'studentId', as: 'student' });
+PracticeStreakHistory.belongsTo(Subject, { foreignKey: 'subjectId', as: 'subject' });
+User.hasMany(PracticeStreakHistory, { foreignKey: 'studentId', as: 'streakHistory' });
+
+PracticeStreakEvent.belongsTo(User, { foreignKey: 'studentId', as: 'student' });
+PracticeStreakEvent.belongsTo(Subject, { foreignKey: 'subjectId', as: 'subject' });
+User.hasMany(PracticeStreakEvent, { foreignKey: 'studentId', as: 'streakEvents' });
+
+// ========== DAILY MEME ==========
+DailyMeme.belongsTo(PracticeImage, { foreignKey: 'imageId', as: 'image' });
 
 // ========== PRACTICE QUESTION RESULT (для прогнозного балла) ==========
 PracticeQuestionResult.belongsTo(User, { foreignKey: 'studentId', as: 'student' });
@@ -356,7 +371,7 @@ module.exports = {
   Quiz, QuizQuestion, QuizParticipant, QuizAnswer,
   Homework, HomeworkQuestion, HomeworkSubmission, HomeworkAnswer,
   PracticeTopic, PracticeQuestion, PracticeImage, PracticeAttempt,
-  PracticeBest, PracticeDailyLog, PracticeQuestionResult, PracticeScoreHistory,
+  PracticeBest, PracticeDailyLog, PracticeStreakHistory, PracticeStreakEvent, PracticeQuestionResult, PracticeScoreHistory,
   PracticeStudentTotals, PracticeDailyStats, PracticeTopicTotals,
   PracticeDifficultyTotals, PracticeModeTotals, PracticeRecentError,
   NotificationLog, BotUser, Application,
@@ -366,5 +381,6 @@ module.exports = {
   LessonQuiz, LessonQuizQuestion, LessonQuizAnswer, LessonQuizDelivery, LessonQuizParticipant,
   ErrorLog, Parent, ParentReportLog, ParentStudent,
   ProblemReport,
+  DailyMeme,
   syncDatabase
 };

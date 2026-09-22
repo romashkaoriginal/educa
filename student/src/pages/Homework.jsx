@@ -20,6 +20,9 @@ const HOMEWORK_SUBJECT_CARD_BACKGROUNDS = [
   { match: ['англ', 'english'], image: homeworkEnglishBg },
 ];
 
+const homeworkQuestionImageUrl = (storageKey) =>
+  storageKey ? `${API_URL}/practice-images/${storageKey}` : null;
+
 function scrollInputIntoView(inputEl) {
   if (!inputEl) return;
   const body = inputEl.closest('.homework-mode-body');
@@ -82,6 +85,45 @@ function clearHwDraft(studentId, homeworkId) {
   } catch {
     // ignore
   }
+}
+
+// Черновик хранит ответы по индексам, потому что типы заданий используют их в
+// UI. Порядок вопросов из БД, однако, может отличаться между двумя загрузками.
+// В этом случае восстанавливаем ответы по стабильному ID вопроса, а не
+// сбрасываем весь черновик.
+function restoreDraftForQuestionOrder(draft, questionList) {
+  if (!draft || !Array.isArray(draft.questionIds)) return draft;
+
+  const savedIds = draft.questionIds.map(String);
+  const currentIds = questionList.map((question) => String(question.id));
+  const sameOrder = savedIds.length === currentIds.length
+    && savedIds.every((id, index) => id === currentIds[index]);
+  if (sameOrder) return draft;
+
+  // Если состав изменился, старые ответы больше нельзя корректно сопоставить.
+  if (savedIds.length !== currentIds.length || new Set(savedIds).size !== savedIds.length
+    || !savedIds.every((id) => currentIds.includes(id))) return null;
+
+  const oldIndexById = new Map(savedIds.map((id, index) => [id, index]));
+  const remapByQuestion = (value) => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+    return Object.fromEntries(currentIds.flatMap((id, currentIndex) => {
+      const oldIndex = oldIndexById.get(id);
+      return Object.prototype.hasOwnProperty.call(value, oldIndex)
+        ? [[currentIndex, value[oldIndex]]]
+        : [];
+    }));
+  };
+  const previousQuestionId = savedIds[Number(draft.currentQuestionIndex) || 0];
+
+  return {
+    ...draft,
+    questionIds: questionList.map((question) => question.id),
+    currentQuestionIndex: Math.max(0, currentIds.indexOf(previousQuestionId)),
+    answers: remapByQuestion(draft.answers),
+    matchingState: remapByQuestion(draft.matchingState),
+    initialOrder: remapByQuestion(draft.initialOrder),
+  };
 }
 
 function getHomeworkSubjectCardBg(subject) {
@@ -553,9 +595,8 @@ function StudentHomework({ studentId, previewHomework = null, onExitPreview = nu
     initialOrderRef.current = {};
     matchingStateRef.current = {};
 
-    if (draft && Array.isArray(draft.questionIds) &&
-        draft.questionIds.length === questionList.length &&
-        draft.questionIds.every((id, i) => id === questionList[i].id)) {
+    draft = restoreDraftForQuestionOrder(draft, questionList);
+    if (draft) {
       setCurrentQuestionIndex(Math.max(0, Math.min(questionList.length - 1, Number(draft.currentQuestionIndex) || 0)));
       setAnswers(draft.answers || {});
       matchingStateRef.current = draft.matchingState || {};
@@ -1395,6 +1436,13 @@ function StudentHomework({ studentId, previewHomework = null, onExitPreview = nu
                   <span className="result-question-number">Вопрос {qIndex + 1}</span>
                   <span className="hw-q-points">{question.points} б.</span>
                 </div>
+                {question.questionImage?.storageKey && (
+                  <img
+                    className="homework-question-image homework-question-image--result"
+                    src={homeworkQuestionImageUrl(question.questionImage.storageKey)}
+                    alt="Изображение к вопросу"
+                  />
+                )}
                 <p className="result-question-text"><MathText text={question.questionText} /></p>
                 {renderAnswerReview(question, qIndex)}
                 {!isCorrect && question.explanation && (
@@ -1467,6 +1515,13 @@ function StudentHomework({ studentId, previewHomework = null, onExitPreview = nu
             </div>
             <div className="hw-question-prompt" key={`hq-${currentQuestion.id ?? currentQuestionIndex}`}>
               <span className="hw-question-prompt-mark" aria-hidden>“</span>
+              {currentQuestion.questionImage?.storageKey && (
+                <img
+                  className="homework-question-image"
+                  src={homeworkQuestionImageUrl(currentQuestion.questionImage.storageKey)}
+                  alt="Изображение к вопросу"
+                />
+              )}
               <h3 className="question-text"><MathText text={currentQuestion.questionText} /></h3>
             </div>
             <div className={`homework-mode-answer homework-mode-answer--${currentQuestion.questionType || 'default'}`}>

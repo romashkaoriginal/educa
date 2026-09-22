@@ -24,6 +24,9 @@ beforeEach(() => {
         }],
       });
     }
+    if (url.includes('/lesson-admin/leaderboard-subjects')) {
+      return response({ subjects: [{ id: 1, name: 'Математика', icon: '📐' }] });
+    }
     if (url.includes('section=practice')) {
       return response({
         practice: {
@@ -128,4 +131,27 @@ test('предмет меняет сводку, а сортировка ДЗ у�
   expect(names()).toHaveLength(1);
   fireEvent.change(screen.getByLabelText('Период статистики'), { target: { value: 'all' } });
   await waitFor(() => expect(adminFetch).toHaveBeenCalledWith(expect.stringMatching(/section=homework$/)));
+});
+
+test('преподаватель может выбрать для лидерборда любой предмет', async () => {
+  adminFetch.mockImplementation((url) => {
+    if (url.includes('/stats/students')) return response({ students: [{
+      id: 1, firstName: 'Анна', subjects: [
+        { id: 1, name: 'Математика', icon: '📐' },
+        { id: 2, name: 'Английский', icon: '🇬🇧' },
+      ],
+    }] });
+    if (url.includes('/lesson-admin/leaderboard-subjects')) {
+      return response({ subjects: [
+        { id: 1, name: 'Математика', icon: '📐' },
+        { id: 2, name: 'Английский', icon: '🇬🇧' },
+      ] });
+    }
+    return response({ practice: { summary: {}, subjects: [] } });
+  });
+
+  render(<AdminStatistics currentUser={{ role: 'teacher' }} />);
+  const subjectSelect = await screen.findByLabelText('Предмет лидерборда');
+  expect(within(subjectSelect).getByRole('option', { name: 'Математика' })).toBeInTheDocument();
+  expect(within(subjectSelect).getByRole('option', { name: 'Английский' })).toBeInTheDocument();
 });

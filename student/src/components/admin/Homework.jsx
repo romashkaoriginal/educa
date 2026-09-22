@@ -8,6 +8,7 @@ import StudentHomework from '../../pages/Homework';
 import { PreviewDataProvider } from '../../pages/DataContext';
 import MathText, { LatexHelp } from '../MathText';
 import FormattingTextarea from '../FormattingTextarea';
+import ImageUploadField, { imageUrl } from './ImageUploadField';
 
 const QUESTION_TYPES = [
   { value: 'single_choice', label: 'Тест с одним правильным ответом', icon: '⭕' },
@@ -54,7 +55,8 @@ function Homework({ subjects, currentUserId, dataRefreshKey = 0 }) {
     options: ['', '', '', ''],
     correctAnswer: null,
     explanation: '',
-    points: 10
+    points: 10,
+    questionImage: null
   });
 
   const [editingQuestionIndex, setEditingQuestionIndex] = useState(null);
@@ -147,7 +149,11 @@ function Homework({ subjects, currentUserId, dataRefreshKey = 0 }) {
           openDate: openDateUTC,
           closeDate: closeDateUTC,
           maxAttempts: formData.maxAttempts === '' ? null : parseInt(formData.maxAttempts),
-          questions: questions.map((q, index) => ({ ...q, order: index })),
+          questions: questions.map(({ questionImage, ...q }, index) => ({
+            ...q,
+            questionImageId: q.questionType === 'single_choice' ? questionImage?.id || null : null,
+            order: index
+          })),
           createdBy: currentUserId || 1
         })
       });
@@ -213,6 +219,7 @@ function Homework({ subjects, currentUserId, dataRefreshKey = 0 }) {
       correctAnswer: q.correctAnswer ?? null,
       explanation: q.explanation || '',
       points: q.points || 10,
+      questionImage: q.questionImage || null,
     });
     setEditingQuestionIndex(index);
     setTimeout(() => {
@@ -267,7 +274,8 @@ function Homework({ subjects, currentUserId, dataRefreshKey = 0 }) {
       options: ['', '', '', ''],
       correctAnswer: null,
       explanation: '',
-      points: 10
+      points: 10,
+      questionImage: null
     });
   };
 
@@ -774,6 +782,9 @@ function Homework({ subjects, currentUserId, dataRefreshKey = 0 }) {
                       <button type="button" className="remove-question-btn" onClick={() => removeQuestion(index)}>✕</button>
                     </div>
                     <p className="question-text"><MathText text={q.questionText} /></p>
+                    {q.questionImage?.storageKey && (
+                      <img className="homework-question-preview-image" src={imageUrl(q.questionImage.storageKey)} alt="Изображение к вопросу" />
+                    )}
                   </div>
                 ))}
               </div>
@@ -797,6 +808,13 @@ function Homework({ subjects, currentUserId, dataRefreshKey = 0 }) {
                   placeholder="Введите вопрос" rows={3} />
                 <LatexHelp />
               </div>
+              {currentQuestion.questionType === 'single_choice' && (
+                <ImageUploadField
+                  label="Изображение к вопросу (необязательно)"
+                  value={currentQuestion.questionImage}
+                  onChange={(questionImage) => setCurrentQuestion({ ...currentQuestion, questionImage })}
+                />
+              )}
               {renderQuestionBuilder()}
               <div className="form-group">
                 <label>Объяснение (опционально)</label>

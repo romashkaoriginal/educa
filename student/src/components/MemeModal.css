@@ -1,0 +1,73 @@
+.meme-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(15, 15, 30, 0.55);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  box-sizing: border-box;
+  animation: meme-modal-fade 0.18s ease;
+}
+
+@keyframes meme-modal-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.meme-modal {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  box-sizing: border-box;
+  background: #fff;
+  border-radius: 20px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  animation: meme-modal-pop 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes meme-modal-pop {
+  from { opacity: 0; transform: scale(0.92); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.meme-modal-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: var(--kubik-border, #ECEAE5);
+  color: var(--kubik-navy, #1A405F);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.15s;
+}
+
+.meme-modal-close:hover {
+  background: var(--kubik-blue-soft, #EAF3FA);
+  transform: scale(1.08);
+}
+
+.meme-modal-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--kubik-navy, #1A405F);
+  margin: 4px 0 0;
+}
+
+.meme-modal-image {
+  width: 100%;
+  max-height: 60vh;
+  object-fit: contain;
+  border-radius: 14px;
+}

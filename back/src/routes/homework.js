@@ -8,9 +8,10 @@ const {
   assertSubmissionOwner
 } = require('../middleware/telegramAuth');
 const isAdmin = requireRole(['admin', 'teacher']);
-const { Homework, HomeworkQuestion, HomeworkSubmission, HomeworkAnswer, User, Subject, sequelize } = require('../models');
+const { Homework, HomeworkQuestion, HomeworkSubmission, HomeworkAnswer, PracticeImage, User, Subject, sequelize } = require('../models');
 const { Op } = require('sequelize');
 const { loadExcelWorkbook, normaliseExcelHeader } = require('../utils/loadExcelWorkbook');
+const practiceImages = require('../services/practiceImages');
 
 const router = express.Router();
 const { router: draftRoutes, lockDraft } = require('./homeworkDrafts');
@@ -40,6 +41,29 @@ function isDraftAnswerFilled(answer, questionType) {
   if (questionType === 'multiple_choice') return Array.isArray(answer) && answer.length > 0;
   if (questionType === 'matching') return Object.keys(answer?.connections || {}).length > 0;
   return true;
+}
+
+async function prepareHomeworkQuestions(questions) {
+  if (!Array.isArray(questions)) throw new Error('Вопросы должны быть списком.');
+  const prepared = questions.map((question) => {
+    const rawImageId = question.questionImageId;
+    const questionImageId = rawImageId === undefined || rawImageId === null || rawImageId === ''
+      ? null
+      : Number(rawImageId);
+    if (questionImageId !== null && (!Number.isSafeInteger(questionImageId) || questionImageId <= 0)) {
+      throw new Error('Некорректное изображение вопроса.');
+    }
+    if (questionImageId && question.questionType !== 'single_choice') {
+      throw new Error('Изображение можно прикрепить только к обычному вопросу.');
+    }
+    return { ...question, questionImageId };
+  });
+  const imageIds = [...new Set(prepared.map((question) => question.questionImageId).filter(Boolean))];
+  if (imageIds.length) {
+    const found = await PracticeImage.count({ where: { id: imageIds } });
+    if (found !== imageIds.length) throw new Error('Одно из изображений вопроса не найдено. Загрузите его заново.');
+  }
+  return prepared;
 }
 
 async function assertHomeworkReadable(req, res, next) {
@@ -322,7 +346,9 @@ router.get('/:id', assertHomeworkReadable, async (req, res) => {
         {
           model: HomeworkQuestion,
           as: 'questions',
-          order: [['order', 'ASC']]
+          separate: true,
+          order: [['order', 'ASC']],
+          include: [{ model: PracticeImage, as: 'questionImage', attributes: ['id', 'storageKey', 'width', 'height'] }]
         }
       ]
     });
@@ -378,8 +404,10 @@ router.get('/student/:studentId', assertSelfOrStaff('studentId'), async (req, re
         {
           model: HomeworkQuestion,
           as: 'questions',
-          attributes: ['id', 'questionText', 'questionType', 'options', 'correctAnswer', 'points', 'order'],
-          order: [['order', 'ASC']]
+          attributes: ['id', 'questionText', 'questionType', 'questionImageId', 'options', 'correctAnswer', 'points', 'order'],
+          separate: true,
+          order: [['order', 'ASC']],
+          include: [{ model: PracticeImage, as: 'questionImage', attributes: ['id', 'storageKey', 'width', 'height'] }]
         }
       ],
       order: [['closeDate', 'ASC']]
@@ -470,6 +498,13 @@ router.post('/create', isAdmin, async (req, res) => {
       return res.status(400).json({ message: 'Missing required fields' });
     }
 
+    let preparedQuestions;
+    try {
+      preparedQuestions = await prepareHomeworkQuestions(questions);
+    } catch (error) {
+      return res.status(400).json({ message: error.message });
+    }
+
     const creatorId = createdBy || 1;
 
     // Create homework
@@ -487,11 +522,12 @@ router.post('/create', isAdmin, async (req, res) => {
     console.log(`${logPrefix} homework created id=${homework.id} storedOpenDate=${homework.openDate?.toISOString?.() ?? homework.openDate} storedCloseDate=${homework.closeDate?.toISOString?.() ?? homework.closeDate} (now=${new Date().toISOString()})`);
 
     // Create questions
-    const questionPromises = questions.map(q =>
+    const questionPromises = preparedQuestions.map(q =>
       HomeworkQuestion.create({
         homeworkId: homework.id,
         questionType: q.questionType,
         questionText: q.questionText,
+        questionImageId: q.questionImageId,
         options: q.options,
         correctAnswer: q.correctAnswer,
         explanation: q.explanation,
@@ -525,6 +561,17 @@ router.put('/:id', isAdmin, async (req, res) => {
       return res.status(404).json({ message: 'Homework not found' });
     }
 
+    let preparedQuestions;
+    try {
+      preparedQuestions = await prepareHomeworkQuestions(questions);
+    } catch (error) {
+      return res.status(400).json({ message: error.message });
+    }
+    const previousQuestions = await HomeworkQuestion.findAll({
+      where: { homeworkId: id },
+      attributes: ['questionImageId']
+    });
+
     await homework.update({
       title,
       description,
@@ -536,11 +583,12 @@ router.put('/:id', isAdmin, async (req, res) => {
 
     await HomeworkQuestion.destroy({ where: { homeworkId: id } });
 
-    const questionPromises = questions.map(q => 
+    const questionPromises = preparedQuestions.map(q =>
       HomeworkQuestion.create({
         homeworkId: id,
         questionType: q.questionType,
         questionText: q.questionText,
+        questionImageId: q.questionImageId,
         options: q.options,
         correctAnswer: q.correctAnswer,
         explanation: q.explanation,
@@ -550,6 +598,10 @@ router.put('/:id', isAdmin, async (req, res) => {
     );
 
     await Promise.all(questionPromises);
+    await Promise.allSettled(
+      [...new Set(previousQuestions.map(question => question.questionImageId).filter(Boolean))]
+        .map(imageId => practiceImages.deleteImageIfOrphan(imageId))
+    );
 
     res.json({ message: 'Homework updated successfully' });
   } catch (error) {
@@ -587,13 +639,15 @@ router.delete('/:id', isAdmin, async (req, res) => {
       return res.status(404).json({ message: 'Homework not found' });
     }
 
+    let imageIds = [];
     // Каскад в транзакции: answers → submissions/questions → homework.
     // Иначе FK (homework_answers.questionId / submissionId) блокируют удаление.
     await sequelize.transaction(async (t) => {
       const submissions = await HomeworkSubmission.findAll({ where: { homeworkId: id }, attributes: ['id'], transaction: t });
       const submissionIds = submissions.map(s => s.id);
-      const questions = await HomeworkQuestion.findAll({ where: { homeworkId: id }, attributes: ['id'], transaction: t });
+      const questions = await HomeworkQuestion.findAll({ where: { homeworkId: id }, attributes: ['id', 'questionImageId'], transaction: t });
       const questionIds = questions.map(q => q.id);
+      imageIds = [...new Set(questions.map(question => question.questionImageId).filter(Boolean))];
 
       if (submissionIds.length) await HomeworkAnswer.destroy({ where: { submissionId: submissionIds }, transaction: t });
       if (questionIds.length) await HomeworkAnswer.destroy({ where: { questionId: questionIds }, transaction: t });
@@ -601,6 +655,8 @@ router.delete('/:id', isAdmin, async (req, res) => {
       await HomeworkQuestion.destroy({ where: { homeworkId: id }, transaction: t });
       await homework.destroy({ transaction: t });
     });
+
+    await Promise.allSettled(imageIds.map(imageId => practiceImages.deleteImageIfOrphan(imageId)));
 
     res.json({ message: 'Homework deleted successfully' });
   } catch (error) {

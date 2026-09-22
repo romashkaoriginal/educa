@@ -30,6 +30,7 @@ const lessonRoutes = require('./routes/lesson');
 const lessonAdminRoutes = require('./routes/lessonAdmin');
 const clientErrorRoutes = require('./routes/clientErrors');
 const problemReportRoutes = require('./routes/problemReports');
+const dailyMemesRoutes = require('./routes/dailyMemes');
 const setupSocketAuth = require('./socket/authMiddleware');
 const setupQuizSocket = require('./socket/quizSocket');
 const setupLessonSocket = require('./socket/lessonSocket');
@@ -188,6 +189,7 @@ app.use('/api/practice', telegramAuth, requireUser, practiceRoutes);
 app.use('/api/homework', telegramAuth, requireUser, blockGuests, homeworkRoutes);
 app.use('/api/lesson', telegramAuth, requireUser, blockGuests, lessonRoutes);
 app.use('/api/lesson-admin', telegramAuth, requireRole(['admin', 'teacher']), lessonAdminRoutes);
+app.use('/api/daily-memes', telegramAuth, requireRole(['admin', 'teacher']), dailyMemesRoutes);
 
 // Статистика — все роли (студент видит свою, админ/препод/менеджер — общую)
 app.use('/api/stats', telegramAuth, requireUser, statsRoutes);

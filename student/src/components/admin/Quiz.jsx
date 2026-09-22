@@ -21,6 +21,12 @@ function Quiz({ subjects, currentUserId, dataRefreshKey = 0, isActive = true, on
   const [activeQuiz, setActiveQuiz] = useState(null);
   const [editingQuiz, setEditingQuiz] = useState(null);
   const [editData, setEditData] = useState({ title: '', lessonId: '' });
+  const [editQuestions, setEditQuestions] = useState([]);
+  const [editingQuestionId, setEditingQuestionId] = useState(null);
+  const [editCurrentQ, setEditCurrentQ] = useState({
+    questionText: '', options: ['', '', '', ''],
+    correctAnswer: 0, timeLimit: 30, explanation: ''
+  });
   const [historyStream, setHistoryStream] = useState(null);
   const [socket, setSocket] = useState(null);
 
@@ -185,8 +191,75 @@ function Quiz({ subjects, currentUserId, dataRefreshKey = 0, isActive = true, on
     }
     setEditingQuiz(quiz);
     setEditData({ title: quiz.title || '', lessonId: String(quiz.lesson?.id || quiz.lessonId || '') });
+    setEditQuestions([...(quiz.questions || [])].sort((a, b) => a.order - b.order));
+    setEditingQuestionId(null);
+    setEditCurrentQ({ questionText: '', options: ['', '', '', ''], correctAnswer: 0, timeLimit: 30, explanation: '' });
     loadScheduledLessons();
     setView('edit');
+  };
+
+  const resetEditCurrentQ = () => {
+    setEditingQuestionId(null);
+    setEditCurrentQ({ questionText: '', options: ['', '', '', ''], correctAnswer: 0, timeLimit: 30, explanation: '' });
+  };
+
+  const startEditQuestion = (question) => {
+    setEditingQuestionId(question.id);
+    setEditCurrentQ({
+      questionText: question.questionText || '',
+      options: question.options || ['', '', '', ''],
+      correctAnswer: Array.isArray(question.correctAnswer) ? question.correctAnswer[0] : (question.correctAnswer || 0),
+      timeLimit: question.timeLimit || 30,
+      explanation: question.explanation || ''
+    });
+  };
+
+  const saveEditQuestion = async () => {
+    if (!editingQuiz) return;
+    if (!editCurrentQ.questionText.trim()) { alert('Введите текст вопроса'); return; }
+    if (editCurrentQ.options.some(o => !o.trim())) { alert('Заполните все варианты ответа'); return; }
+    const payload = {
+      questionText: editCurrentQ.questionText,
+      options: editCurrentQ.options,
+      correctAnswer: [editCurrentQ.correctAnswer],
+      explanation: editCurrentQ.explanation,
+      timeLimit: editCurrentQ.timeLimit
+    };
+    try {
+      const url = editingQuestionId
+        ? `${API_URL}/lesson-admin/quizzes/${editingQuiz.id}/questions/${editingQuestionId}`
+        : `${API_URL}/lesson-admin/quizzes/${editingQuiz.id}/questions`;
+      const response = await adminFetch(url, {
+        method: editingQuestionId ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editingQuestionId ? payload : { ...payload, order: editQuestions.length })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.message || 'Не удалось сохранить вопрос');
+      setEditQuestions((prev) => editingQuestionId
+        ? prev.map((q) => (q.id === editingQuestionId ? data.question : q))
+        : [...prev, data.question]);
+      resetEditCurrentQ();
+    } catch (error) {
+      console.error('Error saving quiz question:', error);
+      alert(error.message || 'Не удалось сохранить вопрос');
+    }
+  };
+
+  const removeEditQuestion = async (question) => {
+    if (!editingQuiz) return;
+    const confirmed = await confirmDelete(getDeleteConfirm('quizQuestion', { name: question.questionText || 'вопрос' }));
+    if (!confirmed) return;
+    try {
+      const response = await adminFetch(`${API_URL}/lesson-admin/quizzes/${editingQuiz.id}/questions/${question.id}`, { method: 'DELETE' });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.message || 'Не удалось удалить вопрос');
+      setEditQuestions((prev) => prev.filter((q) => q.id !== question.id));
+      if (editingQuestionId === question.id) resetEditCurrentQ();
+    } catch (error) {
+      console.error('Error removing quiz question:', error);
+      alert(error.message || 'Не удалось удалить вопрос');
+    }
   };
 
   const addQuestion = () => {
@@ -822,6 +895,58 @@ function Quiz({ subjects, currentUserId, dataRefreshKey = 0, isActive = true, on
           {!scheduledLessonsLoading && scheduledLessonsError && <p className="quiz-form-hint">{scheduledLessonsError}</p>}
           <p className="quiz-form-hint">Перепривязка доступна только к предстоящему занятию. Во время идущего занятия изменить или удалить викторину нельзя.</p>
           <button onClick={saveQuizEdits} className="save-btn">Сохранить изменения</button>
+
+          <div className="questions-section">
+            <div className="questions-section-header">
+              <h3>Вопросы ({editQuestions.length})</h3>
+            </div>
+            {editingQuiz.status !== 'draft' && (
+              <p className="quiz-form-hint">Вопросы можно менять только пока викторина в черновике — она уже {editingQuiz.status === 'active' ? 'запущена' : 'завершена'}.</p>
+            )}
+            {editQuestions.map((q, i) => (
+              <div key={q.id} className="question-item">
+                <div className="q-num">{i + 1}</div>
+                <div className="q-content">
+                  <strong><MathText text={q.questionText} /></strong>
+                  <div className="q-meta">⏱ {q.timeLimit}с • ✓ {String.fromCharCode(65 + (Array.isArray(q.correctAnswer) ? q.correctAnswer[0] : q.correctAnswer))}</div>
+                </div>
+                {editingQuiz.status === 'draft' && (
+                  <>
+                    <button onClick={() => startEditQuestion(q)} className="edit-btn">Изменить</button>
+                    <button onClick={() => removeEditQuestion(q)} className="remove-btn">✕</button>
+                  </>
+                )}
+              </div>
+            ))}
+            {editingQuiz.status === 'draft' && (
+              <div className="add-question-form">
+                <input type="text" placeholder="Текст вопроса" value={editCurrentQ.questionText}
+                  onChange={(e) => setEditCurrentQ({ ...editCurrentQ, questionText: e.target.value })} className="form-input" />
+                <LatexHelp />
+                {editCurrentQ.options.map((opt, i) => (
+                  <div key={i} className="option-input-row">
+                    <input type="radio" name="editCorrectAnswer" checked={editCurrentQ.correctAnswer === i}
+                      onChange={() => setEditCurrentQ({ ...editCurrentQ, correctAnswer: i })} />
+                    <span>{String.fromCharCode(65 + i)}</span>
+                    <input type="text" placeholder={`Вариант ${String.fromCharCode(65 + i)}`} value={opt}
+                      onChange={(e) => { const o = [...editCurrentQ.options]; o[i] = e.target.value; setEditCurrentQ({ ...editCurrentQ, options: o }); }}
+                      className="form-input" />
+                  </div>
+                ))}
+                <div className="form-row">
+                  <label>Время (сек):</label>
+                  <input type="number" value={editCurrentQ.timeLimit}
+                    onChange={(e) => setEditCurrentQ({ ...editCurrentQ, timeLimit: parseInt(e.target.value) || 30 })} className="form-input" />
+                </div>
+                <input type="text" placeholder="Объяснение (необязательно)" value={editCurrentQ.explanation}
+                  onChange={(e) => setEditCurrentQ({ ...editCurrentQ, explanation: e.target.value })} className="form-input" />
+                <div className="form-row">
+                  <button onClick={saveEditQuestion} className="add-btn">{editingQuestionId ? '💾 Сохранить вопрос' : '+ Добавить вопрос'}</button>
+                  {editingQuestionId && <button onClick={resetEditCurrentQ} className="btn-secondary">Отмена</button>}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );

@@ -83,7 +83,15 @@ async function findParentForTelegramUser(telegramUser) {
   if (telegramUsername && parent.telegramUsername !== telegramUsername) updates.telegramUsername = telegramUsername;
   if (!parent.firstName && telegramUser?.first_name) updates.firstName = telegramUser.first_name;
   if (!parent.lastName && telegramUser?.last_name) updates.lastName = telegramUser.last_name;
+  const telegramJustConfirmed = !parent.telegramId && !!telegramId;
   if (Object.keys(updates).length) await parent.update(updates);
+  if (telegramJustConfirmed) {
+    // Не задерживаем авторизацию родителя отправкой отчёта. Ошибка доставки
+    // попадёт в лог планировщика и не должна запрещать вход в приложение.
+    const { retryMissedReportsAfterTelegramConfirmation } = require('./parentReportScheduler');
+    void retryMissedReportsAfterTelegramConfirmation(parent.id)
+      .catch((error) => console.error('Retry missed parent reports:', error));
+  }
   return parent;
 }
 

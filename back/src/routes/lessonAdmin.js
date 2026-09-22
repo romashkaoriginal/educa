@@ -148,19 +148,11 @@ router.get('/stream/weekly', async (req, res) => {
     const requestedSubjectId = req.query.subjectId ? Number(req.query.subjectId) : null;
     const range = resolveWeeklyRange(req.query);
     if (!Number.isInteger(requestedSubjectId) || !range) return bad(res, 'Выберите предмет и корректный период');
-    const allowedSubjectIds = await manageableSubjectIds(req.dbUser);
-    if (allowedSubjectIds && requestedSubjectId && !allowedSubjectIds.includes(requestedSubjectId)) {
-      return bad(res, 'Нет доступа к этому предмету', 403);
-    }
-    if (allowedSubjectIds?.length === 0) {
-      return res.json({
-        title: 'Лидеры', phase: 'weekly', serverNow: Date.now(),
-        dateFrom: range.since.toISOString(), dateTo: range.until.toISOString(),
-        participantCount: 0, leaderboard: []
-      });
-    }
     const leaderboard = await computeWeeklyLeaderboard(sequelize, {
-      QueryTypes, since: range.since, until: range.until, subjectId: requestedSubjectId, allowedSubjectIds,
+      // Общий рейтинг — справочный экран статистики, а не управление занятием.
+      // Любой сотрудник может открыть любой предмет; права на конкретные уроки
+      // проверяются отдельно в маршрутах управления уроками.
+      QueryTypes, since: range.since, until: range.until, subjectId: requestedSubjectId, allowedSubjectIds: null,
       includeUsername: true
     });
     res.json({
@@ -170,6 +162,18 @@ router.get('/stream/weekly', async (req, res) => {
       leaderboard
     });
   } catch (error) { fail(res, error, 'Get weekly stream leaderboard'); }
+});
+
+// Общий рейтинг — доступная сотрудникам статистика, поэтому предметы не
+// ограничиваются преподавательскими назначениями.
+router.get('/leaderboard-subjects', async (req, res) => {
+  try {
+    const subjects = await Subject.findAll({
+      attributes: ['id', 'name', 'icon'],
+      order: [['name', 'ASC']]
+    });
+    res.json({ subjects });
+  } catch (error) { fail(res, error, 'Get leaderboard subjects'); }
 });
 
 router.get('/teacher-subjects', async (req, res) => {

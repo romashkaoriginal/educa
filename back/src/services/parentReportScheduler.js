@@ -75,7 +75,12 @@ async function processParent(parent, { bot, now = new Date(), reportType = 'week
       status: 'processing'
     }
   });
-  if (!created && !force) return log;
+  // Если отчёт был пропущен только потому, что у родителя тогда не было
+  // Telegram ID (или не было активного доступа у ребёнка), условия могли
+  // измениться до следующего запуска планировщика. Такие записи можно
+  // безопасно повторить: сообщений при пропуске не отправлялось.
+  const retryableSkippedStatus = ['skipped_no_telegram', 'skipped_no_access'].includes(log.status);
+  if (!created && !force && !retryableSkippedStatus) return log;
   if (!created) {
     await log.update({
       studentId: firstStudentId,
@@ -174,6 +179,46 @@ async function sendParentReports({ bot, now = new Date(), reportType = 'weekly',
   return { processed: parents.length, logs };
 }
 
+// Вызывается в момент, когда родитель впервые подтвердил аккаунт в Telegram.
+// Берём только последний пропущенный отчёт каждого типа: отправка всех старых
+// недель разом была бы неожиданной и засорила бы чат родителя.
+async function retryMissedReportsAfterTelegramConfirmation(parentId, now = new Date()) {
+  const skipped = await ParentReportLog.findAll({
+    where: { parentId, status: 'skipped_no_telegram' },
+    attributes: ['reportType'],
+    order: [['createdAt', 'DESC']]
+  });
+  const reportTypes = [...new Set(skipped.map((log) => log.reportType))];
+  if (!reportTypes.length) return [];
+
+  const parent = await Parent.findByPk(parentId, {
+    include: [{
+      model: User,
+      as: 'students',
+      attributes: ['id', 'firstName', 'lastName', 'isActive'],
+      through: { attributes: [] },
+      include: [{
+        model: Subject,
+        as: 'subjects',
+        attributes: ['id', 'name', 'icon'],
+        through: { attributes: ['accessStartDate', 'accessEndDate', 'isActive'] }
+      }]
+    }]
+  });
+  if (!parent?.telegramId) return [];
+
+  const { getBot } = require('../bot');
+  const bot = getBot();
+  if (!bot) throw new Error('Telegram bot is not running');
+
+  return Promise.all(reportTypes.map((reportType) => processParent(parent, {
+    bot,
+    now,
+    reportType,
+    force: true
+  })));
+}
+
 async function tick(now = new Date()) {
   const weeklyDue = isMondayReportDue(now);
   const monthlyDue = isMonthlyReportDue(now);
@@ -211,6 +256,7 @@ module.exports = {
   getNextReportSchedule,
   processParent,
   sendParentReports,
+  retryMissedReportsAfterTelegramConfirmation,
   tick,
   startParentReportScheduler,
   stopParentReportScheduler

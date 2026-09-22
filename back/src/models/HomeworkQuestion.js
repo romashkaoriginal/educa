@@ -25,6 +25,12 @@ const HomeworkQuestion = sequelize.define('HomeworkQuestion', {
     type: DataTypes.TEXT,
     allowNull: false
   },
+  questionImageId: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: { model: 'practice_images', key: 'id' },
+    onDelete: 'SET NULL'
+  },
   options: {
     type: DataTypes.JSONB,
     allowNull: true

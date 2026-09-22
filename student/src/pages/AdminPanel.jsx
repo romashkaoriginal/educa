@@ -11,6 +11,7 @@ import Quiz from '../components/admin/Quiz';
 import Lesson from '../components/admin/Lesson';
 import Notifications from '../components/admin/Notifications';
 import Applications from '../components/admin/Applications';
+import Memes from '../components/admin/Memes';
 import SuperAdmin from '../components/admin/SuperAdmin';
 import { adminFetch } from '../components/admin/adminApi';
 import { AdminDataProvider, useAdminData } from '../components/admin/AdminDataContext';
@@ -21,10 +22,10 @@ const SUPER_ADMIN_TELEGRAM_ID = '1218874137';
 
 // Доступные разделы по ролям
 const ROLE_SECTIONS = {
-  superadmin: ['users', 'students', 'parents', 'applications', 'practice', 'lesson', 'quiz', 'homework', 'statistics', 'notifications', 'superadmin'],
-  admin: ['users', 'students', 'parents', 'applications', 'practice', 'lesson', 'quiz', 'homework', 'statistics', 'notifications'],
+  superadmin: ['users', 'students', 'parents', 'applications', 'practice', 'lesson', 'quiz', 'homework', 'statistics', 'memes', 'notifications', 'superadmin'],
+  admin: ['users', 'students', 'parents', 'applications', 'practice', 'lesson', 'quiz', 'homework', 'statistics', 'memes', 'notifications'],
   manager: ['users', 'students', 'parents', 'applications', 'statistics', 'notifications'],
-  teacher: ['practice', 'lesson', 'quiz', 'homework', 'statistics', 'notifications'],
+  teacher: ['practice', 'lesson', 'quiz', 'homework', 'statistics', 'memes', 'notifications'],
 };
 
 const ALL_SECTIONS = [
@@ -37,6 +38,7 @@ const ALL_SECTIONS = [
   { id: 'quiz', name: 'Викторина', icon: '🎯' },
   { id: 'homework', name: 'Дом. задание', icon: '📝' },
   { id: 'statistics', name: 'Статистика', icon: '📊' },
+  { id: 'memes', name: 'Мемы', icon: '😂' },
   { id: 'notifications', name: 'Уведомления', icon: '📣' },
   { id: 'superadmin', name: 'Суперадмин', icon: '🛡️' },
 ];
@@ -219,6 +221,7 @@ function AdminPanelContent() {
         {canRenderSection('quiz') && <div style={{ display: activeSection === 'quiz' ? 'block' : 'none' }}><Quiz subjects={subjects} currentUserId={currentUser?.id} dataRefreshKey={dataRefreshKey} isActive={activeSection === 'quiz'} onOpenLesson={(lessonId) => { setLessonEntryRequest({ lessonId, nonce: Date.now() }); setActiveSection('lesson'); }} /></div>}
         {canRenderSection('notifications') && <div style={{ display: activeSection === 'notifications' ? 'block' : 'none' }}><Notifications subjects={subjects} currentUser={currentUser} dataRefreshKey={dataRefreshKey} /></div>}
         {canRenderSection('applications') && <div style={{ display: activeSection === 'applications' ? 'block' : 'none' }}><Applications dataRefreshKey={dataRefreshKey} /></div>}
+        {canRenderSection('memes') && <div style={{ display: activeSection === 'memes' ? 'block' : 'none' }}><Memes dataRefreshKey={dataRefreshKey} isActive={activeSection === 'memes'} /></div>}
         {isSuperAdmin && canRenderSection('superadmin') && (
           <div style={{ display: activeSection === 'superadmin' ? 'block' : 'none' }}><SuperAdmin dataRefreshKey={dataRefreshKey} /></div>
         )}

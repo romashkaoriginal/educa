@@ -36,6 +36,20 @@ export function getDeleteConfirm(type, data = {}) {
         ],
         entityName: data.name,
       };
+    case 'quizQuestion':
+      return {
+        title: 'Удалить вопрос?',
+        message: 'Вы точно уверены? Вопрос будет удалён безвозвратно.',
+        items: [],
+        entityName: data.name,
+      };
+    case 'meme':
+      return {
+        title: 'Удалить мем?',
+        message: 'Вы точно уверены? Мем будет удалён безвозвратно.',
+        items: [],
+        entityName: data.name,
+      };
     default:
       return {
         title: 'Подтвердите удаление',

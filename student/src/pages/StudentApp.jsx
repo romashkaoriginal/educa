@@ -6,6 +6,8 @@ import Homework from './Homework';
 import Lesson from './Lesson';
 import Statistics from './Statistics';
 import LockedSectionModal from '../components/LockedSectionModal';
+import StreakEventModal from '../components/StreakEventModal';
+import MemeModal from '../components/MemeModal';
 import { DataProvider, useData } from './DataContext';
 import { apiFetch } from './api';
 
@@ -27,12 +29,16 @@ export function StudentAppContent({ selectedStudent, isGuest = false, applicatio
   const [appSent, setAppSent] = useState(applicationSent);
   // Модалка закрытого раздела для гостя: { context, source } | null
   const [lockedModal, setLockedModal] = useState(null);
+  // Мем текущего streak-события — показывается после закрытия поп-апа "серия продлена"
+  const [pendingMeme, setPendingMeme] = useState(null);
   const {
     subjects,
     preloadAllData, loadStreak, refreshDashboard,
     requestPracticeHome, requestHomeworkHome,
     lessonNotice, dismissLessonNotice,
+    streakEvents, markStreakEventsShown,
   } = useData();
+  const pendingStreakEvents = streakEvents || [];
 
   // Грузим данные один раз при монтировании — без ожидания, сразу показываем UI
   useEffect(() => {
@@ -211,6 +217,21 @@ export function StudentAppContent({ selectedStudent, isGuest = false, applicatio
           applicationSent={appSent}
           onApplicationSent={() => setAppSent(true)}
         />
+      )}
+
+      {!isGuest && !pendingMeme && pendingStreakEvents[0] && (
+        <StreakEventModal
+          event={pendingStreakEvents[0]}
+          onClose={() => {
+            const current = pendingStreakEvents[0];
+            markStreakEventsShown([current.id]);
+            if (current.meme) setPendingMeme(current.meme);
+          }}
+        />
+      )}
+
+      {!isGuest && pendingMeme && (
+        <MemeModal meme={pendingMeme} onClose={() => setPendingMeme(null)} />
       )}
     </div>
   );

@@ -1,8 +1,8 @@
 const fs = require('fs');
 const {
   PracticeTopic, PracticeQuestion, PracticeImage, PracticeAttempt, PracticeBest, PracticeDailyLog,
-  PracticeQuestionResult, PracticeScoreHistory, PracticeDailyStats,
-  PracticeTopicTotals, PracticeRecentError, Subject, User
+  PracticeStreakHistory, PracticeStreakEvent, PracticeQuestionResult, PracticeScoreHistory, PracticeDailyStats,
+  PracticeTopicTotals, PracticeRecentError, Subject, User, DailyMeme
 } = require('../models');
 const { Op, QueryTypes } = require('sequelize');
 const sequelize = require('../config/database');
@@ -242,6 +242,45 @@ async function buildStreakForStudent(studentId, subjectId = null) {
   return computeStreakFromDates(dates);
 }
 
+// Очки за стрик для лидерборда (ТЗ Дмитрия 22.09.2026): день 1 — 5 очков,
+// день 2 — 10, ..., максимум 70 очков за раз (день 14+), дальше стрик растёт,
+// но очки за конкретный день фиксируются на 70.
+const STREAK_POINTS_PER_DAY = 5;
+const STREAK_POINTS_CAP_DAY = 14;
+function pointsForStreakDay(streakDay) {
+  return Math.min(streakDay, STREAK_POINTS_CAP_DAY) * STREAK_POINTS_PER_DAY;
+}
+
+// Фиксирует очки за сегодняшний день стрика — один раз в день на ученика.
+// Огонёк общий по всем предметам (buildStreakForStudent без subjectId), но
+// очки идут в лидерборд ТОГО предмета, по которому сегодня решено больше
+// всего практики (ТЗ) — берём subjectId с максимальным attemptsCount в
+// practice_daily_logs за эту дату. Если общий стрик оборвался (цель сегодня
+// не выполнена), запись не создаётся.
+async function syncStreakHistory(studentId, dateStr) {
+  const { streak, todayDone } = await buildStreakForStudent(studentId, null);
+  if (!todayDone || streak <= 0) return;
+
+  const topSubject = await PracticeDailyLog.findOne({
+    where: { studentId, date: dateStr },
+    order: [['attemptsCount', 'DESC']],
+    raw: true
+  });
+  if (!topSubject) return;
+
+  const points = pointsForStreakDay(streak);
+  const [, created] = await PracticeStreakHistory.findOrCreate({
+    where: { studentId, date: dateStr },
+    defaults: { studentId, subjectId: topSubject.subjectId, date: dateStr, streakDay: streak, points }
+  });
+  if (created) {
+    await PracticeStreakEvent.create({
+      studentId, type: 'extended', streakDay: streak, points,
+      subjectId: topSubject.subjectId, date: dateStr
+    });
+  }
+}
+
 async function syncDailyGoalLog(studentId, subjectId, dateStr) {
   const { start, end } = getLocalDayBounds(dateStr);
   const totalCorrect = await countCorrectTotalInRange(studentId, subjectId, start, end);
@@ -338,6 +377,7 @@ async function persistPracticeAnswer({
   const today = getLocalDateStr();
   if (isCorrect) {
     await syncDailyGoalLog(studentId, subjectId, today);
+    await syncStreakHistory(studentId, today);
   }
 }
 
@@ -751,6 +791,7 @@ exports.saveAttempt = async (req, res) => {
       }
     } else {
       await syncDailyGoalLog(studentId, subjectId, today);
+      await syncStreakHistory(studentId, today);
     }
 
     const [best, created] = await PracticeBest.findOrCreate({
@@ -956,16 +997,92 @@ exports.getStudentStats = async (req, res) => {
   }
 };
 
+// Фиксирует обрыв серии одноразовым событием "broken" — вызывается при
+// каждом входе (getStreak без subjectId). Ключ идемпотентности — дата
+// последнего дня серии до обрыва: пока по ней нет "broken"-события, серия
+// считается ещё не объявленной прерванной, даже если ученик открыл
+// приложение много раз подряд.
+async function detectStreakBreak(studentId) {
+  const [{ streak }, lastHistory] = await Promise.all([
+    buildStreakForStudent(studentId, null),
+    PracticeStreakHistory.findOne({ where: { studentId }, order: [['date', 'DESC']], raw: true })
+  ]);
+  if (streak > 0 || !lastHistory) return;
+
+  const [, created] = await PracticeStreakEvent.findOrCreate({
+    where: { studentId, type: 'broken', date: lastHistory.date },
+    defaults: {
+      studentId, type: 'broken', date: lastHistory.date,
+      streakDay: lastHistory.streakDay, points: null, subjectId: null
+    }
+  });
+  return created;
+}
+
 // Получить стрик — дни подряд с выполненной дневной целью
 exports.getStreak = async (req, res) => {
   try {
     const { studentId } = req.params;
     const { subjectId } = req.query;
     const streak = await buildStreakForStudent(studentId, subjectId || null);
+    if (!subjectId) await detectStreakBreak(studentId);
     res.json(streak);
   } catch (error) {
     console.error('Get streak error:', error);
     res.status(500).json({ error: 'Failed to get streak' });
+  }
+};
+
+// Непоказанные события серии (продление/обрыв) для всплывающего экрана.
+// К "extended"-событиям подтягивается мем дня (ТЗ Дмитрия 22.09.2026: поп-ап
+// с мемом появляется сразу после того, как засчитан стрик) — мем привязан к
+// той же дате, чтобы фронт показал его сразу после экрана "серия продлена".
+exports.getStreakEvents = async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    const events = await PracticeStreakEvent.findAll({
+      where: { studentId, shownAt: null },
+      include: [{ model: Subject, as: 'subject', attributes: ['id', 'name', 'icon'] }],
+      order: [['date', 'ASC']]
+    });
+
+    const extendedDates = events.filter(e => e.type === 'extended').map(e => e.date);
+    const memes = extendedDates.length
+      ? await DailyMeme.findAll({
+        where: { date: extendedDates },
+        include: [{ model: PracticeImage, as: 'image', attributes: ['id', 'storageKey'] }]
+      })
+      : [];
+    const memeByDate = new Map(memes.map(m => [m.date, m]));
+
+    res.json({
+      events: events.map((e) => ({
+        ...e.toJSON(),
+        meme: e.type === 'extended' ? (memeByDate.get(e.date)?.image || null) : null
+      }))
+    });
+  } catch (error) {
+    console.error('Get streak events error:', error);
+    res.status(500).json({ error: 'Failed to get streak events' });
+  }
+};
+
+// Отметить события серии показанными — чтобы не вылетали повторно.
+exports.markStreakEventsShown = async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    const { eventIds } = req.body;
+    if (!Array.isArray(eventIds) || eventIds.length === 0) {
+      return res.status(400).json({ error: 'eventIds required' });
+    }
+    await PracticeStreakEvent.update(
+      { shownAt: new Date() },
+      { where: { id: { [Op.in]: eventIds }, studentId, shownAt: null } }
+    );
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('Mark streak events shown error:', error);
+    res.status(500).json({ error: 'Failed to mark streak events shown' });
   }
 };
 

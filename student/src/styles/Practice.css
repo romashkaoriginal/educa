@@ -750,57 +750,8 @@
   font-size: 14px;
 }
 
-.image-upload-field label {
-  display: block;
-  margin-bottom: 6px;
-  font-size: 13px;
-  color: var(--kubik-text-soft);
-}
-.image-upload-dropzone {
-  border: 2px dashed var(--kubik-border);
-  border-radius: 12px;
-  padding: 22px 16px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  cursor: pointer;
-  text-align: center;
-  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out);
-}
-.image-upload-dropzone:hover,
-.image-upload-dropzone.is-dragover {
-  border-color: var(--kubik-blue);
-  background: var(--kubik-blue-soft);
-}
-.image-upload-icon { font-size: 26px; }
-.image-upload-hint { font-size: 14px; color: var(--kubik-text); }
-.image-upload-sub { font-size: 12px; color: var(--kubik-text-soft); }
-
-.image-upload-preview {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.image-upload-preview img {
-  max-width: 100%;
-  max-height: 220px;
-  object-fit: contain;
-  border-radius: 10px;
-  border: 1px solid var(--kubik-border);
-  background: var(--kubik-white);
-  align-self: flex-start;
-}
-.image-upload-preview-actions {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.image-upload-error {
-  margin-top: 6px;
-  color: var(--low);
-  font-size: 13px;
-}
+/* .image-upload-* перенесены в admin-system.css — общие для всех
+   разделов, использующих ImageUploadField (Practice, Memes и др.). */
 
 .question-form-error {
   background: var(--kubik-pink-soft);

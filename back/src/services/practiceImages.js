@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const sharp = require('sharp');
-const { PracticeImage, PracticeQuestion } = require('../models');
+const { PracticeImage, PracticeQuestion, HomeworkQuestion } = require('../models');
 const { Op } = require('sequelize');
 
 // Файловое хранилище (docker volume). Путь можно переопределить через env.
@@ -129,16 +129,29 @@ async function processAndStore(buffer) {
  * Удаляет изображение, только если на него больше не ссылается ни один вопрос
  * (ни как условие, ни как подсказка) — ТЗ §5.4.
  */
-async function deleteImageIfOrphan(imageId, { excludeQuestionId } = {}) {
+async function deleteImageIfOrphan(imageId, {
+  // Совместимость с уже существующими вызовами из практики.
+  excludeQuestionId,
+  excludePracticeQuestionId,
+  excludeHomeworkQuestionId
+} = {}) {
   if (!imageId) return;
-  const where = {
+  const practiceWhere = {
     [Op.or]: [{ questionImageId: imageId }, { hintImageId: imageId }]
   };
-  if (excludeQuestionId) {
-    where.id = { [Op.ne]: excludeQuestionId };
+  const practiceQuestionId = excludePracticeQuestionId ?? excludeQuestionId;
+  if (practiceQuestionId) {
+    practiceWhere.id = { [Op.ne]: practiceQuestionId };
   }
-  const stillUsed = await PracticeQuestion.count({ where });
-  if (stillUsed > 0) return;
+  const homeworkWhere = { questionImageId: imageId };
+  if (excludeHomeworkQuestionId) {
+    homeworkWhere.id = { [Op.ne]: excludeHomeworkQuestionId };
+  }
+  const [practiceUseCount, homeworkUseCount] = await Promise.all([
+    PracticeQuestion.count({ where: practiceWhere }),
+    HomeworkQuestion.count({ where: homeworkWhere })
+  ]);
+  if (practiceUseCount > 0 || homeworkUseCount > 0) return;
 
   const image = await PracticeImage.findByPk(imageId);
   if (!image) return;

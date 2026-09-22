@@ -15,6 +15,7 @@ function formatStreamDate(iso) {
 }
 
 export function StreamScreen({ source, hostWindow, onClose }) {
+  const isStandaloneLeaderboard = !source.lessonQuizId;
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [clock, setClock] = useState(Date.now());
@@ -54,7 +55,9 @@ export function StreamScreen({ source, hostWindow, onClose }) {
         const path = source.lessonQuizId ? `/lesson-admin/quizzes/${source.lessonQuizId}/stream`
           : `/lesson-admin/stream/weekly?${weeklyQuery}`;
         const response = await adminFetch(`${API_URL}${path}`, { signal: controller.signal });
-        if (!response.ok) throw new Error(response.status === 403 ? 'Нет доступа к трансляции' : 'Связь прервана. Восстанавливаем…');
+        if (!response.ok) throw new Error(response.status === 403
+          ? (isStandaloneLeaderboard ? 'Нет доступа к лидерборду' : 'Нет доступа к трансляции')
+          : 'Связь прервана. Восстанавливаем…');
         const next = await response.json();
         if (stopped) return;
         offset.current = (next.serverNow || Date.now()) - Date.now();
@@ -68,7 +71,7 @@ export function StreamScreen({ source, hostWindow, onClose }) {
     };
     refresh();
     return () => { stopped = true; controller.abort(); hostWindow.clearTimeout(timer); };
-  }, [source, hostWindow, revision]);
+  }, [source, hostWindow, revision, isStandaloneLeaderboard]);
   useEffect(() => {
     const timer = hostWindow.setInterval(() => setClock(Date.now() + offset.current), 200);
     return () => hostWindow.clearInterval(timer);
@@ -146,7 +149,7 @@ export function StreamScreen({ source, hostWindow, onClose }) {
     </header>
     {error && <p className="stream-error" role="status">{error}</p>}
     {actionError && <p className="stream-error" role="alert">{actionError}</p>}
-    {!data ? <div className="stream-empty" role="status">Загружаем трансляцию…</div> : <>
+    {!data ? <div className="stream-empty" role="status">{isStandaloneLeaderboard ? 'Загружаем лидерборд…' : 'Загружаем трансляцию…'}</div> : <>
       <div className="stream-heading"><div>
         {['leaderboard', 'question'].includes(phase) && <p>{phase === 'leaderboard' ? (data.questionIndex >= 0 ? `Итоги вопроса ${data.questionIndex + 1}` : 'Текущий рейтинг') : `Вопрос ${data.questionIndex + 1} из ${data.totalQuestions}`}</p>}
         <h1>{phase === 'weekly' ? <>Лидеры <em>предмета</em></> : phase === 'finished' ? <>Итоги <em>викторины</em></> : phase === 'leaderboard' ? <>Рейтинг <em>викторины</em></> : data.title}</h1>
@@ -167,8 +170,8 @@ export function StreamScreen({ source, hostWindow, onClose }) {
       </section> : phase === 'lobby' ? <div className="stream-lobby"><div className="stream-lobby-count"><strong>{data.participantCount}</strong><p>участников</p></div><span>Ожидаем запуска</span></div>
         : <StreamLeaderboard key={`${phase}-${data.questionIndex ?? ''}`} entries={data.leaderboard} />}
     </>}
-    {onClose && <nav className="stream-control-bar" aria-label="Управление трансляцией">
-      <button onClick={onClose}>К управлению занятием</button>
+    {onClose && <nav className="stream-control-bar" aria-label={isStandaloneLeaderboard ? 'Действия лидерборда' : 'Управление трансляцией'}>
+      <button onClick={onClose}>{isStandaloneLeaderboard ? 'Закрыть лидерборд' : 'К управлению занятием'}</button>
       {source.lessonQuizId && data?.status === 'active' && <>
         {phase === 'lobby' && <button disabled={busy} onClick={() => action('show-question')}>Показать первый вопрос →</button>}
         {phase === 'question' && <button disabled={busy} onClick={() => action('show-answer')}>Закрыть ответы · показать рейтинг</button>}
@@ -205,7 +208,8 @@ export default function StreamPresentation({ source, hostWindow, onClose }) {
     const timer = setInterval(() => { if (hostWindow.closed) onClose(); }, 500);
     return () => { clearInterval(timer); if (!hostWindow.closed) hostWindow.close(); };
   }, [hostWindow, onClose]);
-  if (!hostWindow) return createPortal(<dialog ref={dialog} className="stream-inline-dialog" aria-label="Экран трансляции" onCancel={event => { event.preventDefault(); onClose(); }}>
+  const dialogLabel = source.lessonQuizId ? 'Экран трансляции' : 'Лидерборд';
+  if (!hostWindow) return createPortal(<dialog ref={dialog} className="stream-inline-dialog" aria-label={dialogLabel} onCancel={event => { event.preventDefault(); onClose(); }}>
     <StreamScreen source={source} hostWindow={window} onClose={onClose} />
   </dialog>, document.body);
   return createPortal(<StreamScreen source={source} hostWindow={hostWindow} />, hostWindow.document.body);
