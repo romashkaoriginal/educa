@@ -17,7 +17,8 @@ const {
   isMondayReportDue,
   isMonthlyReportDue,
   getNextWeeklyReportAt,
-  getNextMonthlyReportAt
+  getNextMonthlyReportAt,
+  getReportPeriod
 } = require('../src/services/parentReportScheduler');
 const { normalizeTelegramId, normalizeTelegramUsername } = require('../src/services/parentIdentity');
 
@@ -69,6 +70,12 @@ test('forced monthly period covers exactly the last 30 calendar days', () => {
   const period = getForcedPeriod('monthly', new Date('2026-09-10T10:00:00.000Z'));
   assert.equal(period.startDate, '2026-08-12');
   assert.equal(period.endDate, '2026-09-10');
+});
+
+test('scheduled monthly period also covers the last 30 calendar days', () => {
+  const period = getReportPeriod('monthly', new Date('2026-09-07T15:00:00.000Z'), false);
+  assert.equal(period.startDate, '2026-08-09');
+  assert.equal(period.endDate, '2026-09-07');
 });
 
 test('report period starts at access date when the child has had access for less than 30 days', () => {

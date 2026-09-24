@@ -3,7 +3,6 @@ const { sendTelegramMessage } = require('./telegramDelivery');
 const {
   buildReportMessages,
   getForcedPeriod,
-  getPreviousMonthPeriod,
   getPreviousWeekPeriod,
   getManagerContactKeyboard,
   isSubjectAccessActive,
@@ -60,8 +59,12 @@ function getNextReportSchedule(now = new Date()) {
 }
 
 function getReportPeriod(reportType, now, force) {
+  // Месячный отчёт всегда означает последние 30 дней, независимо от того,
+  // отправлен ли он вручную или планировщиком. Календарный месяц здесь
+  // искажал статистику ребёнка, подключённого в середине месяца.
+  if (reportType === 'monthly') return getForcedPeriod(reportType, now);
   if (force) return getForcedPeriod(reportType, now);
-  return reportType === 'monthly' ? getPreviousMonthPeriod(now) : getPreviousWeekPeriod(now);
+  return getPreviousWeekPeriod(now);
 }
 
 function reportPreparationError(message, status) {
@@ -298,6 +301,7 @@ module.exports = {
   getNextWeeklyReportAt,
   getNextMonthlyReportAt,
   getNextReportSchedule,
+  getReportPeriod,
   prepareParentReport,
   sendPreparedParentReport,
   processParent,
