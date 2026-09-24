@@ -69,6 +69,8 @@ function Parents({ currentUser, dataRefreshKey = 0 }) {
   const [reportSchedule, setReportSchedule] = useState(null);
   const [sendingReport, setSendingReport] = useState(null);
   const [reportResult, setReportResult] = useState('');
+  const [reportError, setReportError] = useState('');
+  const [reportPreview, setReportPreview] = useState(null);
   const { confirmDelete, ConfirmDeleteDialog } = useConfirmDelete();
 
   const loadData = useCallback(async () => {
@@ -95,6 +97,15 @@ function Parents({ currentUser, dataRefreshKey = 0 }) {
 
   useEffect(() => { loadData(); }, [loadData]);
   useSectionRefresh(dataRefreshKey, loadData);
+
+  useEffect(() => {
+    if (!reportPreview) return undefined;
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape' && !sendingReport) setReportPreview(null);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [reportPreview, sendingReport]);
 
   // Ученики, уже привязанные к ДРУГИМ родителям — их нельзя выбрать повторно.
   // Дети текущего редактируемого родителя сюда не попадают (они не "заняты" им же).
@@ -215,20 +226,39 @@ function Parents({ currentUser, dataRefreshKey = 0 }) {
     await loadData();
   };
 
-  const sendReport = async (reportType) => {
-    setSendingReport(reportType);
+  const openReportPreview = async (parent, reportType) => {
+    setSendingReport({ parentId: parent.id, reportType, stage: 'preview' });
     setReportResult('');
+    setReportError('');
     try {
-      const response = await adminFetch(`${API_URL}/parents/reports/${reportType}/send`, { method: 'POST' });
+      const response = await adminFetch(`${API_URL}/parents/${parent.id}/reports/${reportType}/preview`, { method: 'POST' });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'Не удалось отправить отчёты');
-      const sent = Number(data.statuses?.sent || 0);
-      const failed = Number(data.statuses?.failed || 0);
-      const skipped = Number(data.processed || 0) - sent - failed;
-      setReportResult(`Отправлено: ${sent}${skipped > 0 ? `, пропущено: ${skipped}` : ''}${failed > 0 ? `, ошибок: ${failed}` : ''}`);
+      if (!response.ok) throw new Error(data.message || 'Не удалось подготовить предпросмотр');
+      setReportPreview(data);
+    } catch (error) {
+      setReportError(error.message);
+    } finally {
+      setSendingReport(null);
+    }
+  };
+
+  const confirmReport = async () => {
+    if (!reportPreview) return;
+    setSendingReport({ parentId: reportPreview.parent.id, reportType: reportPreview.reportType, stage: 'send' });
+    setReportError('');
+    try {
+      const response = await adminFetch(`${API_URL}/parents/${reportPreview.parent.id}/reports/${reportPreview.reportType}/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ previewToken: reportPreview.previewToken })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Не удалось отправить отчёт');
+      setReportResult(`Отчёт отправлен: ${data.messageCount || reportPreview.messages.length} сообщ.`);
+      setReportPreview(null);
       await loadData();
     } catch (error) {
-      alert(error.message);
+      setReportError(error.message);
     } finally {
       setSendingReport(null);
     }
@@ -246,26 +276,6 @@ function Parents({ currentUser, dataRefreshKey = 0 }) {
           <h2>Родители ({filteredParents.length})</h2>
         </div>
         <div className="parents-header-actions">
-          {canSendManualReports && (
-            <div className="manual-report-actions" aria-label="Ручная отправка отчётов">
-              <button
-                type="button"
-                className="btn-secondary manual-report-button"
-                onClick={() => sendReport('weekly')}
-                disabled={Boolean(sendingReport)}
-              >
-                {sendingReport === 'weekly' ? 'Отправляем…' : 'Отправить отчёт за неделю'}
-              </button>
-              <button
-                type="button"
-                className="btn-secondary manual-report-button"
-                onClick={() => sendReport('monthly')}
-                disabled={Boolean(sendingReport)}
-              >
-                {sendingReport === 'monthly' ? 'Отправляем…' : 'Отправить отчёт за месяц'}
-              </button>
-            </div>
-          )}
           <button type="button" className="add-button" onClick={openCreate} disabled={!students.length}>
             + Добавить родителя
           </button>
@@ -273,6 +283,7 @@ function Parents({ currentUser, dataRefreshKey = 0 }) {
       </div>
 
       {reportResult && <p className="parent-report-result" role="status">{reportResult}</p>}
+      {reportError && !reportPreview && <p className="parent-report-result parent-report-error" role="alert">{reportError}</p>}
 
       <div className="parent-schedule-grid" aria-label="Ближайшие автоматические отчёты">
         <div className="parent-schedule-card">
@@ -346,6 +357,16 @@ function Parents({ currentUser, dataRefreshKey = 0 }) {
                     {reportStatusLabel(report)}
                   </strong>
                 </div>
+                {canSendManualReports && (
+                  <div className="manual-report-actions parent-report-actions" aria-label={`Ручная отправка отчёта для ${[parent.firstName, parent.lastName].filter(Boolean).join(' ') || 'родителя'}`}>
+                    <button type="button" className="btn-secondary manual-report-button" onClick={() => openReportPreview(parent, 'weekly')} disabled={Boolean(sendingReport)}>
+                      {sendingReport?.parentId === parent.id && sendingReport?.reportType === 'weekly' && sendingReport?.stage === 'preview' ? 'Готовим…' : 'Отправить отчёт за неделю'}
+                    </button>
+                    <button type="button" className="btn-secondary manual-report-button" onClick={() => openReportPreview(parent, 'monthly')} disabled={Boolean(sendingReport)}>
+                      {sendingReport?.parentId === parent.id && sendingReport?.reportType === 'monthly' && sendingReport?.stage === 'preview' ? 'Готовим…' : 'Отправить отчёт за месяц'}
+                    </button>
+                  </div>
+                )}
                 <div className="parent-actions">
                   <button type="button" className="btn-secondary" onClick={() => openEdit(parent)}>Редактировать</button>
                   <button type="button" className="btn-danger" onClick={() => deleteParent(parent)}>Удалить</button>
@@ -424,6 +445,34 @@ function Parents({ currentUser, dataRefreshKey = 0 }) {
                 <button type="submit" className="btn-primary" disabled={saving}>{saving ? 'Сохраняем…' : 'Сохранить'}</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {reportPreview && (
+        <div className="modal-overlay" onClick={() => !sendingReport && setReportPreview(null)}>
+          <div className="modal-content parent-modal report-preview-modal" role="dialog" aria-modal="true" aria-labelledby="report-preview-title" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-header">
+              <h2 id="report-preview-title">Предпросмотр {reportPreview.reportType === 'monthly' ? 'месячного' : 'недельного'} отчёта</h2>
+              <button type="button" className="modal-close" onClick={() => setReportPreview(null)} disabled={Boolean(sendingReport)} aria-label="Закрыть">✕</button>
+            </div>
+            <div className="report-preview-body">
+              <p>Получатель: <strong>{[reportPreview.parent.firstName, reportPreview.parent.lastName].filter(Boolean).join(' ') || 'Родитель'}</strong></p>
+              <p className="parent-form-note">Ниже — все сообщения в том виде, в котором они будут отправлены в Telegram. Последнее сообщение также получит кнопку связи с менеджером.</p>
+              <div className="report-preview-messages" aria-label="Текст отчёта">
+                {reportPreview.messages.map((message, index) => (
+                  <article className="report-preview-message" key={`${index}-${message.slice(0, 40)}`}>
+                    <span>Сообщение {index + 1} из {reportPreview.messages.length}</span>
+                    <div dangerouslySetInnerHTML={{ __html: message.replace(/\n/g, '<br />') }} />
+                  </article>
+                ))}
+              </div>
+              {reportError && <p className="report-preview-error" role="alert">{reportError}</p>}
+              <div className="modal-actions report-preview-actions">
+                <button type="button" className="btn-secondary" onClick={() => setReportPreview(null)} disabled={Boolean(sendingReport)}>Отмена</button>
+                <button type="button" className="btn-primary" onClick={confirmReport} disabled={Boolean(sendingReport)}>{sendingReport?.stage === 'send' ? 'Отправляем…' : 'Подтвердить и отправить'}</button>
+              </div>
+            </div>
           </div>
         </div>
       )}

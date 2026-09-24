@@ -1,6 +1,7 @@
 const { Parent, ParentReportLog, ParentStudent, Subject, User } = require('../models');
 const { deactivateGuestForParent, resolveParentIdentity } = require('../services/parentIdentity');
-const { sendParentReports, getNextReportSchedule } = require('../services/parentReportScheduler');
+const { sendParentReports, getNextReportSchedule, prepareParentReport, sendPreparedParentReport } = require('../services/parentReportScheduler');
+const { createParentReportPreviewToken, readParentReportPreviewToken } = require('../services/parentReportPreview');
 const { sendTelegramMessage } = require('../services/telegramDelivery');
 
 const parentInclude = [{
@@ -114,6 +115,52 @@ exports.sendReports = async (req, res) => {
     });
   } catch (error) {
     return handleParentError(res, error, 'Send parent reports error');
+  }
+};
+
+exports.previewReportForParent = async (req, res) => {
+  try {
+    const reportType = req.params.reportType;
+    if (!['weekly', 'monthly'].includes(reportType)) return res.status(400).json({ message: 'Неизвестный тип отчёта' });
+    const parent = await Parent.findByPk(req.params.parentId, { include: parentInclude });
+    if (!parent) return res.status(404).json({ message: 'Родитель не найден' });
+    const prepared = await prepareParentReport(parent, { reportType, force: true });
+    const previewToken = createParentReportPreviewToken({ parentId: parent.id, reportType, period: prepared.period, messages: prepared.messages, telegramId: parent.telegramId });
+    return res.json({
+      parent: { id: parent.id, firstName: parent.firstName, lastName: parent.lastName },
+      reportType,
+      period: { startDate: prepared.period.startDate, endDate: prepared.period.endDate },
+      messages: prepared.messages,
+      previewToken
+    });
+  } catch (error) {
+    return handleParentError(res, error, 'Preview parent report error');
+  }
+};
+
+exports.confirmReportForParent = async (req, res) => {
+  try {
+    const reportType = req.params.reportType;
+    if (!['weekly', 'monthly'].includes(reportType)) return res.status(400).json({ message: 'Неизвестный тип отчёта' });
+    const preview = readParentReportPreviewToken(req.body?.previewToken);
+    if (preview.parentId !== Number(req.params.parentId) || preview.reportType !== reportType) {
+      return res.status(400).json({ message: 'Предпросмотр не соответствует выбранному родителю или типу отчёта' });
+    }
+    const parent = await Parent.findByPk(req.params.parentId, { include: parentInclude });
+    if (!parent) return res.status(404).json({ message: 'Родитель не найден' });
+    if (!parent.telegramId || String(parent.telegramId) !== preview.telegramId) {
+      return res.status(409).json({ message: 'Данные родителя изменились. Откройте предпросмотр заново.' });
+    }
+    const { getBot } = require('../bot');
+    const bot = getBot();
+    if (!bot) return res.status(503).json({ message: 'Telegram-бот не запущен' });
+    const log = await sendPreparedParentReport(parent, {
+      bot, reportType, period: preview.period, messages: preview.messages, firstStudentId: parent.students?.[0]?.id ?? null
+    });
+    if (log.status !== 'sent') return res.status(502).json({ message: log.error || 'Не удалось отправить отчёт', status: log.status });
+    return res.json({ message: 'Отчёт отправлен', messageCount: log.messageCount, status: log.status });
+  } catch (error) {
+    return handleParentError(res, error, 'Confirm parent report error');
   }
 };
 
