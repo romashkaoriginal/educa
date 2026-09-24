@@ -6,6 +6,8 @@ const router = express.Router();
 router.get('/', parentController.getAllParents);
 router.get('/report-logs', parentController.getReportLogs);
 router.post('/reports/:reportType/send', parentController.sendReports);
+router.post('/:parentId/reports/:reportType/preview', parentController.previewReportForParent);
+router.post('/:parentId/reports/:reportType/send', parentController.confirmReportForParent);
 router.post('/', parentController.createParent);
 router.put('/:parentId', parentController.updateParent);
 router.delete('/:parentId', parentController.deleteParent);

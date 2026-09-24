@@ -45,6 +45,10 @@ beforeEach(() => {
         ]
       });
     }
+    if (url.endsWith('/parents/10/reports/weekly/preview') && options.method === 'POST') {
+      return response({ parent: { id: 10, firstName: 'Анна' }, reportType: 'weekly', period: { startDate: '2026-09-08', endDate: '2026-09-14' }, messages: ['📊 <b>Еженедельный отчёт</b>\nРешено задач: <b>7</b>'], previewToken: 'signed-preview-token' });
+    }
+    if (url.endsWith('/parents/10/reports/weekly/send') && options.method === 'POST') return response({ message: 'Отчёт отправлен', messageCount: 1, status: 'sent' });
     return response({});
   });
 });
@@ -73,7 +77,7 @@ test('показывает связь с учеником и создаёт ро
   });
 });
 
-test('менеджер принудительно отправляет недельный отчёт', async () => {
+test('менеджер просматривает и подтверждает недельный отчёт конкретного родителя', async () => {
   render(<Parents currentUser={{ role: 'manager' }} />);
 
   const button = await screen.findByRole('button', { name: 'Отправить отчёт за неделю' });
@@ -81,10 +85,20 @@ test('менеджер принудительно отправляет неде�
 
   await waitFor(() => {
     expect(adminFetch).toHaveBeenCalledWith(
-      expect.stringMatching(/\/parents\/reports\/weekly\/send$/),
+      expect.stringMatching(/\/parents\/10\/reports\/weekly\/preview$/),
       { method: 'POST' }
     );
   });
+  expect(await screen.findByRole('dialog', { name: 'Предпросмотр недельного отчёта' })).toBeInTheDocument();
+  expect(screen.getByText('7')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Подтвердить и отправить' }));
+  await waitFor(() => {
+    expect(adminFetch).toHaveBeenCalledWith(
+      expect.stringMatching(/\/parents\/10\/reports\/weekly\/send$/),
+      expect.objectContaining({ method: 'POST', body: JSON.stringify({ previewToken: 'signed-preview-token' }) })
+    );
+  });
+  expect(await screen.findByText('Отчёт отправлен: 1 сообщ.')).toBeInTheDocument();
 });
 
 test('преподаватель не видит кнопки принудительной отправки', async () => {

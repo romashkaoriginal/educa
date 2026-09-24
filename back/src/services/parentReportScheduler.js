@@ -63,6 +63,87 @@ function getReportPeriod(reportType, now, force) {
   return reportType === 'monthly' ? getPreviousMonthPeriod(now) : getPreviousWeekPeriod(now);
 }
 
+function reportPreparationError(message, status) {
+  const error = new Error(message);
+  error.reportStatus = status;
+  return error;
+}
+
+// Единственный генератор содержимого родительского отчёта. Его используют
+// расписание, предпросмотр и ручная отправка, поэтому данные и текст не
+// расходятся между экраном подтверждения и Telegram.
+async function prepareParentReport(parent, { now = new Date(), reportType = 'weekly', force = false } = {}) {
+  const period = getReportPeriod(reportType, now, force);
+  const students = parent.students || [];
+  if (!parent.telegramId) {
+    throw reportPreparationError('Родитель ещё не подтвердил Telegram ID через бота', 'skipped_no_telegram');
+  }
+  if (!students.length) {
+    throw reportPreparationError('К родителю не привязан ни один ученик', 'skipped_no_access');
+  }
+
+  const studentsWithSubjects = students
+    .filter((student) => student.isActive)
+    .map((student) => ({
+      student,
+      activeSubjects: (student.subjects || []).filter((subject) => isSubjectAccessActive(subject, now))
+    }))
+    .filter(({ activeSubjects }) => activeSubjects.length > 0);
+  if (!studentsWithSubjects.length) {
+    throw reportPreparationError('Ни у одного ученика нет активного доступа', 'skipped_no_access');
+  }
+
+  const messages = [];
+  for (const { student, activeSubjects } of studentsWithSubjects) {
+    const result = await buildReportMessages({ student, subjects: activeSubjects, reportType, now });
+    messages.push(...result.messages);
+  }
+  return { period, messages, firstStudentId: students[0]?.id ?? null };
+}
+
+async function deliverPreparedReport(parent, { bot, reportType, period, messages, log }) {
+  try {
+    let sentCount = 0;
+    for (const [index, text] of messages.entries()) {
+      const result = await sendTelegramMessage({
+        bot,
+        chatId: parent.telegramId,
+        text,
+        options: {
+          parse_mode: 'HTML',
+          ...(index === messages.length - 1 ? { reply_markup: getManagerContactKeyboard() } : {})
+        },
+        recipient: parent,
+        notificationKind: `parent_${reportType}_report`,
+        context: { parentId: parent.id, reportType, periodStart: period.startDate }
+      });
+      if (!result.ok) throw new Error(result.reason || 'Не удалось отправить сообщение');
+      sentCount += 1;
+    }
+    await log.update({ status: 'sent', messageCount: sentCount, sentAt: new Date(), error: null });
+  } catch (error) {
+    await log.update({ status: 'failed', error: String(error.message || error).slice(0, 2000) });
+  }
+  return log;
+}
+
+async function getManualReportLog(parent, { reportType, period, firstStudentId }) {
+  const [log, created] = await ParentReportLog.findOrCreate({
+    where: { parentId: parent.id, reportType, periodStart: period.startDate },
+    defaults: { studentId: firstStudentId, periodEnd: period.endDate, status: 'processing' }
+  });
+  if (!created) {
+    await log.update({ studentId: firstStudentId, periodEnd: period.endDate, status: 'processing', messageCount: 0, sentAt: null, error: null });
+  }
+  return log;
+}
+
+// Отправляет уже подготовленный и подтверждённый снимок, а не пересчитывает статистику.
+async function sendPreparedParentReport(parent, { bot, reportType, period, messages, firstStudentId }) {
+  const log = await getManualReportLog(parent, { reportType, period, firstStudentId });
+  return deliverPreparedReport(parent, { bot, reportType, period, messages, log });
+}
+
 async function processParent(parent, { bot, now = new Date(), reportType = 'weekly', force = false }) {
   const period = getReportPeriod(reportType, now, force);
   const students = parent.students || [];
@@ -92,62 +173,11 @@ async function processParent(parent, { bot, now = new Date(), reportType = 'week
     });
   }
 
-  if (!parent.telegramId) {
-    await log.update({ status: 'skipped_no_telegram', error: 'Родитель ещё не подтвердил Telegram ID через бота' });
-    return log;
-  }
-  if (!students.length) {
-    await log.update({ status: 'skipped_no_access', error: 'К родителю не привязан ни один ученик' });
-    return log;
-  }
-
-  // Для каждого ребёнка отдельно считаем активные предметы. Отчёт пропускаем
-  // целиком, только если НИ у одного ребёнка нет доступа — иначе шлём отчёт
-  // по тем детям, у кого доступ есть, одним потоком сообщений.
-  const studentsWithSubjects = students
-    .filter((student) => student.isActive)
-    .map((student) => ({
-      student,
-      activeSubjects: (student.subjects || []).filter((subject) => isSubjectAccessActive(subject, now))
-    }))
-    .filter(({ activeSubjects }) => activeSubjects.length > 0);
-
-  if (!studentsWithSubjects.length) {
-    await log.update({ status: 'skipped_no_access', error: 'Ни у одного ученика нет активного доступа' });
-    return log;
-  }
-
   try {
-    const allMessages = [];
-    for (const { student, activeSubjects } of studentsWithSubjects) {
-      const { messages } = await buildReportMessages({
-        student,
-        subjects: activeSubjects,
-        reportType,
-        now
-      });
-      allMessages.push(...messages);
-    }
-    let sentCount = 0;
-    for (const [index, text] of allMessages.entries()) {
-      const result = await sendTelegramMessage({
-        bot,
-        chatId: parent.telegramId,
-        text,
-        options: {
-          parse_mode: 'HTML',
-          ...(index === allMessages.length - 1 ? { reply_markup: getManagerContactKeyboard() } : {})
-        },
-        recipient: parent,
-        notificationKind: `parent_${reportType}_report`,
-        context: { parentId: parent.id, reportType, periodStart: period.startDate }
-      });
-      if (!result.ok) throw new Error(result.reason || 'Не удалось отправить сообщение');
-      sentCount += 1;
-    }
-    await log.update({ status: 'sent', messageCount: sentCount, sentAt: new Date(), error: null });
+    const prepared = await prepareParentReport(parent, { now, reportType, force });
+    return deliverPreparedReport(parent, { bot, reportType, period: prepared.period, messages: prepared.messages, log });
   } catch (error) {
-    await log.update({ status: 'failed', error: String(error.message || error).slice(0, 2000) });
+    await log.update({ status: error.reportStatus || 'failed', error: String(error.message || error).slice(0, 2000) });
   }
   return log;
 }
@@ -254,6 +284,8 @@ module.exports = {
   getNextWeeklyReportAt,
   getNextMonthlyReportAt,
   getNextReportSchedule,
+  prepareParentReport,
+  sendPreparedParentReport,
   processParent,
   sendParentReports,
   retryMissedReportsAfterTelegramConfirmation,
