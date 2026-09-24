@@ -7,6 +7,7 @@ const {
   getPreviousWeekPeriod,
   getManagerContactKeyboard,
   isSubjectAccessActive,
+  clipReportPeriodToSubjectAccess,
   minskDateParts
 } = require('./parentWeeklyReport');
 
@@ -84,18 +85,31 @@ async function prepareParentReport(parent, { now = new Date(), reportType = 'wee
 
   const studentsWithSubjects = students
     .filter((student) => student.isActive)
-    .map((student) => ({
-      student,
-      activeSubjects: (student.subjects || []).filter((subject) => isSubjectAccessActive(subject, now))
-    }))
-    .filter(({ activeSubjects }) => activeSubjects.length > 0);
+    .map((student) => {
+      const subjectPeriods = (student.subjects || [])
+        .filter((subject) => isSubjectAccessActive(subject, now))
+        .map((subject) => ({ subject, period: clipReportPeriodToSubjectAccess(period, subject) }))
+        .filter(({ period: subjectPeriod }) => subjectPeriod);
+      const studentPeriod = subjectPeriods.reduce((earliest, item) => (
+        !earliest || item.period.startUtc < earliest.startUtc ? item.period : earliest
+      ), null);
+      return { student, subjectPeriods, studentPeriod };
+    })
+    .filter(({ subjectPeriods }) => subjectPeriods.length > 0);
   if (!studentsWithSubjects.length) {
     throw reportPreparationError('Ни у одного ученика нет активного доступа', 'skipped_no_access');
   }
 
   const messages = [];
-  for (const { student, activeSubjects } of studentsWithSubjects) {
-    const result = await buildReportMessages({ student, subjects: activeSubjects, reportType, now });
+  for (const { student, subjectPeriods, studentPeriod } of studentsWithSubjects) {
+    const result = await buildReportMessages({
+      student,
+      subjects: subjectPeriods.map(({ subject }) => subject),
+      subjectPeriods,
+      period: studentPeriod,
+      reportType,
+      now
+    });
     messages.push(...result.messages);
   }
   return { period, messages, firstStudentId: students[0]?.id ?? null };
