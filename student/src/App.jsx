@@ -13,6 +13,18 @@ import { API_URL, SOCKET_URL } from './config';
 import { apiFetch, getTelegramInitData } from './pages/api';
 import { collectUtm, storeUtm } from './utils/utm';
 
+// Telegram Desktop обновляет bridge отдельно от WebView. Методы, которые есть
+// в одном клиенте, могут отсутствовать или бросать исключение в другом; сбой
+// bridge не должен оставлять Mini App на вечной загрузке.
+function safeTelegramCall(callback) {
+  try {
+    const result = callback();
+    Promise.resolve(result).catch(() => {});
+  } catch (_) {
+    // Необязательная функция Telegram bridge недоступна в этом клиенте.
+  }
+}
+
 function App() {
   const [selectedRole, setSelectedRole] = useState(null);
   const [userRole, setUserRole] = useState(null);
@@ -27,7 +39,7 @@ function App() {
     for (let attempt = 0; attempt < attempts; attempt += 1) {
       const user = tg?.initDataUnsafe?.user;
       if (user?.id && tg?.initData) return user;
-      if (attempt === 0) tg?.ready?.();
+      if (attempt === 0) safeTelegramCall(() => tg?.ready?.());
       await new Promise((resolve) => setTimeout(resolve, 150));
     }
     return null;
@@ -49,8 +61,8 @@ function App() {
         const user = await waitForTelegramUser(tg);
         if (cancelled) return;
         setIsTelegramWebApp(true);
-        tg.ready();
-        tg.expand();
+        safeTelegramCall(() => tg.ready?.());
+        safeTelegramCall(() => tg.expand?.());
 
         const utm = collectUtm();
         if (utm?.utmSource) {
@@ -62,7 +74,7 @@ function App() {
         }
 
         // Скрываем кнопку "назад"
-        tg.BackButton.hide();
+        safeTelegramCall(() => tg.BackButton?.hide?.());
 
         // ОТКЛЮЧАЕМ вертикальные свайпы чтобы не закрывалась
         Promise.resolve(tg.disableVerticalSwipes?.()).catch(() => {});

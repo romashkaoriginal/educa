@@ -131,7 +131,7 @@ export function StudentAppContent({ selectedStudent, isGuest = false, applicatio
   };
 
   const tabs = [
-    { id: 'practice', name: 'Практика', icon: '💪' },
+    { id: 'practice', name: 'Тесты', icon: '💪' },
     { id: 'homework', name: 'Домашка', icon: '📝', locked: isGuest },
     { id: 'lesson', name: 'Занятие', icon: '🎓', locked: isGuest },
     { id: 'stats', name: 'Статистика', icon: '📊' },

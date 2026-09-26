@@ -156,6 +156,23 @@ function isSubjectAccessActive(subject, now = new Date()) {
   return true;
 }
 
+// Отчёт не должен рассказывать о времени до начала обучения. Храним точное
+// время начала для запросов, а в заголовке используем календарную дату Minsk.
+function clipReportPeriodToSubjectAccess(period, subject) {
+  const accessStart = subject?.UserSubject?.accessStartDate;
+  if (!accessStart) return { ...period };
+
+  const accessStartUtc = new Date(accessStart);
+  if (Number.isNaN(accessStartUtc.getTime()) || accessStartUtc <= period.startUtc) return { ...period };
+  if (accessStartUtc >= period.endExclusiveUtc) return null;
+
+  return {
+    ...period,
+    startDate: minskDateParts(accessStartUtc).date,
+    startUtc: accessStartUtc
+  };
+}
+
 function submissionPercent(submission) {
   const maxScore = Number(submission?.maxScore || 0);
   if (maxScore <= 0) return 0;
@@ -434,8 +451,8 @@ function formatSubjectReport(subject, report, { reportType = 'weekly', days = 7 
   ].join('\n');
 }
 
-async function buildReportMessages({ student, subjects, reportType = 'weekly', now = new Date() }) {
-  const period = reportType === 'monthly' ? getPreviousMonthPeriod(now) : getPreviousWeekPeriod(now);
+async function buildReportMessages({ student, subjects, subjectPeriods, period: requestedPeriod, reportType = 'weekly', now = new Date() }) {
+  const period = requestedPeriod || (reportType === 'monthly' ? getPreviousMonthPeriod(now) : getPreviousWeekPeriod(now));
   const schedulePeriod = reportType === 'monthly'
     ? getUpcomingMonthSchedulePeriod(now)
     : getUpcomingWeekSchedulePeriod(now);
@@ -444,18 +461,19 @@ async function buildReportMessages({ student, subjects, reportType = 'weekly', n
   const messages = [
     `📊 <b>${title}</b>\nУченик: <b>${escapeHtml(studentName)}</b>\nПериод: ${formatDateRange(period.startDate, period.endDate)}`
   ];
-  for (const subject of subjects) {
+  const reportsBySubject = subjectPeriods || subjects.map((subject) => ({ subject, period }));
+  for (const { subject, period: subjectPeriod = period } of reportsBySubject) {
     const report = await buildSubjectReport({
       studentId: student.id,
       subject,
-      period,
+      period: subjectPeriod,
       schedulePeriod,
       reportCreatedAt: now,
       includePracticeTopicStrengths: reportType === 'weekly'
     });
     messages.push(...splitTelegramText(formatSubjectReport(subject, report, {
       reportType,
-      days: periodDayCount(period)
+      days: periodDayCount(subjectPeriod)
     })));
   }
   return { period, messages };
@@ -481,6 +499,7 @@ module.exports = {
   getUpcomingWeekSchedulePeriod,
   getUpcomingMonthSchedulePeriod,
   isSubjectAccessActive,
+  clipReportPeriodToSubjectAccess,
   submissionPercent,
   classifyHomework,
   classifyPracticeTopics,

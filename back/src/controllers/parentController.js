@@ -1,6 +1,7 @@
-const { Parent, ParentReportLog, ParentStudent, Subject, User } = require('../models');
+const { Parent, ParentReportDispatchLog, ParentReportLog, ParentStudent, Subject, User } = require('../models');
 const { deactivateGuestForParent, resolveParentIdentity } = require('../services/parentIdentity');
 const { sendParentReports, getNextReportSchedule } = require('../services/parentReportScheduler');
+const { getPreviousMonthPeriod, getPreviousWeekPeriod } = require('../services/parentWeeklyReport');
 const { sendTelegramMessage } = require('../services/telegramDelivery');
 
 const parentInclude = [{
@@ -91,6 +92,24 @@ exports.getAllParents = async (_req, res) => {
   }
 };
 
+function summarizeReportResult(result) {
+  return result.logs.reduce((summary, log) => {
+    summary[log.status] = (summary[log.status] || 0) + 1;
+    return summary;
+  }, {});
+}
+
+function getManualReportTrigger(req, scope) {
+  const user = req.dbUser;
+  if (!user?.id) {
+    const error = new Error('Не удалось определить пользователя, запустившего отправку');
+    error.statusCode = 401;
+    throw error;
+  }
+  const name = [user?.firstName, user?.lastName].filter(Boolean).join(' ') || `Пользователь #${user?.id || 'неизвестен'}`;
+  return { userId: user.id, name, scope };
+}
+
 exports.sendReports = async (req, res) => {
   try {
     const reportType = req.params.reportType;
@@ -100,17 +119,42 @@ exports.sendReports = async (req, res) => {
     const { getBot } = require('../bot');
     const bot = getBot();
     if (!bot) return res.status(503).json({ message: 'Telegram-бот не запущен' });
-
-    const result = await sendParentReports({ bot, reportType, force: true });
-    const statuses = result.logs.reduce((summary, log) => {
-      summary[log.status] = (summary[log.status] || 0) + 1;
-      return summary;
-    }, {});
+    const manualTrigger = getManualReportTrigger(req, 'bulk');
+    console.info(`[Parent reports] Ручная массовая отправка ${reportType}: ${manualTrigger.name} (userId=${manualTrigger.userId ?? 'unknown'})`);
+    const result = await sendParentReports({ bot, reportType, force: true, manualTrigger });
     return res.json({
       message: reportType === 'monthly' ? 'Месячные отчёты обработаны' : 'Недельные отчёты обработаны',
       reportType,
+      period: reportType === 'monthly' ? getPreviousMonthPeriod() : getPreviousWeekPeriod(),
       processed: result.processed,
-      statuses
+      statuses: summarizeReportResult(result)
+    });
+  } catch (error) {
+    return handleParentError(res, error, 'Send parent reports error');
+  }
+};
+
+exports.sendReportToParent = async (req, res) => {
+  try {
+    const parentId = Number(req.params.parentId);
+    if (!Number.isSafeInteger(parentId) || parentId <= 0) return res.status(400).json({ message: 'Некорректный ID родителя' });
+    const reportType = req.params.reportType;
+    if (!['weekly', 'monthly'].includes(reportType)) return res.status(400).json({ message: 'Неизвестный тип отчёта' });
+    const parent = await Parent.findByPk(parentId);
+    if (!parent) return res.status(404).json({ message: 'Родитель не найден' });
+    const { getBot } = require('../bot');
+    const bot = getBot();
+    if (!bot) return res.status(503).json({ message: 'Telegram-бот не запущен' });
+
+    const manualTrigger = getManualReportTrigger(req, 'parent');
+    console.info(`[Parent reports] Ручная отправка ${reportType} родителю #${parent.id}: ${manualTrigger.name} (userId=${manualTrigger.userId ?? 'unknown'})`);
+    const result = await sendParentReports({ bot, reportType, force: true, parentId, manualTrigger });
+    return res.json({
+      message: reportType === 'monthly' ? 'Месячный отчёт обработан' : 'Недельный отчёт обработан',
+      reportType,
+      period: reportType === 'monthly' ? getPreviousMonthPeriod() : getPreviousWeekPeriod(),
+      processed: result.processed,
+      statuses: summarizeReportResult(result)
     });
   } catch (error) {
     return handleParentError(res, error, 'Send parent reports error');
@@ -179,12 +223,11 @@ exports.deleteParent = async (req, res) => {
 
 exports.getReportLogs = async (_req, res) => {
   try {
-    // ParentReportLog теперь считается за родителя целиком (может закрывать
-    // несколько детей за раз) — studentId в логе справочный, первый из детей.
-    const logs = await ParentReportLog.findAll({
+    const logs = await ParentReportDispatchLog.findAll({
       include: [
         { model: Parent, as: 'parent', attributes: ['id', 'firstName', 'lastName', 'telegramUsername', 'telegramId'] },
-        { model: User, as: 'student', attributes: ['id', 'firstName', 'lastName'] }
+        { model: User, as: 'student', attributes: ['id', 'firstName', 'lastName'] },
+        { model: User, as: 'triggeredBy', attributes: ['id', 'firstName', 'lastName', 'role'] }
       ],
       order: [['createdAt', 'DESC']],
       limit: 100

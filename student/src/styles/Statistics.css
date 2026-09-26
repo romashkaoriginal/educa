@@ -104,6 +104,8 @@
   .as-leaderboard-range input[type="date"] { flex: 1 1 120px; min-width: 0; max-width: 100%; }
 }
 
+.as-student-leaderboard-period { margin-top: 8px; }
+
 .search-box {
   margin-bottom: 24px;
 }

@@ -17,6 +17,22 @@ function todayStr() {
   return new Date(now.getTime() - offset * 60000).toISOString().slice(0, 10);
 }
 
+function reactionShare(count, total) {
+  if (!total) return '0%';
+  return `${Math.round((Number(count || 0) / total) * 100)}%`;
+}
+
+function ReactionStat({ emoji, label, count, total }) {
+  return (
+    <span className="meme-reaction-stat" aria-label={`${label}: ${count}, ${reactionShare(count, total)}`}>
+      <span className="meme-reaction-emoji" aria-hidden="true">{emoji}</span>
+      <span>{count}</span>
+      <span aria-hidden="true">·</span>
+      <span>{reactionShare(count, total)}</span>
+    </span>
+  );
+}
+
 function Memes({ dataRefreshKey = 0, isActive = true }) {
   const { confirmDelete, ConfirmDeleteDialog } = useConfirmDelete();
   const [memes, setMemes] = useState([]);
@@ -83,16 +99,18 @@ function Memes({ dataRefreshKey = 0, isActive = true }) {
   return (
     <div className="admin-section memes-section">
       <div className="section-header">
-        <h2>😂 Мемы</h2>
+          <h2><span className="meme-heading-emoji" aria-hidden="true">😂</span> Мемы</h2>
       </div>
 
       <div className="meme-form">
         <label className="quiz-field-label" htmlFor="meme-date">Дата</label>
-        <input id="meme-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} className="form-input" />
+        <div className="meme-date-control">
+          <input id="meme-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} className="form-input" />
+        </div>
         <ImageUploadField label="Картинка" value={image} onChange={setImage} />
         {error && <div className="image-upload-error">{error}</div>}
         <button onClick={save} disabled={saving} className="save-btn">
-          {saving ? 'Сохранение...' : '💾 Сохранить мем на эту дату'}
+          {saving ? 'Сохранение...' : <><span className="meme-button-emoji" aria-hidden="true">💾</span> Сохранить мем на эту дату</>}
         </button>
       </div>
 
@@ -105,7 +123,13 @@ function Memes({ dataRefreshKey = 0, isActive = true }) {
             <div key={meme.id} className="meme-card">
               <img src={imageUrl(meme.image?.storageKey)} alt={`Мем на ${meme.date}`} className="meme-card-image" />
               <div className="meme-card-date">{new Date(meme.date).toLocaleDateString('ru-RU', { day: '2-digit', month: 'long', year: 'numeric' })}</div>
-              <button onClick={() => removeMeme(meme)} className="remove-btn">✕</button>
+              <div className="meme-reaction-stats" aria-label={`Реакции на мем: нравится ${meme.reactionStats?.like || 0}, не нравится ${meme.reactionStats?.dislike || 0}, каменное лицо ${meme.reactionStats?.stone || 0}`}>
+                <ReactionStat emoji="👍" label="Нравится" count={meme.reactionStats?.like || 0} total={meme.reactionStats?.total} />
+                <ReactionStat emoji="👎" label="Не нравится" count={meme.reactionStats?.dislike || 0} total={meme.reactionStats?.total} />
+                <ReactionStat emoji="🗿" label="Каменное лицо" count={meme.reactionStats?.stone || 0} total={meme.reactionStats?.total} />
+                <small>Всего реакций: {meme.reactionStats?.total || 0}</small>
+              </div>
+              <button onClick={() => removeMeme(meme)} className="remove-btn" aria-label={`Удалить мем на ${meme.date}`}>✕</button>
             </div>
           ))}
         </div>

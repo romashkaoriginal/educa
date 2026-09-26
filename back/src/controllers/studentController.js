@@ -1,6 +1,7 @@
 const {
   User, Subject, UserSubject, HomeworkSubmission, HomeworkAnswer,
-  PracticeAttempt, PracticeBest, PracticeDailyLog, BotUser, QuizAnswer, QuizParticipant,
+  PracticeAttempt, PracticeBest, PracticeDailyLog, PracticeStreakHistory, PracticeStreakEvent,
+  BotUser, QuizAnswer, QuizParticipant,
   // Агрегатные таблицы практики — тоже ссылаются на studentId и блокируют удаление
   PracticeQuestionResult, PracticeScoreHistory, PracticeStudentTotals, PracticeDailyStats,
   PracticeTopicTotals, PracticeDifficultyTotals, PracticeModeTotals, PracticeRecentError, Parent, ParentStudent,
@@ -558,6 +559,7 @@ exports.deleteStudent = async (req, res) => {
       //    без них падает FK practice_question_results_studentId_fkey и т.д.)
       const practiceModels = [
         PracticeAttempt, PracticeBest, PracticeDailyLog,
+        PracticeStreakHistory, PracticeStreakEvent,
         PracticeQuestionResult, PracticeScoreHistory, PracticeStudentTotals,
         PracticeDailyStats, PracticeTopicTotals, PracticeDifficultyTotals,
         PracticeModeTotals, PracticeRecentError

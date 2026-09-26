@@ -1292,9 +1292,9 @@ function Practice({ studentId, isTabActive = true, onClose, onActivate }) {
   if (contextLoading.practice && practiceTopics.length === 0) {
     return (
       <div className="section">
-        <h1 className="section-title">Практика</h1>
+        <h1 className="section-title">Тесты</h1>
         <p style={{ textAlign: 'center', color: '#6b7280', padding: '40px' }}>
-          Загрузка практики...
+          Загрузка тестов...
         </p>
       </div>
     );
@@ -1632,7 +1632,7 @@ function Practice({ studentId, isTabActive = true, onClose, onActivate }) {
           <div className="practice-hero-content practice-hero-row">
             <StudentBrandMark variant="hero" />
             <div className="practice-hero-text practice-hero-text--compact">
-              <h1 className="practice-hero-title practice-hero-title--plain">Практика</h1>
+              <h1 className="practice-hero-title practice-hero-title--plain">Тесты</h1>
             </div>
             <HeroMetricHint
               id="streak-list"
@@ -1688,7 +1688,7 @@ function Practice({ studentId, isTabActive = true, onClose, onActivate }) {
         <div className="practice-hero-content practice-hero-row">
           <StudentBrandMark variant="hero" />
           <h1 className="practice-hero-title practice-hero-title--plain">
-            {selectedSubject ? selectedSubject.name : 'Практика'}
+            {selectedSubject ? selectedSubject.name : 'Тесты'}
           </h1>
           {subjectDailyGoal && (
             <div className="hero-goal-col">
@@ -1764,7 +1764,7 @@ function Practice({ studentId, isTabActive = true, onClose, onActivate }) {
             >
               <span className="practice-mode-btn-icon">💪</span>
               <span className="practice-mode-btn-text">
-                <span className="practice-mode-btn-title">Практиковаться</span>
+                <span className="practice-mode-btn-title">Решать тесты</span>
                 <span className="practice-mode-btn-sub">Адаптивная подборка — бесконечно</span>
               </span>
               <span className="practice-mode-btn-arrow">→</span>

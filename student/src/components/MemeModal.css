@@ -66,8 +66,70 @@
 }
 
 .meme-modal-image {
-  width: 100%;
-  max-height: 60vh;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: 60dvh;
   object-fit: contain;
   border-radius: 14px;
+}
+
+.meme-reactions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  width: 100%;
+  gap: 10px;
+}
+
+.meme-reaction-button {
+  min-height: 52px;
+  border: 1px solid var(--kubik-border, #ECEAE5);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--kubik-navy, #1A405F);
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+  transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1), background 160ms ease, border-color 160ms ease;
+}
+
+.meme-reaction-button:hover:not(:disabled),
+.meme-reaction-button:focus-visible {
+  outline: none;
+  border-color: var(--kubik-blue, #337BAE);
+  background: var(--kubik-blue-soft, #EAF3FA);
+}
+
+.meme-reaction-button:active:not(:disabled) { transform: scale(0.96); }
+.meme-reaction-button:disabled:not(.is-selected) { opacity: 0.48; }
+.meme-reaction-button.is-selected { animation: meme-reaction-selected 460ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+@keyframes meme-reaction-selected {
+  0% { transform: scale(1); }
+  42% { transform: scale(1.22); }
+  100% { transform: scale(1); }
+}
+
+.meme-modal-overlay.is-reacting { animation: meme-modal-leave 460ms 40ms ease forwards; }
+@keyframes meme-modal-leave { to { opacity: 0; } }
+
+.meme-reaction-error {
+  margin: -4px 0 0;
+  color: #b13d3d;
+  font-size: 13px;
+  text-align: center;
+}
+
+@media (max-width: 420px) {
+  .meme-modal-overlay { padding: 14px; }
+  .meme-modal { padding: 18px; }
+  .meme-reaction-button { min-height: 50px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .meme-modal-overlay,
+  .meme-modal,
+  .meme-reaction-button.is-selected { animation: none; }
+  .meme-reaction-button { transition: none; }
 }

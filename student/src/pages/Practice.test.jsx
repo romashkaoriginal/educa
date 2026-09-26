@@ -57,7 +57,7 @@ test('отправляет серверу исходный индекс выбр
   apiFetch.mockImplementation(() => okResponse({}));
 
   render(<Practice studentId={7} />);
-  fireEvent.click(await screen.findByRole('button', { name: /Практиковаться/ }));
+  fireEvent.click(await screen.findByRole('button', { name: /Решать тесты/ }));
   await screen.findByText('Тестовый вопрос');
 
   fireEvent.click(screen.getByRole('button', { name: /Второй/ }));

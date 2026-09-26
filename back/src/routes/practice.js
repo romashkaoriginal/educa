@@ -142,6 +142,7 @@ router.get('/streak/:studentId', assertSelfOrStaff('studentId'), practiceControl
 // Непоказанные события серии (продление/обрыв) для всплывающего экрана
 router.get('/streak-events/:studentId', assertSelfOrStaff('studentId'), practiceController.getStreakEvents);
 router.post('/streak-events/:studentId/shown', assertSelfOrStaff('studentId'), practiceController.markStreakEventsShown);
+router.post('/daily-memes/:memeId/reaction', practiceController.reactToDailyMeme);
 
 // Получить вопросы с ошибками
 router.get('/incorrect/:studentId/:topicId', assertSelfOrStaff('studentId'), practiceController.getIncorrectQuestions);

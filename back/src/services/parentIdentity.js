@@ -34,10 +34,17 @@ async function resolveParentIdentity(input) {
     throw error;
   }
 
+  const firstName = String(input.firstName || botUser?.firstName || '').trim();
+  if (!firstName) {
+    const error = new Error('Укажите имя родителя');
+    error.statusCode = 400;
+    throw error;
+  }
+
   return {
     telegramId,
     telegramUsername: canonicalBotUsername || telegramUsername,
-    firstName: String(input.firstName ?? botUser?.firstName ?? '').trim() || null,
+    firstName,
     lastName: String(input.lastName ?? botUser?.lastName ?? '').trim() || null
   };
 }

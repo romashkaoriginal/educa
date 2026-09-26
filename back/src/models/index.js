@@ -52,9 +52,11 @@ const ErrorLog = require('./ErrorLog');
 const HomeworkDraft = require('./HomeworkDraft');
 const Parent = require('./Parent');
 const ParentReportLog = require('./ParentReportLog');
+const ParentReportDispatchLog = require('./ParentReportDispatchLog');
 const ParentStudent = require('./ParentStudent');
 const ProblemReport = require('./ProblemReport');
 const DailyMeme = require('./DailyMeme');
+const DailyMemeReaction = require('./DailyMemeReaction');
 
 // ========== СВЯЗИ С SUBJECTS ==========
 
@@ -89,6 +91,12 @@ Parent.hasMany(ParentReportLog, { foreignKey: 'parentId', as: 'reportLogs' });
 ParentReportLog.belongsTo(Parent, { foreignKey: 'parentId', as: 'parent' });
 User.hasMany(ParentReportLog, { foreignKey: 'studentId', as: 'parentReportLogs' });
 ParentReportLog.belongsTo(User, { foreignKey: 'studentId', as: 'student' });
+ParentReportLog.belongsTo(User, { foreignKey: 'manualTriggeredByUserId', as: 'manualTriggeredBy' });
+ParentReportLog.hasMany(ParentReportDispatchLog, { foreignKey: 'parentReportLogId', as: 'dispatches' });
+ParentReportDispatchLog.belongsTo(ParentReportLog, { foreignKey: 'parentReportLogId', as: 'reportLog' });
+ParentReportDispatchLog.belongsTo(Parent, { foreignKey: 'parentId', as: 'parent' });
+ParentReportDispatchLog.belongsTo(User, { foreignKey: 'studentId', as: 'student' });
+ParentReportDispatchLog.belongsTo(User, { foreignKey: 'triggeredByUserId', as: 'triggeredBy' });
 
 // ========== QUIZ ==========
 Quiz.belongsTo(Subject, { foreignKey: 'subjectId', as: 'subject' });
@@ -170,6 +178,10 @@ User.hasMany(PracticeStreakEvent, { foreignKey: 'studentId', as: 'streakEvents' 
 
 // ========== DAILY MEME ==========
 DailyMeme.belongsTo(PracticeImage, { foreignKey: 'imageId', as: 'image' });
+DailyMeme.hasMany(DailyMemeReaction, { foreignKey: 'dailyMemeId', as: 'reactions' });
+DailyMemeReaction.belongsTo(DailyMeme, { foreignKey: 'dailyMemeId', as: 'meme' });
+DailyMemeReaction.belongsTo(User, { foreignKey: 'studentId', as: 'student' });
+User.hasMany(DailyMemeReaction, { foreignKey: 'studentId', as: 'memeReactions' });
 
 // ========== PRACTICE QUESTION RESULT (для прогнозного балла) ==========
 PracticeQuestionResult.belongsTo(User, { foreignKey: 'studentId', as: 'student' });
@@ -351,12 +363,56 @@ const migrateParentStudentToJoinTable = async () => {
   console.log('✅ parents.studentId migrated 1:1 → parent_students (many-to-many)');
 };
 
+// До появления deliveryKind уникальность отчёта была только по периоду.
+// Поэтому ручная отправка в выходной могла «съесть» плановую в понедельник.
+const migrateParentReportLogDeliveryKind = async () => {
+  const [tables] = await sequelize.query(`SELECT to_regclass('parent_report_logs') AS table_name`);
+  if (!tables[0]?.table_name) return;
+  const [columns] = await sequelize.query(`
+    SELECT column_name FROM information_schema.columns
+    WHERE table_name = 'parent_report_logs' AND column_name = 'deliveryKind'
+  `);
+  if (columns.length === 0) {
+    await sequelize.query(`
+      ALTER TABLE parent_report_logs
+      ADD COLUMN "deliveryKind" VARCHAR(24) NOT NULL DEFAULT 'scheduled'
+    `);
+  }
+
+  const [constraints] = await sequelize.query(`
+    SELECT conname FROM pg_constraint
+    WHERE conrelid = 'parent_report_logs'::regclass
+      AND contype = 'u'
+      AND pg_get_constraintdef(oid) LIKE '%"parentId"%'
+      AND pg_get_constraintdef(oid) LIKE '%"reportType"%'
+      AND pg_get_constraintdef(oid) LIKE '%"periodStart"%'
+      AND pg_get_constraintdef(oid) NOT LIKE '%deliveryKind%'
+  `);
+  for (const { conname } of constraints) {
+    await sequelize.query(`ALTER TABLE parent_report_logs DROP CONSTRAINT IF EXISTS "${String(conname).replaceAll('"', '""')}"`);
+  }
+
+  const [indexes] = await sequelize.query(`
+    SELECT indexname FROM pg_indexes
+    WHERE tablename = 'parent_report_logs'
+      AND indexdef LIKE '%UNIQUE%'
+      AND indexdef LIKE '%"parentId"%'
+      AND indexdef LIKE '%"reportType"%'
+      AND indexdef LIKE '%"periodStart"%'
+      AND indexdef NOT LIKE '%deliveryKind%'
+  `);
+  for (const { indexname } of indexes) {
+    await sequelize.query(`DROP INDEX IF EXISTS "${String(indexname).replaceAll('"', '""')}"`);
+  }
+};
+
 // Синхронизация
 const syncDatabase = async () => {
   try {
     await migrateCorrectAnswerToJson();
     await migrateSelectedAnswerToJson();
     await migrateParentStudentToJoinTable();
+    await migrateParentReportLogDeliveryKind();
     await sequelize.sync({ alter: true });
     console.log('✅ Database synced (alter mode)');
   } catch (error) {
@@ -379,8 +435,9 @@ module.exports = {
   LessonAttendance, LessonMaterial, LessonQuestion, LessonReaction,
   LessonPoll, LessonPollOption, LessonPollAnswer,
   LessonQuiz, LessonQuizQuestion, LessonQuizAnswer, LessonQuizDelivery, LessonQuizParticipant,
-  ErrorLog, Parent, ParentReportLog, ParentStudent,
+  ErrorLog, Parent, ParentReportLog, ParentReportDispatchLog, ParentStudent,
   ProblemReport,
   DailyMeme,
+  DailyMemeReaction,
   syncDatabase
 };

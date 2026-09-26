@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, waitFor, cleanup, fireEvent, act } from '@testing-library/react';
+import { render, screen, waitFor, cleanup, fireEvent, act, within } from '@testing-library/react';
 import { vi, afterEach, test, expect } from 'vitest';
 import StreamPresentation, { StreamLeaderboard, StreamScreen } from './StreamPresentation';
 import { adminFetch } from './adminApi';
@@ -121,4 +121,27 @@ test('общий лидерборд не называется трансляци
     expect.any(Object)
   ));
   expect(screen.getByRole('button', { name: 'Закрыть лидерборд' })).toBeVisible();
+});
+
+test('преподаватель открывает профиль ученика из общего лидерборда', async () => {
+  adminFetch.mockImplementation((url) => {
+    if (url.includes('/students/9/profile')) {
+      return Promise.resolve({ ok: true, json: async () => ({ student: {
+        id: 9, firstName: 'Анна', lastName: 'Иванова', telegramUsername: 'anna', telegramId: '123456',
+        isActive: true, createdAt: '2026-01-15T00:00:00.000Z', subjects: [{ id: 1, name: 'Математика', icon: '📐', isActive: true }]
+      } }) });
+    }
+    return Promise.resolve({ ok: true, json: async () => ({
+      phase: 'weekly', serverNow: Date.now(), periodDays: 7,
+      leaderboard: [{ id: 9, name: 'Анна', totalScore: 42 }]
+    }) });
+  });
+  render(<StreamPresentation source={{ subjectId: 1, subjectName: 'Математика', periodDays: 7 }} onClose={() => {}} />);
+
+  fireEvent.click(await screen.findByRole('button', { name: 'Открыть профиль Анна' }));
+  const profile = await screen.findByRole('dialog', { name: 'Профиль ученика' });
+  expect(profile).toHaveTextContent('@anna');
+  expect(within(profile).getByText('123456')).toBeVisible();
+  expect(within(profile).getByText(/Математика/)).toBeVisible();
+  expect(adminFetch).toHaveBeenCalledWith(expect.stringContaining('/lesson-admin/students/9/profile'));
 });

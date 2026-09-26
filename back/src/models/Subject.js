@@ -23,6 +23,20 @@ const Subject = sequelize.define('Subject', {
   isActive: {
     type: DataTypes.BOOLEAN,
     defaultValue: true
+  },
+  // Период лидерборда по предмету (см. LeaderboardModal на фронте ученика,
+  // practiceController.getCombinedLeaderboard): задаётся преподавателем в
+  // статистике. leaderboardStartDate = null — период ещё не назначен, сервер
+  // сам считает текущую календарную неделю (прежнее поведение). После
+  // leaderboardEndDate лидерборд пуст у всех — это и есть «сброс», пока не
+  // назначат новый период.
+  leaderboardStartDate: {
+    type: DataTypes.DATE,
+    allowNull: true
+  },
+  leaderboardEndDate: {
+    type: DataTypes.DATE,
+    allowNull: true
   }
 }, {
   tableName: 'subjects',

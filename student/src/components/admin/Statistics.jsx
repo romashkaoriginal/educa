@@ -49,6 +49,15 @@ function AdminStatistics({ currentUser, dataRefreshKey = 0 }) {
   const [leaderboardSubjectsLoading, setLeaderboardSubjectsLoading] = useState(true);
   const [stream, setStream] = useState(null);
 
+  // Период лидерборда, который сам видит ученик (LeaderboardModal) — не
+  // путать с «Открыть лидерборд» выше: то — разовый показ на экран,
+  // а это — постоянная настройка предмета до следующего изменения.
+  const [studentLbSubjectId, setStudentLbSubjectId] = useState('');
+  const [studentLbStart, setStudentLbStart] = useState('');
+  const [studentLbEnd, setStudentLbEnd] = useState('');
+  const [studentLbSaving, setStudentLbSaving] = useState(false);
+  const [studentLbSaved, setStudentLbSaved] = useState(false);
+
   // Данные для режима "все"
   const [practiceData, setAllPractice] = useState(null);
   const [homeworkData, setAllHomework] = useState(null);
@@ -206,6 +215,54 @@ function AdminStatistics({ currentUser, dataRefreshKey = 0 }) {
     return `${a.firstName || ''} ${a.lastName || ''}`.localeCompare(`${b.firstName || ''} ${b.lastName || ''}`, 'ru');
   });
 
+  // При выборе предмета подставляем уже сохранённый для него период (если есть).
+  const onStudentLbSubjectChange = (id) => {
+    setStudentLbSubjectId(id);
+    setStudentLbSaved(false);
+    const subject = leaderboardSubjects.find((item) => String(item.id) === String(id));
+    setStudentLbStart(subject?.leaderboardStartDate ? subject.leaderboardStartDate.slice(0, 10) : '');
+    setStudentLbEnd(subject?.leaderboardEndDate ? subject.leaderboardEndDate.slice(0, 10) : '');
+  };
+
+  const saveStudentLeaderboardPeriod = async (confirmReset = false) => {
+    if (!studentLbSubjectId) return;
+    setStudentLbSaving(true);
+    setStudentLbSaved(false);
+    try {
+      const res = await adminFetch(`${API_URL}/lesson-admin/leaderboard-subjects/${studentLbSubjectId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          leaderboardStartDate: studentLbStart ? `${studentLbStart}T00:00:00.000Z` : null,
+          leaderboardEndDate: studentLbEnd ? `${studentLbEnd}T23:59:59.999Z` : null,
+          confirmReset
+        })
+      });
+      const data = await res.json();
+      // Сервер просит подтвердить: новая дата начала позже действующей —
+      // накопленные за текущий период баллы перестанут учитываться.
+      if (res.status === 409 && data.requiresConfirmation) {
+        setStudentLbSaving(false);
+        if (window.confirm(`${data.message}. Продолжить?`)) {
+          await saveStudentLeaderboardPeriod(true);
+        }
+        return;
+      }
+      if (!res.ok) throw new Error(data.message || 'Не удалось сохранить период');
+      setLeaderboardSubjects((prev) => prev.map((subject) => (
+        String(subject.id) === String(studentLbSubjectId)
+          ? { ...subject, leaderboardStartDate: data.leaderboardStartDate, leaderboardEndDate: data.leaderboardEndDate }
+          : subject
+      )));
+      setStudentLbSaved(true);
+    } catch (e) {
+      console.error(e);
+      alert(e.message || 'Не удалось сохранить период');
+    } finally {
+      setStudentLbSaving(false);
+    }
+  };
+
   const openLeaderboard = () => {
     if (!leaderboardSubjectId) return;
     const subject = leaderboardSubjects.find((item) => String(item.id) === String(leaderboardSubjectId));
@@ -262,6 +319,32 @@ function AdminStatistics({ currentUser, dataRefreshKey = 0 }) {
               </span>
             )}
             <button type="button" className="as-leaderboard-launch" disabled={!leaderboardSubjectId} onClick={openLeaderboard}>Открыть лидерборд ↗</button>
+          </div>
+        )}
+
+        {mode === 'all' && !isManager && (
+          <div className="as-leaderboard-launcher as-student-leaderboard-period">
+            <select
+              aria-label="Предмет лидерборда ученика"
+              value={studentLbSubjectId}
+              disabled={leaderboardSubjectsLoading || leaderboardSubjects.length === 0}
+              onChange={(event) => onStudentLbSubjectChange(event.target.value)}
+            >
+              <option value="">{leaderboardSubjectsLoading ? 'Лидерборд ученика: загружаем предметы' : leaderboardSubjects.length ? 'Лидерборд ученика: выберите предмет' : 'Лидерборд ученика: нет доступных предметов'}</option>
+              {leaderboardSubjects.map((subject) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}
+            </select>
+            {studentLbSubjectId && (
+              <>
+                <span className="as-leaderboard-range">
+                  <input type="date" aria-label="Дата начала лидерборда ученика" value={studentLbStart} max={studentLbEnd || undefined} onChange={(event) => { setStudentLbStart(event.target.value); setStudentLbSaved(false); }} />
+                  <span>—</span>
+                  <input type="date" aria-label="Дата окончания лидерборда ученика" value={studentLbEnd} min={studentLbStart || undefined} onChange={(event) => { setStudentLbEnd(event.target.value); setStudentLbSaved(false); }} />
+                </span>
+                <button type="button" className="as-leaderboard-launch" disabled={studentLbSaving} onClick={() => saveStudentLeaderboardPeriod()}>
+                  {studentLbSaving ? 'Сохраняем…' : studentLbSaved ? 'Сохранено ✓' : 'Сохранить период'}
+                </button>
+              </>
+            )}
           </div>
         )}
 

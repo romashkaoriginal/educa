@@ -1,12 +1,12 @@
-const { Parent, ParentReportLog, Subject, User } = require('../models');
+const { Parent, ParentReportLog, ParentReportDispatchLog, Subject, User } = require('../models');
 const { sendTelegramMessage } = require('./telegramDelivery');
 const {
   buildReportMessages,
-  getForcedPeriod,
   getPreviousMonthPeriod,
   getPreviousWeekPeriod,
   getManagerContactKeyboard,
   isSubjectAccessActive,
+  clipReportPeriodToSubjectAccess,
   minskDateParts
 } = require('./parentWeeklyReport');
 
@@ -59,22 +59,102 @@ function getNextReportSchedule(now = new Date()) {
 }
 
 function getReportPeriod(reportType, now, force) {
-  if (force) return getForcedPeriod(reportType, now);
   return reportType === 'monthly' ? getPreviousMonthPeriod(now) : getPreviousWeekPeriod(now);
 }
 
-async function processParent(parent, { bot, now = new Date(), reportType = 'weekly', force = false }) {
+function getDeliveryKind(manualTrigger) {
+  return manualTrigger ? `manual_${manualTrigger.scope}` : 'scheduled';
+}
+
+function reportPreparationError(status, message) {
+  const error = new Error(message);
+  error.reportStatus = status;
+  return error;
+}
+
+// Это единственный генератор текста и статистики для предпросмотра и отправки.
+// Не переносим расчёт на клиент: иначе увиденное администратором может отличаться
+// от сообщения в Telegram.
+async function prepareParentReport(parent, { now = new Date(), reportType = 'weekly', force = false } = {}) {
   const period = getReportPeriod(reportType, now, force);
+  const students = parent.students || [];
+  if (!parent.telegramId) throw reportPreparationError('skipped_no_telegram', 'Родитель ещё не подтвердил Telegram ID через бота');
+  if (!students.length) throw reportPreparationError('skipped_no_access', 'К родителю не привязан ни один ученик');
+
+  const studentsWithSubjects = students
+    .filter((student) => student.isActive)
+    .map((student) => {
+      const subjectPeriods = (student.subjects || [])
+        .filter((subject) => isSubjectAccessActive(subject, now))
+        .map((subject) => ({ subject, period: clipReportPeriodToSubjectAccess(period, subject) }))
+        .filter(({ period: subjectPeriod }) => subjectPeriod);
+      const studentPeriod = subjectPeriods.reduce((earliest, item) => (
+        !earliest || item.period.startUtc < earliest.startUtc ? item.period : earliest
+      ), null);
+      return { student, subjectPeriods, studentPeriod };
+    })
+    .filter(({ subjectPeriods }) => subjectPeriods.length > 0);
+
+  if (!studentsWithSubjects.length) {
+    throw reportPreparationError('skipped_no_access', 'Ни у одного ученика нет активного доступа в период отчёта');
+  }
+
+  const messages = [];
+  for (const { student, subjectPeriods, studentPeriod } of studentsWithSubjects) {
+    const report = await buildReportMessages({
+      student,
+      subjects: subjectPeriods.map(({ subject }) => subject),
+      subjectPeriods,
+      period: studentPeriod,
+      reportType,
+      now
+    });
+    messages.push(...report.messages);
+  }
+  return { period, messages };
+}
+
+async function processParent(parent, { bot, now = new Date(), reportType = 'weekly', force = false, manualTrigger = null }) {
+  const period = getReportPeriod(reportType, now, force);
+  const deliveryKind = getDeliveryKind(manualTrigger);
   const students = parent.students || [];
   const firstStudentId = students[0]?.id ?? null;
   const [log, created] = await ParentReportLog.findOrCreate({
-    where: { parentId: parent.id, reportType, periodStart: period.startDate },
+    where: { parentId: parent.id, reportType, periodStart: period.startDate, deliveryKind },
     defaults: {
       studentId: firstStudentId,
       periodEnd: period.endDate,
-      status: 'processing'
+      deliveryKind,
+      status: 'processing',
+      ...(manualTrigger ? {
+        manualTriggeredByUserId: manualTrigger.userId,
+        manualTriggeredByName: manualTrigger.name,
+        manualTriggerScope: manualTrigger.scope
+      } : {})
     }
   });
+
+  const finish = async (values) => {
+    await log.update(values);
+    if (manualTrigger) {
+      await ParentReportDispatchLog.create({
+        parentReportLogId: log.id,
+        parentId: parent.id,
+        studentId: firstStudentId,
+        reportType,
+        periodStart: period.startDate,
+        periodEnd: period.endDate,
+        triggerScope: manualTrigger.scope,
+        triggeredByUserId: manualTrigger.userId,
+        triggeredByName: manualTrigger.name,
+        status: values.status,
+        messageCount: values.messageCount || 0,
+        sentAt: values.sentAt || null,
+        error: values.error || null
+      });
+    }
+    return log;
+  };
   // Если отчёт был пропущен только потому, что у родителя тогда не было
   // Telegram ID (или не было активного доступа у ребёнка), условия могли
   // измениться до следующего запуска планировщика. Такие записи можно
@@ -88,46 +168,17 @@ async function processParent(parent, { bot, now = new Date(), reportType = 'week
       status: 'processing',
       messageCount: 0,
       sentAt: null,
-      error: null
+      error: null,
+      ...(manualTrigger ? {
+        manualTriggeredByUserId: manualTrigger.userId,
+        manualTriggeredByName: manualTrigger.name,
+        manualTriggerScope: manualTrigger.scope
+      } : {})
     });
   }
 
-  if (!parent.telegramId) {
-    await log.update({ status: 'skipped_no_telegram', error: 'Родитель ещё не подтвердил Telegram ID через бота' });
-    return log;
-  }
-  if (!students.length) {
-    await log.update({ status: 'skipped_no_access', error: 'К родителю не привязан ни один ученик' });
-    return log;
-  }
-
-  // Для каждого ребёнка отдельно считаем активные предметы. Отчёт пропускаем
-  // целиком, только если НИ у одного ребёнка нет доступа — иначе шлём отчёт
-  // по тем детям, у кого доступ есть, одним потоком сообщений.
-  const studentsWithSubjects = students
-    .filter((student) => student.isActive)
-    .map((student) => ({
-      student,
-      activeSubjects: (student.subjects || []).filter((subject) => isSubjectAccessActive(subject, now))
-    }))
-    .filter(({ activeSubjects }) => activeSubjects.length > 0);
-
-  if (!studentsWithSubjects.length) {
-    await log.update({ status: 'skipped_no_access', error: 'Ни у одного ученика нет активного доступа' });
-    return log;
-  }
-
   try {
-    const allMessages = [];
-    for (const { student, activeSubjects } of studentsWithSubjects) {
-      const { messages } = await buildReportMessages({
-        student,
-        subjects: activeSubjects,
-        reportType,
-        now
-      });
-      allMessages.push(...messages);
-    }
+    const { messages: allMessages } = await prepareParentReport(parent, { now, reportType, force });
     let sentCount = 0;
     for (const [index, text] of allMessages.entries()) {
       const result = await sendTelegramMessage({
@@ -145,15 +196,16 @@ async function processParent(parent, { bot, now = new Date(), reportType = 'week
       if (!result.ok) throw new Error(result.reason || 'Не удалось отправить сообщение');
       sentCount += 1;
     }
-    await log.update({ status: 'sent', messageCount: sentCount, sentAt: new Date(), error: null });
+    return finish({ status: 'sent', messageCount: sentCount, sentAt: new Date(), error: null });
   } catch (error) {
-    await log.update({ status: 'failed', error: String(error.message || error).slice(0, 2000) });
+    if (error.reportStatus) return finish({ status: error.reportStatus, error: error.message });
+    return finish({ status: 'failed', error: String(error.message || error).slice(0, 2000) });
   }
-  return log;
 }
 
-async function getActiveParents() {
+async function getActiveParents(parentId = null) {
   return Parent.findAll({
+    ...(parentId ? { where: { id: parentId } } : {}),
     include: [{
       model: User,
       as: 'students',
@@ -169,12 +221,12 @@ async function getActiveParents() {
   });
 }
 
-async function sendParentReports({ bot, now = new Date(), reportType = 'weekly', force = false }) {
+async function sendParentReports({ bot, now = new Date(), reportType = 'weekly', force = false, parentId = null, manualTrigger = null }) {
   if (!['weekly', 'monthly'].includes(reportType)) throw new Error('Unsupported parent report type');
-  const parents = await getActiveParents();
+  const parents = await getActiveParents(parentId);
   const logs = [];
   for (const parent of parents) {
-    logs.push(await processParent(parent, { bot, now, reportType, force }));
+    logs.push(await processParent(parent, { bot, now, reportType, force, manualTrigger }));
   }
   return { processed: parents.length, logs };
 }
@@ -185,10 +237,14 @@ async function sendParentReports({ bot, now = new Date(), reportType = 'weekly',
 async function retryMissedReportsAfterTelegramConfirmation(parentId, now = new Date()) {
   const skipped = await ParentReportLog.findAll({
     where: { parentId, status: 'skipped_no_telegram' },
-    attributes: ['reportType'],
+    attributes: ['reportType', 'periodStart'],
     order: [['createdAt', 'DESC']]
   });
-  const reportTypes = [...new Set(skipped.map((log) => log.reportType))];
+  // Ручной запуск 22.09 оставил месячные пропуски с произвольной датой
+  // начала периода. Их нельзя автоматически досылать после подтверждения.
+  const reportTypes = [...new Set(skipped
+    .filter((log) => log.reportType !== 'monthly' || String(log.periodStart).endsWith('-01'))
+    .map((log) => log.reportType))];
   if (!reportTypes.length) return [];
 
   const parent = await Parent.findByPk(parentId, {
@@ -254,6 +310,8 @@ module.exports = {
   getNextWeeklyReportAt,
   getNextMonthlyReportAt,
   getNextReportSchedule,
+  getDeliveryKind,
+  prepareParentReport,
   processParent,
   sendParentReports,
   retryMissedReportsAfterTelegramConfirmation,

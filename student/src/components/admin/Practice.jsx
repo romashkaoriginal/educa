@@ -12,7 +12,7 @@ import MathText, { LatexHelp, truncateMathText } from '../MathText';
 import FormattingTextarea from '../FormattingTextarea';
 // Допустимое число вариантов ответа при ручном создании/редактировании.
 const MIN_OPTIONS = 2;
-const MAX_OPTIONS = 4;
+const MAX_OPTIONS = 5;
 
 // correctAnswer хранится как массив индексов (multiple choice, ТЗ уточнение).
 const toCorrectSet = (correctAnswer) =>
@@ -97,7 +97,7 @@ function Practice({ dataRefreshKey = 0 }) {
   const [questionForm, setQuestionForm] = useState({
     questionText: '',
     questionImage: null,
-    options: ['', '', '', ''],
+    options: ['', '', '', '', ''],
     correctAnswer: [0],
     explanation: '',
     hintImage: null,
@@ -271,7 +271,7 @@ function Practice({ dataRefreshKey = 0 }) {
     setQuestionForm({
       questionText: '',
       questionImage: null,
-      options: ['', '', '', ''],
+      options: ['', '', '', '', ''],
       correctAnswer: [0],
       explanation: '',
       hintImage: null,
@@ -995,8 +995,8 @@ function Practice({ dataRefreshKey = 0 }) {
             <div className="import-modal-body">
               <div className="import-format-hint">
                 <strong>Формат файла (.xlsx):</strong><br />
-                Колонки: <code>question</code>, <code>a</code>, <code>b</code>, <code>c</code>, <code>d</code>, <code>correct</code>, <code>difficulty</code>, <code>explanation</code><br />
-                <span className="import-hint-key">correct</span> — строчная буква: a / b / c / d (несколько правильных — через запятую, напр. "a,c")<br />
+                Колонки: <code>question</code>, <code>a</code>, <code>b</code>, <code>c</code>, <code>d</code>, <code>e</code>, <code>correct</code>, <code>difficulty</code>, <code>explanation</code><br />
+                <span className="import-hint-key">correct</span> — строчная буква: a / b / c / d / e (несколько правильных — через запятую, напр. "a,c")<br />
                 <span className="import-hint-key">difficulty</span> — easy / medium / hard (по умолчанию medium)<br />
                 <span className="import-hint-key">explanation</span> — объяснение
               </div>

@@ -14,6 +14,41 @@ function formatStreamDate(iso) {
   return new Date(iso).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
 }
 
+function formatProfileDate(value) {
+  if (!value) return '—';
+  return new Date(value).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+function StudentProfile({ profile, loading, error, onClose }) {
+  const student = profile?.student;
+  return (
+    <section className="stream-student-profile" role="dialog" aria-modal="true" aria-label="Профиль ученика">
+      <button type="button" className="stream-profile-close" onClick={onClose} aria-label="Закрыть профиль">×</button>
+      {loading ? <p className="stream-profile-status" role="status">Загружаем профиль…</p>
+        : error ? <p className="stream-profile-status" role="alert">{error}</p>
+          : student && <>
+            <p className="stream-profile-kicker">Ученик</p>
+            <h2>{student.firstName} {student.lastName || ''}</h2>
+            <dl className="stream-profile-data">
+              <div><dt>Username</dt><dd>{student.telegramUsername ? `@${student.telegramUsername}` : 'Не указан'}</dd></div>
+              <div><dt>Telegram ID</dt><dd>{student.telegramId || 'Не указан'}</dd></div>
+              <div><dt>Статус</dt><dd>{student.isActive ? 'Активен' : 'Отключён'}</dd></div>
+              <div><dt>В системе с</dt><dd>{formatProfileDate(student.createdAt)}</dd></div>
+            </dl>
+            <div className="stream-profile-subjects">
+              <h3>Предметы</h3>
+              {student.subjects?.length ? student.subjects.map((subject) => (
+                <div key={subject.id} className="stream-profile-subject">
+                  <span>{subject.icon} {subject.name}</span>
+                  <small>{subject.isActive ? 'Доступ активен' : 'Доступ закрыт'}</small>
+                </div>
+              )) : <p>Предметы не назначены</p>}
+            </div>
+          </>}
+    </section>
+  );
+}
+
 export function StreamScreen({ source, hostWindow, onClose }) {
   const isStandaloneLeaderboard = !source.lessonQuizId;
   const [data, setData] = useState(null);
@@ -23,6 +58,9 @@ export function StreamScreen({ source, hostWindow, onClose }) {
   const [revision, setRevision] = useState(0);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState('');
+  const [studentProfile, setStudentProfile] = useState(null);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileError, setProfileError] = useState('');
   const [fullscreen, setFullscreen] = useState(() => Boolean(
     hostWindow.Telegram?.WebApp?.isFullscreen
     || hostWindow.document.fullscreenElement
@@ -38,6 +76,22 @@ export function StreamScreen({ source, hostWindow, onClose }) {
       setRevision(value => value + 1);
     } catch (e) { setActionError(e.message); }
     finally { setBusy(false); }
+  };
+  const openStudentProfile = async (entry) => {
+    if (!isStandaloneLeaderboard || !entry?.id) return;
+    setStudentProfile(null);
+    setProfileError('');
+    setProfileLoading(true);
+    try {
+      const response = await adminFetch(`${API_URL}/lesson-admin/students/${entry.id}/profile`);
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.message || 'Не удалось загрузить профиль');
+      setStudentProfile(result);
+    } catch (error) {
+      setProfileError(error.message || 'Не удалось загрузить профиль');
+    } finally {
+      setProfileLoading(false);
+    }
   };
   useEffect(() => {
     let stopped = false;
@@ -168,8 +222,11 @@ export function StreamScreen({ source, hostWindow, onClose }) {
         <div className="stream-time-track"><span style={{ transform: `scaleX(${progress})` }} /></div>
         <div className="stream-options">{(data.question.options || []).map((option, index) => <div key={index}><QuizAnswerMark index={index} /><MathText text={option} /></div>)}</div>
       </section> : phase === 'lobby' ? <div className="stream-lobby"><div className="stream-lobby-count"><strong>{data.participantCount}</strong><p>участников</p></div><span>Ожидаем запуска</span></div>
-        : <StreamLeaderboard key={`${phase}-${data.questionIndex ?? ''}`} entries={data.leaderboard} />}
+        : <StreamLeaderboard key={`${phase}-${data.questionIndex ?? ''}`} entries={data.leaderboard} onStudentClick={isStandaloneLeaderboard ? openStudentProfile : undefined} />}
     </>}
+    {isStandaloneLeaderboard && (profileLoading || profileError || studentProfile) && (
+      <StudentProfile profile={studentProfile} loading={profileLoading} error={profileError} onClose={() => { setStudentProfile(null); setProfileError(''); setProfileLoading(false); }} />
+    )}
     {onClose && <nav className="stream-control-bar" aria-label={isStandaloneLeaderboard ? 'Действия лидерборда' : 'Управление трансляцией'}>
       <button onClick={onClose}>{isStandaloneLeaderboard ? 'Закрыть лидерборд' : 'К управлению занятием'}</button>
       {source.lessonQuizId && data?.status === 'active' && <>

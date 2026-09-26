@@ -2,7 +2,7 @@ const fs = require('fs');
 const {
   PracticeTopic, PracticeQuestion, PracticeImage, PracticeAttempt, PracticeBest, PracticeDailyLog,
   PracticeStreakHistory, PracticeStreakEvent, PracticeQuestionResult, PracticeScoreHistory, PracticeDailyStats,
-  PracticeTopicTotals, PracticeRecentError, Subject, User, DailyMeme
+  PracticeTopicTotals, PracticeRecentError, Subject, User, DailyMeme, DailyMemeReaction
 } = require('../models');
 const { Op, QueryTypes } = require('sequelize');
 const sequelize = require('../config/database');
@@ -12,7 +12,7 @@ const { calculatePredictedScore, getGrowthTopicIds, CONFIG } = require('../servi
 const { calculateHomeworkScore } = require('../services/homeworkScore');
 const { buildSubjectDashboard } = require('../services/practiceDashboard');
 const { recordPracticeStatsIncrement, hasAggregatedStats } = require('../services/practiceStatsAggregate');
-const { isPracticeAnswerCorrect, computeWeeklyLeaderboard } = require('../services/streamPresentation');
+const { isPracticeAnswerCorrect, computeWeeklyLeaderboard, getWeeklyLeaderboardScore } = require('../services/streamPresentation');
 const { loadExcelWorkbook, normaliseExcelHeader } = require('../utils/loadExcelWorkbook');
 
 // In-memory кэш статистики (TTL 60 секунд)
@@ -508,7 +508,7 @@ exports.getQuestionsByTopic = async (req, res) => {
 
 // Допустимое число вариантов ответа для ручного создания/редактирования вопроса.
 const MIN_OPTIONS = 2;
-const MAX_OPTIONS = 4;
+const MAX_OPTIONS = 5;
 
 function isValidOptionsList(options) {
   return Array.isArray(options)
@@ -1058,12 +1058,46 @@ exports.getStreakEvents = async (req, res) => {
     res.json({
       events: events.map((e) => ({
         ...e.toJSON(),
-        meme: e.type === 'extended' ? (memeByDate.get(e.date)?.image || null) : null
+        meme: e.type === 'extended' && memeByDate.get(e.date)
+          ? {
+            id: memeByDate.get(e.date).id,
+            storageKey: memeByDate.get(e.date).image?.storageKey || null
+          }
+          : null
       }))
     });
   } catch (error) {
     console.error('Get streak events error:', error);
     res.status(500).json({ error: 'Failed to get streak events' });
+  }
+};
+
+// Реакция на мем — только настоящий ученик, открывший свой Mini App.
+// Админский предпросмотр ученика не может исказить статистику.
+exports.reactToDailyMeme = async (req, res) => {
+  try {
+    const memeId = Number(req.params.memeId);
+    const reaction = String(req.body?.reaction || '');
+    const student = req.dbUser;
+    if (!Number.isSafeInteger(memeId) || memeId <= 0) return res.status(400).json({ message: 'Некорректный мем' });
+    if (!['like', 'dislike', 'stone'].includes(reaction)) return res.status(400).json({ message: 'Некорректная реакция' });
+    if (!student || student.role !== 'student' || student.isGuest) return res.status(403).json({ message: 'Реакция доступна только ученику' });
+
+    const meme = await DailyMeme.findByPk(memeId, { attributes: ['id'] });
+    if (!meme) return res.status(404).json({ message: 'Мем не найден' });
+
+    const [memeReaction, created] = await DailyMemeReaction.findOrCreate({
+      where: { dailyMemeId: meme.id, studentId: student.id },
+      defaults: { reaction }
+    });
+    return res.status(created ? 201 : 200).json({
+      ok: true,
+      alreadyReacted: !created,
+      reaction: memeReaction.reaction
+    });
+  } catch (error) {
+    console.error('React to daily meme error:', error);
+    return res.status(500).json({ message: 'Не удалось сохранить реакцию' });
   }
 };
 
@@ -1249,28 +1283,68 @@ exports.getLeaderboard = async (req, res) => {
   }
 };
 
-// Общий лидерборд домашка+практика по предмету за период — то, что видит
-// администратор через "Открыть лидерборд". Ученику доступен на чтение, без
-// @username (только имя), период — dateFrom/dateTo либо пресет.
+// Текущая календарная неделя, понедельник — воскресенье включительно.
+// Поведение по умолчанию, пока преподаватель ни разу не задавал период вручную.
+function currentWeekRange() {
+  const now = new Date();
+  const dayIndex = (now.getDay() + 6) % 7; // 0 = понедельник ... 6 = воскресенье
+  const monday = new Date(now);
+  monday.setHours(0, 0, 0, 0);
+  monday.setDate(monday.getDate() - dayIndex);
+  const sunday = new Date(monday);
+  sunday.setDate(sunday.getDate() + 6);
+  sunday.setHours(23, 59, 59, 999);
+  return { since: monday, until: sunday };
+}
+
+// Общий лидерборд домашка+практика по предмету — то, что видит ученик сам
+// (LeaderboardModal). Период задаёт преподаватель/админ в настройках предмета
+// (Subject.leaderboardStartDate/leaderboardEndDate, см.
+// PUT /lesson-admin/leaderboard-subjects/:id). Пока период не задан —
+// поведение как раньше: текущая календарная неделя, сама катится изо дня в
+// день. «Сброс» — это просто сдвиг leaderboardStartDate: старые ответы
+// учеников никуда не удаляются, они просто больше не попадают в подсчёт
+// (который у Practice/Homework всегда идёт «с даты вперёд»).
+// Без @username (только имя).
 exports.getCombinedLeaderboard = async (req, res) => {
   try {
     const { subjectId } = req.params;
     const parsedSubjectId = parseInt(subjectId, 10);
     if (!Number.isInteger(parsedSubjectId)) return res.status(400).json({ error: 'Invalid subjectId' });
 
-    const until = req.query.dateTo ? new Date(req.query.dateTo) : new Date();
-    const since = req.query.dateFrom ? new Date(req.query.dateFrom) : new Date(0);
-    if (Number.isNaN(since.getTime()) || Number.isNaN(until.getTime())) {
-      return res.status(400).json({ error: 'Invalid date range' });
+    const subject = await Subject.findByPk(parsedSubjectId, {
+      attributes: ['id', 'leaderboardStartDate', 'leaderboardEndDate']
+    });
+    if (!subject) return res.status(404).json({ error: 'Subject not found' });
+
+    const hasManualPeriod = Boolean(subject.leaderboardStartDate);
+    const { since, until } = hasManualPeriod
+      ? { since: new Date(subject.leaderboardStartDate), until: subject.leaderboardEndDate ? new Date(subject.leaderboardEndDate) : new Date() }
+      : currentWeekRange();
+    const now = new Date();
+    const periodActive = !hasManualPeriod || (now >= since && now <= until);
+
+    if (!periodActive) {
+      res.json({
+        dateFrom: since.toISOString(), dateTo: until.toISOString(),
+        participantCount: 0, leaderboard: [], myScore: null
+      });
+      return;
     }
 
-    const leaderboard = await computeWeeklyLeaderboard(sequelize, {
+    const leaderboardOptions = {
       QueryTypes, since, until, subjectId: parsedSubjectId, allowedSubjectIds: null, limit: 20
-    });
+    };
+    const leaderboard = await computeWeeklyLeaderboard(sequelize, leaderboardOptions);
+    // Показываем ученику только его собственную сумму. Она нужна даже вне топа,
+    // но не раскрывает его место или баллы других участников за пределами списка.
+    const myScore = req.dbUser?.role === 'student'
+      ? await getWeeklyLeaderboardScore(sequelize, { ...leaderboardOptions, currentUserId: req.dbUser.id })
+      : null;
 
     res.json({
       dateFrom: since.toISOString(), dateTo: until.toISOString(),
-      participantCount: leaderboard.length, leaderboard
+      participantCount: leaderboard.length, leaderboard, myScore
     });
   } catch (error) {
     console.error('Get combined leaderboard error:', error);
@@ -1486,7 +1560,7 @@ exports.importQuestionsFromExcel = async (req, res) => {
       return res.status(400).json({ message: 'Файл пустой или не содержит данных' });
     }
 
-    const CORRECT_MAP = { a: 0, b: 1, c: 2, d: 3 };
+    const CORRECT_MAP = { a: 0, b: 1, c: 2, d: 3, e: 4 };
     const VALID_DIFFICULTY = ['easy', 'medium', 'hard'];
 
     const toCreate = [];
@@ -1499,6 +1573,7 @@ exports.importQuestionsFromExcel = async (req, res) => {
       const b = String(row.b || '').trim();
       const c = String(row.c || '').trim();
       const d = String(row.d || '').trim();
+      const e = String(row.e || '').trim();
       const correct = String(row.correct || '').trim().toLowerCase();
       const diffRaw = String(row.difficulty || '').trim().toLowerCase();
       const explanation = String(row.explanation || '').trim() || null;
@@ -1517,7 +1592,7 @@ exports.importQuestionsFromExcel = async (req, res) => {
       if (correctLetters.length === 0 || invalidLetter) {
         errors.push({
           row: rowNum,
-          reason: `некорректное значение correct: "${correct}" (допустимо: a, b, c, d — можно несколько через запятую)`,
+          reason: `некорректное значение correct: "${correct}" (допустимо: a, b, c, d, e — можно несколько через запятую)`,
         });
         return;
       }
@@ -1525,7 +1600,8 @@ exports.importQuestionsFromExcel = async (req, res) => {
 
       // Та же проверка помещаемости, что и в ручном редакторе (ТЗ §4.2).
       // Через Excel картинок нет, поэтому hasImage=false.
-      const fit = checkQuestionFits({ questionText: q, options: [a, b, c, d], hasImage: false });
+      const options = [a, b, c, d, e].filter(Boolean);
+      const fit = checkQuestionFits({ questionText: q, options, hasImage: false });
       if (!fit.fits) {
         errors.push({
           row: rowNum,
@@ -1537,7 +1613,7 @@ exports.importQuestionsFromExcel = async (req, res) => {
       toCreate.push({
         topicId: parseInt(topicId, 10),
         questionText: q,
-        options: [a, b, c, d],
+        options,
         correctAnswer: correctIndexes,
         explanation,
         difficulty: VALID_DIFFICULTY.includes(diffRaw) ? diffRaw : 'medium',

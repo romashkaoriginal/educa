@@ -169,11 +169,108 @@ router.get('/stream/weekly', async (req, res) => {
 router.get('/leaderboard-subjects', async (req, res) => {
   try {
     const subjects = await Subject.findAll({
-      attributes: ['id', 'name', 'icon'],
+      attributes: ['id', 'name', 'icon', 'leaderboardStartDate', 'leaderboardEndDate'],
       order: [['name', 'ASC']]
     });
     res.json({ subjects });
   } catch (error) { fail(res, error, 'Get leaderboard subjects'); }
+});
+
+// Текущая календарная неделя (см. ту же логику в practiceController) — точка
+// отсчёта лидерборда по умолчанию, пока преподаватель ни разу не задавал период.
+function currentWeekStart() {
+  const now = new Date();
+  const dayIndex = (now.getDay() + 6) % 7;
+  const monday = new Date(now);
+  monday.setHours(0, 0, 0, 0);
+  monday.setDate(monday.getDate() - dayIndex);
+  return monday;
+}
+
+// Период лидерборда по предмету, который сам видит ученик (LeaderboardModal).
+// «Сброс» — это сдвиг точки отсчёта (leaderboardStartDate) вперёд: баллы,
+// накопленные с начала действующего периода до новой даты, перестают
+// учитываться (сами ответы учеников в БД не трогаем). Если новый start позже
+// действующей точки отсчёта — это и есть потеря накопленного, поэтому без
+// confirmReset:true такой запрос отклоняется 409, чтобы фронт мог явно
+// спросить подтверждение. Просто продлить endDate можно без подтверждения.
+router.put('/leaderboard-subjects/:id', async (req, res) => {
+  try {
+    const subjectId = Number(req.params.id);
+    if (!Number.isInteger(subjectId) || subjectId <= 0) return bad(res, 'Некорректный предмет');
+
+    const { leaderboardStartDate, leaderboardEndDate, confirmReset } = req.body;
+    const start = leaderboardStartDate ? new Date(leaderboardStartDate) : null;
+    const end = leaderboardEndDate ? new Date(leaderboardEndDate) : null;
+    if (leaderboardStartDate && Number.isNaN(start.getTime())) return bad(res, 'Некорректная дата начала');
+    if (leaderboardEndDate && Number.isNaN(end.getTime())) return bad(res, 'Некорректная дата окончания');
+    if (start && end && start > end) return bad(res, 'Дата начала позже даты окончания');
+
+    const subject = await Subject.findByPk(subjectId);
+    if (!subject) return bad(res, 'Предмет не найден', 404);
+
+    const effectiveCurrentStart = subject.leaderboardStartDate
+      ? new Date(subject.leaderboardStartDate)
+      : currentWeekStart();
+    const willReset = start && start.getTime() > effectiveCurrentStart.getTime();
+    if (willReset && !confirmReset) {
+      return res.status(409).json({
+        message: 'Новая дата начала позже текущей — накопленные за этот период баллы перестанут учитываться',
+        requiresConfirmation: true
+      });
+    }
+
+    await subject.update({ leaderboardStartDate: start, leaderboardEndDate: end });
+    res.json({
+      id: subject.id,
+      leaderboardStartDate: subject.leaderboardStartDate,
+      leaderboardEndDate: subject.leaderboardEndDate
+    });
+  } catch (error) { fail(res, error, 'Set leaderboard period'); }
+});
+
+// Карточка ученика из общего лидерборда. Роут находится в lesson-admin,
+// поэтому его уже защищает общий requireRole(['admin', 'teacher']) в app.js.
+// Не отдаём телефон, данные родителей и историю ответов: преподавателю для
+// идентификации достаточно профиля и выданных предметов.
+router.get('/students/:studentId/profile', async (req, res) => {
+  try {
+    const studentId = Number(req.params.studentId);
+    if (!Number.isSafeInteger(studentId) || studentId <= 0) return bad(res, 'Некорректный ученик');
+
+    const student = await User.findOne({
+      where: { id: studentId, role: 'student' },
+      attributes: ['id', 'firstName', 'lastName', 'telegramUsername', 'telegramId', 'isActive', 'createdAt'],
+      include: [{
+        model: Subject,
+        as: 'subjects',
+        attributes: ['id', 'name', 'icon'],
+        through: { attributes: ['accessStartDate', 'accessEndDate', 'isActive'] }
+      }]
+    });
+    if (!student) return bad(res, 'Ученик не найден', 404);
+
+    const json = student.toJSON();
+    res.json({
+      student: {
+        id: json.id,
+        firstName: json.firstName,
+        lastName: json.lastName || null,
+        telegramUsername: json.telegramUsername || null,
+        telegramId: json.telegramId == null ? null : String(json.telegramId),
+        isActive: Boolean(json.isActive),
+        createdAt: json.createdAt,
+        subjects: (json.subjects || []).map((subject) => ({
+          id: subject.id,
+          name: subject.name,
+          icon: subject.icon || null,
+          isActive: subject.UserSubject?.isActive !== false,
+          accessStartDate: subject.UserSubject?.accessStartDate || null,
+          accessEndDate: subject.UserSubject?.accessEndDate || null
+        }))
+      }
+    });
+  } catch (error) { fail(res, error, 'Get leaderboard student profile'); }
 });
 
 router.get('/teacher-subjects', async (req, res) => {

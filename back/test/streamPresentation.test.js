@@ -1,8 +1,25 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
-  buildLessonQuizLeaderboard, withQuestionTimeLimits, presentLessonQuiz, isPracticeAnswerCorrect
+  buildLessonQuizLeaderboard, withQuestionTimeLimits, presentLessonQuiz, getWeeklyLeaderboardScore, isPracticeAnswerCorrect
 } = require('../src/services/streamPresentation');
+
+test('student leaderboard score uses the same query while restricting it to the current student', async () => {
+  let query;
+  const score = await getWeeklyLeaderboardScore({
+    query: async (sql, options) => {
+      query = { sql, options };
+      return [{ id: 42, name: 'Аня', homeworkScore: 4, practiceScore: 7, streakScore: 10, totalScore: 21 }];
+    }
+  }, {
+    QueryTypes: { SELECT: 'SELECT' }, since: new Date('2026-09-21'), until: new Date('2026-09-27'),
+    subjectId: 5, allowedSubjectIds: null, currentUserId: 42
+  });
+
+  assert.equal(score, 21);
+  assert.equal(query.options.replacements.currentUserId, 42);
+  assert.match(query.sql, /currentUserId/);
+});
 
 const quiz = {
   title: 'Алгебра', status: 'active', mode: 'single_step',

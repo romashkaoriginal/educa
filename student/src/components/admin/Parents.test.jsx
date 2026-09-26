@@ -9,6 +9,7 @@ vi.mock('./useSectionRefresh', () => ({ useSectionRefresh: vi.fn() }));
 const response = (data, ok = true) => Promise.resolve({ ok, json: async () => data });
 
 beforeEach(() => {
+  vi.spyOn(window, 'confirm').mockReturnValue(true);
   adminFetch.mockImplementation((url, options = {}) => {
     if (url.endsWith('/parents') && options.method === 'POST') {
       return response({ parent: { id: 22 } });
@@ -45,11 +46,25 @@ beforeEach(() => {
         ]
       });
     }
+    if (url.endsWith('/parents/report-logs')) {
+      return response({ logs: [{
+        id: 11,
+        createdAt: '2026-09-24T11:55:00.000Z',
+        reportType: 'monthly',
+        triggerScope: 'bulk',
+        triggeredByName: 'Лина KUBIK ЦТ',
+        status: 'sent',
+        parent: { firstName: 'Анна', lastName: 'Иванова' }
+      }] });
+    }
     return response({});
   });
 });
 
-afterEach(() => vi.clearAllMocks());
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.clearAllMocks();
+});
 
 test('показывает связь с учеником и создаёт родителя по username', async () => {
   render(<Parents />);
@@ -61,6 +76,7 @@ test('показывает связь с учеником и создаёт ро
   expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
   fireEvent.change(screen.getByLabelText('Ученики *'), { target: { value: '2' } });
   fireEvent.change(screen.getByLabelText('Username'), { target: { value: '@maria_parent' } });
+  fireEvent.change(screen.getByLabelText('Имя *'), { target: { value: 'Мария' } });
   fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
 
   await waitFor(() => {
@@ -73,10 +89,10 @@ test('показывает связь с учеником и создаёт ро
   });
 });
 
-test('менеджер принудительно отправляет недельный отчёт', async () => {
+test('менеджер массово отправляет недельный отчёт после подтверждения', async () => {
   render(<Parents currentUser={{ role: 'manager' }} />);
 
-  const button = await screen.findByRole('button', { name: 'Отправить отчёт за неделю' });
+  const button = await screen.findByRole('button', { name: 'Отправить отчёт за неделю всем' });
   fireEvent.click(button);
 
   await waitFor(() => {
@@ -87,11 +103,34 @@ test('менеджер принудительно отправляет неде�
   });
 });
 
+test('менеджер видит автора и результат ручной отправки в журнале', async () => {
+  render(<Parents currentUser={{ role: 'manager' }} />);
+
+  fireEvent.click(await screen.findByText(/Журнал ручных отправок/));
+  expect(await screen.findByText('Лина KUBIK ЦТ')).toBeInTheDocument();
+  expect(screen.getByText('Всем родителям')).toBeInTheDocument();
+});
+
+test('менеджер отправляет месячный отчёт только выбранному родителю', async () => {
+  render(<Parents currentUser={{ role: 'manager' }} />);
+
+  const button = await screen.findByRole('button', { name: 'Отправить месячный отчёт' });
+  fireEvent.click(button);
+
+  await waitFor(() => {
+    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining('Анна'));
+    expect(adminFetch).toHaveBeenCalledWith(
+      expect.stringMatching(/\/parents\/10\/reports\/monthly\/send$/),
+      { method: 'POST' }
+    );
+  });
+});
+
 test('преподаватель не видит кнопки принудительной отправки', async () => {
   render(<Parents currentUser={{ role: 'teacher' }} />);
 
   await screen.findByText('Иван Ученик');
-  expect(screen.queryByRole('button', { name: 'Отправить отчёт за неделю' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Отправить недельный отчёт' })).not.toBeInTheDocument();
 });
 
 test.each([

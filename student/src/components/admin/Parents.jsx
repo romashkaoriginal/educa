@@ -55,6 +55,16 @@ function reportStatusLabel(report) {
   return error ? `Ошибка: ${error}` : 'Неизвестная ошибка';
 }
 
+function formatAuditTime(value) {
+  return value ? new Intl.DateTimeFormat('ru-RU', {
+    timeZone: 'Europe/Minsk', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+  }).format(new Date(value)) : '—';
+}
+
+function dispatchScopeLabel(scope) {
+  return scope === 'bulk' ? 'Всем родителям' : 'Одному родителю';
+}
+
 function Parents({ currentUser, dataRefreshKey = 0 }) {
   const [parents, setParents] = useState([]);
   const [students, setStudents] = useState([]);
@@ -69,23 +79,27 @@ function Parents({ currentUser, dataRefreshKey = 0 }) {
   const [reportSchedule, setReportSchedule] = useState(null);
   const [sendingReport, setSendingReport] = useState(null);
   const [reportResult, setReportResult] = useState('');
+  const [reportLogs, setReportLogs] = useState([]);
   const { confirmDelete, ConfirmDeleteDialog } = useConfirmDelete();
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [parentsResponse, studentsResponse] = await Promise.all([
+      const [parentsResponse, studentsResponse, reportLogsResponse] = await Promise.all([
         adminFetch(`${API_URL}/parents`),
-        adminFetch(`${API_URL}/students`)
+        adminFetch(`${API_URL}/students`),
+        adminFetch(`${API_URL}/parents/report-logs`)
       ]);
-      const [parentsData, studentsData] = await Promise.all([
+      const [parentsData, studentsData, reportLogsData] = await Promise.all([
         parentsResponse.json(),
-        studentsResponse.json()
+        studentsResponse.json(),
+        reportLogsResponse.json()
       ]);
       setParents(parentsData.parents || []);
       setManualReportsEnabled(parentsData.manualReportsEnabled === true);
       setReportSchedule(parentsData.reportSchedule || null);
       setStudents(studentsData.students || []);
+      setReportLogs(reportLogsData.logs || []);
     } catch (error) {
       console.error('Error loading parents:', error);
     } finally {
@@ -173,6 +187,10 @@ function Parents({ currentUser, dataRefreshKey = 0 }) {
 
   const saveParent = async (event) => {
     event.preventDefault();
+    if (!form.firstName.trim()) {
+      alert('Укажите имя родителя');
+      return;
+    }
     if (!form.studentIds.length || (!String(form.telegramId).trim() && !form.telegramUsername.trim())) {
       alert('Выберите хотя бы одного ученика и укажите Telegram ID или username родителя');
       return;
@@ -215,7 +233,9 @@ function Parents({ currentUser, dataRefreshKey = 0 }) {
     await loadData();
   };
 
-  const sendReport = async (reportType) => {
+  const sendBulkReport = async (reportType) => {
+    const reportLabel = reportType === 'monthly' ? 'месячный' : 'недельный';
+    if (!window.confirm(`Отправить ${reportLabel} отчёт всем родителям?`)) return;
     setSendingReport(reportType);
     setReportResult('');
     try {
@@ -225,7 +245,39 @@ function Parents({ currentUser, dataRefreshKey = 0 }) {
       const sent = Number(data.statuses?.sent || 0);
       const failed = Number(data.statuses?.failed || 0);
       const skipped = Number(data.processed || 0) - sent - failed;
-      setReportResult(`Отправлено: ${sent}${skipped > 0 ? `, пропущено: ${skipped}` : ''}${failed > 0 ? `, ошибок: ${failed}` : ''}`);
+      setReportResult(`Всем родителям: отправлено ${sent}${skipped > 0 ? `, пропущено ${skipped}` : ''}${failed > 0 ? `, ошибок ${failed}` : ''}`);
+      await loadData();
+    } catch (error) {
+      alert(error.message);
+    } finally {
+      setSendingReport(null);
+    }
+  };
+
+  const sendReport = async (parent, reportType) => {
+    const parentName = [parent.firstName, parent.lastName].filter(Boolean).join(' ');
+    if (!parentName) {
+      alert('Сначала укажите имя родителя в карточке');
+      return;
+    }
+    if (!parent.telegramId) {
+      alert('Родитель ещё не подтвердил Telegram ID через бота');
+      return;
+    }
+    const studentNames = (parent.students || []).map(studentName).join(', ');
+    const reportLabel = reportType === 'monthly' ? 'месячный' : 'недельный';
+    const confirmed = window.confirm(`Отправить ${reportLabel} отчёт только родителю ${parentName}${studentNames ? ` (ученики: ${studentNames})` : ''}?`);
+    if (!confirmed) return;
+    setSendingReport(parent.id);
+    setReportResult('');
+    try {
+      const response = await adminFetch(`${API_URL}/parents/${parent.id}/reports/${reportType}/send`, { method: 'POST' });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Не удалось отправить отчёты');
+      const sent = Number(data.statuses?.sent || 0);
+      const failed = Number(data.statuses?.failed || 0);
+      const skipped = Number(data.processed || 0) - sent - failed;
+      setReportResult(`${parentName}: ${reportLabel} отчёт — отправлено ${sent}${skipped > 0 ? `, пропущено ${skipped}` : ''}${failed > 0 ? `, ошибок ${failed}` : ''}`);
       await loadData();
     } catch (error) {
       alert(error.message);
@@ -247,22 +299,12 @@ function Parents({ currentUser, dataRefreshKey = 0 }) {
         </div>
         <div className="parents-header-actions">
           {canSendManualReports && (
-            <div className="manual-report-actions" aria-label="Ручная отправка отчётов">
-              <button
-                type="button"
-                className="btn-secondary manual-report-button"
-                onClick={() => sendReport('weekly')}
-                disabled={Boolean(sendingReport)}
-              >
-                {sendingReport === 'weekly' ? 'Отправляем…' : 'Отправить отчёт за неделю'}
+            <div className="manual-report-actions" aria-label="Массовая ручная отправка отчётов">
+              <button type="button" className="btn-secondary manual-report-button" onClick={() => sendBulkReport('weekly')} disabled={Boolean(sendingReport)}>
+                {sendingReport === 'weekly' ? 'Отправляем…' : 'Отправить отчёт за неделю всем'}
               </button>
-              <button
-                type="button"
-                className="btn-secondary manual-report-button"
-                onClick={() => sendReport('monthly')}
-                disabled={Boolean(sendingReport)}
-              >
-                {sendingReport === 'monthly' ? 'Отправляем…' : 'Отправить отчёт за месяц'}
+              <button type="button" className="btn-secondary manual-report-button" onClick={() => sendBulkReport('monthly')} disabled={Boolean(sendingReport)}>
+                {sendingReport === 'monthly' ? 'Отправляем…' : 'Отправить отчёт за месяц всем'}
               </button>
             </div>
           )}
@@ -273,6 +315,33 @@ function Parents({ currentUser, dataRefreshKey = 0 }) {
       </div>
 
       {reportResult && <p className="parent-report-result" role="status">{reportResult}</p>}
+
+      {canSendManualReports && (
+        <details className="parent-report-audit">
+          <summary>Журнал ручных отправок ({reportLogs.length})</summary>
+          {reportLogs.length ? (
+            <div className="parent-report-audit-scroll">
+              <table>
+                <thead>
+                  <tr><th>Когда</th><th>Кому</th><th>Отчёт</th><th>Запустил</th><th>Охват</th><th>Результат</th></tr>
+                </thead>
+                <tbody>
+                  {reportLogs.map((log) => (
+                    <tr key={log.id}>
+                      <td>{formatAuditTime(log.createdAt)}</td>
+                      <td>{[log.parent?.firstName, log.parent?.lastName].filter(Boolean).join(' ') || 'Родитель удалён'}</td>
+                      <td>{log.reportType === 'monthly' ? 'Месячный' : 'Недельный'}</td>
+                      <td>{log.triggeredByName || log.triggeredBy?.firstName || 'Неизвестно'}</td>
+                      <td>{dispatchScopeLabel(log.triggerScope)}</td>
+                      <td className={`report-${log.status}`}>{reportStatusLabel(log)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : <p className="parent-report-audit-empty">Ручных отправок пока не было.</p>}
+        </details>
+      )}
 
       <div className="parent-schedule-grid" aria-label="Ближайшие автоматические отчёты">
         <div className="parent-schedule-card">
@@ -308,7 +377,7 @@ function Parents({ currentUser, dataRefreshKey = 0 }) {
                 <div className="parent-card-top">
                   <div className="parent-avatar" aria-hidden="true">{parent.firstName?.[0] || 'Р'}</div>
                   <div className="parent-card-title">
-                    <h3>{[parent.firstName, parent.lastName].filter(Boolean).join(' ') || 'Родитель'}</h3>
+                    <h3>{[parent.firstName, parent.lastName].filter(Boolean).join(' ') || 'Имя родителя не указано'}</h3>
                     <p>{parent.telegramUsername ? `@${telegramUsername(parent.telegramUsername)}` : `ID: ${parent.telegramId || 'не подтверждён'}`}</p>
                   </div>
                   <span className={`status-badge ${anyChildHasAccess ? 'active' : 'inactive'}`}>
@@ -347,6 +416,16 @@ function Parents({ currentUser, dataRefreshKey = 0 }) {
                   </strong>
                 </div>
                 <div className="parent-actions">
+                  {canSendManualReports && (
+                    <>
+                      <button type="button" className="btn-secondary" onClick={() => sendReport(parent, 'weekly')} disabled={Boolean(sendingReport)}>
+                        {sendingReport === parent.id ? 'Отправляем…' : 'Отправить недельный отчёт'}
+                      </button>
+                      <button type="button" className="btn-secondary" onClick={() => sendReport(parent, 'monthly')} disabled={Boolean(sendingReport)}>
+                        {sendingReport === parent.id ? 'Отправляем…' : 'Отправить месячный отчёт'}
+                      </button>
+                    </>
+                  )}
                   <button type="button" className="btn-secondary" onClick={() => openEdit(parent)}>Редактировать</button>
                   <button type="button" className="btn-danger" onClick={() => deleteParent(parent)}>Удалить</button>
                 </div>
@@ -411,8 +490,8 @@ function Parents({ currentUser, dataRefreshKey = 0 }) {
               <p className="parent-form-note">Достаточно одного поля. Если указан только username, родитель должен запустить бота, чтобы подтвердить Telegram ID.</p>
               <div className="form-row">
                 <div className="form-group">
-                  <label htmlFor="parent-first-name">Имя</label>
-                  <input id="parent-first-name" type="text" value={form.firstName} onChange={(event) => setForm({ ...form, firstName: event.target.value })} />
+                  <label htmlFor="parent-first-name">Имя *</label>
+                  <input id="parent-first-name" type="text" required value={form.firstName} onChange={(event) => setForm({ ...form, firstName: event.target.value })} />
                 </div>
                 <div className="form-group">
                   <label htmlFor="parent-last-name">Фамилия</label>

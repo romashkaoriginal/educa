@@ -35,6 +35,9 @@
 .stream-stage-spark--two { width: 10px; height: 10px; background: var(--stream-muted); top: 11%; left: auto; right: 17%; transform: rotate(-18deg); }
 .stream-podium { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); align-items: end; gap: 12px; width: 100%; max-width: 1000px; margin: 0 auto; position: relative; z-index: 1; }
 .stream-winner { text-align: center; display: flex; flex-direction: column; align-items: center; min-width: 0; animation: stream-arrive 250ms var(--ease-out) both; }
+.stream-winner.is-clickable { border: 0; color: inherit; font: inherit; background: transparent; padding: 0; }
+.stream-winner.is-clickable, .stream-runner-button.is-clickable { cursor: pointer; }
+.stream-winner.is-clickable:focus-visible, .stream-runner-button.is-clickable:focus-visible { outline: 3px solid var(--stream-coral); outline-offset: 5px; }
 .stream-place-1 { grid-column: 2; grid-row: 1; animation-delay: 140ms; }
 .stream-place-2 { grid-column: 1; grid-row: 1; animation-delay: 70ms; }
 .stream-place-3 { grid-column: 3; grid-row: 1; }
@@ -67,7 +70,9 @@
 .stream-standings-heading > span { font-size: 12px; border: 1px solid #b2cadb; border-radius: 4px; padding: 4px 7px; white-space: nowrap; }
 .stream-runners { list-style: none; padding: 0; margin: 0; flex: 1; display: flex; flex-direction: column; }
 .stream-runners li { display: grid; grid-template-columns: 26px 34px minmax(0,1fr) auto; gap: 12px; align-items: center; flex: 1; padding: 15px 0; border-bottom: 1px solid #c7dae7; font-size: 15px; min-height: 58px; }
+.stream-runners li.is-clickable { display: block; }
 .stream-runners li:last-child { border: 0; }
+.stream-runner-button { display: grid; grid-template-columns: 26px 34px minmax(0,1fr) auto; gap: 12px; align-items: center; width: 100%; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; }
 .stream-rank { color: #4a6b84; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .stream-runner-avatar { width: 34px; height: 34px; border-radius: 50%; background: #d5e5f0; color: var(--stream-navy); display: grid; place-items: center; font-size: 11px; font-weight: 750; }
 .stream-runners strong { overflow-wrap: anywhere; line-height: 1.3; font-weight: 700; }
@@ -111,6 +116,20 @@
 .stream-options .quiz-answer-mark svg { width: 100%; height: 100%; fill: currentColor; stroke: var(--mark-stroke, var(--stream-white)); stroke-width: 2; stroke-linejoin: round; filter: drop-shadow(2px 2px 0 #0f2d44); }
 .stream-options .quiz-answer-mark b { position: absolute; color: var(--option-fill); font-size: 13px; font-weight: 900; }
 .stream-error { background: var(--stream-coral); color: var(--stream-navy); padding: 12px; border-radius: 8px; }
+.stream-student-profile { position: fixed; inset: auto max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) auto; z-index: 4; width: min(380px, calc(100vw - 32px)); max-height: min(620px, calc(100dvh - 32px)); overflow: auto; padding: 24px; border: 2px solid var(--stream-line); border-radius: 16px; background: var(--stream-white); color: var(--stream-navy); box-shadow: 0 18px 48px rgba(0,0,0,.35); }
+.stream-profile-close { position: absolute; top: 12px; right: 12px; width: 44px; height: 44px; border: 0; border-radius: 50%; background: var(--stream-ice); color: var(--stream-navy); font: inherit; font-size: 28px; line-height: 1; cursor: pointer; }
+.stream-profile-close:focus-visible { outline: 3px solid var(--stream-coral); outline-offset: 3px; }
+.stream-profile-kicker { margin: 0 0 6px; color: #4a6b84; font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.stream-student-profile h2 { margin: 0 48px 20px 0; font-size: 26px; line-height: 1.2; }
+.stream-profile-data { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 0; }
+.stream-profile-data div { min-width: 0; padding: 10px; border-radius: 10px; background: var(--stream-ice); }
+.stream-profile-data dt { color: #4a6b84; font-size: 11px; font-weight: 700; }
+.stream-profile-data dd { margin: 3px 0 0; overflow-wrap: anywhere; font-size: 14px; font-weight: 700; }
+.stream-profile-subjects { margin-top: 20px; }
+.stream-profile-subjects h3 { margin: 0 0 8px; font-size: 15px; }
+.stream-profile-subject { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid #c7dae7; font-size: 14px; font-weight: 700; }
+.stream-profile-subject small { color: #4a6b84; font-weight: 600; text-align: right; }
+.stream-profile-status { margin: 28px 0; color: #4a6b84; }
 .stream-launcher { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 16px 24px; }
 .stream-launcher select, .stream-launcher button { min-height: 44px; padding: 8px 14px; border-radius: 8px; border: 1px solid #337bae; color: #1a405f; background: #eaf3fa; font: inherit; }
 .stream-launcher button { cursor: pointer; }
@@ -221,6 +240,7 @@
   .stream-standings { padding: 20px 16px; }
   .stream-standings-heading h2 { font-size: 17px; }
   .stream-runners li { font-size: 15px; gap: 9px; }
+  .stream-runner-button { gap: 9px; }
   .stream-runner-score { font-size: 20px; }
   .stream-screen--question .stream-heading { flex-wrap: wrap; }
   .stream-screen--question .stream-heading h1 { font-size: 25px; }
@@ -234,6 +254,8 @@
   .stream-options > div { font-size: 20px; padding: 18px; }
   .stream-lobby strong { font-size: 94px; }
   .stream-lobby p { font-size: 20px; }
+  .stream-student-profile { inset: auto 12px max(12px, env(safe-area-inset-bottom)) 12px; width: auto; padding: 20px; }
+  .stream-profile-data { grid-template-columns: 1fr; }
 }
 @media (prefers-reduced-motion: reduce) { .stream-winner, .stream-options > div { animation: none; } .stream-time-track span { transition: none; } }
 .stream-inline-dialog { position: fixed; inset: 0; margin: 0; padding: 0; border: 0; width: 100%; height: 100%; height: 100dvh; max-width: none; max-height: none; overflow: auto; overscroll-behavior: contain; }

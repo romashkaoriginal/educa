@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const { DailyMeme, PracticeImage } = require('../models');
+const { DailyMeme, DailyMemeReaction, PracticeImage } = require('../models');
+const sequelize = require('../config/database');
 
 // Авторизация (admin/teacher) применяется на уровне app.use('/api/daily-memes', ...) в app.js.
 
@@ -11,7 +12,23 @@ router.get('/', async (req, res) => {
       include: [{ model: PracticeImage, as: 'image' }],
       order: [['date', 'DESC']]
     });
-    res.json({ memes });
+    const reactionRows = await DailyMemeReaction.findAll({
+      attributes: ['dailyMemeId', 'reaction', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
+      group: ['dailyMemeId', 'reaction'],
+      raw: true
+    });
+    const reactionStatsByMeme = new Map();
+    reactionRows.forEach((row) => {
+      const stats = reactionStatsByMeme.get(row.dailyMemeId) || { like: 0, dislike: 0, stone: 0, total: 0 };
+      const count = Number(row.count) || 0;
+      stats[row.reaction] = count;
+      stats.total += count;
+      reactionStatsByMeme.set(row.dailyMemeId, stats);
+    });
+    res.json({ memes: memes.map((meme) => ({
+      ...meme.toJSON(),
+      reactionStats: reactionStatsByMeme.get(meme.id) || { like: 0, dislike: 0, stone: 0, total: 0 }
+    })) });
   } catch (error) {
     console.error('Get daily memes error:', error);
     res.status(500).json({ message: 'Ошибка сервера' });

@@ -7,6 +7,7 @@ const {
   getForcedPeriod,
   getPreviousWeekPeriod,
   isSubjectAccessActive,
+  clipReportPeriodToSubjectAccess,
   classifyPracticeTopics,
   formatSubjectReport,
   getManagerContactKeyboard,
@@ -16,7 +17,8 @@ const {
   isMondayReportDue,
   isMonthlyReportDue,
   getNextWeeklyReportAt,
-  getNextMonthlyReportAt
+  getNextMonthlyReportAt,
+  getDeliveryKind
 } = require('../src/services/parentReportScheduler');
 const { normalizeTelegramId, normalizeTelegramUsername } = require('../src/services/parentIdentity');
 
@@ -40,6 +42,12 @@ test('monthly report is due on the first Monday of a month at 18:00 Minsk', () =
   assert.equal(isMonthlyReportDue(new Date('2026-09-14T15:00:00.000Z')), false);
 });
 
+test('manual dispatch has a distinct delivery kind and cannot consume the scheduled report', () => {
+  assert.equal(getDeliveryKind(null), 'scheduled');
+  assert.equal(getDeliveryKind({ scope: 'bulk' }), 'manual_bulk');
+  assert.equal(getDeliveryKind({ scope: 'parent' }), 'manual_parent');
+});
+
 test('next parent report schedule is calculated in Minsk time', () => {
   const beforeFirstMonday = new Date('2026-09-04T10:00:00.000Z');
   assert.equal(getNextWeeklyReportAt(beforeFirstMonday).toISOString(), '2026-09-07T15:00:00.000Z');
@@ -54,6 +62,24 @@ test('monthly period uses the previous complete calendar month in Minsk', () => 
   assert.equal(period.startUtc.toISOString(), '2026-07-31T21:00:00.000Z');
   assert.equal(period.endExclusiveUtc.toISOString(), '2026-08-31T21:00:00.000Z');
   assert.equal(period.nextEndExclusiveUtc.toISOString(), '2026-09-30T21:00:00.000Z');
+});
+
+test('monthly report period starts at the subject access date when access began mid-month', () => {
+  const monthlyPeriod = getPreviousMonthPeriod(new Date('2026-10-05T15:00:00.000Z'));
+  const clipped = clipReportPeriodToSubjectAccess(monthlyPeriod, {
+    UserSubject: { accessStartDate: '2026-09-17T07:26:00.000Z', isActive: true }
+  });
+  assert.equal(clipped.startDate, '2026-09-17');
+  assert.equal(clipped.endDate, '2026-09-30');
+  assert.equal(clipped.startUtc.toISOString(), '2026-09-17T07:26:00.000Z');
+});
+
+test('subject that starts after a report period is omitted from that report', () => {
+  const monthlyPeriod = getPreviousMonthPeriod(new Date('2026-09-07T15:00:00.000Z'));
+  const clipped = clipReportPeriodToSubjectAccess(monthlyPeriod, {
+    UserSubject: { accessStartDate: '2026-09-03T07:26:00.000Z', isActive: true }
+  });
+  assert.equal(clipped, null);
 });
 
 test('forced weekly period is a rolling seven-day interval ending today', () => {

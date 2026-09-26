@@ -168,6 +168,7 @@ SELECT u.id, COALESCE(NULLIF(TRIM(u."firstName"), ''), 'Участник') AS na
   SUM(s.homework + s.practice + s.streak)::float AS "totalScore"
 FROM scores s JOIN users u ON u.id = s."userId"
 WHERE u.role = 'student' AND u."isActive" = true
+  AND (:currentUserId IS NULL OR u.id = :currentUserId)
 GROUP BY u.id, u."firstName", u."telegramUsername"
 HAVING SUM(s.homework + s.practice + s.streak) > 0
 ORDER BY "totalScore" DESC, "homeworkScore" DESC, u.id ASC LIMIT 10`;
@@ -186,11 +187,14 @@ function isPracticeAnswerCorrect(selected, correct) {
 // includeUsername — только для админского стрима: ученик не должен получать
 // чужие @username в ответе API, даже если фронт их не отрисовывает (ТЗ в чате
 // с Дмитрием: "к ученикам в лидерборде @ не надо, в админке можно").
-async function computeWeeklyLeaderboard(sequelize, { QueryTypes, since, until, subjectId, allowedSubjectIds, limit = 10, includeUsername = false }) {
+async function computeWeeklyLeaderboard(sequelize, {
+  QueryTypes, since, until, subjectId, allowedSubjectIds, limit = 10, includeUsername = false, currentUserId = null
+}) {
   const rows = await sequelize.query(WEEKLY_SQL.replace('LIMIT 10', `LIMIT ${Number(limit) || 10}`), {
     type: QueryTypes.SELECT,
     replacements: {
       since, until, subjectId,
+      currentUserId,
       restrictSubjects: Boolean(allowedSubjectIds),
       allowedSubjectIds: allowedSubjectIds?.length ? allowedSubjectIds : [0]
     }
@@ -210,11 +214,23 @@ async function computeWeeklyLeaderboard(sequelize, { QueryTypes, since, until, s
   });
 }
 
+// Возвращает только сумму баллов конкретного ученика. Используем тот же SQL,
+// что и для таблицы лидеров, поэтому состав баллов не может разъехаться.
+async function getWeeklyLeaderboardScore(sequelize, options) {
+  const [entry] = await computeWeeklyLeaderboard(sequelize, {
+    ...options,
+    currentUserId: options.currentUserId,
+    limit: 1
+  });
+  return entry ? entry.totalScore : 0;
+}
+
 module.exports = {
   buildLessonQuizLeaderboard,
   withQuestionTimeLimits,
   presentLessonQuiz,
   WEEKLY_SQL,
   computeWeeklyLeaderboard,
+  getWeeklyLeaderboardScore,
   isPracticeAnswerCorrect
 };

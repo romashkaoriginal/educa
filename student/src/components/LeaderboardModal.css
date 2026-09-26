@@ -26,3 +26,46 @@
   line-height: 1;
   cursor: pointer;
 }
+
+.lb-modal-close:focus-visible {
+  outline: 3px solid var(--stream-coral, #ffb0ae);
+  outline-offset: 3px;
+}
+
+/* Личная сумма отделена от мест: ученику видно, сколько он уже заработал,
+   даже когда его нет в десятке, но экран не подталкивает к сравнению мест. */
+.lb-my-score {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin: -8px 0 28px;
+  padding: 14px 0;
+  border-top: 1px solid var(--stream-line, #52728a);
+  border-bottom: 1px solid var(--stream-line, #52728a);
+  color: var(--stream-white, #fcfcfa);
+}
+
+.lb-my-score span {
+  color: var(--stream-muted, #b5c9d8);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.lb-my-score strong {
+  color: var(--stream-coral, #ffb0ae);
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+
+@media (max-width: 500px) {
+  .lb-my-score { margin-bottom: 22px; padding: 12px 0; }
+  .lb-my-score span { font-size: 13px; }
+  .lb-my-score strong { font-size: 18px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-dialog { animation: none; }
+}
