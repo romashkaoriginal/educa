@@ -104,9 +104,9 @@ function getForcedPeriod(reportType, now = new Date()) {
   if (reportType === 'weekly') {
     startDate = shiftDateOnly(currentDate, -6);
   } else {
-    const [year, month, day] = currentDate.split('-').map(Number);
-    const previousMonthSameDay = new Date(Date.UTC(year, month - 2, day));
-    startDate = shiftDateOnly(previousMonthSameDay.toISOString().slice(0, 10), 1);
+    // Ручной месячный отчёт — ровно последние 30 календарных дней, а не
+    // предыдущий календарный месяц и не «месяц назад» с плавающей длиной.
+    startDate = shiftDateOnly(currentDate, -29);
   }
   const nextStartDate = shiftDateOnly(endDate, 1);
   const nextEndDate = reportType === 'weekly'

@@ -3,6 +3,7 @@ const { sendTelegramMessage } = require('./telegramDelivery');
 const {
   buildReportMessages,
   getPreviousMonthPeriod,
+  getForcedPeriod,
   getPreviousWeekPeriod,
   getManagerContactKeyboard,
   isSubjectAccessActive,
@@ -111,7 +112,52 @@ async function prepareParentReport(parent, { now = new Date(), reportType = 'wee
     });
     messages.push(...report.messages);
   }
-  return { period, messages };
+  return { period, messages, firstStudentId: students[0]?.id ?? null };
+}
+
+async function deliverPreparedReport(parent, { bot, reportType, period, messages, log }) {
+  try {
+    let sentCount = 0;
+    for (const [index, text] of messages.entries()) {
+      const result = await sendTelegramMessage({
+        bot,
+        chatId: parent.telegramId,
+        text,
+        options: {
+          parse_mode: 'HTML',
+          ...(index === messages.length - 1 ? { reply_markup: getManagerContactKeyboard() } : {})
+        },
+        recipient: parent,
+        notificationKind: `parent_${reportType}_report`,
+        context: { parentId: parent.id, reportType, periodStart: period.startDate }
+      });
+      if (!result.ok) throw new Error(result.reason || 'Не удалось отправить сообщение');
+      sentCount += 1;
+    }
+    await log.update({ status: 'sent', messageCount: sentCount, sentAt: new Date(), error: null });
+  } catch (error) {
+    await log.update({ status: 'failed', error: String(error.message || error).slice(0, 2000) });
+  }
+  return log;
+}
+
+async function getManualReportLog(parent, { reportType, period, firstStudentId }) {
+  const [log, created] = await ParentReportLog.findOrCreate({
+    where: { parentId: parent.id, reportType, periodStart: period.startDate },
+    defaults: { studentId: firstStudentId, periodEnd: period.endDate, status: 'processing' }
+  });
+  if (!created) {
+    await log.update({ studentId: firstStudentId, periodEnd: period.endDate, status: 'processing', messageCount: 0, sentAt: null, error: null });
+  }
+  return log;
+}
+
+// Отправляет уже подготовленный и подтверждённый снимок предпросмотра, а не
+// пересчитывает статистику заново — увиденное в предпросмотре обязано совпасть
+// с тем, что уйдёт в Telegram.
+async function sendPreparedParentReport(parent, { bot, reportType, period, messages, firstStudentId }) {
+  const log = await getManualReportLog(parent, { reportType, period, firstStudentId });
+  return deliverPreparedReport(parent, { bot, reportType, period, messages, log });
 }
 
 async function processParent(parent, { bot, now = new Date(), reportType = 'weekly', force = false, manualTrigger = null }) {
@@ -311,7 +357,9 @@ module.exports = {
   getNextMonthlyReportAt,
   getNextReportSchedule,
   getDeliveryKind,
+  getReportPeriod,
   prepareParentReport,
+  sendPreparedParentReport,
   processParent,
   sendParentReports,
   retryMissedReportsAfterTelegramConfirmation,

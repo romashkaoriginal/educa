@@ -19,7 +19,8 @@ const {
   isMonthlyReportDue,
   getNextWeeklyReportAt,
   getNextMonthlyReportAt,
-  getDeliveryKind
+  getDeliveryKind,
+  getReportPeriod
 } = require('../src/services/parentReportScheduler');
 const { normalizeTelegramId, normalizeTelegramUsername } = require('../src/services/parentIdentity');
 
@@ -91,10 +92,31 @@ test('forced weekly period is a rolling seven-day interval ending today', () => 
   assert.equal(period.endExclusiveUtc.toISOString(), '2026-09-10T21:00:00.000Z');
 });
 
-test('forced monthly period starts after the same date of the previous month', () => {
+test('forced monthly period covers exactly the last 30 calendar days', () => {
   const period = getForcedPeriod('monthly', new Date('2026-09-10T10:00:00.000Z'));
-  assert.equal(period.startDate, '2026-08-11');
+  assert.equal(period.startDate, '2026-08-12');
   assert.equal(period.endDate, '2026-09-10');
+});
+
+test('scheduled monthly report period uses the previous complete calendar month', () => {
+  const period = getReportPeriod('monthly', new Date('2026-09-09T10:00:00.000Z'), false);
+  assert.equal(period.startDate, '2026-08-01');
+  assert.equal(period.endDate, '2026-08-31');
+});
+
+test('forced monthly report period also uses the previous complete calendar month', () => {
+  const period = getReportPeriod('monthly', new Date('2026-09-09T10:00:00.000Z'), true);
+  assert.equal(period.startDate, '2026-08-01');
+  assert.equal(period.endDate, '2026-08-31');
+});
+
+test('report period starts at access date when the child has had access for less than 30 days', () => {
+  const period = getForcedPeriod('monthly', new Date('2026-09-24T10:00:00.000Z'));
+  const clipped = clipReportPeriodToSubjectAccess(period, {
+    UserSubject: { accessStartDate: '2026-09-12T08:00:00.000Z', isActive: true }
+  });
+  assert.equal(clipped.startDate, '2026-09-12');
+  assert.equal(clipped.endDate, '2026-09-24');
 });
 
 test('homework uses the best on-time submission and ignores a better late attempt', () => {
