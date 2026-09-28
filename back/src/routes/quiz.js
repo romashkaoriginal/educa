@@ -223,7 +223,7 @@ router.post('/import-questions', isAdmin, upload.single('file'), async (req, res
     rows.forEach((row, i) => {
       const rowNum = i + 2;
       const questionText = String(row.question || '').trim();
-      const options = [row.a, row.b, row.c, row.d].map(v => String(v || '').trim());
+      const options = [row.a, row.b, row.c, row.d].map(v => String(v ?? '').trim());
       const correct = String(row.correct || '').trim().toLowerCase();
       const timeLimit = parseInt(row.time, 10) || 30;
       const points = parseFloat(String(row.points || '').replace(',', '.')) || 1;
@@ -231,7 +231,7 @@ router.post('/import-questions', isAdmin, upload.single('file'), async (req, res
 
       if (!questionText) { errors.push({ row: rowNum, reason: 'пустой текст вопроса' }); return; }
       if (options.some(o => !o)) { errors.push({ row: rowNum, reason: 'заполните все 4 варианта (a–d)' }); return; }
-      if (!(correct in LETTER_MAP)) {
+      if (!Object.hasOwn(LETTER_MAP, correct)) {
         errors.push({ row: rowNum, reason: `correct должен быть буквой a / b / c / d, получено "${correct}"` });
         return;
       }

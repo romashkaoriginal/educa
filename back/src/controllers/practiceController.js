@@ -1569,11 +1569,11 @@ exports.importQuestionsFromExcel = async (req, res) => {
     rows.forEach((row, i) => {
       const rowNum = i + 2;
       const q = String(row.question || '').trim();
-      const a = String(row.a || '').trim();
-      const b = String(row.b || '').trim();
-      const c = String(row.c || '').trim();
-      const d = String(row.d || '').trim();
-      const e = String(row.e || '').trim();
+      const a = String(row.a ?? '').trim();
+      const b = String(row.b ?? '').trim();
+      const c = String(row.c ?? '').trim();
+      const d = String(row.d ?? '').trim();
+      const e = String(row.e ?? '').trim();
       const correct = String(row.correct || '').trim().toLowerCase();
       const diffRaw = String(row.difficulty || '').trim().toLowerCase();
       const explanation = String(row.explanation || '').trim() || null;
@@ -1588,7 +1588,7 @@ exports.importQuestionsFromExcel = async (req, res) => {
       }
       // Несколько правильных вариантов через запятую/точку с запятой/пробел (напр. "a,c").
       const correctLetters = correct.split(/[,;\s]+/).filter(Boolean);
-      const invalidLetter = correctLetters.find((l) => !(l in CORRECT_MAP));
+      const invalidLetter = correctLetters.find((l) => !Object.hasOwn(CORRECT_MAP, l) || ![a, b, c, d, e][CORRECT_MAP[l]]);
       if (correctLetters.length === 0 || invalidLetter) {
         errors.push({
           row: rowNum,

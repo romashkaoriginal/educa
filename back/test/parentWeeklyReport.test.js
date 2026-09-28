@@ -9,6 +9,7 @@ const {
   isSubjectAccessActive,
   clipReportPeriodToSubjectAccess,
   classifyPracticeTopics,
+  classifyPracticeTopicsFromTotals,
   formatSubjectReport,
   getManagerContactKeyboard,
   splitTelegramText
@@ -155,6 +156,24 @@ test('practice topic strengths use the student statistics formula within the rep
 
   assert.deepEqual(result.strongPracticeTopics, [{ name: 'Степени', attempts: 25, percent: 100 }]);
   assert.deepEqual(result.weakPracticeTopics, [{ name: 'Дроби', attempts: 10, percent: 0 }]);
+});
+
+test('practice topic strengths fall back to lifetime topic totals when per-period attempts were migrated away', () => {
+  const topics = [{ id: 1, name: 'Степени' }, { id: 2, name: 'Дроби' }];
+  const topicTotals = [
+    { topicId: 1, totalAttempts: 25, totalCorrect: 25 },
+    { topicId: 2, totalAttempts: 10, totalCorrect: 0 }
+  ];
+  const result = classifyPracticeTopicsFromTotals(topics, topicTotals);
+
+  assert.equal(result.hasPractice, true);
+  assert.deepEqual(result.strongPracticeTopics, [{ name: 'Степени', attempts: 25, percent: 100 }]);
+  assert.deepEqual(result.weakPracticeTopics, [{ name: 'Дроби', attempts: 10, percent: 0 }]);
+});
+
+test('practice topic totals fallback reports no practice when there are no totals rows', () => {
+  const result = classifyPracticeTopicsFromTotals([{ id: 1, name: 'Степени' }], []);
+  assert.deepEqual(result, { hasPractice: false, strongPracticeTopics: [], weakPracticeTopics: [] });
 });
 
 test('practice topic blocks explain why they are unavailable without practice', () => {

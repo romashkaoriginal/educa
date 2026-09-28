@@ -76,3 +76,25 @@ test('предпросмотр Excel-импорта сообщает число 
   });
   assert.equal(created, false);
 });
+
+test('импорт сохраняет числовой ноль и отклоняет correct=e без варианта e', async () => {
+  let saved = [];
+  const controller = loadController({
+    findTopic: async () => ({ id: 42 }),
+    bulkCreate: async (questions) => { saved = questions; },
+  });
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet('Questions');
+  sheet.addRow(['question', 'a', 'b', 'c', 'd', 'e', 'correct']);
+  sheet.addRow(['Ноль?', 0, 2, 4, 6, '', 'a']);
+  sheet.addRow(['Нет пятого ответа', 1, 2, 4, 6, '', 'e']);
+  let payload;
+  await controller.importQuestionsFromExcel(
+    { params: { topicId: '42' }, query: {}, file: { buffer: await workbook.xlsx.writeBuffer() } },
+    { json: (body) => { payload = body; } },
+  );
+  assert.equal(payload.imported, 1);
+  assert.equal(payload.skipped, 1);
+  assert.deepEqual(saved[0].options, ['0', '2', '4', '6']);
+  assert.equal(saved[0].options[saved[0].correctAnswer[0]], '0');
+});

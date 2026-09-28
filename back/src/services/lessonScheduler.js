@@ -1,6 +1,6 @@
 const { Op } = require('sequelize');
 const { Lesson, LessonPoll } = require('../models');
-const { SESSION_DURATION_MS, finishLessonById } = require('./lessonSession');
+const { SESSION_DURATION_MS, startLessonById, finishLessonById } = require('./lessonSession');
 const { sendLessonReminderNotifications } = require('./lessonNotify');
 const { emitToLesson } = require('./lessonRealtime');
 
@@ -40,6 +40,25 @@ async function finishOverdueScheduledLessons(now = new Date(), { LessonModel = L
   return finishedIds;
 }
 
+async function startScheduledLessons(now = new Date(), { LessonModel = Lesson, start = startLessonById } = {}) {
+  const threshold = new Date(now.getTime() - SESSION_DURATION_MS);
+  const lessons = await LessonModel.findAll({
+    where: {
+      status: 'scheduled',
+      fromSchedule: true,
+      scheduledAt: { [Op.gt]: threshold, [Op.lte]: now }
+    },
+    attributes: ['id']
+  });
+
+  const startedIds = [];
+  for (const lesson of lessons) {
+    const result = await start(lesson.id, { autoScheduled: true });
+    if (!result.error && !result.alreadyLive) startedIds.push(lesson.id);
+  }
+  return startedIds;
+}
+
 async function tick() {
   const now = new Date();
   try {
@@ -59,6 +78,12 @@ async function tick() {
     }
   } catch (error) {
     console.error('Lesson reminder scheduler:', error.message);
+  }
+
+  try {
+    await startScheduledLessons(now);
+  } catch (error) {
+    console.error('Lesson scheduled auto-start scheduler:', error.message);
   }
 
   try {
@@ -99,6 +124,7 @@ function stopLessonScheduler() {
 
 module.exports = {
   SESSION_DURATION_MS,
+  startScheduledLessons,
   finishOverdueScheduledLessons,
   tick,
   startLessonScheduler,

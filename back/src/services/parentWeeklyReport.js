@@ -7,6 +7,7 @@ const {
   PracticeAttempt,
   PracticeQuestion,
   PracticeTopic,
+  PracticeTopicTotals,
 } = require('../models');
 const { calcTopicProgress } = require('./predictedScore');
 
@@ -241,6 +242,45 @@ function splitTelegramText(text, limit = 3900) {
   return chunks;
 }
 
+function splitStrongWeakTopics(topicProgress) {
+  return {
+    hasPractice: true,
+    strongPracticeTopics: [...topicProgress]
+      .filter((topic) => topic.percent >= 60)
+      .sort((a, b) => b.percent - a.percent || b.attempts - a.attempts)
+      .slice(0, 3),
+    weakPracticeTopics: topicProgress
+      .filter((topic) => topic.percent < 70)
+      .sort((a, b) => a.percent - b.percent || b.attempts - a.attempts)
+      .slice(0, 3)
+  };
+}
+
+// Для студентов, чьи попытки уже перенесены в агрегаты и удалены из
+// PracticeAttempt (см. ensurePracticeStatsReady/deleteAttemptsAfter в
+// practiceStatsAggregate.js), берём накопленную статистику по темам за всё
+// время — точного среза за отчётный период у агрегатов нет.
+function classifyPracticeTopicsFromTotals(topics, topicTotals) {
+  if (!topicTotals.length) {
+    return { hasPractice: false, strongPracticeTopics: [], weakPracticeTopics: [] };
+  }
+
+  const totalsByTopic = new Map();
+  topicTotals.forEach((row) => totalsByTopic.set(row.topicId, row));
+
+  const topicProgress = topics.map((topic) => {
+    const row = totalsByTopic.get(topic.id);
+    const attempts = row?.totalAttempts || 0;
+    return {
+      name: topic.name,
+      attempts,
+      percent: attempts > 0 ? Math.round((row.totalCorrect / attempts) * 100) : 0
+    };
+  }).filter((topic) => topic.attempts > 0);
+
+  return splitStrongWeakTopics(topicProgress);
+}
+
 function classifyPracticeTopics(topics, attempts) {
   if (!attempts.length) {
     return { hasPractice: false, strongPracticeTopics: [], weakPracticeTopics: [] };
@@ -266,17 +306,7 @@ function classifyPracticeTopics(topics, attempts) {
     };
   }).filter((topic) => topic.attempts > 0);
 
-  return {
-    hasPractice: true,
-    strongPracticeTopics: [...topicProgress]
-      .filter((topic) => topic.percent >= 60)
-      .sort((a, b) => b.percent - a.percent || b.attempts - a.attempts)
-      .slice(0, 3),
-    weakPracticeTopics: topicProgress
-      .filter((topic) => topic.percent < 70)
-      .sort((a, b) => a.percent - b.percent || b.attempts - a.attempts)
-      .slice(0, 3)
-  };
+  return splitStrongWeakTopics(topicProgress);
 }
 
 async function buildSubjectReport({
@@ -368,10 +398,26 @@ async function buildSubjectReport({
         })
       ])
     : [[], []];
-  const { hasPractice, strongPracticeTopics, weakPracticeTopics } = classifyPracticeTopics(
-    practiceTopics.map((topic) => topic.toJSON()),
+  const topicsJson = practiceTopics.map((topic) => topic.toJSON());
+  let practiceTopicsResult = classifyPracticeTopics(
+    topicsJson,
     practiceAttempts.map((attempt) => attempt.toJSON())
   );
+
+  // Студенты, чьи попытки уже мигрированы в агрегаты, не имеют записей в
+  // PracticeAttempt за период — тянем накопленную статистику по темам оттуда.
+  if (includePracticeTopicStrengths && !practiceTopicsResult.hasPractice && practiceTotal > 0) {
+    const topicTotals = await PracticeTopicTotals.findAll({
+      where: { studentId, subjectId: subject.id },
+      attributes: ['topicId', 'totalAttempts', 'totalCorrect']
+    });
+    practiceTopicsResult = classifyPracticeTopicsFromTotals(
+      topicsJson,
+      topicTotals.map((row) => row.toJSON())
+    );
+  }
+
+  const { hasPractice, strongPracticeTopics, weakPracticeTopics } = practiceTopicsResult;
 
   const nextLessons = await Lesson.findAll({
     where: {
@@ -503,6 +549,7 @@ module.exports = {
   submissionPercent,
   classifyHomework,
   classifyPracticeTopics,
+  classifyPracticeTopicsFromTotals,
   splitTelegramText,
   buildSubjectReport,
   formatSubjectReport,

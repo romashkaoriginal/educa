@@ -9,14 +9,14 @@ const SESSION_DURATION_MS = 2 * 60 * 60 * 1000;
 
 // ТЗ §3.2/§8.10: ссылка на трансляцию указывается непосредственно перед началом,
 // тема при запуске из расписания подставляется автоматически, но её можно изменить.
-async function startLessonById(lessonId, { streamUrl, topic, teacherId } = {}) {
+async function startLessonById(lessonId, { streamUrl, topic, teacherId, autoScheduled = false } = {}) {
   const lesson = await Lesson.findByPk(lessonId, { include: lessonInclude });
   if (!lesson) return { error: 'Занятие не найдено', status: 404 };
   if (lesson.status === 'live') return { lesson, alreadyLive: true };
   if (lesson.status !== 'scheduled') return { error: 'Можно начать только запланированное занятие', status: 409 };
 
   const stream = String(streamUrl || lesson.streamUrl || '').trim();
-  if (!stream) return { error: 'Укажите ссылку на трансляцию', status: 400 };
+  if (!stream && !autoScheduled) return { error: 'Укажите ссылку на трансляцию', status: 400 };
 
   // Одновременно по одному предмету может идти только одно занятие — иначе ученик
   // с доступом к предмету увидит сразу две активные сессии.
