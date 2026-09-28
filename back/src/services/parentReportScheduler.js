@@ -60,7 +60,14 @@ function getNextReportSchedule(now = new Date()) {
 }
 
 function getReportPeriod(reportType, now, force) {
-  return reportType === 'monthly' ? getPreviousMonthPeriod(now) : getPreviousWeekPeriod(now);
+  // Месячный отчёт — это скользящее окно «последние 30 дней», а не
+  // календарный месяц: иначе ученику, подключившемуся, скажем, три недели
+  // назад, календарный месяц ничего не покрывает и отчёт пуст. Клиппинг под
+  // дату начала доступа (clipReportPeriodToSubjectAccess) сокращает его до
+  // фактического периода занятий, если он короче 30 дней.
+  if (reportType === 'monthly') return getForcedPeriod(reportType, now);
+  if (force) return getForcedPeriod(reportType, now);
+  return getPreviousWeekPeriod(now);
 }
 
 function getDeliveryKind(manualTrigger) {

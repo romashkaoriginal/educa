@@ -1,7 +1,6 @@
 const { Parent, ParentReportDispatchLog, ParentReportLog, ParentStudent, Subject, User } = require('../models');
 const { deactivateGuestForParent, resolveParentIdentity } = require('../services/parentIdentity');
-const { sendParentReports, getNextReportSchedule, prepareParentReport, sendPreparedParentReport } = require('../services/parentReportScheduler');
-const { getPreviousMonthPeriod, getPreviousWeekPeriod } = require('../services/parentWeeklyReport');
+const { sendParentReports, getNextReportSchedule, getReportPeriod, prepareParentReport, sendPreparedParentReport } = require('../services/parentReportScheduler');
 const { createParentReportPreviewToken, readParentReportPreviewToken } = require('../services/parentReportPreview');
 const { sendTelegramMessage } = require('../services/telegramDelivery');
 
@@ -126,7 +125,7 @@ exports.sendReports = async (req, res) => {
     return res.json({
       message: reportType === 'monthly' ? 'Месячные отчёты обработаны' : 'Недельные отчёты обработаны',
       reportType,
-      period: reportType === 'monthly' ? getPreviousMonthPeriod() : getPreviousWeekPeriod(),
+      period: getReportPeriod(reportType, new Date(), true),
       processed: result.processed,
       statuses: summarizeReportResult(result)
     });
@@ -151,6 +150,7 @@ exports.previewReportForParent = async (req, res) => {
       previewToken
     });
   } catch (error) {
+    if (error.reportStatus) return res.status(409).json({ message: error.message, status: error.reportStatus });
     return handleParentError(res, error, 'Preview parent report error');
   }
 };
