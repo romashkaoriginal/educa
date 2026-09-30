@@ -1515,6 +1515,7 @@ function StudentHomework({ studentId, previewHomework = null, onExitPreview = nu
             </div>
             <div className="hw-question-prompt" key={`hq-${currentQuestion.id ?? currentQuestionIndex}`}>
               <span className="hw-question-prompt-mark" aria-hidden>“</span>
+              <h3 className="question-text"><MathText text={currentQuestion.questionText} /></h3>
               {currentQuestion.questionImage?.storageKey && (
                 <img
                   className="homework-question-image"
@@ -1522,7 +1523,6 @@ function StudentHomework({ studentId, previewHomework = null, onExitPreview = nu
                   alt="Изображение к вопросу"
                 />
               )}
-              <h3 className="question-text"><MathText text={currentQuestion.questionText} /></h3>
             </div>
             <div className={`homework-mode-answer homework-mode-answer--${currentQuestion.questionType || 'default'}`}>
               {renderQuestion(currentQuestion, currentQuestionIndex)}

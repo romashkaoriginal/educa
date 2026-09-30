@@ -543,7 +543,7 @@
   margin: 0 0 10px 0;
   flex: 0 1 auto;
   min-height: 0;
-  max-height: 42%;
+  max-height: 55%;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   animation: hwPromptIn 0.36s var(--ease-out, ease) both;
@@ -576,8 +576,8 @@
   display: block;
   width: auto;
   max-width: 100%;
-  max-height: 280px;
-  margin: 0 auto 12px;
+  max-height: 200px;
+  margin: 10px auto 0;
   border: 1px solid var(--kubik-border);
   border-radius: 8px;
   object-fit: contain;
