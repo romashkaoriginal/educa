@@ -185,17 +185,40 @@ function setupQuizSocket(io) {
       }
     });
 
-    socket.on('student:submit-answer', async ({ quizId, questionId, selectedAnswer, responseTime }) => {
+    socket.on('student:submit-answer', async ({ quizId, questionId, selectedAnswer, responseTime }, acknowledge = () => {}) => {
       try {
         const userId = socket.data.effectiveUserId || socket.data.dbUser.id;
         const existing = await QuizAnswer.findOne({ where: { questionId, userId } });
-        if (existing) return;
+        // Повторная отправка возникает при потере подтверждения на клиенте.
+        // Ответ уже сохранён, поэтому возвращаем успех, а не оставляем ученика
+        // с заблокированными кнопками и без обратной связи.
+        if (existing) {
+          acknowledge({ ok: true, duplicate: true });
+          return;
+        }
 
         const participant = await QuizParticipant.findOne({ where: { quizId, userId } });
-        if (!participant) return;
+        if (!participant) {
+          acknowledge({ ok: false, code: 'NOT_JOINED', message: 'Подключение к викторине потеряно. Подождите и повторите ответ.' });
+          return;
+        }
 
         const question = await QuizQuestion.findByPk(questionId);
-        if (!question) return;
+        if (!question || Number(question.quizId) !== Number(quizId)) {
+          acknowledge({ ok: false, code: 'INVALID_QUESTION', message: 'Этот вопрос уже недоступен. Дождитесь следующего.' });
+          return;
+        }
+
+        const quiz = await Quiz.findByPk(quizId, {
+          attributes: ['status', 'currentQuestionIndex', 'questionStartedAt', 'showLeaderboardAfterQuestion']
+        });
+        const deadline = quiz?.questionStartedAt
+          ? new Date(quiz.questionStartedAt).getTime() + Number(question.timeLimit) * 1000
+          : 0;
+        if (!quiz || quiz.status !== 'active' || Number(quiz.currentQuestionIndex) !== Number(question.order) || Date.now() >= deadline) {
+          acknowledge({ ok: false, code: 'QUESTION_CLOSED', message: 'Время на этот вопрос уже закончилось.' });
+          return;
+        }
 
         const isCorrect = selectedAnswer === question.correctAnswer;
         let score = 0;
@@ -221,8 +244,7 @@ function setupQuizSocket(io) {
           { where: { quizId, userId } }
         );
 
-        const quiz = await Quiz.findByPk(quizId, { attributes: ['showLeaderboardAfterQuestion'] });
-        const payload = { accepted: true };
+        const payload = { accepted: true, questionId: Number(questionId) };
         if (quiz?.showLeaderboardAfterQuestion !== false) {
           payload.isCorrect = isCorrect;
           payload.score = score;
@@ -231,11 +253,14 @@ function setupQuizSocket(io) {
           payload.totalScore = parseFloat(totalScore) || 0;
         }
         socket.emit('student:answer-accepted', payload);
+        acknowledge({ ok: true });
+        console.log(`Quiz answer accepted: quiz=${quizId} question=${questionId} student=${userId}`);
 
         const participants = await getParticipants(quizId);
         io.to(`quiz-${quizId}`).emit('participants:updated', { participants });
       } catch (error) {
         console.error('Submit answer error:', error);
+        acknowledge({ ok: false, code: 'SUBMIT_FAILED', message: 'Не удалось отправить ответ. Попробуйте ещё раз.' });
       }
     });
 

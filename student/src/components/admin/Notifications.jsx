@@ -25,11 +25,47 @@ const HOMEWORK_PERCENT_OPTIONS = [
 ];
 
 const ROLE_LABELS = {
+  scheduled: '🕒 По расписанию',
+  manual_unknown: 'Ручная отправка · автор не сохранён',
   superadmin: '🛡️ Суперадмин',
   admin: '👨‍💼 Администратор',
   teacher: '👨‍🏫 Преподаватель',
   manager: '📊 Менеджер',
 };
+
+function isScheduledParentReport(report) {
+  if (report.deliveryKind !== 'scheduled' || report.manualTriggeredByName || report.manualTriggeredBy || report.triggeredByName || report.triggeredBy) {
+    return false;
+  }
+
+  const date = new Date(report.createdAt);
+  if (Number.isNaN(date.getTime())) return false;
+  const localParts = Object.fromEntries(new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/Minsk', weekday: 'short', hour: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric', hourCycle: 'h23'
+  }).formatToParts(date).map(({ type, value }) => [type, value]));
+  if (localParts.weekday !== 'Mon' || Number(localParts.hour) < 18) return false;
+
+  if (report.reportType === 'weekly') {
+    if (!report.periodStart || !report.periodEnd) return false;
+    const start = new Date(`${report.periodStart}T00:00:00Z`);
+    const end = new Date(`${report.periodEnd}T00:00:00Z`);
+    return start.getUTCDay() === 1 && end.getUTCDay() === 0
+      && Math.round((end - start) / 86400000) === 6;
+  }
+
+  if (report.reportType === 'monthly') {
+    if (Number(localParts.day) > 7 || !report.periodStart || !report.periodEnd) return false;
+    const currentMonthStart = `${localParts.year}-${localParts.month}-01`;
+    const previousMonthEnd = new Date(`${currentMonthStart}T00:00:00Z`);
+    previousMonthEnd.setUTCDate(0);
+    const previousMonthStart = new Date(previousMonthEnd);
+    previousMonthStart.setUTCDate(1);
+    return report.periodStart === previousMonthStart.toISOString().slice(0, 10)
+      && report.periodEnd === previousMonthEnd.toISOString().slice(0, 10);
+  }
+
+  return false;
+}
 
 function NotificationHistoryRecipients({ recipients }) {
   const delivery = Array.isArray(recipients) ? recipients : [];
@@ -45,7 +81,7 @@ function NotificationHistoryRecipients({ recipients }) {
       <strong>Результаты доставки</strong>
       <div className="history-delivery-columns">
         <div>
-          <div className="history-delivery-title success">✅ Доставлено ({delivered.length})</div>
+          <div className="history-delivery-title success">✅ Отправлено ({delivered.length})</div>
           <div className="history-delivery-list">
             {delivered.map((recipient) => (
               <div key={recipient.id} className="history-delivery-row success">{recipient.name}</div>
@@ -54,7 +90,7 @@ function NotificationHistoryRecipients({ recipients }) {
           </div>
         </div>
         <div>
-          <div className="history-delivery-title error">❌ Не доставлено ({failed.length})</div>
+          <div className="history-delivery-title error">❌ Не отправлено ({failed.length})</div>
           <div className="history-delivery-list">
             {failed.map((recipient) => (
               <div key={recipient.id} className="history-delivery-row error">
@@ -103,6 +139,10 @@ function Notifications({ subjects, currentUser, dataRefreshKey = 0 }) {
   const [history, setHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [expandedLog, setExpandedLog] = useState(null);
+  const [historyAudience, setHistoryAudience] = useState('students');
+  const studentHistory = history.filter((log) => !log.isParentReport);
+  const parentHistory = history.filter((log) => log.isParentReport);
+  const visibleHistory = historyAudience === 'parents' ? parentHistory : studentHistory;
 
   // Загружаем превью при изменении фильтров
   const loadPreview = useCallback(async () => {
@@ -147,9 +187,87 @@ function Notifications({ subjects, currentUser, dataRefreshKey = 0 }) {
   const loadHistory = async () => {
     setHistoryLoading(true);
     try {
-      const res = await adminFetch(`${API_URL}/notify/history`);
-      const data = await res.json();
-      setHistory(data.logs || []);
+      const [notificationsResponse, parentReportsResponse] = await Promise.all([
+        adminFetch(`${API_URL}/notify/history`),
+        adminFetch(`${API_URL}/parents/report-logs`)
+      ]);
+      const [notificationsData, parentReportsData] = await Promise.all([
+        notificationsResponse.json(),
+        parentReportsResponse.json()
+      ]);
+      const parentReportHistory = (parentReportsData.logs || []).map((report) => {
+        const parent = report.parent;
+        const parentName = [parent?.firstName, parent?.lastName].filter(Boolean).join(' ').trim()
+          || (parent?.telegramUsername ? `@${parent.telegramUsername.replace(/^@/, '')}` : null)
+          || (parent?.telegramId ? `Telegram ID ${parent.telegramId}` : null)
+          || 'Родитель удалён';
+        const sent = report.status === 'sent';
+        const reportType = report.reportType === 'monthly' ? 'Месячный' : 'Еженедельный';
+        const period = report.periodStart && report.periodEnd
+          ? ` за ${new Date(`${report.periodStart}T00:00:00`).toLocaleDateString('ru-RU')}–${new Date(`${report.periodEnd}T00:00:00`).toLocaleDateString('ru-RU')}`
+          : '';
+        const statusReasons = {
+          skipped_no_telegram: 'Родитель ещё не подключил Telegram',
+          skipped_no_access: 'Нет ученика с активным доступом',
+          processing: 'Отправка ещё выполняется'
+        };
+        const isScheduled = isScheduledParentReport(report);
+        const hasManualSender = report.triggeredByName || report.manualTriggeredByName
+          || report.triggeredBy || report.manualTriggeredBy;
+        const sender = report.triggeredByName
+          || report.manualTriggeredByName
+          || [report.triggeredBy?.firstName, report.triggeredBy?.lastName].filter(Boolean).join(' ')
+          || [report.manualTriggeredBy?.firstName, report.manualTriggeredBy?.lastName].filter(Boolean).join(' ')
+          || (isScheduled ? 'Автоматическая рассылка' : 'Отправитель не сохранён');
+        return {
+          id: `parent-report-${report.id}`,
+          isParentReport: true,
+          parentReportBatchId: report.batchId || null,
+          sentByName: sender,
+          sentByRole: report.triggeredBy?.role || report.manualTriggeredBy?.role
+            || (isScheduled ? 'scheduled' : (!hasManualSender ? 'manual_unknown' : '')),
+          createdAt: report.sentAt || report.createdAt,
+          text: `${reportType.toLowerCase()} отчёт${period}`,
+          successCount: sent ? 1 : 0,
+          failedCount: sent ? 0 : 1,
+          recipientCount: 1,
+          filters: { parentReport: true, reportType, periodStart: report.periodStart, periodEnd: report.periodEnd, triggerScope: report.triggerScope },
+          recipients: [{
+            id: `parent-${report.parentId || report.id}`,
+            name: parentName,
+            status: sent ? 'sent' : 'failed',
+            ...(!sent ? { reason: report.error || statusReasons[report.status] || 'Не удалось отправить отчёт' } : {})
+          }]
+        };
+      });
+      const groupedParentReports = new Map();
+      const individualParentReports = [];
+      parentReportHistory.forEach((report) => {
+        if (!report.parentReportBatchId || report.filters.triggerScope !== 'bulk') {
+          individualParentReports.push(report);
+          return;
+        }
+        const group = groupedParentReports.get(report.parentReportBatchId);
+        if (!group) {
+          groupedParentReports.set(report.parentReportBatchId, {
+            ...report,
+            id: `parent-report-batch-${report.parentReportBatchId}`,
+            text: report.text.replace(' отчёт за ', ' отчёт всем родителям за '),
+            successCount: 0,
+            failedCount: 0,
+            recipientCount: 0,
+            recipients: []
+          });
+        }
+        const batch = groupedParentReports.get(report.parentReportBatchId);
+        batch.successCount += report.successCount;
+        batch.failedCount += report.failedCount;
+        batch.recipientCount += report.recipientCount;
+        batch.recipients.push(...report.recipients);
+        if (new Date(report.createdAt) < new Date(batch.createdAt)) batch.createdAt = report.createdAt;
+      });
+      setHistory([...(notificationsData.logs || []), ...individualParentReports, ...groupedParentReports.values()]
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
     } catch (e) { console.error(e); }
     finally { setHistoryLoading(false); }
   };
@@ -489,12 +607,30 @@ function Notifications({ subjects, currentUser, dataRefreshKey = 0 }) {
       {/* ===== ИСТОРИЯ ===== */}
       {tab === 'history' && (
         <div className="history-section">
+          <div className="history-audience-switch" role="group" aria-label="Тип рассылок в истории">
+            <button
+              type="button"
+              className={historyAudience === 'students' ? 'active' : ''}
+              aria-pressed={historyAudience === 'students'}
+              onClick={() => setHistoryAudience('students')}
+            >
+              Ученики <span>{studentHistory.length}</span>
+            </button>
+            <button
+              type="button"
+              className={historyAudience === 'parents' ? 'active' : ''}
+              aria-pressed={historyAudience === 'parents'}
+              onClick={() => setHistoryAudience('parents')}
+            >
+              Родители <span>{parentHistory.length}</span>
+            </button>
+          </div>
           {historyLoading ? (
             <p style={{textAlign:'center', color:'#6b7280', padding:40}}>Загрузка...</p>
-          ) : history.length === 0 ? (
-            <div className="empty-state"><div className="empty-icon">📋</div><p>История пуста</p></div>
+          ) : visibleHistory.length === 0 ? (
+            <div className="empty-state"><div className="empty-icon">📋</div><p>{historyAudience === 'parents' ? 'Истории рассылок родителям пока нет' : 'История уведомлений ученикам пуста'}</p></div>
           ) : (
-            history.map(log => (
+            visibleHistory.map(log => (
               <div key={log.id} className="history-card">
                 <div className="history-header" onClick={() => setExpandedLog(expandedLog === log.id ? null : log.id)}>
                   <div className="history-left">
@@ -502,11 +638,13 @@ function Notifications({ subjects, currentUser, dataRefreshKey = 0 }) {
                     <div>
                       <div className="history-meta">
                         <span className="history-sender">👤 {log.sentByName}</span>
-                        <span className="history-role">{ROLE_LABELS[log.sentByRole] || log.sentByRole || '👨‍💼 Администратор'}</span>
+                        {(log.isParentReport ? log.sentByRole : (log.sentByRole || 'admin')) && (
+                          <span className="history-role">{ROLE_LABELS[log.sentByRole] || log.sentByRole || (log.isParentReport ? '' : '👨‍💼 Администратор')}</span>
+                        )}
                         <span className="history-date">{new Date(log.createdAt).toLocaleString('ru-RU', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}</span>
                       </div>
                       <div className="history-preview-text">
-                        {log.text.length > 80 ? log.text.slice(0, 80) + '...' : log.text}
+                        {(log.text || '').length > 80 ? log.text.slice(0, 80) + '...' : log.text}
                       </div>
                     </div>
                   </div>
@@ -522,7 +660,11 @@ function Notifications({ subjects, currentUser, dataRefreshKey = 0 }) {
                     {/* Фильтры */}
                     {log.filters && Object.keys(log.filters).length > 0 && (
                       <div className="history-filters">
-                        <strong>Фильтры:</strong>
+                        <strong>{log.isParentReport ? 'Отчёт:' : 'Фильтры:'}</strong>
+                        {log.isParentReport && <span>{log.filters.reportType}{log.filters.triggerScope === 'bulk' ? ' · Всем родителям' : ''}</span>}
+                        {log.isParentReport && log.filters.periodStart && log.filters.periodEnd && (
+                          <span>📅 {new Date(`${log.filters.periodStart}T00:00:00`).toLocaleDateString('ru-RU')}–{new Date(`${log.filters.periodEnd}T00:00:00`).toLocaleDateString('ru-RU')}</span>
+                        )}
                         {log.filters.mode && (
                           <span>🎯 {log.filters.mode === 'single' ? 'Одному ученику' : 'По фильтрам'}</span>
                         )}
@@ -546,8 +688,8 @@ function Notifications({ subjects, currentUser, dataRefreshKey = 0 }) {
                       </div>
                     )}
                     {/* Полный текст */}
-                    <div className="history-field-label">Сообщение</div>
-                    <div className="history-full-text">{log.text}</div>
+                    <div className="history-field-label">{log.isParentReport ? 'Рассылка' : 'Сообщение'}</div>
+                    <div className="history-full-text">{log.isParentReport ? `Отчёт родителю: ${log.text}` : log.text}</div>
                     <NotificationHistoryRecipients recipients={log.recipients} />
                   </div>
                 )}

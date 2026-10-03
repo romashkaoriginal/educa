@@ -1,4 +1,5 @@
 const { Parent, ParentReportDispatchLog, ParentReportLog, ParentStudent, Subject, User } = require('../models');
+const { randomUUID } = require('crypto');
 const { deactivateGuestForParent, resolveParentIdentity } = require('../services/parentIdentity');
 const { sendParentReports, getNextReportSchedule, getReportPeriod, prepareParentReport, sendPreparedParentReport } = require('../services/parentReportScheduler');
 const { createParentReportPreviewToken, readParentReportPreviewToken } = require('../services/parentReportPreview');
@@ -107,7 +108,7 @@ function getManualReportTrigger(req, scope) {
     throw error;
   }
   const name = [user?.firstName, user?.lastName].filter(Boolean).join(' ') || `Пользователь #${user?.id || 'неизвестен'}`;
-  return { userId: user.id, name, scope };
+  return { userId: user.id, name, scope, ...(scope === 'bulk' ? { batchId: randomUUID() } : {}) };
 }
 
 exports.sendReports = async (req, res) => {
@@ -171,8 +172,9 @@ exports.confirmReportForParent = async (req, res) => {
     const { getBot } = require('../bot');
     const bot = getBot();
     if (!bot) return res.status(503).json({ message: 'Telegram-бот не запущен' });
+    const manualTrigger = getManualReportTrigger(req, 'parent');
     const log = await sendPreparedParentReport(parent, {
-      bot, reportType, period: preview.period, messages: preview.messages, firstStudentId: parent.students?.[0]?.id ?? null
+      bot, reportType, period: preview.period, messages: preview.messages, firstStudentId: parent.students?.[0]?.id ?? null, manualTrigger
     });
     if (log.status !== 'sent') return res.status(502).json({ message: log.error || 'Не удалось отправить отчёт', status: log.status });
     return res.json({ message: 'Отчёт отправлен', messageCount: log.messageCount, status: log.status });
@@ -243,7 +245,7 @@ exports.deleteParent = async (req, res) => {
 
 exports.getReportLogs = async (_req, res) => {
   try {
-    const logs = await ParentReportDispatchLog.findAll({
+    const dispatchLogs = await ParentReportDispatchLog.findAll({
       include: [
         { model: Parent, as: 'parent', attributes: ['id', 'firstName', 'lastName', 'telegramUsername', 'telegramId'] },
         { model: User, as: 'student', attributes: ['id', 'firstName', 'lastName'] },
@@ -252,6 +254,24 @@ exports.getReportLogs = async (_req, res) => {
       order: [['createdAt', 'DESC']],
       limit: 100
     });
+    const dispatches = dispatchLogs.map((log) => log.toJSON());
+    const dispatchedReportLogIds = dispatches.map((log) => log.parentReportLogId).filter(Boolean);
+    const reportLogs = await ParentReportLog.findAll({
+      where: dispatchedReportLogIds.length
+        ? { id: { [require('sequelize').Op.notIn]: dispatchedReportLogIds } }
+        : {},
+      include: [
+        { model: Parent, as: 'parent', attributes: ['id', 'firstName', 'lastName', 'telegramUsername', 'telegramId'] },
+        { model: User, as: 'student', attributes: ['id', 'firstName', 'lastName'] },
+        { model: User, as: 'manualTriggeredBy', attributes: ['id', 'firstName', 'lastName', 'role'] }
+      ],
+      order: [['createdAt', 'DESC']],
+      limit: 100
+    });
+    const standalone = reportLogs.map((log) => ({ ...log.toJSON(), triggerScope: log.manualTriggerScope || 'parent' }));
+    const logs = [...dispatches, ...standalone]
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .slice(0, 100);
     res.json({ logs });
   } catch (error) {
     handleParentError(res, error, 'Get parent report logs error');

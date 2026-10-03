@@ -299,6 +299,42 @@
 /* ===== ИСТОРИЯ ===== */
 .history-section { display: flex; flex-direction: column; gap: 10px; }
 
+.history-audience-switch {
+  display: inline-flex;
+  align-self: flex-start;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--kubik-border);
+  border-radius: 11px;
+  background: var(--kubik-white);
+}
+
+.history-audience-switch button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--kubik-text-soft);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.history-audience-switch button:hover { color: var(--kubik-navy); }
+.history-audience-switch button:focus-visible { outline: 2px solid var(--kubik-blue); outline-offset: 2px; }
+.history-audience-switch button.active { background: white; color: var(--kubik-navy); box-shadow: 0 1px 3px rgba(20, 36, 65, 0.12); }
+.history-audience-switch button span { color: inherit; opacity: 0.72; font-size: 12px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .history-audience-switch button { transition: none; }
+}
+
 .history-card {
   background: white;
   border: 1px solid var(--kubik-border);

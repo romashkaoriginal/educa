@@ -24,6 +24,14 @@ function getPeriodQuery(period) {
   return { dateFrom: start.toISOString(), dateTo: end.toISOString() };
 }
 
+function formatLeaderboardDate(value) {
+  if (!value) return 'Не задана';
+  // Это календарная граница, а не время события. Берём дату из ISO напрямую,
+  // иначе 23:59 UTC превратится у преподавателя в следующий день.
+  const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return match ? `${match[3]}.${match[2]}.${match[1]}` : 'Не задана';
+}
+
 function AdminStatistics({ currentUser, dataRefreshKey = 0 }) {
   const userRole = currentUser?.role || 'admin';
   const isManager = userRole === 'manager';
@@ -38,25 +46,14 @@ function AdminStatistics({ currentUser, dataRefreshKey = 0 }) {
   const [period, setPeriod] = useState('30d');
   const [subjectId, setSubjectId] = useState('');
   const [homeworkSort, setHomeworkSort] = useState('name');
-  const [leaderboardPeriod, setLeaderboardPeriod] = useState('7d');
-  const [leaderboardDateFrom, setLeaderboardDateFrom] = useState(() => {
-    const d = new Date(); d.setDate(d.getDate() - 6);
-    return d.toISOString().slice(0, 10);
-  });
-  const [leaderboardDateTo, setLeaderboardDateTo] = useState(() => new Date().toISOString().slice(0, 10));
   const [leaderboardSubjectId, setLeaderboardSubjectId] = useState('');
   const [leaderboardSubjects, setLeaderboardSubjects] = useState([]);
   const [leaderboardSubjectsLoading, setLeaderboardSubjectsLoading] = useState(true);
   const [stream, setStream] = useState(null);
 
-  // Период лидерборда, который сам видит ученик (LeaderboardModal) — не
-  // путать с «Открыть лидерборд» выше: то — разовый показ на экран,
-  // а это — постоянная настройка предмета до следующего изменения.
   const [studentLbSubjectId, setStudentLbSubjectId] = useState('');
-  const [studentLbStart, setStudentLbStart] = useState('');
-  const [studentLbEnd, setStudentLbEnd] = useState('');
-  const [studentLbSaving, setStudentLbSaving] = useState(false);
-  const [studentLbSaved, setStudentLbSaved] = useState(false);
+  const [studentLbResetting, setStudentLbResetting] = useState(false);
+  const [studentLbResetDone, setStudentLbResetDone] = useState(false);
 
   // Данные для режима "все"
   const [practiceData, setAllPractice] = useState(null);
@@ -215,69 +212,57 @@ function AdminStatistics({ currentUser, dataRefreshKey = 0 }) {
     return `${a.firstName || ''} ${a.lastName || ''}`.localeCompare(`${b.firstName || ''} ${b.lastName || ''}`, 'ru');
   });
 
-  // При выборе предмета подставляем уже сохранённый для него период (если есть).
   const onStudentLbSubjectChange = (id) => {
     setStudentLbSubjectId(id);
-    setStudentLbSaved(false);
-    const subject = leaderboardSubjects.find((item) => String(item.id) === String(id));
-    setStudentLbStart(subject?.leaderboardStartDate ? subject.leaderboardStartDate.slice(0, 10) : '');
-    setStudentLbEnd(subject?.leaderboardEndDate ? subject.leaderboardEndDate.slice(0, 10) : '');
+    setStudentLbResetDone(false);
   };
 
-  const saveStudentLeaderboardPeriod = async (confirmReset = false) => {
+  const selectLeaderboardReset = (id) => {
+    onStudentLbSubjectChange(String(id));
+    const form = document.getElementById('student-leaderboard-reset');
+    if (typeof form?.scrollIntoView === 'function') form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+
+  const resetStudentLeaderboard = async () => {
     if (!studentLbSubjectId) return;
-    setStudentLbSaving(true);
-    setStudentLbSaved(false);
+    const subject = leaderboardSubjects.find((item) => String(item.id) === String(studentLbSubjectId));
+    const confirmed = window.confirm(
+      `Сбросить рейтинг по предмету «${subject?.name || 'Предмет'}»?\n\nВсе текущие баллы лидерборда будут аннулированы. Баллы за домашние задания и практику начнут накапливаться заново. Стрик учеников не изменится.`
+    );
+    if (!confirmed) return;
+    setStudentLbResetting(true);
+    setStudentLbResetDone(false);
     try {
-      const res = await adminFetch(`${API_URL}/lesson-admin/leaderboard-subjects/${studentLbSubjectId}`, {
-        method: 'PUT',
+      const res = await adminFetch(`${API_URL}/lesson-admin/leaderboard-subjects/${studentLbSubjectId}/reset`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          leaderboardStartDate: studentLbStart ? `${studentLbStart}T00:00:00.000Z` : null,
-          leaderboardEndDate: studentLbEnd ? `${studentLbEnd}T23:59:59.999Z` : null,
-          confirmReset
-        })
+        body: JSON.stringify({ confirmReset: true })
       });
       const data = await res.json();
-      // Сервер просит подтвердить: новая дата начала позже действующей —
-      // накопленные за текущий период баллы перестанут учитываться.
-      if (res.status === 409 && data.requiresConfirmation) {
-        setStudentLbSaving(false);
-        if (window.confirm(`${data.message}. Продолжить?`)) {
-          await saveStudentLeaderboardPeriod(true);
-        }
-        return;
-      }
-      if (!res.ok) throw new Error(data.message || 'Не удалось сохранить период');
+      if (!res.ok) throw new Error(data.message || 'Не удалось сбросить рейтинг');
       setLeaderboardSubjects((prev) => prev.map((subject) => (
         String(subject.id) === String(studentLbSubjectId)
           ? { ...subject, leaderboardStartDate: data.leaderboardStartDate, leaderboardEndDate: data.leaderboardEndDate }
           : subject
       )));
-      setStudentLbSaved(true);
+      setStudentLbResetDone(true);
     } catch (e) {
       console.error(e);
-      alert(e.message || 'Не удалось сохранить период');
+      alert(e.message || 'Не удалось сбросить рейтинг');
     } finally {
-      setStudentLbSaving(false);
+      setStudentLbResetting(false);
     }
   };
 
   const openLeaderboard = () => {
     if (!leaderboardSubjectId) return;
     const subject = leaderboardSubjects.find((item) => String(item.id) === String(leaderboardSubjectId));
-    const source = { subjectId: Number(leaderboardSubjectId), subjectName: subject?.name || 'Предмет' };
-    if (leaderboardPeriod === 'custom') {
-      Object.assign(source, {
-        dateFrom: `${leaderboardDateFrom}T00:00:00.000Z`,
-        dateTo: `${leaderboardDateTo}T23:59:59.999Z`
-      });
-    } else {
-      Object.assign(source, getPeriodQuery(leaderboardPeriod));
-      // getPeriodQuery('all') не даёт dateFrom/dateTo — помечаем явно, чтобы
-      // StreamPresentation не решил, что это старый режим periodDays.
-      if (leaderboardPeriod === 'all') Object.assign(source, { dateFrom: new Date(0).toISOString(), dateTo: new Date().toISOString() });
-    }
+    const source = {
+      subjectId: Number(leaderboardSubjectId),
+      subjectName: subject?.name || 'Предмет',
+      dateFrom: subject?.leaderboardStartDate || new Date(0).toISOString(),
+      dateTo: new Date().toISOString()
+    };
     setStream({ hostWindow: null, source });
   };
 
@@ -288,7 +273,7 @@ function AdminStatistics({ currentUser, dataRefreshKey = 0 }) {
 
   // ===== РЕНДЕР =====
   return (
-    <div className="admin-section">
+    <div className="admin-section admin-statistics">
 
       {/* HEADER */}
       <div className="as-header">
@@ -303,27 +288,57 @@ function AdminStatistics({ currentUser, dataRefreshKey = 0 }) {
 
         {mode === 'all' && !isManager && (
           <div className="as-leaderboard-launcher">
+            <span className="as-leaderboard-label">Открыть рейтинг</span>
             <select aria-label="Предмет лидерборда" value={leaderboardSubjectId} disabled={leaderboardSubjectsLoading || leaderboardSubjects.length === 0} onChange={(event) => setLeaderboardSubjectId(event.target.value)}>
               <option value="">{leaderboardSubjectsLoading ? 'Лидерборд: загружаем предметы' : leaderboardSubjects.length ? 'Лидерборд: выберите предмет' : 'Лидерборд: нет доступных предметов'}</option>
               {leaderboardSubjects.map((subject) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}
             </select>
-            <select aria-label="Период лидерборда" value={leaderboardPeriod} onChange={(event) => setLeaderboardPeriod(event.target.value)}>
-              {PERIOD_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-              <option value="custom">Свой период</option>
-            </select>
-            {leaderboardPeriod === 'custom' && (
-              <span className="as-leaderboard-range">
-                <input type="date" aria-label="Дата с" value={leaderboardDateFrom} max={leaderboardDateTo} onChange={(event) => setLeaderboardDateFrom(event.target.value)} />
-                <span>—</span>
-                <input type="date" aria-label="Дата по" value={leaderboardDateTo} min={leaderboardDateFrom} onChange={(event) => setLeaderboardDateTo(event.target.value)} />
-              </span>
-            )}
             <button type="button" className="as-leaderboard-launch" disabled={!leaderboardSubjectId} onClick={openLeaderboard}>Открыть лидерборд ↗</button>
           </div>
         )}
 
         {mode === 'all' && !isManager && (
-          <div className="as-leaderboard-launcher as-student-leaderboard-period">
+          <section className="as-leaderboard-dashboard" aria-labelledby="leaderboard-dashboard-title">
+            <div className="as-leaderboard-dashboard-heading">
+              <div>
+                <h3 id="leaderboard-dashboard-title">Лидерборды по предметам</h3>
+                <p>Баллы считаются за домашние задания и практику с последнего ручного сброса.</p>
+              </div>
+            </div>
+            {leaderboardSubjectsLoading ? (
+              <p className="as-leaderboard-empty" role="status">Загружаем настройки лидербордов...</p>
+            ) : leaderboardSubjects.length === 0 ? (
+              <p className="as-leaderboard-empty">Предметов для лидерборда пока нет.</p>
+            ) : (
+              <div className="as-leaderboard-table-wrap">
+                <table className="as-leaderboard-table">
+                  <thead><tr><th>Предмет</th><th>Баллы считаются</th><th>Состояние</th><th><span className="sr-only">Действие</span></th></tr></thead>
+                  <tbody>
+                    {leaderboardSubjects.map((subject) => {
+                      const periodLabel = subject.leaderboardStartDate
+                        ? `С ${formatLeaderboardDate(subject.leaderboardStartDate)}`
+                        : 'За всё время';
+                      return <tr key={subject.id}>
+                        <td><span className="as-leaderboard-subject-icon" aria-hidden="true">{subject.icon || '•'}</span>{subject.name}</td>
+                        <td>{periodLabel}</td>
+                        <td><span className="as-leaderboard-status is-active">Накапливается</span></td>
+                        <td><button type="button" className="as-leaderboard-edit" onClick={() => selectLeaderboardReset(subject.id)}>Выбрать</button></td>
+                      </tr>;
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        )}
+
+        {mode === 'all' && !isManager && (
+          <section className="as-leaderboard-period-card as-leaderboard-reset-card" id="student-leaderboard-reset" aria-labelledby="student-leaderboard-reset-title">
+            <div>
+              <h3 id="student-leaderboard-reset-title">Сбросить рейтинг</h3>
+              <p>Текущие баллы выбранного предмета обнулятся. Стрик и результаты учеников сохранятся.</p>
+            </div>
+            <div className="as-leaderboard-launcher as-student-leaderboard-period">
             <select
               aria-label="Предмет лидерборда ученика"
               value={studentLbSubjectId}
@@ -333,19 +348,17 @@ function AdminStatistics({ currentUser, dataRefreshKey = 0 }) {
               <option value="">{leaderboardSubjectsLoading ? 'Лидерборд ученика: загружаем предметы' : leaderboardSubjects.length ? 'Лидерборд ученика: выберите предмет' : 'Лидерборд ученика: нет доступных предметов'}</option>
               {leaderboardSubjects.map((subject) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}
             </select>
-            {studentLbSubjectId && (
-              <>
-                <span className="as-leaderboard-range">
-                  <input type="date" aria-label="Дата начала лидерборда ученика" value={studentLbStart} max={studentLbEnd || undefined} onChange={(event) => { setStudentLbStart(event.target.value); setStudentLbSaved(false); }} />
-                  <span>—</span>
-                  <input type="date" aria-label="Дата окончания лидерборда ученика" value={studentLbEnd} min={studentLbStart || undefined} onChange={(event) => { setStudentLbEnd(event.target.value); setStudentLbSaved(false); }} />
-                </span>
-                <button type="button" className="as-leaderboard-launch" disabled={studentLbSaving} onClick={() => saveStudentLeaderboardPeriod()}>
-                  {studentLbSaving ? 'Сохраняем…' : studentLbSaved ? 'Сохранено ✓' : 'Сохранить период'}
-                </button>
-              </>
-            )}
-          </div>
+            <button
+              type="button"
+              className="as-leaderboard-reset"
+              disabled={!studentLbSubjectId || studentLbResetting}
+              onClick={resetStudentLeaderboard}
+            >
+              {studentLbResetting ? 'Сбрасываем...' : 'Сбросить рейтинг'}
+            </button>
+            </div>
+            {studentLbResetDone && <p className="as-leaderboard-reset-success" role="status">Рейтинг сброшен. Новые баллы уже начинают накапливаться.</p>}
+          </section>
         )}
 
         {/* Переключатель все / конкретный */}

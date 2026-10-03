@@ -760,6 +760,11 @@
   touch-action: manipulation;
 }
 
+.quiz-ui-answer:disabled {
+  cursor: wait;
+  opacity: 0.78;
+}
+
 /* Единый нейтральный жетон с буквой (без разноцветья —
    чтобы не конфликтовать с зелёной/красной подсветкой результата) */
 .quiz-ui-answer__mark {
@@ -858,6 +863,12 @@
   background: var(--qz-danger);
   color: #fff;
   box-shadow: 0 4px 12px -2px var(--qz-danger);
+}
+
+.quiz-ui-toast--submit-error {
+  background: var(--qz-danger-soft);
+  border: 1px solid rgba(215, 90, 90, 0.35);
+  color: #a83838;
 }
 
 /* Иконки результата ✓ / ✗ справа */

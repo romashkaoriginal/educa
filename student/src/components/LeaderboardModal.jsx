@@ -9,11 +9,9 @@ import { StreamLeaderboard } from './QuizLeaderboard';
 // Общий лидерборд домашка+практика по предмету — тот же расчёт, тот же вид
 // пьедестала и тот же способ открытия (нативный <dialog>.showModal(), как
 // «Открыть лидерборд» в админке — см. StreamPresentation.jsx), что видит
-// администратор. Период задаёт преподаватель/админ в настройках предмета
-// (см. PUT /lesson-admin/leaderboard-subjects/:id) — клиент дат не передаёт.
-// Пока препод ничего не настраивал — сервер сам считает текущую календарную
-// неделю. После даты окончания заданного периода сервер отдаёт пустой
-// лидерборд — это и есть «сброс», пока препод не назначит новый период.
+// администратор. Баллы считаются с последнего ручного сброса рейтинга
+// (см. POST /lesson-admin/leaderboard-subjects/:id/reset). Клиент дат не
+// передаёт, стрик в расчёт не входит и при сбросе не изменяется.
 //
 // Props:
 //   open        — показывать ли модалку
@@ -24,7 +22,6 @@ import { StreamLeaderboard } from './QuizLeaderboard';
 function LeaderboardModal({ open, onClose, subjectId, subjectName }) {
   const [leaderboard, setLeaderboard] = useState(null);
   const [myScore, setMyScore] = useState(null);
-  const [period, setPeriod] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const dialog = useRef(null);
@@ -35,14 +32,12 @@ function LeaderboardModal({ open, onClose, subjectId, subjectName }) {
     setError(false);
     setLeaderboard(null);
     setMyScore(null);
-    setPeriod(null);
     try {
       const res = await apiFetch(`${API_URL}/practice/leaderboard-combined/${subjectId}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || 'Не удалось загрузить таблицу лидеров');
       setLeaderboard(data.leaderboard || []);
       setMyScore(Number(data.myScore));
-      setPeriod(data.dateFrom && data.dateTo ? { from: data.dateFrom, to: data.dateTo } : null);
     } catch (e) {
       console.error(e);
       setError(true);
@@ -97,13 +92,11 @@ function LeaderboardModal({ open, onClose, subjectId, subjectName }) {
           <div className="stream-empty" role="status">Загружаем…</div>
         ) : error ? (
           <div className="stream-empty" role="status">Не удалось загрузить таблицу лидеров</div>
-        ) : period && new Date() > new Date(period.to) ? (
-          <div className="stream-empty" role="status">Период лидерборда завершён — ждите новый от преподавателя</div>
         ) : (
           <>
             {myScore !== null && Number.isFinite(myScore) && (
-              <section className="lb-my-score" aria-label="Твои баллы за период">
-                <span>Твои баллы за период</span>
+              <section className="lb-my-score" aria-label="Твои баллы с последнего сброса">
+                <span>Твои баллы с последнего сброса</span>
                 <strong>{new Intl.NumberFormat('ru', { maximumFractionDigits: 1 }).format(myScore)} баллов</strong>
               </section>
             )}

@@ -1283,28 +1283,10 @@ exports.getLeaderboard = async (req, res) => {
   }
 };
 
-// Текущая календарная неделя, понедельник — воскресенье включительно.
-// Поведение по умолчанию, пока преподаватель ни разу не задавал период вручную.
-function currentWeekRange() {
-  const now = new Date();
-  const dayIndex = (now.getDay() + 6) % 7; // 0 = понедельник ... 6 = воскресенье
-  const monday = new Date(now);
-  monday.setHours(0, 0, 0, 0);
-  monday.setDate(monday.getDate() - dayIndex);
-  const sunday = new Date(monday);
-  sunday.setDate(sunday.getDate() + 6);
-  sunday.setHours(23, 59, 59, 999);
-  return { since: monday, until: sunday };
-}
-
-// Общий лидерборд домашка+практика по предмету — то, что видит ученик сам
-// (LeaderboardModal). Период задаёт преподаватель/админ в настройках предмета
-// (Subject.leaderboardStartDate/leaderboardEndDate, см.
-// PUT /lesson-admin/leaderboard-subjects/:id). Пока период не задан —
-// поведение как раньше: текущая календарная неделя, сама катится изо дня в
-// день. «Сброс» — это просто сдвиг leaderboardStartDate: старые ответы
-// учеников никуда не удаляются, они просто больше не попадают в подсчёт
-// (который у Practice/Homework всегда идёт «с даты вперёд»).
+// Общий лидерборд домашка+практика по предмету — то, что видит ученик сам.
+// Он всегда считает баллы с последнего ручного сброса. Если рейтинг ещё ни
+// разу не сбрасывали, учитывается вся история. Сброс сдвигает только
+// leaderboardStartDate; ответы, прогресс и стрик учеников не изменяются.
 // Без @username (только имя).
 exports.getCombinedLeaderboard = async (req, res) => {
   try {
@@ -1313,24 +1295,12 @@ exports.getCombinedLeaderboard = async (req, res) => {
     if (!Number.isInteger(parsedSubjectId)) return res.status(400).json({ error: 'Invalid subjectId' });
 
     const subject = await Subject.findByPk(parsedSubjectId, {
-      attributes: ['id', 'leaderboardStartDate', 'leaderboardEndDate']
+      attributes: ['id', 'leaderboardStartDate']
     });
     if (!subject) return res.status(404).json({ error: 'Subject not found' });
 
-    const hasManualPeriod = Boolean(subject.leaderboardStartDate);
-    const { since, until } = hasManualPeriod
-      ? { since: new Date(subject.leaderboardStartDate), until: subject.leaderboardEndDate ? new Date(subject.leaderboardEndDate) : new Date() }
-      : currentWeekRange();
-    const now = new Date();
-    const periodActive = !hasManualPeriod || (now >= since && now <= until);
-
-    if (!periodActive) {
-      res.json({
-        dateFrom: since.toISOString(), dateTo: until.toISOString(),
-        participantCount: 0, leaderboard: [], myScore: null
-      });
-      return;
-    }
+    const since = subject.leaderboardStartDate ? new Date(subject.leaderboardStartDate) : new Date(0);
+    const until = new Date();
 
     const leaderboardOptions = {
       QueryTypes, since, until, subjectId: parsedSubjectId, allowedSubjectIds: null, limit: 20

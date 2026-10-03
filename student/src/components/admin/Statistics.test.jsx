@@ -155,3 +155,42 @@ test('преподаватель может выбрать для лидербо
   expect(within(subjectSelect).getByRole('option', { name: 'Математика' })).toBeInTheDocument();
   expect(within(subjectSelect).getByRole('option', { name: 'Английский' })).toBeInTheDocument();
 });
+
+test('преподаватель сбрасывает рейтинг выбранного предмета после подтверждения', async () => {
+  const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+  adminFetch.mockImplementation((url) => {
+    if (url.includes('/stats/students')) return response({ students: [] });
+    if (url.endsWith('/lesson-admin/leaderboard-subjects/1/reset')) return response({
+      id: 1,
+      leaderboardStartDate: '2026-09-30T09:54:00.000Z',
+      leaderboardEndDate: null,
+    });
+    if (url.includes('/lesson-admin/leaderboard-subjects')) return response({ subjects: [
+      { id: 1, name: 'Математика', icon: '📐', leaderboardStartDate: '2026-09-01T00:00:00.000Z' },
+      { id: 2, name: 'Физика', icon: '⚛' },
+    ] });
+    return response({ practice: { summary: {}, subjects: [] } });
+  });
+
+  render(<AdminStatistics currentUser={{ role: 'teacher' }} />);
+  expect(await screen.findByRole('heading', { name: 'Лидерборды по предметам' })).toBeInTheDocument();
+  expect(screen.getByText('С 01.09.2026')).toBeInTheDocument();
+  expect(within(screen.getByRole('row', { name: /Физика/ })).getByText('За всё время')).toBeInTheDocument();
+  expect(screen.queryByLabelText('Период лидерборда')).not.toBeInTheDocument();
+
+  const resetButton = screen.getByRole('button', { name: 'Сбросить рейтинг' });
+  expect(resetButton).toBeDisabled();
+  fireEvent.click(within(screen.getByRole('row', { name: /Математика/ })).getByRole('button', { name: 'Выбрать' }));
+  expect(screen.getByLabelText('Предмет лидерборда ученика')).toHaveValue('1');
+  expect(resetButton).toBeEnabled();
+
+  fireEvent.click(resetButton);
+  expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Стрик учеников не изменится'));
+  await waitFor(() => expect(adminFetch).toHaveBeenCalledWith(
+    expect.stringMatching(/\/lesson-admin\/leaderboard-subjects\/1\/reset$/),
+    expect.objectContaining({ method: 'POST', body: JSON.stringify({ confirmReset: true }) })
+  ));
+  expect(await screen.findByText('Рейтинг сброшен. Новые баллы уже начинают накапливаться.')).toBeVisible();
+  expect(screen.getByText('С 30.09.2026')).toBeInTheDocument();
+  confirm.mockRestore();
+});

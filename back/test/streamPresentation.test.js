@@ -9,16 +9,17 @@ test('student leaderboard score uses the same query while restricting it to the 
   const score = await getWeeklyLeaderboardScore({
     query: async (sql, options) => {
       query = { sql, options };
-      return [{ id: 42, name: 'Аня', homeworkScore: 4, practiceScore: 7, streakScore: 10, totalScore: 21 }];
+      return [{ id: 42, name: 'Аня', homeworkScore: 4, practiceScore: 7, totalScore: 11 }];
     }
   }, {
     QueryTypes: { SELECT: 'SELECT' }, since: new Date('2026-09-21'), until: new Date('2026-09-27'),
     subjectId: 5, allowedSubjectIds: null, currentUserId: 42
   });
 
-  assert.equal(score, 21);
+  assert.equal(score, 11);
   assert.equal(query.options.replacements.currentUserId, 42);
   assert.match(query.sql, /currentUserId/);
+  assert.doesNotMatch(query.sql, /practice_streak_history|streakScore/);
 });
 
 const quiz = {

@@ -24,12 +24,10 @@ const Subject = sequelize.define('Subject', {
     type: DataTypes.BOOLEAN,
     defaultValue: true
   },
-  // Период лидерборда по предмету (см. LeaderboardModal на фронте ученика,
-  // practiceController.getCombinedLeaderboard): задаётся преподавателем в
-  // статистике. leaderboardStartDate = null — период ещё не назначен, сервер
-  // сам считает текущую календарную неделю (прежнее поведение). После
-  // leaderboardEndDate лидерборд пуст у всех — это и есть «сброс», пока не
-  // назначат новый период.
+  // Точка последнего ручного сброса лидерборда по предмету. Null означает,
+  // что рейтинг ещё не сбрасывали и баллы считаются за всё время. Поле
+  // leaderboardEndDate оставлено для совместимости со старыми данными, но в
+  // текущем расчёте не используется и при сбросе очищается.
   leaderboardStartDate: {
     type: DataTypes.DATE,
     allowNull: true

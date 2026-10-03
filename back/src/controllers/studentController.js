@@ -58,6 +58,11 @@ function handleStudentIdentityError(res, error) {
   return res.status(500).json({ message: 'Server error' });
 }
 
+function hasSameTelegramUsername(left, right) {
+  const normalize = (value) => String(value || '').trim().replace(/^@+/, '').toLowerCase();
+  return normalize(left) !== '' && normalize(left) === normalize(right);
+}
+
 // Получить всех студентов
 exports.getAllStudents = async (req, res) => {
   try {
@@ -274,7 +279,9 @@ exports.updateStudent = async (req, res) => {
       return res.status(404).json({ message: 'Student not found' });
     }
 
-    if (normalizedTelegramUsername) {
+    // Существующие дубли не должны запрещать изменить только сроки доступа:
+    // проверяем конфликт лишь когда username действительно меняется.
+    if (normalizedTelegramUsername && !hasSameTelegramUsername(student.telegramUsername, normalizedTelegramUsername)) {
       const duplicateByUsername = await User.findOne({
         where: {
           ...usernameLookup(normalizedTelegramUsername),

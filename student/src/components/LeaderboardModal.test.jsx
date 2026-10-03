@@ -24,14 +24,14 @@ test('student sees their score in the leaderboard even outside the visible top',
 
   render(<LeaderboardModal open onClose={() => {}} subjectId={5} subjectName="Русский язык" />);
 
-  expect(await screen.findByLabelText('Твои баллы за период')).toHaveTextContent('48 баллов');
+  expect(await screen.findByLabelText('Твои баллы с последнего сброса')).toHaveTextContent('48 баллов');
   expect(screen.getByText('Лидер')).toBeVisible();
   await waitFor(() => expect(apiFetch).toHaveBeenCalledWith(
     expect.stringMatching(/\/practice\/leaderboard-combined\/5$/)
   ));
 });
 
-test('shows empty state when the teacher-set period has ended', async () => {
+test('shows an empty leaderboard immediately after a reset', async () => {
   apiFetch.mockResolvedValue({
     ok: true,
     json: async () => ({
@@ -42,5 +42,5 @@ test('shows empty state when the teacher-set period has ended', async () => {
 
   render(<LeaderboardModal open onClose={() => {}} subjectId={5} subjectName="Русский язык" />);
 
-  expect(await screen.findByText('Период лидерборда завершён — ждите новый от преподавателя')).toBeVisible();
+  expect(await screen.findByText('Пока нет результатов')).toBeVisible();
 });

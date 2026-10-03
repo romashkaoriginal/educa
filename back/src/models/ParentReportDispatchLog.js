@@ -27,6 +27,7 @@ const ParentReportDispatchLog = sequelize.define('ParentReportDispatchLog', {
   periodStart: { type: DataTypes.DATEONLY, allowNull: false },
   periodEnd: { type: DataTypes.DATEONLY, allowNull: false },
   triggerScope: { type: DataTypes.ENUM('bulk', 'parent'), allowNull: false },
+  batchId: { type: DataTypes.UUID, allowNull: true },
   triggeredByUserId: {
     type: DataTypes.INTEGER,
     allowNull: true,
@@ -43,6 +44,7 @@ const ParentReportDispatchLog = sequelize.define('ParentReportDispatchLog', {
   tableName: 'parent_report_dispatch_logs',
   timestamps: true,
   indexes: [
+    { fields: ['batchId'] },
     { fields: ['parentId', 'createdAt'] },
     { fields: ['triggeredByUserId', 'createdAt'] }
   ]

@@ -603,6 +603,7 @@ const handleSaveEdit = async () => {
   } catch (error) {
     if (error.message !== 'Invalid dates') {
       console.error('Error updating student:', error);
+      alert(error.message || 'Не удалось сохранить изменения');
     }
   }
 };

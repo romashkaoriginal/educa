@@ -148,13 +148,18 @@ async function deliverPreparedReport(parent, { bot, reportType, period, messages
   return log;
 }
 
-async function getManualReportLog(parent, { reportType, period, firstStudentId }) {
+async function getManualReportLog(parent, { reportType, period, firstStudentId, manualTrigger }) {
+  const manualMetadata = {
+    manualTriggeredByUserId: manualTrigger.userId,
+    manualTriggeredByName: manualTrigger.name,
+    manualTriggerScope: manualTrigger.scope
+  };
   const [log, created] = await ParentReportLog.findOrCreate({
-    where: { parentId: parent.id, reportType, periodStart: period.startDate },
-    defaults: { studentId: firstStudentId, periodEnd: period.endDate, status: 'processing' }
+    where: { parentId: parent.id, reportType, periodStart: period.startDate, deliveryKind: 'manual_single' },
+    defaults: { studentId: firstStudentId, periodEnd: period.endDate, deliveryKind: 'manual_single', status: 'processing', ...manualMetadata }
   });
   if (!created) {
-    await log.update({ studentId: firstStudentId, periodEnd: period.endDate, status: 'processing', messageCount: 0, sentAt: null, error: null });
+    await log.update({ studentId: firstStudentId, periodEnd: period.endDate, status: 'processing', messageCount: 0, sentAt: null, error: null, ...manualMetadata });
   }
   return log;
 }
@@ -162,9 +167,25 @@ async function getManualReportLog(parent, { reportType, period, firstStudentId }
 // Отправляет уже подготовленный и подтверждённый снимок предпросмотра, а не
 // пересчитывает статистику заново — увиденное в предпросмотре обязано совпасть
 // с тем, что уйдёт в Telegram.
-async function sendPreparedParentReport(parent, { bot, reportType, period, messages, firstStudentId }) {
-  const log = await getManualReportLog(parent, { reportType, period, firstStudentId });
-  return deliverPreparedReport(parent, { bot, reportType, period, messages, log });
+async function sendPreparedParentReport(parent, { bot, reportType, period, messages, firstStudentId, manualTrigger }) {
+  const log = await getManualReportLog(parent, { reportType, period, firstStudentId, manualTrigger });
+  const result = await deliverPreparedReport(parent, { bot, reportType, period, messages, log });
+  await ParentReportDispatchLog.create({
+    parentReportLogId: log.id,
+    parentId: parent.id,
+    studentId: firstStudentId,
+    reportType,
+    periodStart: period.startDate,
+    periodEnd: period.endDate,
+    triggerScope: manualTrigger.scope,
+    triggeredByUserId: manualTrigger.userId,
+    triggeredByName: manualTrigger.name,
+    status: result.status,
+    messageCount: result.messageCount,
+    sentAt: result.sentAt,
+    error: result.error
+  });
+  return result;
 }
 
 async function processParent(parent, { bot, now = new Date(), reportType = 'weekly', force = false, manualTrigger = null }) {
@@ -198,6 +219,7 @@ async function processParent(parent, { bot, now = new Date(), reportType = 'week
         periodStart: period.startDate,
         periodEnd: period.endDate,
         triggerScope: manualTrigger.scope,
+        batchId: manualTrigger.batchId || null,
         triggeredByUserId: manualTrigger.userId,
         triggeredByName: manualTrigger.name,
         status: values.status,

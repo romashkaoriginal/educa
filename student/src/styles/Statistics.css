@@ -52,12 +52,73 @@
   margin-bottom: 24px;
 }
 
+.admin-statistics {
+  container-type: inline-size;
+  min-width: 0;
+}
+
+.admin-statistics > .as-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  grid-template-areas: "title launcher" "dashboard reset" "hint hint";
+  align-items: start;
+  justify-content: stretch;
+  gap: 14px 18px;
+}
+
+.admin-statistics > .as-header > .as-header-left { grid-area: title; }
+.admin-statistics > .as-header > .as-leaderboard-launcher { grid-area: launcher; }
+.admin-statistics > .as-header > .as-leaderboard-dashboard { grid-area: dashboard; }
+.admin-statistics > .as-header > .as-leaderboard-period-card { grid-area: reset; }
+.admin-statistics > .as-header > .as-mode-hint { grid-area: hint; }
+
+.admin-section:has(> .as-header) > .as-header > * {
+  min-width: 0;
+}
+
+.admin-section:has(> .as-header) > .as-header > .as-leaderboard-dashboard,
+.admin-section:has(> .as-header) > .as-header > .as-leaderboard-period-card {
+  margin-top: 0;
+  height: auto;
+}
+
+.as-leaderboard-dashboard,
+.as-leaderboard-period-card {
+  box-sizing: border-box;
+}
+
+.as-leaderboard-table-wrap {
+  min-width: 0;
+  max-width: 100%;
+}
+
+@container (max-width: 1000px) {
+  .admin-statistics > .as-header {
+    grid-template-columns: minmax(0, 1fr) 260px;
+    grid-template-areas: "title title" "launcher launcher" "dashboard reset" "hint hint";
+  }
+}
+
+@container (max-width: 720px) {
+  .admin-statistics > .as-header {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "title" "launcher" "dashboard" "reset" "hint";
+  }
+}
+
 .as-leaderboard-launcher {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
   max-width: 100%;
+}
+
+.as-leaderboard-label {
+  width: 100%;
+  color: var(--kubik-text-soft);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .as-leaderboard-launcher select,
@@ -71,7 +132,7 @@
   font: inherit;
 }
 
-.as-leaderboard-launcher select { background: #fff; color: var(--kubik-navy); }
+.as-leaderboard-launcher select { min-width: 0; width: 100%; background: #fff; color: var(--kubik-navy); }
 .as-leaderboard-launch { background: var(--brand-gradient); color: #fff; border: 0; font-weight: 700; cursor: pointer; white-space: nowrap; }
 .as-leaderboard-launch:disabled { opacity: .45; cursor: not-allowed; }
 .as-leaderboard-launch:focus-visible { outline: none; box-shadow: var(--focus-ring); }
@@ -97,14 +158,146 @@
   /* Заголовок и блок лидерборда стояли в одной строке (justify-content: space-between
      из базовых .as-header) и вместе были шире экрана — переносим в колонку. */
   .as-header { flex-direction: column; align-items: stretch; }
+  .admin-section:has(> .as-header) > .as-header { display: flex; }
+  .admin-section:has(> .as-header) > .as-header > .as-leaderboard-dashboard,
+  .admin-section:has(> .as-header) > .as-header > .as-leaderboard-period-card { height: auto; }
   .as-leaderboard-launcher { width: 100%; flex-wrap: wrap; max-width: 100%; }
   .as-leaderboard-launcher select { flex: 1 1 100%; min-width: 0; max-width: 100%; }
   .as-leaderboard-launch { flex: 1 1 100%; min-width: 0; max-width: 100%; }
+  .as-leaderboard-reset { width: 100%; }
   .as-leaderboard-range { width: 100%; flex-wrap: wrap; min-width: 0; max-width: 100%; }
   .as-leaderboard-range input[type="date"] { flex: 1 1 120px; min-width: 0; max-width: 100%; }
 }
 
 .as-student-leaderboard-period { margin-top: 8px; }
+
+.as-leaderboard-dashboard,
+.as-leaderboard-period-card {
+  width: 100%;
+  margin-top: 16px;
+  padding: 18px;
+  border: 1px solid var(--kubik-border);
+  border-radius: var(--r-md);
+  background: #fff;
+  box-shadow: var(--shadow-sm);
+}
+
+.as-leaderboard-dashboard-heading,
+.as-leaderboard-period-card > div:first-child {
+  margin-bottom: 14px;
+}
+
+.as-leaderboard-dashboard h3,
+.as-leaderboard-period-card h3 {
+  margin: 0;
+  color: var(--kubik-navy);
+  font-size: 16px;
+}
+
+.as-leaderboard-dashboard p,
+.as-leaderboard-period-card p {
+  margin: 5px 0 0;
+  color: var(--kubik-text-soft);
+  font-size: 13px;
+}
+
+.as-leaderboard-table-wrap { overflow-x: auto; }
+
+.as-leaderboard-table {
+  width: 100%;
+  min-width: 0;
+  border-collapse: collapse;
+  color: var(--kubik-navy);
+  font-size: 14px;
+}
+
+.as-leaderboard-table th,
+.as-leaderboard-table td {
+  padding: 7px 8px;
+  border-bottom: 1px solid var(--kubik-border);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.as-leaderboard-table th {
+  color: var(--kubik-text-soft);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.as-leaderboard-table tbody tr:last-child td { border-bottom: 0; }
+.as-leaderboard-table td:first-child { font-weight: 700; }
+.as-leaderboard-subject-icon { margin-right: 8px; }
+
+.as-leaderboard-status {
+  display: inline-flex;
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.as-leaderboard-status.is-active { background: #dcfce7; color: #166534; }
+.as-leaderboard-status.is-default { background: var(--kubik-blue-soft); color: var(--kubik-blue); }
+.as-leaderboard-status.is-upcoming { background: #fef3c7; color: #92400e; }
+.as-leaderboard-status.is-finished { background: #f1f5f9; color: #475569; }
+
+.as-leaderboard-edit {
+  min-height: 36px;
+  border: 1px solid var(--kubik-border);
+  border-radius: 8px;
+  padding: 0 10px;
+  background: #fff;
+  color: var(--kubik-blue);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.as-leaderboard-edit:hover { background: var(--kubik-blue-soft); }
+.as-leaderboard-edit:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.as-leaderboard-empty { margin: 0; }
+
+.as-leaderboard-reset-card {
+  border-color: rgba(220, 38, 38, 0.24);
+}
+
+.as-leaderboard-reset {
+  min-height: 44px;
+  border: 0;
+  border-radius: 10px;
+  padding: 0 18px;
+  background: #dc2626;
+  color: #fff;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 6px 16px rgba(220, 38, 38, 0.24);
+}
+
+.as-leaderboard-reset:hover:not(:disabled) { background: #b91c1c; }
+.as-leaderboard-reset:focus-visible { outline: none; box-shadow: var(--focus-ring), 0 6px 16px rgba(220, 38, 38, 0.24); }
+.as-leaderboard-reset:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; box-shadow: none; }
+
+.as-leaderboard-reset-success {
+  margin-top: 12px !important;
+  color: #166534 !important;
+  font-weight: 700;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 
 .search-box {
   margin-bottom: 24px;

@@ -176,57 +176,32 @@ router.get('/leaderboard-subjects', async (req, res) => {
   } catch (error) { fail(res, error, 'Get leaderboard subjects'); }
 });
 
-// Текущая календарная неделя (см. ту же логику в practiceController) — точка
-// отсчёта лидерборда по умолчанию, пока преподаватель ни разу не задавал период.
-function currentWeekStart() {
-  const now = new Date();
-  const dayIndex = (now.getDay() + 6) % 7;
-  const monday = new Date(now);
-  monday.setHours(0, 0, 0, 0);
-  monday.setDate(monday.getDate() - dayIndex);
-  return monday;
-}
-
-// Период лидерборда по предмету, который сам видит ученик (LeaderboardModal).
-// «Сброс» — это сдвиг точки отсчёта (leaderboardStartDate) вперёд: баллы,
-// накопленные с начала действующего периода до новой даты, перестают
-// учитываться (сами ответы учеников в БД не трогаем). Если новый start позже
-// действующей точки отсчёта — это и есть потеря накопленного, поэтому без
-// confirmReset:true такой запрос отклоняется 409, чтобы фронт мог явно
-// спросить подтверждение. Просто продлить endDate можно без подтверждения.
-router.put('/leaderboard-subjects/:id', async (req, res) => {
+// Сброс рейтинга не удаляет ответы и не меняет стрик. Мы только запоминаем
+// новую точку отсчёта: лидерборд считает баллы, полученные после неё.
+// confirmReset обязателен и на сервере, чтобы опасное действие нельзя было
+// случайно вызвать в обход окна подтверждения интерфейса.
+router.post('/leaderboard-subjects/:id/reset', async (req, res) => {
   try {
     const subjectId = Number(req.params.id);
     if (!Number.isInteger(subjectId) || subjectId <= 0) return bad(res, 'Некорректный предмет');
-
-    const { leaderboardStartDate, leaderboardEndDate, confirmReset } = req.body;
-    const start = leaderboardStartDate ? new Date(leaderboardStartDate) : null;
-    const end = leaderboardEndDate ? new Date(leaderboardEndDate) : null;
-    if (leaderboardStartDate && Number.isNaN(start.getTime())) return bad(res, 'Некорректная дата начала');
-    if (leaderboardEndDate && Number.isNaN(end.getTime())) return bad(res, 'Некорректная дата окончания');
-    if (start && end && start > end) return bad(res, 'Дата начала позже даты окончания');
-
-    const subject = await Subject.findByPk(subjectId);
-    if (!subject) return bad(res, 'Предмет не найден', 404);
-
-    const effectiveCurrentStart = subject.leaderboardStartDate
-      ? new Date(subject.leaderboardStartDate)
-      : currentWeekStart();
-    const willReset = start && start.getTime() > effectiveCurrentStart.getTime();
-    if (willReset && !confirmReset) {
+    if (req.body?.confirmReset !== true) {
       return res.status(409).json({
-        message: 'Новая дата начала позже текущей — накопленные за этот период баллы перестанут учитываться',
+        message: 'Подтвердите сброс рейтинга',
         requiresConfirmation: true
       });
     }
 
-    await subject.update({ leaderboardStartDate: start, leaderboardEndDate: end });
+    const subject = await Subject.findByPk(subjectId);
+    if (!subject) return bad(res, 'Предмет не найден', 404);
+
+    const resetAt = new Date();
+    await subject.update({ leaderboardStartDate: resetAt, leaderboardEndDate: null });
     res.json({
       id: subject.id,
       leaderboardStartDate: subject.leaderboardStartDate,
-      leaderboardEndDate: subject.leaderboardEndDate
+      leaderboardEndDate: null
     });
-  } catch (error) { fail(res, error, 'Set leaderboard period'); }
+  } catch (error) { fail(res, error, 'Reset subject leaderboard'); }
 });
 
 // Карточка ученика из общего лидерборда. Роут находится в lesson-admin,

@@ -309,6 +309,7 @@ function Quiz({ studentId, studentName = 'Ученик' }) {
   const [answered, setAnswered] = useState(false);
   const [timedOut, setTimedOut] = useState(false);
   const [answerFeedback, setAnswerFeedback] = useState(null);
+  const [answerSubmission, setAnswerSubmission] = useState('idle');
   const [questionTransition, setQuestionTransition] = useState(false);
 
   const [myScore, setMyScore] = useState(0);
@@ -322,6 +323,14 @@ function Quiz({ studentId, studentName = 'Ученик' }) {
   const selectedAnswerRef = useRef(null);
   const timedOutRef = useRef(false);
   const currentQuestionRef = useRef(null);
+  const answerSubmissionTimer = useRef(null);
+
+  const clearAnswerSubmissionTimer = () => {
+    if (answerSubmissionTimer.current) {
+      clearTimeout(answerSubmissionTimer.current);
+      answerSubmissionTimer.current = null;
+    }
+  };
 
   // Счёт для финального экрана (хук на верхнем уровне — без нарушения правил React)
   const finalScoreTarget = view === 'results' ? (parseFloat(finalResults?.me?.totalScore) || 0) : 0;
@@ -338,6 +347,7 @@ function Quiz({ studentId, studentName = 'Ученик' }) {
   }, [socket, quiz?.id, studentId]);
 
   useEffect(() => () => { cleanupSocket(); }, [cleanupSocket]);
+  useEffect(() => () => { clearAnswerSubmissionTimer(); }, []);
 
   const loadQuizHistory = useCallback(async () => {
     try {
@@ -393,6 +403,7 @@ function Quiz({ studentId, studentName = 'Ученик' }) {
     newSocket.on('quiz:started', () => setView('playing'));
 
     newSocket.on('quiz:new-question', ({ question, questionIndex: idx, totalQuestions: total }) => {
+      clearAnswerSubmissionTimer();
       setCurrentQuestion(question);
       currentQuestionRef.current = question;
       setQuestionIndex(idx);
@@ -401,6 +412,7 @@ function Quiz({ studentId, studentName = 'Ученик' }) {
       setSelectedAnswer(null);
       setAnswered(false);
       setTimedOut(false);
+      setAnswerSubmission('idle');
       selectedAnswerRef.current = null;
       timedOutRef.current = false;
       setAnswerFeedback(null);
@@ -410,7 +422,10 @@ function Quiz({ studentId, studentName = 'Ученик' }) {
     });
 
     newSocket.on('student:answer-accepted', (data) => {
+      if (data?.questionId && Number(data.questionId) !== Number(currentQuestionRef.current?.id)) return;
+      clearAnswerSubmissionTimer();
       setAnswered(true);
+      setAnswerSubmission('accepted');
       if (quizData.showLeaderboardAfterQuestion !== false && data?.isCorrect != null) {
         setAnswerFeedback({
           isCorrect: data.isCorrect,
@@ -427,8 +442,10 @@ function Quiz({ studentId, studentName = 'Ученик' }) {
     // Вопрос завершён у всех одновременно. Без промежуточных экранов:
     // гасим приём ответов и ждём следующий вопрос (или финал).
     newSocket.on('quiz:question-ended', () => {
+      clearAnswerSubmissionTimer();
       timedOutRef.current = true;
       setAnswered(true);
+      setAnswerSubmission('idle');
       setQuestionTransition(true);
     });
 
@@ -575,22 +592,43 @@ function Quiz({ studentId, studentName = 'Ученик' }) {
   }, [view, currentQuestion?.id, questionIndex]);
 
   const submitAnswer = (answerIndex) => {
-    if (answered || timeLeft <= 0 || !currentQuestion || !socket) return;
+    if (answered || answerSubmission === 'pending' || timeLeft <= 0 || !currentQuestion || !socket) return;
     haptic('medium');
     setSelectedAnswer(answerIndex);
     selectedAnswerRef.current = answerIndex;
-    setAnswered(true);
+    setAnswerSubmission('pending');
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
     }
     const responseTime = Date.now() - (questionStartTime.current || Date.now());
 
+    const questionId = currentQuestion.id;
+    const failSubmission = (message) => {
+      if (Number(currentQuestionRef.current?.id) !== Number(questionId)) return;
+      clearAnswerSubmissionTimer();
+      setAnswerSubmission('failed');
+      setSelectedAnswer(null);
+      selectedAnswerRef.current = null;
+    };
+    answerSubmissionTimer.current = setTimeout(() => {
+      failSubmission('Ответ не отправлен. Нажмите вариант ещё раз.');
+    }, 4000);
+
     socket.emit('student:submit-answer', {
       quizId: quiz.id,
-      questionId: currentQuestion.id,
+      questionId,
       userId: studentId,
       selectedAnswer: answerIndex,
       responseTime
+    }, (result) => {
+      if (Number(currentQuestionRef.current?.id) !== Number(questionId)) return;
+      clearAnswerSubmissionTimer();
+      if (!result?.ok) {
+        failSubmission(result?.message || 'Ответ не отправлен. Нажмите вариант ещё раз.');
+        return;
+      }
+      setAnswered(true);
+      setAnswerSubmission('accepted');
     });
   };
 
@@ -753,7 +791,7 @@ function Quiz({ studentId, studentName = 'Ученик' }) {
                 {currentQuestion.options.map((option, index) => {
                   const letter = String.fromCharCode(65 + index);
                   const isMine = selectedAnswer === index;
-                  const isLocked = answered || timeLeft <= 0;
+                  const isLocked = answered || answerSubmission === 'pending' || timeLeft <= 0;
                   // Подсветка появляется только после ответа сервера (showInstantFeedback).
                   const revealed = showInstantFeedback;
                   const isCorrectOption = revealed && index === answerFeedback.correctAnswer;
@@ -808,6 +846,11 @@ function Quiz({ studentId, studentName = 'Ученик' }) {
               {timedOut && selectedAnswer == null && (
                 <div className="quiz-ui-toast quiz-ui-toast--timeout">
                   Время вышло. Ответ не засчитан.
+                </div>
+              )}
+              {answerSubmission === 'failed' && !timedOut && (
+                <div className="quiz-ui-toast quiz-ui-toast--submit-error" role="alert">
+                  Ответ не отправлен. Нажмите вариант ещё раз.
                 </div>
               )}
             </div>
