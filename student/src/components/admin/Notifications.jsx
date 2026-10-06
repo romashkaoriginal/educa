@@ -33,38 +33,12 @@ const ROLE_LABELS = {
   manager: '📊 Менеджер',
 };
 
+// Ручные отправки всегда пишут автора и свой deliveryKind (manual_*), поэтому
+// запись без автора с deliveryKind 'scheduled' — автоматическая. Календарные
+// эвристики не годятся: месячный отчёт идёт скользящим окном в 30 дней.
 function isScheduledParentReport(report) {
-  if (report.deliveryKind !== 'scheduled' || report.manualTriggeredByName || report.manualTriggeredBy || report.triggeredByName || report.triggeredBy) {
-    return false;
-  }
-
-  const date = new Date(report.createdAt);
-  if (Number.isNaN(date.getTime())) return false;
-  const localParts = Object.fromEntries(new Intl.DateTimeFormat('en-GB', {
-    timeZone: 'Europe/Minsk', weekday: 'short', hour: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric', hourCycle: 'h23'
-  }).formatToParts(date).map(({ type, value }) => [type, value]));
-  if (localParts.weekday !== 'Mon' || Number(localParts.hour) < 18) return false;
-
-  if (report.reportType === 'weekly') {
-    if (!report.periodStart || !report.periodEnd) return false;
-    const start = new Date(`${report.periodStart}T00:00:00Z`);
-    const end = new Date(`${report.periodEnd}T00:00:00Z`);
-    return start.getUTCDay() === 1 && end.getUTCDay() === 0
-      && Math.round((end - start) / 86400000) === 6;
-  }
-
-  if (report.reportType === 'monthly') {
-    if (Number(localParts.day) > 7 || !report.periodStart || !report.periodEnd) return false;
-    const currentMonthStart = `${localParts.year}-${localParts.month}-01`;
-    const previousMonthEnd = new Date(`${currentMonthStart}T00:00:00Z`);
-    previousMonthEnd.setUTCDate(0);
-    const previousMonthStart = new Date(previousMonthEnd);
-    previousMonthStart.setUTCDate(1);
-    return report.periodStart === previousMonthStart.toISOString().slice(0, 10)
-      && report.periodEnd === previousMonthEnd.toISOString().slice(0, 10);
-  }
-
-  return false;
+  return report.deliveryKind === 'scheduled'
+    && !(report.manualTriggeredByName || report.manualTriggeredBy || report.triggeredByName || report.triggeredBy);
 }
 
 function NotificationHistoryRecipients({ recipients }) {
