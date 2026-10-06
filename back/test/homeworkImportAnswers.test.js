@@ -18,3 +18,11 @@ test('homework import rejects an answer pointing at an empty column', () => {
     assert.equal(result.question, undefined);
   }
 });
+
+test('homework import accepts a quiz spreadsheet without a type column', () => {
+  const result = parseHomeworkRow({ question: 'Чему равно |-7| + |3| - |-2|?', a: '6', b: '8', c: '12', d: '-6', correct: 'b', time: 30, points: 1 });
+  assert.equal(result.error, undefined);
+  assert.equal(result.question.questionType, 'single_choice');
+  assert.equal(result.question.options[result.question.correctAnswer], '8');
+  assert.equal(result.question.points, 1);
+});

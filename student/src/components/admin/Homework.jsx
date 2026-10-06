@@ -323,7 +323,11 @@ function Homework({ subjects, currentUserId, dataRefreshKey = 0 }) {
         if (data.questions?.length) {
           setQuestions(prev => [...prev, ...data.questions]);
         }
-        setShowImportModal(false);
+        if (data.imported > 0 && !data.skipped) {
+          setShowImportModal(false);
+        } else {
+          setImportResult(data);
+        }
       } else {
         setImportResult({ error: data.message || 'Ошибка импорта' });
       }
@@ -677,8 +681,9 @@ function Homework({ subjects, currentUserId, dataRefreshKey = 0 }) {
                 </div>
 
                 {importResult && !importResult.error && (
-                  <div className="import-result-ok">
-                    ✅ Добавлено вопросов: <strong>{importResult.imported}</strong>
+                  <div className={importResult.imported > 0 ? 'import-result-ok' : 'import-result-error'}>
+                    {importResult.imported > 0 ? '✅ Добавлено вопросов: ' : '❌ Не удалось импортировать вопросы. Добавлено: '}
+                    <strong>{importResult.imported}</strong>
                     {importResult.skipped > 0 && (
                       <>, пропущено: <strong>{importResult.skipped}</strong></>
                     )}
@@ -703,7 +708,7 @@ function Homework({ subjects, currentUserId, dataRefreshKey = 0 }) {
                   type="button"
                   className="save-btn"
                   onClick={handleImport}
-                  disabled={!importFile || importLoading}
+                  disabled={!importFile || importLoading || Boolean(importResult?.imported)}
                 >
                   {importLoading ? 'Загружаю...' : 'Загрузить'}
                 </button>

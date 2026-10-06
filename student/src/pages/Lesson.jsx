@@ -427,16 +427,16 @@ export default function Lesson({ studentId, isTabActive, entryRequest = null }) 
   }, [studentId]);
 
   const loadSchedule = useCallback(async () => {
-    try {
-      const [currentData, upcomingData, listData] = await Promise.all([
-        studentRequest('/current'),
-        studentRequest('/schedule/upcoming'),
-        studentRequest('/schedule/upcoming-list?limit=5')
-      ]);
-      setCurrentLesson(currentData.lesson || null);
-      setUpcoming(upcomingData.lesson || null);
-      setUpcomingList(listData.lessons || []);
-    } catch (error) { setMessage(error.message); }
+    const [current, upcomingResult, list] = await Promise.allSettled([
+      studentRequest('/current'),
+      studentRequest('/schedule/upcoming'),
+      studentRequest('/schedule/upcoming-list?limit=5')
+    ]);
+    if (current.status === 'fulfilled') setCurrentLesson(current.value.lesson || null);
+    if (upcomingResult.status === 'fulfilled') setUpcoming(upcomingResult.value.lesson || null);
+    if (list.status === 'fulfilled') setUpcomingList(list.value.lessons || []);
+    const failure = [current, upcomingResult, list].find((result) => result.status === 'rejected');
+    if (failure) setMessage(failure.reason?.message || 'Не удалось загрузить расписание');
   }, [setCurrentLesson, studentRequest]);
 
   const applyState = useCallback((state) => {

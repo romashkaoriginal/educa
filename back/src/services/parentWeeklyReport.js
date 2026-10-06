@@ -346,6 +346,7 @@ async function buildSubjectReport({
   const homeworks = await Homework.findAll({
     where: {
       subjectId: subject.id,
+      isActive: true,
       openDate: { [Op.gte]: period.startUtc, [Op.lt]: period.endExclusiveUtc }
     },
     attributes: ['id', 'title', 'openDate', 'closeDate'],

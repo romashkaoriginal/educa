@@ -18,7 +18,11 @@ function parseHomeworkRow(row) {
   const points = parseInt(row.points, 10) || 10;
   const explanation = String(row.explanation || '').trim() || null;
 
-  const questionType = HW_TYPE_ALIASES[typeRaw];
+  // A common quiz spreadsheet has no `type` column: four choices and one
+  // answer letter identify a single-choice question without ambiguity.
+  const inferredSingle = !typeRaw && /^[a-d]$/i.test(correctRaw)
+    && excelChoiceOptions(row).options.length >= 2;
+  const questionType = HW_TYPE_ALIASES[typeRaw] || (inferredSingle ? 'single_choice' : null);
   if (!questionType) {
     return { error: `неизвестный тип "${row.type}" (допустимо: single, multiple, short, numeric, matching, ordering, fill, truefalse)` };
   }
