@@ -36,6 +36,7 @@ const setupQuizSocket = require('./socket/quizSocket');
 const setupLessonSocket = require('./socket/lessonSocket');
 const { startGuestScheduler } = require('./services/guestScheduler');
 const { startLessonScheduler, stopLessonScheduler } = require('./services/lessonScheduler');
+const { startAccessExpiryScheduler, stopAccessExpiryScheduler } = require('./services/accessExpiryNotifier');
 const { startParentReportScheduler, stopParentReportScheduler } = require('./services/parentReportScheduler');
 const { startErrorLogRetention, stopErrorLogRetention } = require('./services/errorLogRetention');
 const {
@@ -242,6 +243,7 @@ const startServer = async () => {
     startBot();
     startGuestScheduler();
     startLessonScheduler();
+    startAccessExpiryScheduler();
     startParentReportScheduler();
   });
 };
@@ -250,6 +252,7 @@ process.on('SIGTERM', () => {
   console.log('\n🛑 Получен сигнал завершения...');
   stopBot();
   stopLessonScheduler();
+  stopAccessExpiryScheduler();
   stopParentReportScheduler();
   stopErrorLogRetention();
   process.exit(0);

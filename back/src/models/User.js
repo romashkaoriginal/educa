@@ -85,6 +85,13 @@ const User = sequelize.define('User', {
     type: DataTypes.BOOLEAN,
     defaultValue: false
   },
+  // Дата окончания доступа (максимум accessEndDate по предметам), о которой ученику
+  // уже отправили сообщение «Доступ закончился». Продлили и снова истёк — дата
+  // станет больше, и сообщение уйдёт повторно; сам по себе рестарт ничего не дублирует.
+  accessExpiredNoticeEnd: {
+    type: DataTypes.DATE,
+    allowNull: true
+  },
   // Факт отправки уведомления за 4 часа
   guestReminderSentAt: {
     type: DataTypes.DATE,
