@@ -188,9 +188,9 @@ async function sendPreparedParentReport(parent, { bot, reportType, period, messa
   return result;
 }
 
-async function processParent(parent, { bot, now = new Date(), reportType = 'weekly', force = false, manualTrigger = null }) {
+async function processParent(parent, { bot, now = new Date(), reportType = 'weekly', force = false, manualTrigger = null, deliveryKindOverride = null }) {
   const period = getReportPeriod(reportType, now, force);
-  const deliveryKind = getDeliveryKind(manualTrigger);
+  const deliveryKind = deliveryKindOverride || getDeliveryKind(manualTrigger);
   const students = parent.students || [];
   const firstStudentId = students[0]?.id ?? null;
   const [log, created] = await ParentReportLog.findOrCreate({
@@ -346,7 +346,9 @@ async function retryMissedReportsAfterTelegramConfirmation(parentId, now = new D
     bot,
     now,
     reportType,
-    force: true
+    force: true,
+    // Догоняющая отправка после подключения Telegram — не плановая и не ручная.
+    deliveryKindOverride: 'catchup'
   })));
 }
 

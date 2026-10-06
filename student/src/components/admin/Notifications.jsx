@@ -26,6 +26,7 @@ const HOMEWORK_PERCENT_OPTIONS = [
 
 const ROLE_LABELS = {
   scheduled: '🕒 По расписанию',
+  catchup: '🔁 Догоняющая отправка',
   manual_unknown: 'Ручная отправка · автор не сохранён',
   superadmin: '🛡️ Суперадмин',
   admin: '👨‍💼 Администратор',
@@ -36,8 +37,21 @@ const ROLE_LABELS = {
 // Ручные отправки всегда пишут автора и свой deliveryKind (manual_*), поэтому
 // запись без автора с deliveryKind 'scheduled' — автоматическая. Календарные
 // эвристики не годятся: месячный отчёт идёт скользящим окном в 30 дней.
+function hasParentReportSender(report) {
+  return !!(report.manualTriggeredByName || report.manualTriggeredBy || report.triggeredByName || report.triggeredBy);
+}
+
+// Догоняющая отправка после подключения Telegram: новые записи помечены
+// deliveryKind 'catchup'; у старых плановая неделя всегда начинается с понедельника.
+function isCatchupParentReport(report) {
+  if (hasParentReportSender(report)) return false;
+  if (report.deliveryKind === 'catchup') return true;
+  if (report.deliveryKind !== 'scheduled' || report.reportType !== 'weekly' || !report.periodStart) return false;
+  return new Date(`${report.periodStart}T00:00:00Z`).getUTCDay() !== 1;
+}
+
 function isScheduledParentReport(report) {
-  return report.deliveryKind === 'scheduled'
+  return report.deliveryKind === 'scheduled' && !isCatchupParentReport(report)
     && !(report.manualTriggeredByName || report.manualTriggeredBy || report.triggeredByName || report.triggeredBy);
 }
 
@@ -185,6 +199,7 @@ function Notifications({ subjects, currentUser, dataRefreshKey = 0 }) {
           skipped_no_access: 'Нет ученика с активным доступом',
           processing: 'Отправка ещё выполняется'
         };
+        const isCatchup = isCatchupParentReport(report);
         const isScheduled = isScheduledParentReport(report);
         const hasManualSender = report.triggeredByName || report.manualTriggeredByName
           || report.triggeredBy || report.manualTriggeredBy;
@@ -192,7 +207,7 @@ function Notifications({ subjects, currentUser, dataRefreshKey = 0 }) {
           || report.manualTriggeredByName
           || [report.triggeredBy?.firstName, report.triggeredBy?.lastName].filter(Boolean).join(' ')
           || [report.manualTriggeredBy?.firstName, report.manualTriggeredBy?.lastName].filter(Boolean).join(' ')
-          || (isScheduled ? 'Автоматическая рассылка' : 'Отправитель не сохранён');
+          || (isCatchup ? 'Автоматически, после подключения Telegram' : isScheduled ? 'Автоматическая рассылка' : 'Отправитель не сохранён');
         return {
           id: `parent-report-${report.id}`,
           isParentReport: true,
@@ -207,7 +222,7 @@ function Notifications({ subjects, currentUser, dataRefreshKey = 0 }) {
           isScheduledReport: isScheduled,
           sentByName: sender,
           sentByRole: report.triggeredBy?.role || report.manualTriggeredBy?.role
-            || (isScheduled ? 'scheduled' : (!hasManualSender ? 'manual_unknown' : '')),
+            || (isCatchup ? 'catchup' : isScheduled ? 'scheduled' : (!hasManualSender ? 'manual_unknown' : '')),
           createdAt: report.sentAt || report.createdAt,
           text: `${reportType.toLowerCase()} отчёт${period}`,
           successCount: sent ? 1 : 0,
