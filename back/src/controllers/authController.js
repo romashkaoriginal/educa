@@ -2,6 +2,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { validationResult } = require('express-validator');
 const { User } = require('../models');
+const { isStudentAccessExpired, isAccessControlledStudent } = require('../services/studentAccess');
 
 // Регистрация
 exports.register = async (req, res) => {
@@ -108,15 +109,21 @@ exports.getUserByTelegramId = async (req, res) => {
 
     const user = await User.findOne({ 
       where: { telegramId },
-      attributes: ['id', 'telegramId', 'telegramUsername', 'firstName', 'lastName', 'role', 'isActive']
+      attributes: ['id', 'telegramId', 'telegramUsername', 'firstName', 'lastName', 'role', 'isActive', 'isGuest']
     });
 
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    res.json({ 
+    // Фронт показывает экран «Доступ закончился» до входа в приложение.
+    const accessExpired = isAccessControlledStudent(user)
+      ? await isStudentAccessExpired(user.id).catch(() => false)
+      : false;
+
+    res.json({
       user: {
+        accessExpired,
         id: user.id,
         telegramId: user.telegramId,
         telegramUsername: user.telegramUsername,

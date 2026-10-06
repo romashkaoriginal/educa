@@ -3,6 +3,8 @@ import { inferRequest, reportClientError } from '../utils/errorReporter';
 
 export const getTelegramInitData = () => window.Telegram?.WebApp?.initData || '';
 
+export const ACCESS_EXPIRED_EVENT = 'educa:access-expired';
+
 const getInitData = getTelegramInitData;
 const DEFAULT_TIMEOUT_MS = 12000;
 const DEFAULT_RETRIES = 2;
@@ -66,6 +68,13 @@ export const apiFetch = async (url, options = {}) => {
       if (attempt < maxRetries && isResponseRetryable(response) && isVisibleAndOnline()) {
         await retryDelay(retryDelayMs * (2 ** attempt), externalSignal);
         continue;
+      }
+
+      // Закончился доступ к предметам — App показывает экран блокировки.
+      if (response.status === 403) {
+        response.clone().json().then((body) => {
+          if (body?.code === 'ACCESS_EXPIRED') window.dispatchEvent(new Event(ACCESS_EXPIRED_EVENT));
+        }).catch(() => {});
       }
 
       // HTTP-ошибки регистрирует backend — повторная запись с frontend не нужна.

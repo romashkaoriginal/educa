@@ -5,12 +5,13 @@ import kubikLogo from './assets/kubik-logo-transparent.png';
 import StudentApp from './pages/StudentApp';
 import GuestSubjectSelect from './pages/GuestSubjectSelect';
 import GuestExpired from './pages/GuestExpired';
+import AccessExpired from './pages/AccessExpired';
 import AdminGuestPicker from './pages/AdminGuestPicker';
 
 import AdminPanel from './pages/AdminPanel';
 
 import { API_URL, SOCKET_URL } from './config';
-import { apiFetch, getTelegramInitData } from './pages/api';
+import { apiFetch, getTelegramInitData, ACCESS_EXPIRED_EVENT } from './pages/api';
 import { collectUtm, storeUtm } from './utils/utm';
 
 // Telegram Desktop обновляет bridge отдельно от WebView. Методы, которые есть
@@ -34,6 +35,8 @@ function App() {
   // Гостевой режим: null | 'select' (выбор предметов) | 'app' (Mini App гостя) | 'expired'
   const [guestMode, setGuestMode] = useState(null);
   const [guestState, setGuestState] = useState(null);
+  // Ученик, у которого закончился доступ ко всем предметам: всё приложение заблокировано.
+  const [accessExpired, setAccessExpired] = useState(false);
 
   const waitForTelegramUser = async (tg, attempts = 20) => {
     for (let attempt = 0; attempt < attempts; attempt += 1) {
@@ -158,6 +161,13 @@ function App() {
     // dashboard загружается в AdminPanel
   }, []);
 
+  // Доступ может закончиться посреди сессии: apiFetch ловит 403 ACCESS_EXPIRED.
+  useEffect(() => {
+    const onExpired = () => setAccessExpired(true);
+    window.addEventListener(ACCESS_EXPIRED_EVENT, onExpired);
+    return () => window.removeEventListener(ACCESS_EXPIRED_EVENT, onExpired);
+  }, []);
+
   // Одно постоянное соединение показывает реальный онлайн во всех разделах,
   // включая выбор роли и админ-панель. Другие feature-сокеты дедуплицируются
   // на сервере по user id.
@@ -223,6 +233,12 @@ function App() {
         const role = data.user?.role;
         setAuthUser(data.user || null);
 
+        if (data.user?.accessExpired) {
+          setAccessExpired(true);
+          setLoading(false);
+          return;
+        }
+
         if (role === 'superadmin' || role === 'admin' || role === 'teacher' || role === 'manager') {
           setUserRole(role);
           setLoading(false);
@@ -281,6 +297,8 @@ function App() {
       </div>
     );
   }
+
+  if (accessExpired) return <AccessExpired />;
 
   // ===== Гостевой режим (ТЗ §4, §5, §19) =====
   if (userRole === 'guest') {

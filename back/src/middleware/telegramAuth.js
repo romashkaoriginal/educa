@@ -1,6 +1,9 @@
 const crypto = require('crypto');
 const { User } = require('../models');
 const { SUPER_ADMIN_TELEGRAM_ID } = require('./superAdmin');
+const {
+  ACCESS_EXPIRED_CODE, ACCESS_EXPIRED_MESSAGE, isStudentAccessExpired, isAccessControlledStudent
+} = require('../services/studentAccess');
 
 const STAFF_ROLES = ['superadmin', 'admin', 'manager', 'teacher'];
 
@@ -79,7 +82,7 @@ exports.telegramAuth = async (req, res, next) => {
   }
 };
 
-exports.requireUser = (req, res, next) => {
+exports.requireUser = async (req, res, next) => {
   if (!req.dbUser) { console.log('[Auth] requireUser failed - no dbUser'); return res.status(403).json({ message: 'User not registered in system' }); }
   if (!req.dbUser.isActive) return res.status(403).json({ message: 'Account is deactivated' });
   // Гость с истёкшим 24-часовым доступом — закрываем практику/статистику/subjects.
@@ -88,6 +91,19 @@ exports.requireUser = (req, res, next) => {
     const exp = req.dbUser.guestExpiresAt ? new Date(req.dbUser.guestExpiresAt).getTime() : 0;
     if (!exp || exp <= Date.now()) {
       return res.status(403).json({ message: 'Guest access expired', code: 'GUEST_EXPIRED' });
+    }
+  }
+  // Ученик, у которого закончился доступ ко всем предметам, не должен пользоваться
+  // ни практикой, ни домашкой, ни статистикой. Фронт по коду ACCESS_EXPIRED
+  // показывает экран «Доступ закончился».
+  if (isAccessControlledStudent(req.dbUser)) {
+    try {
+      if (await isStudentAccessExpired(req.dbUser.id)) {
+        return res.status(403).json({ message: ACCESS_EXPIRED_MESSAGE, code: ACCESS_EXPIRED_CODE });
+      }
+    } catch (error) {
+      // Сбой проверки не должен выбивать учеников посреди занятия.
+      console.error('Student access check error:', error);
     }
   }
   next();
