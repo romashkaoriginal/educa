@@ -220,6 +220,7 @@ function Notifications({ subjects, currentUser, dataRefreshKey = 0 }) {
                 ? `bulk-${report.reportType}-${report.periodStart}-${report.triggeredByName || report.manualTriggeredByName}-${String(report.createdAt).slice(0, 16)}`
                 : null)),
           isScheduledReport: isScheduled,
+          isManualReport: !isScheduled && !isCatchup,
           sentByName: sender,
           sentByRole: report.triggeredBy?.role || report.manualTriggeredBy?.role
             || (isCatchup ? 'catchup' : isScheduled ? 'scheduled' : (!hasManualSender ? 'manual_unknown' : '')),
@@ -638,6 +639,9 @@ function Notifications({ subjects, currentUser, dataRefreshKey = 0 }) {
                     <span className="history-expand">{expandedLog === log.id ? '▼' : '▶'}</span>
                     <div>
                       <div className="history-meta">
+                        {log.isParentReport && log.isManualReport && (
+                          <span className="history-role">✋ Ручная отправка{log.filters.triggerScope === 'bulk' ? ' · всем родителям' : ' · одному родителю'}</span>
+                        )}
                         <span className="history-sender">👤 {log.sentByName}</span>
                         {(log.isParentReport ? log.sentByRole : (log.sentByRole || 'admin')) && (
                           <span className="history-role">{ROLE_LABELS[log.sentByRole] || log.sentByRole || (log.isParentReport ? '' : '👨‍💼 Администратор')}</span>
