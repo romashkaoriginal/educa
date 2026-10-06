@@ -223,6 +223,14 @@ function Notifications({ subjects, currentUser, dataRefreshKey = 0 }) {
           id: `parent-report-${report.id}`,
           isParentReport: true,
           parentReportBatchId: report.batchId || null,
+          parentReportGroupKey: report.batchId && report.triggerScope === 'bulk'
+            ? `batch-${report.batchId}`
+            : (isScheduled
+              ? `scheduled-${report.reportType}-${report.periodStart}`
+              : (report.triggerScope === 'bulk' && (report.triggeredByName || report.manualTriggeredByName)
+                ? `bulk-${report.reportType}-${report.periodStart}-${report.triggeredByName || report.manualTriggeredByName}-${String(report.createdAt).slice(0, 16)}`
+                : null)),
+          isScheduledReport: isScheduled,
           sentByName: sender,
           sentByRole: report.triggeredBy?.role || report.manualTriggeredBy?.role
             || (isScheduled ? 'scheduled' : (!hasManualSender ? 'manual_unknown' : '')),
@@ -231,7 +239,7 @@ function Notifications({ subjects, currentUser, dataRefreshKey = 0 }) {
           successCount: sent ? 1 : 0,
           failedCount: sent ? 0 : 1,
           recipientCount: 1,
-          filters: { parentReport: true, reportType, periodStart: report.periodStart, periodEnd: report.periodEnd, triggerScope: report.triggerScope },
+          filters: { parentReport: true, reportType, periodStart: report.periodStart, periodEnd: report.periodEnd, triggerScope: report.triggerScope, isScheduled },
           recipients: [{
             id: `parent-${report.parentId || report.id}`,
             name: parentName,
@@ -243,28 +251,32 @@ function Notifications({ subjects, currentUser, dataRefreshKey = 0 }) {
       const groupedParentReports = new Map();
       const individualParentReports = [];
       parentReportHistory.forEach((report) => {
-        if (!report.parentReportBatchId || report.filters.triggerScope !== 'bulk') {
+        const key = report.parentReportGroupKey;
+        if (!key) {
           individualParentReports.push(report);
           return;
         }
-        const group = groupedParentReports.get(report.parentReportBatchId);
-        if (!group) {
-          groupedParentReports.set(report.parentReportBatchId, {
+        if (!groupedParentReports.has(key)) {
+          groupedParentReports.set(key, {
             ...report,
-            id: `parent-report-batch-${report.parentReportBatchId}`,
+            id: `parent-report-group-${key}`,
             text: report.text.replace(' отчёт за ', ' отчёт всем родителям за '),
+            filters: { ...report.filters, triggerScope: 'bulk' },
             successCount: 0,
             failedCount: 0,
             recipientCount: 0,
             recipients: []
           });
         }
-        const batch = groupedParentReports.get(report.parentReportBatchId);
+        const batch = groupedParentReports.get(key);
         batch.successCount += report.successCount;
         batch.failedCount += report.failedCount;
         batch.recipientCount += report.recipientCount;
         batch.recipients.push(...report.recipients);
         if (new Date(report.createdAt) < new Date(batch.createdAt)) batch.createdAt = report.createdAt;
+      });
+      groupedParentReports.forEach((group) => {
+        group.recipients.sort((a, b) => (a.status === 'failed' ? 0 : 1) - (b.status === 'failed' ? 0 : 1));
       });
       setHistory([...(notificationsData.logs || []), ...individualParentReports, ...groupedParentReports.values()]
         .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
@@ -661,7 +673,7 @@ function Notifications({ subjects, currentUser, dataRefreshKey = 0 }) {
                     {log.filters && Object.keys(log.filters).length > 0 && (
                       <div className="history-filters">
                         <strong>{log.isParentReport ? 'Отчёт:' : 'Фильтры:'}</strong>
-                        {log.isParentReport && <span>{log.filters.reportType}{log.filters.triggerScope === 'bulk' ? ' · Всем родителям' : ''}</span>}
+                        {log.isParentReport && <span>{log.filters.reportType}{log.filters.triggerScope === 'bulk' ? (log.filters.isScheduled ? ' · Всем родителям (по расписанию)' : ' · Всем родителям (принудительно)') : ''}</span>}
                         {log.isParentReport && log.filters.periodStart && log.filters.periodEnd && (
                           <span>📅 {new Date(`${log.filters.periodStart}T00:00:00`).toLocaleDateString('ru-RU')}–{new Date(`${log.filters.periodEnd}T00:00:00`).toLocaleDateString('ru-RU')}</span>
                         )}

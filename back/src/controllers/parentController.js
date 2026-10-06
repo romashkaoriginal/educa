@@ -252,7 +252,7 @@ exports.getReportLogs = async (_req, res) => {
         { model: User, as: 'triggeredBy', attributes: ['id', 'firstName', 'lastName', 'role'] }
       ],
       order: [['createdAt', 'DESC']],
-      limit: 100
+      limit: 2000
     });
     const dispatches = dispatchLogs.map((log) => log.toJSON());
     const dispatchedReportLogIds = dispatches.map((log) => log.parentReportLogId).filter(Boolean);
@@ -266,12 +266,12 @@ exports.getReportLogs = async (_req, res) => {
         { model: User, as: 'manualTriggeredBy', attributes: ['id', 'firstName', 'lastName', 'role'] }
       ],
       order: [['createdAt', 'DESC']],
-      limit: 100
+      limit: 2000
     });
     const standalone = reportLogs.map((log) => ({ ...log.toJSON(), triggerScope: log.manualTriggerScope || 'parent' }));
     const logs = [...dispatches, ...standalone]
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-      .slice(0, 100);
+      .slice(0, 2000);
     res.json({ logs });
   } catch (error) {
     handleParentError(res, error, 'Get parent report logs error');
