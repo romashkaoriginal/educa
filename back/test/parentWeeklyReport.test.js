@@ -20,7 +20,8 @@ const {
   getNextWeeklyReportAt,
   getNextMonthlyReportAt,
   getDeliveryKind,
-  getReportPeriod
+  getReportPeriod,
+  getMissedScheduledReports
 } = require('../src/services/parentReportScheduler');
 const { normalizeTelegramId, normalizeTelegramUsername } = require('../src/services/parentIdentity');
 
@@ -36,6 +37,22 @@ test('scheduler becomes due only on Monday from 18:00 Minsk', () => {
   assert.equal(isMondayReportDue(new Date('2026-09-07T14:59:00.000Z')), false);
   assert.equal(isMondayReportDue(new Date('2026-09-07T15:00:00.000Z')), true);
   assert.equal(isMondayReportDue(new Date('2026-09-08T15:00:00.000Z')), false);
+});
+
+test('Telegram confirmation recovers the scheduled monthly rolling period and weekly report', () => {
+  const logs = ['weekly', 'monthly'].map((reportType) => ({
+    parentId: 83, reportType, deliveryKind: 'scheduled', status: 'skipped_no_telegram',
+    periodStart: reportType === 'monthly' ? '2026-09-06' : '2026-09-28',
+    createdAt: '2026-10-05T15:02:00Z'
+  }));
+  assert.equal(getMissedScheduledReports(logs, new Date('2026-10-07T14:00:00Z')).length, 2);
+});
+
+test('recovery skips sent reports, old weeks and legacy manual monthly dispatches', () => {
+  const missed = { parentId: 83, reportType: 'weekly', deliveryKind: 'scheduled', status: 'skipped_no_telegram', createdAt: '2026-10-05T15:02:00Z' };
+  assert.deepEqual(getMissedScheduledReports([missed, { ...missed, status: 'sent', createdAt: '2026-10-05T15:03:00Z' }], new Date('2026-10-07T14:00:00Z')), []);
+  assert.deepEqual(getMissedScheduledReports([missed], new Date('2026-10-13T14:00:00Z')), []);
+  assert.deepEqual(getMissedScheduledReports([{ ...missed, reportType: 'monthly', createdAt: '2026-09-22T11:55:00Z' }], new Date('2026-10-07T14:00:00Z')), []);
 });
 
 test('monthly report is due on the first Monday of a month at 18:00 Minsk', () => {

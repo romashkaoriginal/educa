@@ -2,7 +2,8 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { validationResult } = require('express-validator');
 const { User } = require('../models');
-const { isStudentAccessExpired, isAccessControlledStudent } = require('../services/studentAccess');
+const { getStudentAccessState, isAccessControlledStudent } = require('../services/studentAccess');
+const { findParentForTelegramUser, parentAccessState } = require('../services/parentIdentity');
 
 // Регистрация
 exports.register = async (req, res) => {
@@ -107,6 +108,9 @@ exports.getUserByTelegramId = async (req, res) => {
   try {
     const { telegramId } = req.params;
 
+    const parent = await findParentForTelegramUser(req.telegramUser);
+    if (parent) return res.json({ user: parentAccessState(parent) });
+
     const user = await User.findOne({ 
       where: { telegramId },
       attributes: ['id', 'telegramId', 'telegramUsername', 'firstName', 'lastName', 'role', 'isActive', 'isGuest']
@@ -117,13 +121,15 @@ exports.getUserByTelegramId = async (req, res) => {
     }
 
     // Фронт показывает экран «Доступ закончился» до входа в приложение.
-    const accessExpired = isAccessControlledStudent(user)
-      ? await isStudentAccessExpired(user.id).catch(() => false)
-      : false;
+    const access = isAccessControlledStudent(user)
+      ? await getStudentAccessState(user.id)
+      : { expired: false, notStarted: false, startsAt: null };
 
     res.json({
       user: {
-        accessExpired,
+        accessExpired: access.expired,
+        accessNotStarted: access.notStarted,
+        accessStartsAt: access.startsAt,
         id: user.id,
         telegramId: user.telegramId,
         telegramUsername: user.telegramUsername,

@@ -3,6 +3,7 @@ const { Op } = require('sequelize');
 const { User, Subject } = require('../models');
 const guestAccess = require('../services/guestAccess');
 const { saveBotUserUtm } = require('../services/botUserUtm');
+const { findParentForTelegramUser, parentAccessState } = require('../services/parentIdentity');
 
 // GET /api/guest/state — состояние гостя/ученика по верифицированному telegramId.
 // Фронт зовёт на старте Mini App, чтобы понять режим (ученик / выбор предметов /
@@ -12,6 +13,8 @@ exports.getState = async (req, res) => {
     const telegramId = req.telegramUser?.id;
     if (!telegramId) return res.status(401).json({ message: 'No Telegram user' });
 
+    const parent = await findParentForTelegramUser(req.telegramUser);
+    if (parent) return res.json(parentAccessState(parent));
     const state = await guestAccess.getGuestState(telegramId);
     res.json(state);
   } catch (error) {

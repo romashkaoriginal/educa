@@ -13,27 +13,43 @@ const cache = new Map();
 // Ученик заблокирован, если у него есть записи доступа к предметам, но ни одна
 // сейчас не действует (истёк срок, ещё не начался или отключена). Ученика вообще
 // без записей не блокируем: у него доступ никогда не выдавался, это не «продлите».
-async function computeAccessExpired(userId, { SubjectAccess = UserSubject, now = new Date() } = {}) {
+async function computeStudentAccessState(userId, { SubjectAccess = UserSubject, now = new Date() } = {}) {
   const rows = await SubjectAccess.findAll({
     where: { userId },
     attributes: ['isActive', 'accessStartDate', 'accessEndDate'],
     raw: true
   });
-  if (!rows.length) return false;
-  return !rows.some((row) => row.isActive
+  if (!rows.length) return { expired: false, notStarted: false, startsAt: null };
+  const active = rows.some((row) => row.isActive
     && (!row.accessStartDate || new Date(row.accessStartDate) <= now)
     && (!row.accessEndDate || new Date(row.accessEndDate) > now));
+  if (active) return { expired: false, notStarted: false, startsAt: null };
+  const upcoming = rows.filter((row) => row.isActive && row.accessStartDate
+    && new Date(row.accessStartDate) > now
+    && (!row.accessEndDate || new Date(row.accessEndDate) > new Date(row.accessStartDate)))
+    .map((row) => new Date(row.accessStartDate)).sort((a, b) => a - b);
+  return { expired: !upcoming.length, notStarted: upcoming.length > 0, startsAt: upcoming[0]?.toISOString() || null };
+}
+
+async function computeAccessExpired(userId, options = {}) {
+  const state = await computeStudentAccessState(userId, options);
+  return state.expired || state.notStarted;
+}
+
+async function getStudentAccessState(userId, options = {}) {
+  const now = Date.now();
+  const cached = cache.get(userId);
+  if (cached && cached.until > now) return cached.state;
+
+  const state = await computeStudentAccessState(userId, options);
+  if (cache.size >= CACHE_MAX_SIZE) cache.clear();
+  cache.set(userId, { state, until: now + CACHE_TTL_MS });
+  return state;
 }
 
 async function isStudentAccessExpired(userId, options = {}) {
-  const now = Date.now();
-  const cached = cache.get(userId);
-  if (cached && cached.until > now) return cached.expired;
-
-  const expired = await computeAccessExpired(userId, options);
-  if (cache.size >= CACHE_MAX_SIZE) cache.clear();
-  cache.set(userId, { expired, until: now + CACHE_TTL_MS });
-  return expired;
+  const state = await getStudentAccessState(userId, options);
+  return state.expired || state.notStarted;
 }
 
 function invalidateStudentAccess(userId) {
@@ -51,6 +67,8 @@ module.exports = {
   ACCESS_EXPIRED_CODE,
   ACCESS_EXPIRED_MESSAGE,
   computeAccessExpired,
+  computeStudentAccessState,
+  getStudentAccessState,
   isStudentAccessExpired,
   invalidateStudentAccess,
   isAccessControlledStudent

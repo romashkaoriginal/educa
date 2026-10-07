@@ -52,12 +52,20 @@ async function resolveParentIdentity(input) {
 async function deactivateGuestForParent(telegramId) {
   if (!telegramId) return;
   const guest = await User.findOne({ where: { telegramId, isGuest: true } });
-  if (guest) {
+  if (guest && (guest.isActive || guest.guestStatus !== 'guest_expired')) {
     // Профиль не удаляем: на него могут ссылаться попытки практики. Но его
     // доступ и предметы должны исчезнуть сразу после назначения родителем.
     await UserSubject.destroy({ where: { userId: guest.id } });
     await guest.update({ isActive: false, guestStatus: 'guest_expired', guestExpiresAt: new Date() });
   }
+}
+
+function parentAccessState(parent) {
+  return {
+    exists: true, isGuest: false, isStudent: false, isParent: true, role: 'parent',
+    firstName: parent.firstName,
+    students: (parent.students || []).map((student) => ({ id: student.id, firstName: student.firstName, lastName: student.lastName }))
+  };
 }
 
 async function findParentForTelegramUser(telegramUser) {
@@ -107,5 +115,6 @@ module.exports = {
   normalizeTelegramUsername,
   resolveParentIdentity,
   deactivateGuestForParent,
+  parentAccessState,
   findParentForTelegramUser
 };

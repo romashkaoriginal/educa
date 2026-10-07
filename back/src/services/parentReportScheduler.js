@@ -1,4 +1,5 @@
 const { Parent, ParentReportLog, ParentReportDispatchLog, Subject, User } = require('../models');
+const { Op } = require('sequelize');
 const { sendTelegramMessage } = require('./telegramDelivery');
 const {
   buildReportMessages,
@@ -237,7 +238,7 @@ async function processParent(parent, { bot, now = new Date(), reportType = 'week
   const retryableSkippedStatus = ['skipped_no_telegram', 'skipped_no_access'].includes(log.status);
   if (!created && !force && !retryableSkippedStatus) return log;
   if (!created) {
-    await log.update({
+    const values = {
       studentId: firstStudentId,
       periodEnd: period.endDate,
       status: 'processing',
@@ -249,7 +250,15 @@ async function processParent(parent, { bot, now = new Date(), reportType = 'week
         manualTriggeredByName: manualTrigger.name,
         manualTriggerScope: manualTrigger.scope
       } : {})
-    });
+    };
+    if (!force) {
+      // Подтверждение Telegram и очередной tick могут восстановить один отчёт
+      // одновременно. Только один процесс получает право на отправку.
+      const [claimed] = await ParentReportLog.update(values, { where: { id: log.id, status: log.status } });
+      if (!claimed) return log;
+    } else {
+      await log.update(values);
+    }
   }
 
   try {
@@ -280,7 +289,7 @@ async function processParent(parent, { bot, now = new Date(), reportType = 'week
 
 async function getActiveParents(parentId = null) {
   return Parent.findAll({
-    ...(parentId ? { where: { id: parentId } } : {}),
+    where: { isActive: true, ...(parentId ? { id: parentId } : {}) },
     include: [{
       model: User,
       as: 'students',
@@ -309,64 +318,93 @@ async function sendParentReports({ bot, now = new Date(), reportType = 'weekly',
 // Вызывается в момент, когда родитель впервые подтвердил аккаунт в Telegram.
 // Берём только последний пропущенный отчёт каждого типа: отправка всех старых
 // недель разом была бы неожиданной и засорила бы чат родителя.
-async function retryMissedReportsAfterTelegramConfirmation(parentId, now = new Date()) {
-  const skipped = await ParentReportLog.findAll({
-    where: { parentId, status: 'skipped_no_telegram' },
-    attributes: ['reportType', 'periodStart'],
+function getMissedScheduledReports(logs, now = new Date()) {
+  const latest = new Map();
+  for (const log of [...logs].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))) {
+    if (log.deliveryKind !== 'scheduled') continue;
+    const key = `${log.parentId}:${log.reportType}`;
+    if (!latest.has(key)) latest.set(key, log);
+  }
+  return [...latest.values()].filter((log) => {
+    if (log.status !== 'skipped_no_telegram') return false;
+    const sentFor = new Date(log.createdAt);
+    const due = log.reportType === 'monthly' ? isMonthlyReportDue(sentFor)
+      : log.reportType === 'weekly' && isMondayReportDue(sentFor);
+    const maxAge = (log.reportType === 'monthly' ? 35 : 7) * 24 * 60 * 60 * 1000;
+    const age = now - sentFor;
+    return due && age >= 0 && age < maxAge;
+  });
+}
+
+async function retryMissedReportsAfterTelegramConfirmation(parentId, now = new Date(), { bot: providedBot } = {}) {
+  const logs = await ParentReportLog.findAll({
+    where: { parentId, deliveryKind: 'scheduled' },
+    attributes: ['parentId', 'reportType', 'deliveryKind', 'periodStart', 'status', 'createdAt'],
     order: [['createdAt', 'DESC']]
   });
-  // Ручной запуск 22.09 оставил месячные пропуски с произвольной датой
-  // начала периода. Их нельзя автоматически досылать после подтверждения.
-  const reportTypes = [...new Set(skipped
-    .filter((log) => log.reportType !== 'monthly' || String(log.periodStart).endsWith('-01'))
-    .map((log) => log.reportType))];
-  if (!reportTypes.length) return [];
+  const missed = getMissedScheduledReports(logs, now);
+  if (!missed.length) return [];
 
-  const parent = await Parent.findByPk(parentId, {
-    include: [{
-      model: User,
-      as: 'students',
-      attributes: ['id', 'firstName', 'lastName', 'isActive'],
-      through: { attributes: [] },
-      include: [{
-        model: Subject,
-        as: 'subjects',
-        attributes: ['id', 'name', 'icon'],
-        through: { attributes: ['accessStartDate', 'accessEndDate', 'isActive'] }
-      }]
-    }]
-  });
+  const [parent] = await getActiveParents(parentId);
   if (!parent?.telegramId) return [];
 
   const { getBot } = require('../bot');
-  const bot = getBot();
+  const bot = providedBot || getBot();
   if (!bot) throw new Error('Telegram bot is not running');
 
-  return Promise.all(reportTypes.map((reportType) => processParent(parent, {
+  return Promise.all(missed.map((log) => processParent(parent, {
     bot,
-    now,
-    reportType,
-    force: true,
-    // Догоняющая отправка после подключения Telegram — не плановая и не ручная.
-    deliveryKindOverride: 'catchup'
+    // Восстанавливаем исходный плановый период и его запись. Новый период
+    // при каждом входе создавал бы дубликаты и менял содержание отчёта.
+    now: new Date(log.createdAt),
+    reportType: log.reportType,
+    force: false
   })));
 }
 
-async function tick(now = new Date()) {
-  const weeklyDue = isMondayReportDue(now);
-  const monthlyDue = isMonthlyReportDue(now);
-  if (!weeklyDue && !monthlyDue) return { due: false, processed: 0 };
-  const { getBot } = require('../bot');
-  const bot = getBot();
-  if (!bot) return { due: true, processed: 0, reason: 'bot_not_running' };
+async function retryConfirmedParentReports(bot, now) {
+  const logs = await ParentReportLog.findAll({
+    where: {
+      deliveryKind: 'scheduled', status: 'skipped_no_telegram',
+      createdAt: { [Op.gte]: new Date(now.getTime() - 35 * 24 * 60 * 60 * 1000) }
+    },
+    attributes: ['parentId']
+  });
+  const ids = [...new Set(logs.map((log) => log.parentId))];
+  if (!ids.length) return;
+  const parents = await Parent.findAll({
+    where: { id: ids, isActive: true, telegramId: { [Op.ne]: null } }, attributes: ['id']
+  });
+  for (const parent of parents) {
+    await retryMissedReportsAfterTelegramConfirmation(parent.id, now, { bot });
+  }
+}
 
-  const weekly = weeklyDue
-    ? await sendParentReports({ bot, now, reportType: 'weekly', force: false })
-    : { processed: 0 };
-  const monthly = monthlyDue
-    ? await sendParentReports({ bot, now, reportType: 'monthly', force: false })
-    : { processed: 0 };
-  return { due: true, processed: weekly.processed + monthly.processed };
+let tickRunning = false;
+async function tick(now = new Date()) {
+  if (tickRunning) return { due: false, processed: 0, reason: 'already_running' };
+  tickRunning = true;
+  try {
+    const weeklyDue = isMondayReportDue(now);
+    const monthlyDue = isMonthlyReportDue(now);
+    const { getBot } = require('../bot');
+    const bot = getBot();
+    if (!bot) return { due: weeklyDue || monthlyDue, processed: 0, reason: 'bot_not_running' };
+
+    // ID могли восстановить через админку после понедельника, без нового /start.
+    await retryConfirmedParentReports(bot, now);
+    if (!weeklyDue && !monthlyDue) return { due: false, processed: 0 };
+
+    const weekly = weeklyDue
+      ? await sendParentReports({ bot, now, reportType: 'weekly', force: false })
+      : { processed: 0 };
+    const monthly = monthlyDue
+      ? await sendParentReports({ bot, now, reportType: 'monthly', force: false })
+      : { processed: 0 };
+    return { due: true, processed: weekly.processed + monthly.processed };
+  } finally {
+    tickRunning = false;
+  }
 }
 
 function startParentReportScheduler() {
@@ -394,6 +432,7 @@ module.exports = {
   processParent,
   sendParentReports,
   retryMissedReportsAfterTelegramConfirmation,
+  getMissedScheduledReports,
   tick,
   startParentReportScheduler,
   stopParentReportScheduler

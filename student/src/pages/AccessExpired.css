@@ -66,14 +66,24 @@
   transform: scale(0.99);
 }
 
+.access-expired-btn:focus-visible {
+  outline: 3px solid #235d85;
+  outline-offset: 4px;
+}
+
 .access-expired-btn--primary {
   color: #fff;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  background: linear-gradient(135deg, #5659d8, #7344d5);
 }
 
 .access-expired-btn--secondary {
   margin-top: 12px;
-  color: #6366f1;
+  color: #484bc2;
   background: transparent;
   font-size: 15px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .access-expired-btn { transition: none; }
+  .access-expired-btn:active { transform: none; }
 }

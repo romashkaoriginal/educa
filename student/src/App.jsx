@@ -6,12 +6,13 @@ import StudentApp from './pages/StudentApp';
 import GuestSubjectSelect from './pages/GuestSubjectSelect';
 import GuestExpired from './pages/GuestExpired';
 import AccessExpired from './pages/AccessExpired';
+import ParentReports from './pages/ParentReports';
 import AdminGuestPicker from './pages/AdminGuestPicker';
 
 import AdminPanel from './pages/AdminPanel';
 
 import { API_URL, SOCKET_URL } from './config';
-import { apiFetch, getTelegramInitData, ACCESS_EXPIRED_EVENT } from './pages/api';
+import { apiFetch, getTelegramInitData, ACCESS_EXPIRED_EVENT, ACCESS_NOT_STARTED_EVENT } from './pages/api';
 import { collectUtm, storeUtm } from './utils/utm';
 
 // Telegram Desktop обновляет bridge отдельно от WebView. Методы, которые есть
@@ -37,6 +38,7 @@ function App() {
   const [guestState, setGuestState] = useState(null);
   // Ученик, у которого закончился доступ ко всем предметам: всё приложение заблокировано.
   const [accessExpired, setAccessExpired] = useState(false);
+  const [accessStartsAt, setAccessStartsAt] = useState(null);
 
   const waitForTelegramUser = async (tg, attempts = 20) => {
     for (let attempt = 0; attempt < attempts; attempt += 1) {
@@ -164,8 +166,13 @@ function App() {
   // Доступ может закончиться посреди сессии: apiFetch ловит 403 ACCESS_EXPIRED.
   useEffect(() => {
     const onExpired = () => setAccessExpired(true);
+    const onNotStarted = (event) => setAccessStartsAt(event.detail?.startsAt || null);
     window.addEventListener(ACCESS_EXPIRED_EVENT, onExpired);
-    return () => window.removeEventListener(ACCESS_EXPIRED_EVENT, onExpired);
+    window.addEventListener(ACCESS_NOT_STARTED_EVENT, onNotStarted);
+    return () => {
+      window.removeEventListener(ACCESS_EXPIRED_EVENT, onExpired);
+      window.removeEventListener(ACCESS_NOT_STARTED_EVENT, onNotStarted);
+    };
   }, []);
 
   // Одно постоянное соединение показывает реальный онлайн во всех разделах,
@@ -194,6 +201,12 @@ function App() {
         const state = await res.json();
         setGuestState(state);
 
+        if (state.isParent) {
+          setAuthUser(state);
+          setUserRole('parent');
+          setLoading(false);
+          return;
+        }
         if (state.isStudent) {
           // На самом деле это ученик — обычный поток
           setUserRole('student');
@@ -233,6 +246,16 @@ function App() {
         const role = data.user?.role;
         setAuthUser(data.user || null);
 
+        if (role === 'parent') {
+          setUserRole('parent');
+          setLoading(false);
+          return;
+        }
+        if (data.user?.accessNotStarted) {
+          setAccessStartsAt(data.user.accessStartsAt);
+          setLoading(false);
+          return;
+        }
         if (data.user?.accessExpired) {
           setAccessExpired(true);
           setLoading(false);
@@ -298,6 +321,8 @@ function App() {
     );
   }
 
+  if (userRole === 'parent') return <ParentReports parent={authUser} />;
+  if (accessStartsAt) return <AccessExpired startsAt={accessStartsAt} />;
   if (accessExpired) return <AccessExpired />;
 
   // ===== Гостевой режим (ТЗ §4, §5, §19) =====

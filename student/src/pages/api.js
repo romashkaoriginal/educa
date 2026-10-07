@@ -4,6 +4,7 @@ import { inferRequest, reportClientError } from '../utils/errorReporter';
 export const getTelegramInitData = () => window.Telegram?.WebApp?.initData || '';
 
 export const ACCESS_EXPIRED_EVENT = 'educa:access-expired';
+export const ACCESS_NOT_STARTED_EVENT = 'educa:access-not-started';
 
 const getInitData = getTelegramInitData;
 const DEFAULT_TIMEOUT_MS = 12000;
@@ -74,6 +75,9 @@ export const apiFetch = async (url, options = {}) => {
       if (response.status === 403) {
         response.clone().json().then((body) => {
           if (body?.code === 'ACCESS_EXPIRED') window.dispatchEvent(new Event(ACCESS_EXPIRED_EVENT));
+          if (body?.code === 'ACCESS_NOT_STARTED') {
+            window.dispatchEvent(new CustomEvent(ACCESS_NOT_STARTED_EVENT, { detail: { startsAt: body.startsAt } }));
+          }
         }).catch(() => {});
       }
 

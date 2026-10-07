@@ -2,7 +2,7 @@ const crypto = require('crypto');
 const { User } = require('../models');
 const { SUPER_ADMIN_TELEGRAM_ID } = require('./superAdmin');
 const {
-  ACCESS_EXPIRED_CODE, ACCESS_EXPIRED_MESSAGE, isStudentAccessExpired, isAccessControlledStudent
+  ACCESS_EXPIRED_CODE, ACCESS_EXPIRED_MESSAGE, getStudentAccessState, isAccessControlledStudent
 } = require('../services/studentAccess');
 
 const STAFF_ROLES = ['superadmin', 'admin', 'manager', 'teacher'];
@@ -98,7 +98,11 @@ exports.requireUser = async (req, res, next) => {
   // показывает экран «Доступ закончился».
   if (isAccessControlledStudent(req.dbUser)) {
     try {
-      if (await isStudentAccessExpired(req.dbUser.id)) {
+      const state = await getStudentAccessState(req.dbUser.id);
+      if (state.notStarted) {
+        return res.status(403).json({ message: 'Доступ ещё не начался', code: 'ACCESS_NOT_STARTED', startsAt: state.startsAt });
+      }
+      if (state.expired) {
         return res.status(403).json({ message: ACCESS_EXPIRED_MESSAGE, code: ACCESS_EXPIRED_CODE });
       }
     } catch (error) {

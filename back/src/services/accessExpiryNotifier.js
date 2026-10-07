@@ -21,27 +21,28 @@ const PERMANENT_FAILURE_CODES = new Set(['TELEGRAM_BOT_BLOCKED', 'TELEGRAM_CHAT_
 let timer = null;
 let running = false;
 
-// Ученики, у которых нет ни одного действующего доступа к предмету (та же логика,
-// что в studentAccess.computeAccessExpired), и которым об этом ещё не писали.
+// Ученики, у которых закончились все доступы и нет будущего оплаченного периода.
+// Будущее начало закрывает вход, но не означает, что нужно продлевать доступ.
 // expiredAfter — писать только тем, у кого доступ закончился позже этой даты.
-async function listPendingExpiredStudents({ expiredAfter = null, now = new Date() } = {}) {
+async function listPendingExpiredStudents({ expiredAfter = null, now = new Date(), userId = null } = {}) {
   return sequelize.query(
     `SELECT u.id, u."telegramId", u."firstName", u."lastName", MAX(us."accessEndDate") AS "lastEnd"
        FROM users u
        JOIN user_subjects us ON us."userId" = u.id
       WHERE u.role = 'student' AND u."isGuest" = false AND u."isActive" = true
         AND u."telegramId" IS NOT NULL
+        AND (CAST(:userId AS integer) IS NULL OR u.id = :userId)
       GROUP BY u.id
      HAVING COUNT(*) FILTER (
               WHERE us."isActive" = true
-                AND (us."accessStartDate" IS NULL OR us."accessStartDate" <= :now)
                 AND (us."accessEndDate" IS NULL OR us."accessEndDate" > :now)
             ) = 0
         AND MAX(us."accessEndDate") IS NOT NULL
+        AND MAX(us."accessEndDate") <= :now
         AND (u."accessExpiredNoticeEnd" IS NULL OR u."accessExpiredNoticeEnd" < MAX(us."accessEndDate"))
         AND (CAST(:expiredAfter AS timestamptz) IS NULL OR MAX(us."accessEndDate") > CAST(:expiredAfter AS timestamptz))
       ORDER BY u.id`,
-    { replacements: { now, expiredAfter }, type: QueryTypes.SELECT }
+    { replacements: { now, expiredAfter, userId }, type: QueryTypes.SELECT }
   );
 }
 
@@ -57,6 +58,9 @@ async function sendAccessExpiredNotices({
 
   const results = [];
   for (const student of pending) {
+    // Доступ могли продлить после построения списка или между отправками.
+    const [current] = await listPendingExpiredStudents({ expiredAfter, now: new Date(), userId: student.id });
+    if (!current || String(current.telegramId) !== String(student.telegramId)) continue;
     const delivery = await sendTelegramMessage({
       bot,
       chatId: student.telegramId,
@@ -66,7 +70,7 @@ async function sendAccessExpiredNotices({
       notificationKind: 'access_expired'
     });
     if (delivery.ok || PERMANENT_FAILURE_CODES.has(delivery.code)) {
-      await User.update({ accessExpiredNoticeEnd: student.lastEnd }, { where: { id: student.id } });
+      await User.update({ accessExpiredNoticeEnd: current.lastEnd }, { where: { id: student.id } });
     }
     results.push({
       id: student.id,
@@ -77,6 +81,7 @@ async function sendAccessExpiredNotices({
     await pause(SEND_DELAY_MS);
   }
 
+  if (!results.length) return { pending, results };
   await NotificationLog.create({
     sentBy: 0,
     sentByName,
